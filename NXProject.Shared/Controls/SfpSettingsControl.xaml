@@ -1,4 +1,4 @@
-<UserControl x:Class="NXProject.Controls.SprintSettingsControl"
+<UserControl x:Class="NXProject.Controls.SfpSettingsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{StaticResource BackgroundBrush}">
@@ -14,11 +14,11 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
-                <TextBlock Text="Sprint"
+                <TextBlock Text="SPF"
                            FontSize="24"
                            FontWeight="SemiBold"
                            Foreground="{StaticResource PrimaryBrush}"/>
-                <TextBlock Text="Centralize aqui as configuracoes de sprint do projeto. Os parametros de SPF agora ficam em uma tela separada no menu Exibir."
+                <TextBlock Text="Configure em separado os parametros usados para converter faixas de Simple Function Point em duracao estimada das atividades."
                            Margin="0,8,0,0"
                            FontSize="13"
                            Foreground="{StaticResource SecondaryTextBrush}"
@@ -31,7 +31,7 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="10"
-                    MaxWidth="560"
+                    MaxWidth="620"
                     HorizontalAlignment="Left">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -49,18 +49,18 @@
 
                     <TextBlock Grid.Row="0"
                                Grid.Column="0"
-                               Text="Sprint inicial"
+                               Text="Baixa ate 3 SPF"
                                VerticalAlignment="Center"
                                FontSize="13"
                                FontWeight="SemiBold"/>
                     <TextBox Grid.Row="0"
                              Grid.Column="1"
                              Width="96"
-                             Text="{Binding FirstSprintNumber, UpdateSourceTrigger=PropertyChanged}"
+                             Text="{Binding LowDaysPerSfp, UpdateSourceTrigger=PropertyChanged}"
                              VerticalContentAlignment="Center"/>
                     <TextBlock Grid.Row="0"
                                Grid.Column="2"
-                               Text="Numero exibido na primeira faixa de sprint do Gantt."
+                               Text="Valor usado quando a atividade tem ate 3 SPF."
                                VerticalAlignment="Center"
                                Margin="12,0,0,0"
                                FontSize="12"
@@ -69,18 +69,18 @@
 
                     <TextBlock Grid.Row="2"
                                Grid.Column="0"
-                               Text="Dias por sprint"
+                               Text="Media maior que 3 e menor que 6"
                                VerticalAlignment="Center"
                                FontSize="13"
                                FontWeight="SemiBold"/>
                     <TextBox Grid.Row="2"
                              Grid.Column="1"
                              Width="96"
-                             Text="{Binding SprintDurationDays, UpdateSourceTrigger=PropertyChanged}"
+                             Text="{Binding MediumDaysPerSfp, UpdateSourceTrigger=PropertyChanged}"
                              VerticalContentAlignment="Center"/>
                     <TextBlock Grid.Row="2"
                                Grid.Column="2"
-                               Text="Quantidade de dias usada para avancar automaticamente a sprint no cronograma."
+                               Text="Valor usado quando a atividade tem mais de 3 e menos de 6 SPF."
                                VerticalAlignment="Center"
                                Margin="12,0,0,0"
                                FontSize="12"
@@ -89,18 +89,18 @@
 
                     <TextBlock Grid.Row="4"
                                Grid.Column="0"
-                               Text="Numeracao"
+                               Text="Alta maior ou igual a 6"
                                VerticalAlignment="Center"
                                FontSize="13"
                                FontWeight="SemiBold"/>
-                    <ComboBox Grid.Row="4"
-                              Grid.Column="1"
-                              Width="110"
-                              ItemsSource="{Binding SprintNumberingModes}"
-                              SelectedItem="{Binding SprintNumberingMode, Mode=TwoWay}"/>
+                    <TextBox Grid.Row="4"
+                             Grid.Column="1"
+                             Width="96"
+                             Text="{Binding HighDaysPerSfp, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalContentAlignment="Center"/>
                     <TextBlock Grid.Row="4"
                                Grid.Column="2"
-                               Text="Escolhe se o cronograma avanca as sprints de forma sequencial, apenas par ou apenas impar."
+                               Text="Valor usado quando a atividade tem 6 SPF ou mais."
                                VerticalAlignment="Center"
                                Margin="12,0,0,0"
                                FontSize="12"
@@ -109,20 +109,50 @@
                 </Grid>
             </Border>
 
-            <StackPanel Grid.Row="4"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Left">
-                <Button Content="Gravar configuracao para novos projetos"
-                        Padding="14,8"
-                        Command="{Binding SaveSprintSettingsAsDefaultCommand}"/>
-                <TextBlock Margin="12,0,0,0"
-                           VerticalAlignment="Center"
-                           Text="Mantem a configuracao atual como padrao local para os proximos projetos."
-                           FontSize="12"
-                           Foreground="{StaticResource SecondaryTextBrush}"
-                           TextWrapping="Wrap"
-                           MaxWidth="320"/>
-            </StackPanel>
+            <Border Grid.Row="4"
+                    Padding="16"
+                    Background="#F6F8FB"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    MaxWidth="620"
+                    HorizontalAlignment="Left">
+                <StackPanel>
+                    <TextBlock Text="O que e SPF?"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource PrimaryBrush}"/>
+                    <TextBlock Margin="0,8,0,0"
+                               FontSize="12"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap">
+                        <Run Text="SPF significa "/>
+                        <Run Text="Simple Function Point" FontWeight="SemiBold"/>
+                        <Run Text=". E uma forma de medir o tamanho funcional do software a partir das funcionalidades entregues ao usuario, ajudando na estimativa de esforco e duracao."/>
+                    </TextBlock>
+                    <TextBlock Margin="0,8,0,0"
+                               FontSize="12"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap">
+                        <Run Text="Faixas usadas no sistema: "/>
+                        <Run Text="Baixa ate 3 SPF" FontWeight="SemiBold"/>
+                        <Run Text=", "/>
+                        <Run Text="Media maior que 3 e menor que 6" FontWeight="SemiBold"/>
+                        <Run Text=" e "/>
+                        <Run Text="Alta maior ou igual a 6" FontWeight="SemiBold"/>
+                        <Run Text="."/>
+                    </TextBlock>
+                    <TextBlock Margin="0,8,0,0"
+                               FontSize="12"
+                               Foreground="{StaticResource PrimaryBrush}"
+                               TextWrapping="Wrap">
+                        <Hyperlink NavigateUri="https://handwiki.org/wiki/The_Simple_Function_Point_%28SFP%29_method"
+                                   RequestNavigate="OnRequestNavigate">
+                            Ver conceito de SPF na web
+                        </Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
         </Grid>
     </ScrollViewer>
 </UserControl>

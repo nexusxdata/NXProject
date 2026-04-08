@@ -30,7 +30,7 @@
                 <TextBlock Margin="0,8,0,0"
                            TextWrapping="Wrap"
                            Foreground="#444"
-                           Text="Use um token de IA para pedir ajuda na criacao de tarefas, cronograma e distribuicao de atividades. Esta tela vem configurada por padrao para OpenRouter Free. Pedidos com dados pessoais, LGPD ou fora do contexto de projeto sao bloqueados."/>
+                           Text="Use um token de IA para pedir ajuda na criacao de tarefas, cronograma e distribuicao de atividades. Esta tela vem configurada por padrao para OpenRouter Free. Se houver termos de LGPD, dados pessoais ou conteudo fora do contexto esperado, o sistema apenas avisa que a responsabilidade pelo envio e do usuario e registra a ciencia em log local."/>
                 <TextBlock Margin="0,8,0,0"
                            TextWrapping="Wrap"
                            Foreground="#555"

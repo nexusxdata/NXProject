@@ -66,10 +66,29 @@ namespace NXProject.Views
         private async void OnGenerateClick(object sender, RoutedEventArgs e)
         {
             var prompt = PromptTextBox.Text.Trim();
-            if (!AIPromptSafetyGuard.TryValidate(prompt, out var error, out var warning))
+            var validation = AIPromptSafetyGuard.Validate(prompt);
+            if (!validation.IsValid)
             {
-                MessageBox.Show(error, "Pedido bloqueado", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(validation.Error, "Pedido invalido", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
+            }
+
+            if (validation.RequiresAcknowledgement)
+            {
+                var acknowledgement = MessageBox.Show(
+                    validation.Warning + Environment.NewLine + Environment.NewLine +
+                    "Ao continuar, voce declara que esta ciente de que a responsabilidade pelas informacoes enviadas para a IA e do usuario que realizou o envio.",
+                    "Aviso de responsabilidade",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Warning);
+
+                if (acknowledgement != MessageBoxResult.OK)
+                {
+                    StatusTextBlock.Text = "Envio para a IA cancelado pelo usuario.";
+                    return;
+                }
+
+                AIAuditLogService.RegisterUserAcknowledgement(SettingsStorageKey, "lgpd", prompt);
             }
 
             var settings = BuildSettings();
@@ -77,9 +96,9 @@ namespace NXProject.Views
 
             try
             {
-                var initialStatus = string.IsNullOrWhiteSpace(warning)
+                var initialStatus = string.IsNullOrWhiteSpace(validation.Warning)
                     ? "Gerando sugestoes com IA..."
-                    : warning;
+                    : validation.Warning;
                 SetBusy(true, initialStatus, settings.TimeoutSeconds);
                 var response = await ProjectAIAssistantService.GenerateTaskSuggestionsAsync(
                     settings,

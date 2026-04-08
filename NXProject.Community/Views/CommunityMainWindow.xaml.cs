@@ -166,6 +166,28 @@ namespace NXProject.Views
             window.ShowDialog();
         }
 
+        private void OnSfpSettingsClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            var window = new Window
+            {
+                Title = "Configuracoes de SPF",
+                Owner = this,
+                Width = 820,
+                Height = 560,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = (System.Windows.Media.Brush)FindResource("BackgroundBrush"),
+                Content = new Controls.SfpSettingsControl
+                {
+                    DataContext = vm
+                }
+            };
+
+            window.ShowDialog();
+        }
+
         private void OnToolbarButtonClick(object sender, RoutedEventArgs e)
         {
             TaskGridCtrl.FocusSelectedTask();

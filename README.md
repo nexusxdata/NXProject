@@ -1,4 +1,4 @@
-# NXProject Community 1.0.1
+# NXProject Community 1.0.2
 
 Edicao comunitaria do NXProject para gerenciamento de tarefas, grafico Gantt e importacao/exportacao de projetos.
 
@@ -22,7 +22,7 @@ As imagens abaixo ficam versionadas no repositorio para visualizacao direta no G
 O pacote compilado para usuario final esta em:
 
 - `dist/community/NXProject.Community-Release.zip`
-- [Baixar NXProject Community 1.0.1 (.zip)](dist/community/NXProject.Community-Release.zip)
+- [Baixar NXProject Community 1.0.2 (.zip)](dist/community/NXProject.Community-Release.zip)
 
 O `.zip` de distribuicao foi gerado em ambiente com antivirus McAfee. Se houver qualquer duvida sobre o binario, o executavel pode ser gerado novamente a partir deste codigo-fonte seguindo as instrucoes de compilacao abaixo.
 
