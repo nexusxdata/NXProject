@@ -9,6 +9,7 @@ As imagens abaixo ficam versionadas no repositorio para visualizacao direta no G
 ![Tela principal do NXProject Community](ScreenShot/Tela01.png)
 ![Tela com hierarquia e Gantt](ScreenShot/Tela02.png)
 ![Tela de configuracao e acompanhamento](ScreenShot/Tela03.png)
+![Tela de importacao do TFS / Azure DevOps](ScreenShot/Tela04.png)
 
 ## Conteudo deste repositorio
 
