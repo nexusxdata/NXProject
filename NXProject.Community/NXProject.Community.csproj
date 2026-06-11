@@ -42,6 +42,10 @@
       <Link>Controls\SfpSettingsControl.xaml</Link>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="..\NXProject.Shared\Controls\CalendarSettingsControl.xaml">
+      <Link>Controls\CalendarSettingsControl.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="..\NXProject.Shared\Themes\DefaultTheme.xaml">
       <Link>Themes\DefaultTheme.xaml</Link>
       <Generator>MSBuild:Compile</Generator>
@@ -64,6 +68,10 @@
     <Compile Include="..\NXProject.Shared\Controls\SfpSettingsControl.xaml.cs">
       <Link>Controls\SfpSettingsControl.xaml.cs</Link>
       <DependentUpon>SfpSettingsControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="..\NXProject.Shared\Controls\CalendarSettingsControl.xaml.cs">
+      <Link>Controls\CalendarSettingsControl.xaml.cs</Link>
+      <DependentUpon>CalendarSettingsControl.xaml</DependentUpon>
     </Compile>
     <Compile Include="..\NXProject.Shared\Controls\GanttTaskElements.cs">
       <Link>Controls\GanttTaskElements.cs</Link>

@@ -23,7 +23,8 @@
               PreviewMouseLeftButtonDown="OnTaskGridPreviewMouseLeftButtonDown"
               PreviewMouseMove="OnTaskGridPreviewMouseMove"
               DragOver="OnTaskGridDragOver"
-              Drop="OnTaskGridDrop">
+              Drop="OnTaskGridDrop"
+              BeginningEdit="OnTaskGridBeginningEdit">
 
         <DataGrid.Columns>
 
@@ -303,15 +304,49 @@
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
-            <!-- Sprint -->
-            <DataGridTextColumn x:Name="SprintColumn" Header="Sprint" Binding="{Binding SprintNumber}" Width="45" IsReadOnly="True">
-                <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="TextAlignment" Value="Center"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                    </Style>
-                </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+            <!-- Sprint: mostra o NOME da sprint do DevOps; editável via dropdown -->
+            <DataGridTemplateColumn x:Name="SprintColumn" Header="Sprint" Width="90">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding SprintDisplay}"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                        <ComboBox ItemsSource="{Binding AvailableSprints, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  SelectedValuePath="Path"
+                                  SelectedValue="{Binding SprintPath, Mode=OneWay}"
+                                  IsEditable="False"
+                                  DropDownOpened="OnSprintComboDropDownOpened"
+                                  DropDownClosed="OnSprintComboDropDownClosed">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="SprintDates" Margin="6,0,0,0" Foreground="Gray">
+                                            <TextBlock.Text>
+                                                <MultiBinding StringFormat="({0:dd/MM/yy} – {1:dd/MM/yy})">
+                                                    <Binding Path="Start"/>
+                                                    <Binding Path="End"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <!-- Opção "(sem sprint)": Path nulo, sem datas -->
+                                        <DataTrigger Binding="{Binding Path}" Value="{x:Null}">
+                                            <Setter TargetName="SprintDates" Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
 
         </DataGrid.Columns>
 

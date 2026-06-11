@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NXProject.Models;
+using NXProject.Services;
 
 namespace NXProject.ViewModels
 {
@@ -53,7 +54,7 @@ Instrucao para a IA: sempre devolver durationDays e predecessorTaskName para cad
 
                 var start = (predecessorTask?.Finish ?? cursor).Date;
                 var durationDays = Math.Max(suggestion.DurationDays, 1);
-                var finish = start.AddDays(durationDays);
+                var finish = ProjectCalendarService.AddWorkingDays(start, durationDays);
 
                 var task = new ProjectTask
                 {
@@ -62,7 +63,7 @@ Instrucao para a IA: sempre devolver durationDays e predecessorTaskName para cad
                     Start = start,
                     Finish = finish,
                     Notes = string.IsNullOrWhiteSpace(suggestion.Notes) ? null : suggestion.Notes.Trim(),
-                    EstimatedHours = durationDays * 8
+                    EstimatedHours = durationDays * ProjectCalendarService.WorkingHoursPerDay
                 };
 
                 if (predecessorTask != null)
@@ -109,7 +110,8 @@ Instrucao para a IA: sempre devolver durationDays e predecessorTaskName para cad
             var resource = new Resource
             {
                 Id = nextResourceId,
-                Name = resourceName
+                Name = resourceName,
+                MaxUnitsPerDay = ProjectCalendarService.WorkingHoursPerDay
             };
 
             Project.Resources.Add(resource);

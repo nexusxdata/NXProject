@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using NXProject.Models;
 using NXProject.ViewModels;
 
 namespace NXProject.Controls
@@ -27,6 +28,24 @@ namespace NXProject.Controls
                 _lastRowLayoutSignature = null;
             }
         }
+
+        public static readonly DependencyProperty AvailableSprintsProperty =
+            DependencyProperty.Register(nameof(AvailableSprints), typeof(ObservableCollection<Sprint>),
+                typeof(TaskGridControl), new PropertyMetadata(null));
+
+        /// <summary>Sprints disponíveis para escolher na coluna Sprint (vindas do DevOps).</summary>
+        public ObservableCollection<Sprint>? AvailableSprints
+        {
+            get => (ObservableCollection<Sprint>?)GetValue(AvailableSprintsProperty);
+            set => SetValue(AvailableSprintsProperty, value);
+        }
+
+        /// <summary>Disparado quando o usuário escolhe outra sprint (ou "(sem sprint)" = null) para uma tarefa.</summary>
+        public event Action<TaskViewModel, Sprint?>? TaskSprintChangeRequested;
+
+        // Seleção da sprint no momento em que o dropdown abriu, para só aplicar a
+        // troca quando o usuário realmente mudou a escolha (evita limpar sem querer).
+        private object? _sprintEditOriginalSelection;
 
         /// <summary>Disparado quando o DataGrid rola verticalmente.</summary>
         public event Action<double>? VerticalScrollChanged;
@@ -93,20 +112,23 @@ namespace NXProject.Controls
 
         public void SetPresentationMode(bool expanded)
         {
-            IdColumn.Width = new DataGridLength(expanded ? 48 : 35);
-            DevOpsColumn.Width = new DataGridLength(expanded ? 58 : 50);
-            NameColumn.MinWidth = expanded ? 240 : 120;
+            SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            PredecessorColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+
+            IdColumn.Width = new DataGridLength(expanded ? 54 : 42);
+            DevOpsColumn.Width = new DataGridLength(expanded ? 62 : 46);
+            NameColumn.MinWidth = expanded ? 280 : 210;
             NameColumn.Width = expanded
                 ? new DataGridLength(2.2, DataGridLengthUnitType.Star)
                 : new DataGridLength(1, DataGridLengthUnitType.Star);
-            DurationColumn.Width = new DataGridLength(expanded ? 72 : 55);
-            SfpColumn.Width = new DataGridLength(expanded ? 68 : 55);
-            StartColumn.Width = new DataGridLength(expanded ? 118 : 100);
-            FinishColumn.Width = new DataGridLength(expanded ? 118 : 100);
-            PercentColumn.Width = new DataGridLength(expanded ? 84 : 70);
-            PredecessorColumn.Width = new DataGridLength(expanded ? 72 : 55);
-            ResourcesColumn.Width = new DataGridLength(expanded ? 140 : 100);
-            SprintColumn.Width = new DataGridLength(expanded ? 58 : 45);
+            DurationColumn.Width = new DataGridLength(expanded ? 70 : 52);
+            SfpColumn.Width = new DataGridLength(expanded ? 64 : 52);
+            StartColumn.Width = new DataGridLength(expanded ? 96 : 76);
+            FinishColumn.Width = new DataGridLength(expanded ? 96 : 76);
+            PercentColumn.Width = new DataGridLength(expanded ? 82 : 62);
+            PredecessorColumn.Width = new DataGridLength(expanded ? 70 : 54);
+            ResourcesColumn.Width = new DataGridLength(expanded ? 190 : 88);
+            SprintColumn.Width = new DataGridLength(expanded ? 190 : 118);
         }
 
         public void FocusSelectedTask()
@@ -252,6 +274,38 @@ namespace NXProject.Controls
 
             TaskMoveRequested?.Invoke(sourceTask, targetTask, insertAfter);
             e.Handled = true;
+        }
+
+        // Só Feature e Story têm sprint: cancela a edição da coluna Sprint para
+        // Projeto/Epic (e qualquer tipo sem suporte a sprint).
+        private void OnTaskGridBeginningEdit(object? sender, DataGridBeginningEditEventArgs e)
+        {
+            if (e.Column == SprintColumn && e.Row?.Item is TaskViewModel task && !task.SupportsSprint)
+                e.Cancel = true;
+        }
+
+        private void OnSprintComboDropDownOpened(object? sender, EventArgs e)
+        {
+            _sprintEditOriginalSelection = (sender as ComboBox)?.SelectedItem;
+        }
+
+        // Troca de sprint pela grade: ao fechar o dropdown, se a seleção mudou,
+        // notifica o ViewModel (grava o IterationPath / limpa, desliza a barra) e
+        // encerra a edição. "(sem sprint)" (Path nulo) é tratado como limpar.
+        private void OnSprintComboDropDownClosed(object? sender, EventArgs e)
+        {
+            if (sender is not ComboBox { DataContext: TaskViewModel task } combo)
+                return;
+            if (ReferenceEquals(combo.SelectedItem, _sprintEditOriginalSelection))
+                return; // usuário não mudou a escolha
+
+            var sprint = combo.SelectedItem as Sprint;
+            if (sprint != null && string.IsNullOrEmpty(sprint.Path))
+                sprint = null; // opção "(sem sprint)"
+
+            TaskSprintChangeRequested?.Invoke(task, sprint);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
         }
 
         private void OnIdCellClick(object sender, RoutedEventArgs e)

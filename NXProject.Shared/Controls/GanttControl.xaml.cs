@@ -40,6 +40,10 @@ namespace NXProject.Controls
             DependencyProperty.Register(nameof(SprintNumberingMode), typeof(string),
                 typeof(GanttControl), new PropertyMetadata("Sequencial", OnLayoutChanged));
 
+        public static readonly DependencyProperty SprintsProperty =
+            DependencyProperty.Register(nameof(Sprints), typeof(ObservableCollection<NXProject.Models.Sprint>),
+                typeof(GanttControl), new PropertyMetadata(null, OnSprintsChanged));
+
         public static readonly DependencyProperty HeaderHeightProperty =
             DependencyProperty.Register(nameof(HeaderHeight), typeof(double),
                 typeof(GanttControl), new PropertyMetadata(40.0, OnLayoutChanged));
@@ -110,6 +114,12 @@ namespace NXProject.Controls
             set => SetValue(SprintNumberingModeProperty, value);
         }
 
+        public ObservableCollection<NXProject.Models.Sprint>? Sprints
+        {
+            get => (ObservableCollection<NXProject.Models.Sprint>?)GetValue(SprintsProperty);
+            set => SetValue(SprintsProperty, value);
+        }
+
         public TaskViewModel? SelectedTask
         {
             get => (TaskViewModel?)GetValue(SelectedTaskProperty);
@@ -120,7 +130,7 @@ namespace NXProject.Controls
         {
             "Dia" => 48,
             "Semana" => 18,
-            "Mês" => 6,
+            "Mês" => 8,
             "Trimestre" => 2.4,
             _ => 18
         };
@@ -180,6 +190,19 @@ namespace NXProject.Controls
 
         private static void OnLayoutChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((GanttControl)d).ScheduleRender();
+
+        private static void OnSprintsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var ctrl = (GanttControl)d;
+            if (e.OldValue is ObservableCollection<NXProject.Models.Sprint> old)
+                old.CollectionChanged -= ctrl.OnSprintsCollectionChanged;
+            if (e.NewValue is ObservableCollection<NXProject.Models.Sprint> nw)
+                nw.CollectionChanged += ctrl.OnSprintsCollectionChanged;
+            ctrl.ScheduleRender();
+        }
+
+        private void OnSprintsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScheduleRender();
 
         private static void OnSelectedTaskChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((GanttControl)d).ScheduleRender();
@@ -374,6 +397,52 @@ namespace NXProject.Controls
                 StrokeThickness = 1
             });
 
+            // Com sprints reais do DevOps, desenha uma faixa por sprint usando a
+            // janela e o NOME real; senão, cai na grade sintética numerada.
+            var realSprints = Sprints;
+            if (realSprints != null && realSprints.Count > 0)
+            {
+                foreach (var sprint in realSprints)
+                {
+                    var dayOffset = (sprint.Start - ProjectStart).TotalDays;
+                    // Largura = janela da sprint (mínimo 1 dia), em dias corridos.
+                    var spanDays = Math.Max(1, (sprint.End - sprint.Start).TotalDays + 1);
+                    var x = LeftPadding + (dayOffset * DayWidth) - scrollOffset;
+                    var sprintWidth = spanDays * DayWidth;
+                    if (x + sprintWidth < -80 || x > ActualWidth + 80)
+                        continue;
+
+                    var background = new Rectangle
+                    {
+                        Width = sprintWidth,
+                        Height = sprintBandHeight,
+                        Fill = new SolidColorBrush(sprint.Number % 2 == 0
+                            ? Color.FromRgb(210, 221, 236)
+                            : Color.FromRgb(222, 231, 243)),
+                        Stroke = new SolidColorBrush(Color.FromRgb(180, 194, 214)),
+                        StrokeThickness = 1
+                    };
+                    Canvas.SetLeft(background, x);
+                    Canvas.SetTop(background, sprintBandTop);
+                    HeaderCanvas.Children.Add(background);
+
+                    var sprintLabel = new TextBlock
+                    {
+                        Text = sprint.Name,
+                        FontSize = 10,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                        Width = Math.Max(40, sprintWidth - 6),
+                        TextAlignment = TextAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        ToolTip = $"{sprint.Name}  ({sprint.Start:dd/MM/yy} – {sprint.End:dd/MM/yy})"
+                    };
+                    Canvas.SetLeft(sprintLabel, x + 3);
+                    Canvas.SetTop(sprintLabel, sprintBandTop + Math.Max(0, (sprintBandHeight - 14) / 2));
+                    HeaderCanvas.Children.Add(sprintLabel);
+                }
+            }
+            else
             for (int sprintOffset = 0; sprintOffset < totalDays; sprintOffset += sprintDays)
             {
                 var sprintStart = ProjectStart.AddDays(sprintOffset);

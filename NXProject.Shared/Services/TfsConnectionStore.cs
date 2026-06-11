@@ -62,7 +62,10 @@ namespace NXProject.Services
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
         {
             var file = GetSettingsFile(storageKey);
-            var options = new TfsConnectionOptions();
+            var options = new TfsConnectionOptions
+            {
+                HoursPerDay = ProjectCalendarService.WorkingHoursPerDay
+            };
             if (!File.Exists(file))
                 return options;
 

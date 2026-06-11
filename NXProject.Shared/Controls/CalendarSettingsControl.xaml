@@ -1,0 +1,92 @@
+<UserControl x:Class="NXProject.Controls.CalendarSettingsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Calendario de trabalho"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#1F4EA1"/>
+            <TextBlock Text="{Binding CalendarPath}"
+                       Margin="0,4,0,0"
+                       Foreground="#555"
+                       TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="170"/>
+                <ColumnDefinition Width="28"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="24"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Horas uteis por dia"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4"/>
+                <TextBox Text="{Binding Calendar.WorkingHoursPerDay, UpdateSourceTrigger=PropertyChanged}"
+                         Height="28"
+                         Padding="6,4"/>
+            </StackPanel>
+            <CheckBox Content="Sabado como dia util"
+                      Grid.Column="2"
+                      IsChecked="{Binding Calendar.TreatSaturdayAsWorkday}"
+                      VerticalAlignment="Bottom"
+                      Margin="0,0,0,5"/>
+            <CheckBox Content="Domingo como dia util"
+                      Grid.Column="4"
+                      IsChecked="{Binding Calendar.TreatSundayAsWorkday}"
+                      VerticalAlignment="Bottom"
+                      Margin="0,0,0,5"/>
+        </Grid>
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Calendar.Holidays}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="True"
+                  CanUserDeleteRows="True"
+                  HeadersVisibility="Column"
+                  RowHeight="26"
+                  BorderBrush="#D0D7E2"
+                  BorderThickness="1">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Data"
+                                    Binding="{Binding Date, StringFormat=dd/MM/yyyy}"
+                                    Width="130"/>
+                <DataGridTextColumn Header="Feriado"
+                                    Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button Content="Adicionar hoje"
+                        Width="120"
+                        Margin="0,0,8,0"
+                        Click="OnAddTodayClick"/>
+                <Button Content="Remover selecionado"
+                        Width="140"
+                        Click="OnRemoveSelectedClick"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Salvar"
+                        Width="110"
+                        Margin="0,0,8,0"
+                        IsDefault="True"
+                        Click="OnSaveClick"/>
+                <Button Content="Cancelar"
+                        Width="110"
+                        IsCancel="True"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</UserControl>

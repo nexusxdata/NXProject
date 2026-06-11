@@ -35,6 +35,10 @@ namespace NXProject.Models
         public double MediumDaysPerSfp { get; set; } = 1.0;
         public double HighDaysPerSfp { get; set; } = 1.0;
 
+        // Sprints reais lidas do DevOps (nome + janela), numeradas de 1 em diante.
+        // Vazio em projetos sem vinculo TFS (cai na numeracao sintetica do Gantt).
+        public ObservableCollection<Sprint> Sprints { get; set; } = new();
+
         // Tarefas raiz (hierarquia)
         public ObservableCollection<ProjectTask> Tasks { get; set; } = new();
 

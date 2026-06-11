@@ -41,6 +41,15 @@ namespace NXProject.ViewModels
         // Lista plana de tarefas para o DataGrid (com hierarquia via indentação)
         public ObservableCollection<TaskViewModel> FlatTasks { get; } = new();
 
+        // Sprints reais do DevOps (nome + janela), usadas na coluna Sprint da grade
+        // e nas faixas nomeadas do cronograma. Espelha Project.Sprints.
+        public ObservableCollection<Sprint> Sprints { get; } = new();
+
+        // Opções do dropdown de sprint da grade: "(sem sprint)" + as sprints reais.
+        // A 1a opção (Path nulo) permite deixar a tarefa sem sprint.
+        public ObservableCollection<Sprint> SprintOptions { get; } = new();
+        private static readonly Sprint NoSprintOption = new() { DisplayName = "(sem sprint)", Path = null };
+
         // IDs das tarefas que o usuário recolheu manualmente
         private readonly HashSet<int> _collapsedTaskIds = new();
 
@@ -111,12 +120,70 @@ namespace NXProject.ViewModels
         private void RecalcSprints()
         {
             var projectStart = Project.StartDate;
+            bool hasDevOpsSprints = Project.Sprints.Count > 0;
 
             foreach (var vm in FlatTasks)
             {
-                var sprintIndex = GetSprintIndex(vm.Start, projectStart);
-                vm.SprintNumber = sprintIndex < 0 ? 0 : GetSprintNumberFromIndex(sprintIndex);
+                if (!vm.SupportsSprint)
+                {
+                    vm.SprintNumber = 0; // Projeto/Epic não têm sprint
+                    continue;
+                }
+
+                if (hasDevOpsSprints)
+                {
+                    // Vínculo explícito pelo IterationPath (sem inferir por janela:
+                    // assim "(sem sprint)" permanece sem sprint).
+                    var sprint = string.IsNullOrWhiteSpace(vm.Model.TfsIterationPath)
+                        ? null
+                        : Project.Sprints.FirstOrDefault(s =>
+                            string.Equals(s.Path, vm.Model.TfsIterationPath, StringComparison.OrdinalIgnoreCase));
+                    vm.SprintNumber = sprint?.Number ?? 0;
+                }
+                else
+                {
+                    var sprintIndex = GetSprintIndex(vm.Start, projectStart);
+                    vm.SprintNumber = sprintIndex < 0 ? 0 : GetSprintNumberFromIndex(sprintIndex);
+                }
             }
+        }
+
+        /// <summary>
+        /// Aplica a troca de sprint feita na grade: grava o novo IterationPath na
+        /// tarefa, desliza a barra para a janela da nova sprint (preservando a
+        /// duração) e marca o projeto como alterado, para sincronizar de volta ao
+        /// DevOps no próximo Export → Sincronizar.
+        /// </summary>
+        public void ApplyTaskSprintChange(TaskViewModel vm, Sprint? sprint)
+        {
+            if (vm == null) return;
+            var task = vm.Model;
+
+            var newPath = sprint?.Path;
+            if (string.Equals(task.TfsIterationPath, newPath, StringComparison.Ordinal))
+                return;
+
+            task.TfsIterationPath = newPath;
+
+            if (sprint != null && !task.IsSummary)
+            {
+                task.Start = sprint.Start;
+                task.Finish = task.IsMilestone
+                    ? sprint.Start
+                    : ProjectCalendarService.AddWorkingDays(sprint.Start, Math.Max(0, vm.DurationDays));
+                RecalcSummaryChain(task.Parent);
+            }
+
+            Project.IsDirty = true;
+
+            // Reconstrói fora do commit de edição da célula para evitar reentrância.
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+            {
+                RebuildFlatTasks();
+                StatusMessage = sprint != null
+                    ? $"Sprint da tarefa alterada para \"{sprint.Name}\" (sincronize para aplicar no DevOps)."
+                    : "Sprint removida da tarefa.";
+            });
         }
 
         partial void OnSprintDurationDaysChanged(int value)
@@ -350,6 +417,36 @@ namespace NXProject.ViewModels
             RebuildFlatTasks();
         }
 
+        public Dictionary<int, int> CaptureTaskWorkingDurations()
+        {
+            return FlatTasks
+                .Where(t => !t.IsSummary)
+                .ToDictionary(t => t.Id, t => Math.Max(0, t.DurationDays));
+        }
+
+        public void RecalculateScheduleFromCalendar(Dictionary<int, int> durationByTaskId)
+        {
+            if (durationByTaskId.Count == 0)
+                return;
+
+            foreach (var task in AllTasks().Where(t => !t.IsSummary))
+            {
+                if (!durationByTaskId.TryGetValue(task.Id, out var duration))
+                    continue;
+
+                task.Finish = task.IsMilestone
+                    ? task.Start
+                    : ProjectCalendarService.AddWorkingDays(task.Start, duration);
+            }
+
+            foreach (var root in Project.Tasks)
+                root.RecalcSummary();
+
+            Project.IsDirty = true;
+            RebuildFlatTasks();
+            StatusMessage = "Calendario aplicado ao cronograma.";
+        }
+
         [RelayCommand]
         private void ImportMspdi()
         {
@@ -580,7 +677,7 @@ namespace NXProject.ViewModels
                 Id = _nextId++,
                 Name = "Nova Tarefa",
                 Start = start,
-                Finish = start.AddDays(1)
+                Finish = ProjectCalendarService.AddWorkingDays(start, 1)
             };
 
             if (previousTask != null)
@@ -606,7 +703,7 @@ namespace NXProject.ViewModels
                 Id = _nextId++,
                 Name = "Nova Subtarefa",
                 Start = parent.Start,
-                Finish = parent.Start.AddDays(3),
+                Finish = ProjectCalendarService.AddWorkingDays(parent.Start, 3),
                 Level = parent.Level + 1,
                 Parent = parent
             };
@@ -918,6 +1015,19 @@ namespace NXProject.ViewModels
             foreach (var child in task.Children)
                 foreach (var ft in FlattenTask(child))
                     yield return ft;
+        }
+
+        partial void OnProjectChanged(Project value)
+        {
+            Sprints.Clear();
+            SprintOptions.Clear();
+            SprintOptions.Add(NoSprintOption);
+            if (value?.Sprints != null)
+                foreach (var s in value.Sprints)
+                {
+                    Sprints.Add(s);
+                    SprintOptions.Add(s);
+                }
         }
 
         private void ApplyProjectSprintSettingsToViewModel(Project project)

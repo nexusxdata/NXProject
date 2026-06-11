@@ -55,7 +55,7 @@ namespace NXProject.Views
                 return;
             }
 
-            double hoursPerDay = 8.0;
+            double hoursPerDay = ProjectCalendarService.WorkingHoursPerDay;
             if (!string.IsNullOrWhiteSpace(HoursPerDayBox.Text) &&
                 double.TryParse(HoursPerDayBox.Text.Trim(), NumberStyles.Any, CultureInfo.CurrentCulture, out var hpd) &&
                 hpd > 0)

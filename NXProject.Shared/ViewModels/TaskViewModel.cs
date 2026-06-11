@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NXProject.Models;
+using NXProject.Services;
 
 namespace NXProject.ViewModels
 {
@@ -71,6 +72,8 @@ namespace NXProject.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DevOpsTag));
                 OnPropertyChanged(nameof(DevOpsTooltip));
+                OnPropertyChanged(nameof(SupportsSprint));
+                OnPropertyChanged(nameof(SprintDisplay));
             }
         }
 
@@ -183,7 +186,7 @@ namespace NXProject.ViewModels
             {
                 var durationDays = DurationDays;
                 _task.Start = value;
-                _task.Finish = value.AddDays(durationDays);
+                _task.Finish = ProjectCalendarService.AddWorkingDays(value, durationDays);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Finish));
                 OnPropertyChanged(nameof(DurationDays));
@@ -197,7 +200,7 @@ namespace NXProject.ViewModels
             get => _task.Finish;
             set
             {
-                var minimumFinish = _task.Start.AddDays(DurationDays);
+                var minimumFinish = ProjectCalendarService.AddWorkingDays(_task.Start, DurationDays);
                 if (value < minimumFinish)
                 {
                     MessageBox.Show(
@@ -218,7 +221,7 @@ namespace NXProject.ViewModels
 
         public int DurationDays
         {
-            get => (int)(_task.Finish - _task.Start).TotalDays;
+            get => ProjectCalendarService.CountWorkingDays(_task.Start, _task.Finish);
             set
             {
                 if (UsesSfpEstimate)
@@ -226,7 +229,7 @@ namespace NXProject.ViewModels
 
                 if (value >= 0)
                 {
-                    _task.Finish = _task.Start.AddDays(value);
+                    _task.Finish = ProjectCalendarService.AddWorkingDays(_task.Start, value);
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
@@ -282,7 +285,60 @@ namespace NXProject.ViewModels
         public int SprintNumber
         {
             get => _task.SprintNumber;
-            set { _task.SprintNumber = value; OnPropertyChanged(); }
+            set
+            {
+                _task.SprintNumber = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SprintDisplay));
+            }
+        }
+
+        // Caminho da sprint no DevOps (System.IterationPath). Editável pela grade:
+        // ao escolher outra sprint, o caminho muda e é sincronizado de volta.
+        public string? SprintPath
+        {
+            get => _task.TfsIterationPath;
+            set
+            {
+                if (string.Equals(_task.TfsIterationPath, value, StringComparison.Ordinal)) return;
+                _task.TfsIterationPath = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SprintDisplay));
+            }
+        }
+
+        // Só Feature e Story têm sprint. Projeto/Epic (e, no DevOps, qualquer outro
+        // tipo) não. Tarefas sem vínculo DevOps (TfsType vazio) usam a numeração
+        // sintética do cronograma e, por isso, suportam sprint.
+        public bool SupportsSprint
+        {
+            get
+            {
+                var t = _task.TfsType?.Trim();
+                if (string.IsNullOrEmpty(t)) return true;
+                return string.Equals(t, "Feature", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(t, "Story", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(t, "User Story", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // Texto exibido na coluna Sprint: nome da sprint do DevOps (folha do
+        // IterationPath) quando vinculada; senão o número sintético do cronograma.
+        // Em branco para Projeto/Epic (não têm sprint).
+        public string SprintDisplay
+        {
+            get
+            {
+                if (!SupportsSprint) return string.Empty;
+
+                var path = _task.TfsIterationPath;
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    var idx = path.LastIndexOf('\\');
+                    return idx >= 0 ? path[(idx + 1)..] : path;
+                }
+                return _task.SprintNumber > 0 ? _task.SprintNumber.ToString() : string.Empty;
+            }
         }
 
         public string PredecessorsText
@@ -351,7 +407,7 @@ namespace NXProject.ViewModels
                     ? _mediumDaysPerSfp
                     : _highDaysPerSfp;
             var calculatedDuration = Math.Max(1, (int)Math.Ceiling(sfpPoints * daysPerSfp));
-            _task.Finish = _task.Start.AddDays(calculatedDuration);
+            _task.Finish = ProjectCalendarService.AddWorkingDays(_task.Start, calculatedDuration);
             RecalcAncestorSummaries();
         }
     }

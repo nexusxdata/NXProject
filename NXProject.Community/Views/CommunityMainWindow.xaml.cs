@@ -28,6 +28,7 @@ namespace NXProject.Views
         public CommunityMainWindow()
         {
             InitializeComponent();
+            ProjectCalendarService.Load("NXProject.Community");
             StatusLogoImage.Source = ProtectedLogoProvider.GetLogoImage();
             var vm = new MainViewModel("NXProject.Community");
             DataContext = vm;
@@ -58,6 +59,12 @@ namespace NXProject.Views
             };
 
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
+
+            TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
+            {
+                vm.ApplyTaskSprintChange(task, sprint);
+                GanttCtrl.ForceRender();
+            };
 
             vm.PropertyChanged += (_, args) =>
             {
@@ -262,6 +269,48 @@ namespace NXProject.Views
             window.ShowDialog();
         }
 
+        private void OnCalendarSettingsClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            var durations = vm.CaptureTaskWorkingDurations();
+            var control = new Controls.CalendarSettingsControl("NXProject.Community");
+            var window = new Window
+            {
+                Title = "Calendario de trabalho",
+                Owner = this,
+                Width = 720,
+                Height = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = (System.Windows.Media.Brush)FindResource("BackgroundBrush"),
+                Content = control
+            };
+
+            control.Saved += (_, _) =>
+            {
+                vm.RecalculateScheduleFromCalendar(durations);
+                GanttCtrl.ForceRender();
+                window.DialogResult = true;
+                window.Close();
+            };
+
+            window.ShowDialog();
+        }
+
+        private void OnResourceAllocationClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            var window = new ResourceAllocationWindow(vm)
+            {
+                Owner = this
+            };
+            window.ShowDialog();
+            GanttCtrl.ForceRender();
+        }
+
         private void OnToolbarButtonClick(object sender, RoutedEventArgs e)
         {
             TaskGridCtrl.FocusSelectedTask();
@@ -416,8 +465,8 @@ namespace NXProject.Views
             _expandedLayout = expanded;
 
             TaskPaneColumn.Width = expanded
-                ? new GridLength(620)
-                : new GridLength(420);
+                ? new GridLength(920)
+                : new GridLength(660);
             GanttPaneColumn.Width = expanded
                 ? new GridLength(1, GridUnitType.Star)
                 : new GridLength(1, GridUnitType.Star);

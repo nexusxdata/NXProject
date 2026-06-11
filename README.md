@@ -81,6 +81,70 @@ Se preferir executar diretamente em modo de desenvolvimento, use:
 .\release-community.ps1 -Configuration Release
 ```
 
+## Importacao do Azure DevOps / TFS
+
+No aplicativo, use:
+
+```text
+Arquivo > Importar > TFS / Azure DevOps...
+```
+
+A importacao monta a hierarquia:
+
+```text
+Project -> Epic -> Feature -> Story
+```
+
+Itens do tipo `Task` nao viram linhas do cronograma; eles sao usados apenas como informacao auxiliar, por exemplo para indicar bloqueio quando houver tag `Block`.
+
+### Pre-requisitos no Azure DevOps
+
+O work item raiz informado no NXProject deve ser do tipo `Project` e deve ter filhos hierarquicos (`Child`) abaixo dele.
+
+Para calcular o cronograma das Stories, o NXProject procura estes campos:
+
+- `HH Estimado`: horas estimadas da Story. O valor e convertido para dias uteis usando as horas uteis por dia configuradas no calendario do NXProject.
+- `Data_Inicio`: data de inicio da Story. Se preenchida, a barra comeca nessa data.
+- `Data_Fim`: data de fim da Story. Se preenchida, essa data e usada diretamente como termino.
+
+Se `Data_Inicio` estiver vazia, a Story e posicionada a partir do inicio da sprint dela. Se `Data_Fim` estiver vazia, o termino e calculado por dias uteis. Se a Story tiver `System.AssignedTo`, o responsavel e importado como recurso.
+
+Esses nomes podem ser alterados na area **Campos (avancado)** da janela de importacao, caso seu processo use nomes diferentes.
+
+### Personal Access Token
+
+Para gerar o token no Azure DevOps:
+
+1. Acesse sua organizacao no Azure DevOps.
+2. Clique no icone de usuario, no canto superior direito.
+3. Abra **Personal access tokens**.
+4. Clique em **New Token**.
+5. Informe um nome, por exemplo `NXProject Import`.
+6. Escolha a organizacao correta.
+7. Defina uma expiracao adequada para sua politica de seguranca.
+8. Em **Scopes**, selecione **Custom defined**.
+9. Marque **Work Items** com permissao **Read**.
+10. Clique em **Create**.
+11. Copie o token gerado e cole no campo `Personal Access Token` do NXProject.
+
+O token aparece somente uma vez no Azure DevOps. Se marcar **Lembrar o token neste computador**, o NXProject salva o token localmente cifrado no usuario do Windows.
+
+### Calendario de trabalho
+
+O calculo de prazo usa o calendario configurado em:
+
+```text
+Exibir > Calendario...
+```
+
+Esse calendario fica salvo em:
+
+```text
+%LocalAppData%\NXProject.Community\nxproject_calender.json
+```
+
+Nele e possivel configurar feriados, considerar sabado/domingo como dias uteis e alterar as horas uteis por dia. O padrao e `8` horas por dia.
+
 ## Observacao sobre build local
 
 O aviso `NU1900` do NuGet era um caso conhecido neste ambiente quando a checagem online de vulnerabilidades nao conseguia acessar `https://api.nuget.org/v3/index.json`.

@@ -61,10 +61,15 @@ namespace NXProject.Services
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
 
-            // Datas das sprints (iterations) -> usadas como ancora da 1a Story
-            // sem data de cada pessoa.
-            var sprintStarts = await LoadIterationStartsAsync(
+            // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
+            // (ancora das Stories sem data); as numeradas/exibidas serao so as
+            // efetivamente usadas pelos work items (definidas apos baixar os itens).
+            var allSprints = await LoadIterationsAsync(
                 orgBase, options.TeamProject, authHeader, cancellationToken);
+            var sprintStarts = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in allSprints)
+                if (!string.IsNullOrEmpty(s.Path))
+                    sprintStarts[s.Path!] = s.Start;
 
             // 2) Query recursiva de links hierarquicos a partir da raiz.
             var edges = await LoadHierarchyEdgesAsync(orgBase, options.TeamProject, authHeader, options.RootWorkItemId, cancellationToken);
@@ -105,16 +110,32 @@ namespace NXProject.Services
             }
 
             // 5) Monta o projeto NXProject.
-            var rootHours = ReadDouble(rootItem, hoursRef);
             var rootStart = ReadDate(rootItem, startRef);
+
+            // Lê as sprints (iterations) do DevOps para ancorar a numeração: a 1a
+            // sprint usada pelo projeto vira "Sprint 1" e as seguintes contam em
+            // sequência (2, 3, ...). Para isso, alinhamos a grade do cronograma —
+            // início do projeto na 1a sprint e duração = cadência real das sprints.
+            var (sprintAnchor, sprintDuration) = ComputeSprintAnchor(items.Values, sprintStarts);
 
             var project = new Project
             {
                 Name = rootItem.Title,
                 Description = $"Importado do TFS — {options.TeamProject} (#{options.RootWorkItemId})",
-                StartDate = rootStart ?? DateTime.Today,
+                StartDate = sprintAnchor ?? rootStart ?? DateTime.Today,
+                FirstSprintNumber = 1,
+                SprintNumberingMode = "Sequencial",
                 FilePath = null
             };
+            if (sprintDuration.HasValue)
+                project.SprintDurationDays = sprintDuration.Value;
+            var resourcesByKey = new Dictionary<string, Resource>(StringComparer.OrdinalIgnoreCase);
+            AddResourceIfAssigned(project, resourcesByKey, rootItem, options.HoursPerDay);
+
+            // Sprints exibidas/numeradas: so as efetivamente usadas pelos work items,
+            // em ordem cronologica, numeradas de 1 em diante (a 1a vira "Sprint 1").
+            foreach (var s in SelectUsedSprints(items.Values, allSprints))
+                project.Sprints.Add(s);
 
             var context = new BuildContext
             {
@@ -123,10 +144,12 @@ namespace NXProject.Services
                 HoursRef = hoursRef,
                 StartRef = startRef,
                 FinishRef = finishRef,
-                HoursPerDay = options.HoursPerDay <= 0 ? 8.0 : options.HoursPerDay,
+                HoursPerDay = options.HoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : options.HoursPerDay,
                 ProjectStart = project.StartDate,
                 SprintStartByPath = sprintStarts,
-                ParentByChild = parentByChild
+                ParentByChild = parentByChild,
+                Project = project,
+                ResourcesByKey = resourcesByKey
             };
 
             // Os Epics (filhos diretos da raiz) viram tarefas de nivel 0.
@@ -172,6 +195,8 @@ namespace NXProject.Services
             public int Skipped;
             public int NotFound;
             public List<string> Messages = new();
+            // Features/Stories que ficaram sem sprint (IterationPath vazio).
+            public List<string> WithoutSprint = new();
 
             public override string ToString()
             {
@@ -182,6 +207,13 @@ namespace NXProject.Services
                 sb.AppendLine($"Sem alteracao: {Skipped}");
                 if (NotFound > 0) sb.AppendLine($"Nao encontrados no DevOps: {NotFound}");
                 foreach (var m in Messages) sb.AppendLine(m);
+                if (WithoutSprint.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"Atividades sem sprint ({WithoutSprint.Count}):");
+                    foreach (var name in WithoutSprint)
+                        sb.AppendLine($"  • {name}");
+                }
                 return sb.ToString().TrimEnd();
             }
         }
@@ -310,6 +342,13 @@ namespace NXProject.Services
                             ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
                     }
 
+                    // Sprint (System.IterationPath): sincroniza se a sprint escolhida
+                    // no NXProject difere da que esta no DevOps.
+                    if (!string.IsNullOrWhiteSpace(task.TfsIterationPath) &&
+                        !string.Equals(task.TfsIterationPath.Trim(), (wi.IterationPath ?? string.Empty).Trim(),
+                            StringComparison.OrdinalIgnoreCase))
+                        ops.Add(PatchAdd("/fields/System.IterationPath", task.TfsIterationPath.Trim()));
+
                     var effectiveState = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
                     if (finishRef != null && IsClosedState(effectiveState))
                     {
@@ -357,8 +396,18 @@ namespace NXProject.Services
                 }
             }
 
+            // Aviso final: Features/Stories que ficaram sem sprint associada.
+            foreach (var task in tasks)
+                if (IsFeatureOrStory(task) && string.IsNullOrWhiteSpace(task.TfsIterationPath))
+                    report.WithoutSprint.Add(task.Name);
+
             return report;
         }
+
+        private static bool IsFeatureOrStory(ProjectTask task) =>
+            string.Equals(task.TfsType, "Feature", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(task.TfsType, "Story", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(task.TfsType, "User Story", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Recalcula o StackRank desejado para refletir a ordem do NXProject, por
@@ -557,6 +606,8 @@ namespace NXProject.Services
 
             // Pai (DevOps id) de cada work item, para gravar TfsParentId.
             public Dictionary<int, int> ParentByChild = new();
+            public Project Project = null!;
+            public Dictionary<string, Resource> ResourcesByKey = new(StringComparer.OrdinalIgnoreCase);
 
             public int? GetParent(int devOpsId) =>
                 ParentByChild.TryGetValue(devOpsId, out var p) ? p : null;
@@ -610,8 +661,10 @@ namespace NXProject.Services
                 Description = item.Description,
                 Tags = item.Tags,
                 BlockedByChild = summaryBlocked,
-                TfsStackRank = item.StackRank
+                TfsStackRank = item.StackRank,
+                TfsIterationPath = item.IterationPath
             };
+            AssignResource(ctx, task, item);
 
             foreach (var childId in OrderedChildren(ctx.ChildrenByParent, id, ctx.Items))
             {
@@ -683,7 +736,7 @@ namespace NXProject.Services
             // proximas se sobreporiam).
             ctx.CursorByLane[laneKey] = finish > baseStart ? finish : baseStart;
 
-            return new ProjectTask
+            var task = new ProjectTask
             {
                 Id = item.Id,
                 Name = item.Title,
@@ -702,9 +755,54 @@ namespace NXProject.Services
                 Tags = item.Tags,
                 BlockedByChild = blockedByChild,
                 TfsStackRank = item.StackRank,
+                TfsIterationPath = item.IterationPath,
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
             };
+            AssignResource(ctx, task, item, hours);
+            return task;
+        }
+
+        private static void AssignResource(BuildContext ctx, ProjectTask task, WorkItem item, double? estimatedHours = null)
+        {
+            var resource = AddResourceIfAssigned(ctx.Project, ctx.ResourcesByKey, item, ctx.HoursPerDay);
+            if (resource == null)
+                return;
+
+            task.Resources.Add(new TaskResource
+            {
+                ResourceId = resource.Id,
+                Resource = resource,
+                AllocationPercent = 100,
+                EstimatedHours = estimatedHours
+            });
+        }
+
+        private static Resource? AddResourceIfAssigned(
+            Project project,
+            Dictionary<string, Resource> resourcesByKey,
+            WorkItem item,
+            double hoursPerDay)
+        {
+            var key = !string.IsNullOrWhiteSpace(item.AssigneeEmail)
+                ? item.AssigneeEmail.Trim()
+                : item.Assignee.Trim();
+            if (string.IsNullOrWhiteSpace(key))
+                return null;
+
+            if (resourcesByKey.TryGetValue(key, out var existing))
+                return existing;
+
+            var resource = new Resource
+            {
+                Id = project.Resources.Select(r => r.Id).DefaultIfEmpty(0).Max() + 1,
+                Name = string.IsNullOrWhiteSpace(item.AssigneeName) ? key : item.AssigneeName.Trim(),
+                Email = string.IsNullOrWhiteSpace(item.AssigneeEmail) ? null : item.AssigneeEmail.Trim(),
+                MaxUnitsPerDay = hoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : hoursPerDay
+            };
+            project.Resources.Add(resource);
+            resourcesByKey[key] = resource;
+            return resource;
         }
 
         private static IEnumerable<int> OrderedChildren(
@@ -759,25 +857,27 @@ namespace NXProject.Services
         }
 
         /// <summary>
-        /// Carrega a arvore de iterations (sprints) e devolve um mapa
-        /// IterationPath ("Projeto\\Pasta\\Sprint") -> data de inicio (startDate).
+        /// Carrega a arvore de iterations (sprints) do team project. Cada sprint com
+        /// startDate vira um <see cref="Sprint"/> com nome (folha), caminho completo
+        /// (System.IterationPath, ex.: "Projeto\\Pasta\\Sprint"), inicio e fim. A
+        /// numeracao sequencial (1..N) e atribuida depois, na ordem cronologica.
         /// </summary>
-        private static async Task<Dictionary<string, DateTime>> LoadIterationStartsAsync(
+        private static async Task<List<Sprint>> LoadIterationsAsync(
             string orgBase, string project, AuthenticationHeaderValue auth, CancellationToken ct)
         {
-            var map = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            var list = new List<Sprint>();
             var url = $"{orgBase}/{Uri.EscapeDataString(project)}/_apis/wit/classificationnodes/iterations?$depth=10&{ApiVersion}";
 
             JsonDocument doc;
             try { doc = await GetJsonAsync(url, auth, ct); }
-            catch { return map; } // sem datas de sprint, cai no inicio do projeto
+            catch { return list; } // sem datas de sprint, cai no inicio do projeto
 
             using (doc)
-                Walk(doc.RootElement, null, map);
+                Walk(doc.RootElement, null, list);
 
-            return map;
+            return list;
 
-            static void Walk(JsonElement node, string? prefix, Dictionary<string, DateTime> acc)
+            static void Walk(JsonElement node, string? prefix, List<Sprint> acc)
             {
                 var name = node.TryGetProperty("name", out var n) ? n.GetString() : null;
                 if (string.IsNullOrEmpty(name)) return;
@@ -791,7 +891,22 @@ namespace NXProject.Services
                     DateTime.TryParse(sd.GetString(), CultureInfo.InvariantCulture,
                         DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var start))
                 {
-                    acc[path] = start.Date;
+                    DateTime end = start.Date;
+                    if (attrs.TryGetProperty("finishDate", out var fd) &&
+                        fd.ValueKind == JsonValueKind.String &&
+                        DateTime.TryParse(fd.GetString(), CultureInfo.InvariantCulture,
+                            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var finish))
+                    {
+                        end = finish.Date;
+                    }
+
+                    acc.Add(new Sprint
+                    {
+                        DisplayName = name,
+                        Path = path,
+                        Start = start.Date,
+                        End = end
+                    });
                 }
 
                 if (node.TryGetProperty("children", out var children) &&
@@ -801,6 +916,99 @@ namespace NXProject.Services
                         Walk(child, path, acc);
                 }
             }
+        }
+
+        /// <summary>
+        /// Filtra as iterations para as efetivamente referenciadas pelos work items
+        /// e as numera de 1 em diante (ordem cronologica). Assim "quantas sprints o
+        /// projeto tem" reflete so as usadas, comecando da 1.
+        /// </summary>
+        private static List<Sprint> SelectUsedSprints(
+            IEnumerable<WorkItem> items, List<Sprint> allSprints)
+        {
+            // Só Feature/Story têm sprint — Project/Epic não contam para a lista.
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var it in items)
+                if (IsFeatureOrStoryType(it.WorkItemType) && !string.IsNullOrWhiteSpace(it.IterationPath))
+                    used.Add(it.IterationPath.Trim());
+
+            return NumberSprints(allSprints.Where(s => s.Path != null && used.Contains(s.Path!)));
+        }
+
+        private static bool IsFeatureOrStoryType(string? type) =>
+            string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Ordena as sprints por inicio, atribui numeros sequenciais (1..N) e,
+        /// quando uma sprint nao traz finishDate, fecha a janela no inicio da
+        /// proxima (sprints contiguas). Devolve a lista numerada.
+        /// </summary>
+        private static List<Sprint> NumberSprints(IEnumerable<Sprint> sprints)
+        {
+            var ordered = sprints
+                .GroupBy(s => s.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(s => s.Start)
+                .ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                ordered[i].Number = i + 1;
+                // Sem fim explicito (ou fim antes do inicio): usa o inicio da proxima.
+                if (ordered[i].End <= ordered[i].Start && i + 1 < ordered.Count)
+                    ordered[i].End = ordered[i + 1].Start;
+            }
+
+            return ordered;
+        }
+
+        /// <summary>
+        /// A partir dos work items importados e do mapa de datas das sprints,
+        /// calcula como ancorar a numeração sequencial das sprints (começando da 1):
+        ///  - <c>anchor</c>: data de início da PRIMEIRA sprint efetivamente usada
+        ///    pelos work items (a que vira "Sprint 1"); null se nenhum item tem sprint.
+        ///  - <c>durationDays</c>: cadência real das sprints (dias corridos) — a
+        ///    diferença mais frequente entre inícios de sprints consecutivas, usando
+        ///    TODAS as iterations (não só as usadas) para não inflar com sprints
+        ///    puladas; null se não há dados suficientes (mantém o padrão do projeto).
+        /// </summary>
+        private static (DateTime? anchor, int? durationDays) ComputeSprintAnchor(
+            IEnumerable<WorkItem> items, Dictionary<string, DateTime> sprintStarts)
+        {
+            // Início da 1a sprint usada por uma Feature/Story (Project/Epic não contam).
+            DateTime? anchor = null;
+            foreach (var it in items)
+            {
+                if (!IsFeatureOrStoryType(it.WorkItemType)) continue;
+                if (string.IsNullOrWhiteSpace(it.IterationPath)) continue;
+                if (!sprintStarts.TryGetValue(it.IterationPath.Trim(), out var s)) continue;
+                if (anchor == null || s.Date < anchor.Value)
+                    anchor = s.Date;
+            }
+
+            // Cadência: diferença mais comum (em dias corridos) entre inícios de
+            // sprints consecutivas, considerando todas as iterations conhecidas.
+            int? duration = null;
+            var allStarts = sprintStarts.Values
+                .Select(d => d.Date).Distinct().OrderBy(d => d).ToList();
+            if (allStarts.Count >= 2)
+            {
+                var gapCounts = new Dictionary<int, int>();
+                for (int i = 1; i < allStarts.Count; i++)
+                {
+                    int gap = (int)Math.Round((allStarts[i] - allStarts[i - 1]).TotalDays);
+                    if (gap > 0)
+                        gapCounts[gap] = gapCounts.TryGetValue(gap, out var c) ? c + 1 : 1;
+                }
+                if (gapCounts.Count > 0)
+                    duration = gapCounts
+                        .OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key)
+                        .First().Key;
+            }
+
+            return (anchor, duration);
         }
 
         private static async Task<List<(int parent, int child)>> LoadHierarchyEdgesAsync(
@@ -870,7 +1078,9 @@ namespace NXProject.Services
                         Title = GetString(f, "System.Title") ?? $"#{id}",
                         WorkItemType = GetString(f, "System.WorkItemType") ?? string.Empty,
                         State = GetString(f, "System.State") ?? string.Empty,
-                        Assignee = GetIdentity(f, "System.AssignedTo"),
+                        Assignee = GetIdentityName(f, "System.AssignedTo"),
+                        AssigneeName = GetIdentityDisplayName(f, "System.AssignedTo"),
+                        AssigneeEmail = GetIdentityUniqueName(f, "System.AssignedTo"),
                         IterationPath = GetString(f, "System.IterationPath") ?? string.Empty,
                         Description = GetString(f, "System.Description") ?? string.Empty,
                         Tags = GetString(f, "System.Tags") ?? string.Empty,
@@ -970,6 +1180,8 @@ namespace NXProject.Services
             public string WorkItemType = string.Empty;
             public string State = string.Empty;
             public string Assignee = string.Empty;
+            public string AssigneeName = string.Empty;
+            public string AssigneeEmail = string.Empty;
             public string IterationPath = string.Empty;
             public string Description = string.Empty;
             public string Tags = string.Empty;
@@ -1065,16 +1277,29 @@ namespace NXProject.Services
             };
         }
 
-        /// <summary>Le um campo de identidade (ex.: System.AssignedTo) — objeto com
-        /// uniqueName/displayName. Usa uniqueName como chave estavel de pessoa.</summary>
-        private static string GetIdentity(JsonElement fields, string refName)
+        private static string GetIdentityName(JsonElement fields, string refName)
+        {
+            var displayName = GetIdentityDisplayName(fields, refName);
+            return string.IsNullOrWhiteSpace(displayName)
+                ? GetIdentityUniqueName(fields, refName)
+                : displayName;
+        }
+
+        private static string GetIdentityDisplayName(JsonElement fields, string refName)
+        {
+            if (!fields.TryGetProperty(refName, out var el) || el.ValueKind != JsonValueKind.Object)
+                return string.Empty;
+            if (el.TryGetProperty("displayName", out var d) && d.ValueKind == JsonValueKind.String)
+                return d.GetString() ?? string.Empty;
+            return string.Empty;
+        }
+
+        private static string GetIdentityUniqueName(JsonElement fields, string refName)
         {
             if (!fields.TryGetProperty(refName, out var el) || el.ValueKind != JsonValueKind.Object)
                 return string.Empty;
             if (el.TryGetProperty("uniqueName", out var u) && u.ValueKind == JsonValueKind.String)
                 return u.GetString() ?? string.Empty;
-            if (el.TryGetProperty("displayName", out var d) && d.ValueKind == JsonValueKind.String)
-                return d.GetString() ?? string.Empty;
             return string.Empty;
         }
 
@@ -1087,18 +1312,7 @@ namespace NXProject.Services
 
         /// <summary>Avanca <paramref name="days"/> dias uteis (seg-sex) a partir de <paramref name="start"/>.</summary>
         private static DateTime AddWorkingDays(DateTime start, int days)
-        {
-            if (days <= 0) return start;
-            var d = start;
-            int added = 0;
-            while (added < days)
-            {
-                d = d.AddDays(1);
-                if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday)
-                    added++;
-            }
-            return d;
-        }
+            => ProjectCalendarService.AddWorkingDays(start, days);
 
         // Normaliza apenas com trim + minusculas, preservando espacos e underscores
         // para nao colapsar campos distintos (ex.: "Data_Inicio" vs "Data Inicio").

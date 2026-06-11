@@ -45,6 +45,9 @@ namespace NXProject.Models
         // Ordem no backlog do DevOps (Microsoft.VSTS.Common.StackRank): menor = mais
         // acima. Importado, usado para ordenar irmãos e sincronizado se a ordem mudar.
         public double? TfsStackRank { get; set; }
+        // Caminho da sprint no DevOps (System.IterationPath), ex.: "Proj\\Sprint 5".
+        // Lido no import; se alterado no NXProject, sincronizado de volta.
+        public string? TfsIterationPath { get; set; }
 
         // Recursos alocados nesta tarefa
         public List<TaskResource> Resources { get; set; } = new();

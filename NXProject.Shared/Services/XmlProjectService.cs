@@ -31,6 +31,7 @@ namespace NXProject.Services
                     new XElement(NS + "MediumDaysPerSfp", project.MediumDaysPerSfp),
                     new XElement(NS + "HighDaysPerSfp", project.HighDaysPerSfp),
                     SaveSprintSettingsMetadata(sprintProfile),
+                    SaveSprints(project.Sprints),
                     SaveResources(project.Resources),
                     SaveTasks(project.Tasks)
                 )
@@ -50,6 +51,22 @@ namespace NXProject.Services
                     new XElement(EXT + "HighDaysPerSfp", profile.HighDaysPerSfp)
                 )
             );
+        }
+
+        private static XElement SaveSprints(ObservableCollection<Sprint> sprints)
+        {
+            var el = new XElement(EXT + "Sprints");
+            foreach (var s in sprints)
+            {
+                el.Add(new XElement(EXT + "Sprint",
+                    new XElement(EXT + "Number", s.Number),
+                    new XElement(EXT + "DisplayName", s.DisplayName ?? ""),
+                    new XElement(EXT + "Path", s.Path ?? ""),
+                    new XElement(EXT + "Start", s.Start.ToString("yyyy-MM-ddTHH:mm:ss")),
+                    new XElement(EXT + "End", s.End.ToString("yyyy-MM-ddTHH:mm:ss"))
+                ));
+            }
+            return el;
         }
 
         private static XElement SaveResources(ObservableCollection<Resource> resources)
@@ -100,6 +117,7 @@ namespace NXProject.Services
                 new XElement(EXT + "TfsTags", task.Tags ?? ""),
                 new XElement(EXT + "BlockedByChild", task.BlockedByChild),
                 new XElement(EXT + "TfsStackRank", task.TfsStackRank?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? ""),
+                new XElement(EXT + "TfsIterationPath", task.TfsIterationPath ?? ""),
                 new XElement(EXT + "Description", task.Description ?? "")
             );
 
@@ -152,6 +170,18 @@ namespace NXProject.Services
             var extendedSprintSettings = LoadSprintSettingsMetadata(root);
             if (extendedSprintSettings != null)
                 project.ApplySprintSettingsProfile(extendedSprintSettings);
+
+            var sprintsEl = root.Element(EXT + "Sprints");
+            if (sprintsEl != null)
+                foreach (var s in sprintsEl.Elements(EXT + "Sprint"))
+                    project.Sprints.Add(new Sprint
+                    {
+                        Number = int.TryParse(s.Element(EXT + "Number")?.Value, out var num) ? num : 0,
+                        DisplayName = string.IsNullOrWhiteSpace(s.Element(EXT + "DisplayName")?.Value) ? null : s.Element(EXT + "DisplayName")?.Value,
+                        Path = string.IsNullOrWhiteSpace(s.Element(EXT + "Path")?.Value) ? null : s.Element(EXT + "Path")?.Value,
+                        Start = ParseDate(s.Element(EXT + "Start")?.Value) ?? DateTime.Today,
+                        End = ParseDate(s.Element(EXT + "End")?.Value) ?? DateTime.Today
+                    });
 
             var resEl = root.Element(NS + "Resources");
             if (resEl != null)
@@ -218,6 +248,7 @@ namespace NXProject.Services
                 Tags = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsTags")?.Value) ? null : el.Element(EXT + "TfsTags")?.Value,
                 BlockedByChild = bool.TryParse(el.Element(EXT + "BlockedByChild")?.Value, out var bbc) && bbc,
                 TfsStackRank = double.TryParse(el.Element(EXT + "TfsStackRank")?.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tsr) ? tsr : null,
+                TfsIterationPath = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsIterationPath")?.Value) ? null : el.Element(EXT + "TfsIterationPath")?.Value,
                 Description = string.IsNullOrWhiteSpace(el.Element(EXT + "Description")?.Value) ? null : el.Element(EXT + "Description")?.Value,
                 Parent = parent
             };
