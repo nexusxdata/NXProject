@@ -456,6 +456,9 @@ namespace NXProject.ViewModels
             get => string.Join(",", _task.PredecessorIds);
             set
             {
+                if (!CanEditPredecessors)
+                    return;
+
                 _task.PredecessorIds.Clear();
                 foreach (var part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
                     if (int.TryParse(part.Trim(), out int id))
@@ -463,6 +466,8 @@ namespace NXProject.ViewModels
                 OnPropertyChanged();
             }
         }
+
+        public bool CanEditPredecessors => _task.Children.Count == 0;
 
         public string ResourcesText
         {

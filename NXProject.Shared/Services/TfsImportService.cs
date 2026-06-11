@@ -92,7 +92,8 @@ namespace NXProject.Services
             if (startRef != null) requestedFields.Add(startRef);
             if (finishRef != null) requestedFields.Add(finishRef);
 
-            var items = await LoadWorkItemsAsync(orgBase, authHeader, allIds, requestedFields, cancellationToken);
+            var items = await LoadWorkItemsAsync(
+                orgBase, authHeader, allIds, requestedFields, cancellationToken, expandRelations: true);
 
             if (!items.TryGetValue(options.RootWorkItemId, out var rootItem))
                 throw new InvalidOperationException(
@@ -175,6 +176,7 @@ namespace NXProject.Services
             }
 
             NormalizeIds(project.Tasks);
+            ApplyTfsPredecessors(project.Tasks, items);
             foreach (var t in project.Tasks)
                 t.RecalcSummary();
 
@@ -251,6 +253,9 @@ namespace NXProject.Services
             // Top-down: pais antes dos filhos (garante criar o pai antes de criar/reparentar o filho).
             var tasks = new List<ProjectTask>();
             CollectLinkedTasks(project.Tasks, tasks);
+            var tasksById = tasks
+                .GroupBy(t => t.Id)
+                .ToDictionary(g => g.Key, g => g.First());
 
             var report = new SyncReport();
             if (tasks.Count == 0)
@@ -291,7 +296,7 @@ namespace NXProject.Services
                             continue;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, task.TfsType!, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -366,10 +371,46 @@ namespace NXProject.Services
                     // Parent: reparenta SÓ se o pai mudou em relação ao que está no DevOps.
                     var (currentParent, relIndex) = FindParentRelation(wi);
                     bool reparent = desiredParent > 0 && desiredParent != currentParent;
+                    var relationRemovals = new List<int>();
+                    if (reparent && relIndex >= 0)
+                        relationRemovals.Add(relIndex);
+
+                    if (ShouldSyncPredecessors(task))
+                    {
+                        if (!TryGetDesiredPredecessorTfsIds(task, tasksById, out var desiredPredecessors, out var invalidPredecessors))
+                        {
+                            report.Messages.Add(
+                                $"#{task.TfsId} ({task.Name}): predecessora(s) invalida(s) no cronograma ({string.Join(", ", invalidPredecessors)}). Ajuste antes de sincronizar os links.");
+                        }
+                        else
+                        {
+                            var currentPredecessorRelations = FindPredecessorRelations(wi);
+                            var currentPredecessors = currentPredecessorRelations
+                                .Select(p => p.id)
+                                .ToHashSet();
+
+                            if (!currentPredecessors.SetEquals(desiredPredecessors))
+                            {
+                                foreach (var predecessor in currentPredecessorRelations)
+                                {
+                                    if (!desiredPredecessors.Contains(predecessor.id))
+                                        relationRemovals.Add(predecessor.index);
+                                }
+
+                                foreach (var predecessorId in desiredPredecessors)
+                                {
+                                    if (!currentPredecessors.Contains(predecessorId))
+                                        ops.Add(AddPredecessorRelation(orgBase, predecessorId));
+                                }
+                            }
+                        }
+                    }
+
+                    foreach (var index in relationRemovals.Distinct().OrderByDescending(i => i))
+                        ops.Add(new { op = "remove", path = $"/relations/{index}" });
+
                     if (reparent)
                     {
-                        if (relIndex >= 0)
-                            ops.Add(new { op = "remove", path = $"/relations/{relIndex}" });
                         ops.Add(new
                         {
                             op = "add",
@@ -479,9 +520,100 @@ namespace NXProject.Services
             }
         }
 
+        private static void ApplyTfsPredecessors(
+            System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks,
+            Dictionary<int, WorkItem> items)
+        {
+            var flatTasks = new List<ProjectTask>();
+            CollectAllTasks(tasks, flatTasks);
+            var taskByTfsId = flatTasks
+                .Where(t => t.TfsId.HasValue && t.TfsId.Value > 0)
+                .GroupBy(t => t.TfsId!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var task in flatTasks.Where(ShouldSyncPredecessors))
+            {
+                if (!task.TfsId.HasValue || !items.TryGetValue(task.TfsId.Value, out var item))
+                    continue;
+
+                task.PredecessorIds.Clear();
+                foreach (var predecessorId in FindPredecessorRelations(item).Select(p => p.id).Distinct())
+                {
+                    if (taskByTfsId.TryGetValue(predecessorId, out var predecessor) &&
+                        ShouldSyncPredecessors(predecessor))
+                    {
+                        task.PredecessorIds.Add(predecessor.Id);
+                    }
+                }
+            }
+        }
+
+        private static void CollectAllTasks(
+            System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks, List<ProjectTask> acc)
+        {
+            foreach (var task in tasks)
+            {
+                acc.Add(task);
+                CollectAllTasks(task.Children, acc);
+            }
+        }
+
+        private static bool ShouldSyncPredecessors(ProjectTask task) =>
+            task.Children.Count == 0 && IsStoryTask(task);
+
+        private static bool IsStoryTask(ProjectTask task) =>
+            string.Equals(task.TfsType, "Story", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(task.TfsType, "User Story", StringComparison.OrdinalIgnoreCase);
+
+        private static HashSet<int> GetDesiredPredecessorTfsIds(
+            ProjectTask task,
+            Dictionary<int, ProjectTask> tasksById)
+        {
+            TryGetDesiredPredecessorTfsIds(task, tasksById, out var desired, out _);
+            return desired;
+        }
+
+        private static bool TryGetDesiredPredecessorTfsIds(
+            ProjectTask task,
+            Dictionary<int, ProjectTask> tasksById,
+            out HashSet<int> desired,
+            out List<int> invalidPredecessors)
+        {
+            desired = new HashSet<int>();
+            invalidPredecessors = new List<int>();
+            foreach (var predecessorInternalId in task.PredecessorIds)
+            {
+                if (!tasksById.TryGetValue(predecessorInternalId, out var predecessor) ||
+                    !ShouldSyncPredecessors(predecessor) ||
+                    !predecessor.TfsId.HasValue ||
+                    predecessor.TfsId.Value <= 0)
+                {
+                    invalidPredecessors.Add(predecessorInternalId);
+                    continue;
+                }
+
+                desired.Add(predecessor.TfsId.Value);
+            }
+
+            return invalidPredecessors.Count == 0;
+        }
+
+        private static object AddPredecessorRelation(string orgBase, int predecessorId) =>
+            new
+            {
+                op = "add",
+                path = "/relations/-",
+                value = new
+                {
+                    rel = "System.LinkTypes.Dependency-Reverse",
+                    url = $"{orgBase}/_apis/wit/workItems/{predecessorId}"
+                }
+            };
+
         private static List<object> BuildCreateOps(
             ProjectTask task, int parentId, string orgBase,
-            string? hoursRef, string? startRef, string? finishRef)
+            string? hoursRef, string? startRef, string? finishRef,
+            Dictionary<int, ProjectTask> tasksById)
         {
             var ops = new List<object>
             {
@@ -519,6 +651,12 @@ namespace NXProject.Services
                     url = $"{orgBase}/_apis/wit/workItems/{parentId}"
                 }
             });
+
+            if (ShouldSyncPredecessors(task))
+            {
+                foreach (var predecessorId in GetDesiredPredecessorTfsIds(task, tasksById))
+                    ops.Add(AddPredecessorRelation(orgBase, predecessorId));
+            }
 
             return ops;
         }
@@ -1134,6 +1272,29 @@ namespace NXProject.Services
                 index++;
             }
             return (null, -1);
+        }
+
+        private static List<(int id, int index)> FindPredecessorRelations(WorkItem wi)
+        {
+            var result = new List<(int id, int index)>();
+            if (wi.Relations is not { ValueKind: JsonValueKind.Array } rels)
+                return result;
+
+            int index = 0;
+            foreach (var rel in rels.EnumerateArray())
+            {
+                var relType = rel.TryGetProperty("rel", out var rt) ? rt.GetString() : null;
+                if (string.Equals(relType, "System.LinkTypes.Dependency-Reverse", StringComparison.OrdinalIgnoreCase))
+                {
+                    var url = rel.TryGetProperty("url", out var u) ? u.GetString() : null;
+                    var predecessorId = ParseIdFromUrl(url);
+                    if (predecessorId.HasValue)
+                        result.Add((predecessorId.Value, index));
+                }
+                index++;
+            }
+
+            return result;
         }
 
         private static int? ParseIdFromUrl(string? url)

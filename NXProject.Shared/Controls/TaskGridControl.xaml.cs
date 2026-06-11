@@ -296,6 +296,9 @@ namespace NXProject.Controls
 
             if (e.Column == PercentColumn && e.Row?.Item is TaskViewModel percentTask && !percentTask.CanEditPercentComplete)
                 e.Cancel = true;
+
+            if (e.Column == PredecessorColumn && e.Row?.Item is TaskViewModel predecessorTask && !predecessorTask.CanEditPredecessors)
+                e.Cancel = true;
         }
 
         private void OnSprintComboDropDownOpened(object? sender, EventArgs e)
