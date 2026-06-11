@@ -17,6 +17,10 @@ namespace NXProject.Models
         public string? Email { get; set; }
         public string? Notes { get; set; }
 
+        public bool IsImportedFromTfs { get; set; }
+
+        public string DisplayName => IsImportedFromTfs ? Name : $"*{Name}";
+
         public override string ToString() => Name;
     }
 
@@ -39,6 +43,6 @@ namespace NXProject.Models
         public double? EstimatedHours { get; set; }
 
         public override string ToString() =>
-            $"{Resource?.Name} ({AllocationPercent}%)";
+            $"{Resource?.DisplayName ?? Resource?.Name} ({AllocationPercent}%)";
     }
 }

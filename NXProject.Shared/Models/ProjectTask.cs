@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using NXProject.Services;
 
 namespace NXProject.Models
 {
@@ -14,6 +15,7 @@ namespace NXProject.Models
         public DateTime Start { get; set; } = DateTime.Today;
         public DateTime Finish { get; set; } = DateTime.Today.AddDays(1);
         public TimeSpan Duration => Finish - Start;
+        public double DurationHours => ProjectCalendarService.CountWorkingHours(Start, Finish);
 
         public double PercentComplete { get; set; } = 0;
 
@@ -80,6 +82,27 @@ namespace NXProject.Models
 
             Start = minStart;
             Finish = maxFinish;
+            RecalcPercentComplete();
+        }
+
+        private void RecalcPercentComplete()
+        {
+            if (!IsSummary || Children.Count == 0)
+                return;
+
+            double totalWeight = 0.0;
+            double weightedPercent = 0.0;
+
+            foreach (var child in Children)
+            {
+                var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
+                weightedPercent += child.PercentComplete * weight;
+                totalWeight += weight;
+            }
+
+            PercentComplete = totalWeight > 0
+                ? weightedPercent / totalWeight
+                : Children.Average(c => c.PercentComplete);
         }
 
         public override string ToString() => $"{Id} - {Name}";

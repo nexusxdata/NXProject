@@ -88,9 +88,15 @@ namespace NXProject.ViewModels
 
         private bool _rebuildPending = false;
 
-        private void AddFlatRecursive(ProjectTask task, int depth)
+        private void AddFlatRecursive(ProjectTask task, int depth, TaskViewModel? parentVm = null)
         {
-            var vm = new TaskViewModel(task, depth, LowDaysPerSfp, MediumDaysPerSfp, HighDaysPerSfp);
+            var vm = new TaskViewModel(task, depth, LowDaysPerSfp, MediumDaysPerSfp, HighDaysPerSfp)
+            {
+                ParentViewModel = parentVm
+            };
+            if (parentVm != null)
+                parentVm.ChildrenViewModels.Add(vm);
+
             vm.IsSelected = SelectedTask?.Model == task;
             vm.IsExpanded = !_collapsedTaskIds.Contains(task.Id);
 
@@ -114,7 +120,7 @@ namespace NXProject.ViewModels
             FlatTasks.Add(vm);
             if (vm.IsExpanded)
                 foreach (var child in task.Children)
-                    AddFlatRecursive(child, depth + 1);
+                    AddFlatRecursive(child, depth + 1, vm);
         }
 
         private void RecalcSprints()
@@ -170,7 +176,7 @@ namespace NXProject.ViewModels
                 task.Start = sprint.Start;
                 task.Finish = task.IsMilestone
                     ? sprint.Start
-                    : ProjectCalendarService.AddWorkingDays(sprint.Start, Math.Max(0, vm.DurationDays));
+                    : ProjectCalendarService.AddWorkingHours(sprint.Start, Math.Max(0.0, vm.DurationHours));
                 RecalcSummaryChain(task.Parent);
             }
 
@@ -402,12 +408,70 @@ namespace NXProject.ViewModels
         {
             if (project == null) return;
 
+            var existingAllocations = CaptureAllocationPercentByDevOpsTask();
+
             Project = project;
+            RestoreAllocationPercentByDevOpsTask(Project.Tasks, existingAllocations);
             ApplyProjectSprintSettingsToViewModel(project);
             _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
             RebuildFlatTasks();
             Project.IsDirty = true;
             StatusMessage = statusMessage ?? "Projeto importado.";
+        }
+
+        private Dictionary<(int taskId, string resourceKey), double> CaptureAllocationPercentByDevOpsTask()
+        {
+            var result = new Dictionary<(int, string), double>();
+            foreach (var task in AllTasks())
+            {
+                if (!task.TfsId.HasValue || task.TfsId.Value <= 0)
+                    continue;
+
+                foreach (var assignment in task.Resources)
+                {
+                    var key = GetResourceKey(assignment.Resource);
+                    if (!string.IsNullOrWhiteSpace(key))
+                        result[(task.TfsId.Value, key)] = assignment.AllocationPercent;
+                }
+            }
+
+            return result;
+        }
+
+        private static void RestoreAllocationPercentByDevOpsTask(
+            IEnumerable<ProjectTask> tasks,
+            Dictionary<(int taskId, string resourceKey), double> existingAllocations)
+        {
+            foreach (var task in tasks)
+            {
+                if (task.TfsId.HasValue && task.TfsId.Value > 0)
+                {
+                    foreach (var assignment in task.Resources)
+                    {
+                        var key = GetResourceKey(assignment.Resource);
+                        if (!string.IsNullOrWhiteSpace(key) &&
+                            existingAllocations.TryGetValue((task.TfsId.Value, key), out var allocationPercent))
+                        {
+                            assignment.AllocationPercent = allocationPercent;
+                        }
+                    }
+
+                    TaskScheduleService.RecalculateFinishFromAssignments(task);
+                }
+
+                RestoreAllocationPercentByDevOpsTask(task.Children, existingAllocations);
+                task.RecalcSummary();
+            }
+        }
+
+        private static string GetResourceKey(Resource? resource)
+        {
+            if (resource == null)
+                return string.Empty;
+
+            return !string.IsNullOrWhiteSpace(resource.Email)
+                ? resource.Email.Trim().ToLowerInvariant()
+                : resource.Name.Trim().ToLowerInvariant();
         }
 
         /// <summary>Reconstrói a lista plana (ex.: após sincronizar com o TFS, quando
@@ -417,14 +481,14 @@ namespace NXProject.ViewModels
             RebuildFlatTasks();
         }
 
-        public Dictionary<int, int> CaptureTaskWorkingDurations()
+        public Dictionary<int, double> CaptureTaskWorkingDurations()
         {
             return FlatTasks
                 .Where(t => !t.IsSummary)
-                .ToDictionary(t => t.Id, t => Math.Max(0, t.DurationDays));
+                .ToDictionary(t => t.Id, t => Math.Max(0.0, t.DurationHours));
         }
 
-        public void RecalculateScheduleFromCalendar(Dictionary<int, int> durationByTaskId)
+        public void RecalculateScheduleFromCalendar(Dictionary<int, double> durationByTaskId)
         {
             if (durationByTaskId.Count == 0)
                 return;
@@ -436,7 +500,7 @@ namespace NXProject.ViewModels
 
                 task.Finish = task.IsMilestone
                     ? task.Start
-                    : ProjectCalendarService.AddWorkingDays(task.Start, duration);
+                    : ProjectCalendarService.AddWorkingHours(task.Start, duration);
             }
 
             foreach (var root in Project.Tasks)
@@ -677,7 +741,7 @@ namespace NXProject.ViewModels
                 Id = _nextId++,
                 Name = "Nova Tarefa",
                 Start = start,
-                Finish = ProjectCalendarService.AddWorkingDays(start, 1)
+                Finish = ProjectCalendarService.AddWorkingHours(start, ProjectCalendarService.WorkingHoursPerDay)
             };
 
             if (previousTask != null)
@@ -703,7 +767,7 @@ namespace NXProject.ViewModels
                 Id = _nextId++,
                 Name = "Nova Subtarefa",
                 Start = parent.Start,
-                Finish = ProjectCalendarService.AddWorkingDays(parent.Start, 3),
+                Finish = ProjectCalendarService.AddWorkingHours(parent.Start, ProjectCalendarService.WorkingHoursPerDay * 3.0),
                 Level = parent.Level + 1,
                 Parent = parent
             };

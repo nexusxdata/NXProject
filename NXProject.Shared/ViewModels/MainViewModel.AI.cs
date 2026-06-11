@@ -20,7 +20,7 @@ Data de inicio: {Project.StartDate:yyyy-MM-dd}
 Duracao do sprint: {Project.SprintDurationDays} dias
 Recursos atuais: {(resources.Count == 0 ? "Nenhum recurso cadastrado" : string.Join(", ", resources))}
 Tarefas atuais: {(existingTasks.Count == 0 ? "Nenhuma tarefa cadastrada" : string.Join(", ", existingTasks))}
-Instrucao para a IA: sempre devolver durationDays e predecessorTaskName para cada atividade.
+Instrucao para a IA: sempre devolver durationHours e predecessorTaskName para cada atividade.
 """;
         }
 
@@ -52,9 +52,13 @@ Instrucao para a IA: sempre devolver durationDays e predecessorTaskName para cad
                 if (predecessorTask == null && previousCreatedTask != null)
                     predecessorTask = previousCreatedTask;
 
-                var start = (predecessorTask?.Finish ?? cursor).Date;
-                var durationDays = Math.Max(suggestion.DurationDays, 1);
-                var finish = ProjectCalendarService.AddWorkingDays(start, durationDays);
+                var start = predecessorTask?.Finish ?? cursor;
+                var durationHours = suggestion.HasDurationHours
+                    ? suggestion.DurationHours
+                    : ProjectCalendarService.WorkingHoursPerDay;
+                var finish = suggestion.HasDurationHours
+                    ? (suggestion.DurationHours == 0.0 ? start : ProjectCalendarService.AddWorkingHours(start, durationHours))
+                    : ProjectCalendarService.AddWorkingHours(start, durationHours);
 
                 var task = new ProjectTask
                 {
@@ -63,7 +67,7 @@ Instrucao para a IA: sempre devolver durationDays e predecessorTaskName para cad
                     Start = start,
                     Finish = finish,
                     Notes = string.IsNullOrWhiteSpace(suggestion.Notes) ? null : suggestion.Notes.Trim(),
-                    EstimatedHours = durationDays * ProjectCalendarService.WorkingHoursPerDay
+                    EstimatedHours = suggestion.HasDurationHours ? suggestion.DurationHours : ProjectCalendarService.WorkingHoursPerDay
                 };
 
                 if (predecessorTask != null)

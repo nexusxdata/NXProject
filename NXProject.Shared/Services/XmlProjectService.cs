@@ -81,7 +81,8 @@ namespace NXProject.Services
                     new XElement(NS + "MaxUnitsPerDay", r.MaxUnitsPerDay),
                     new XElement(NS + "CostPerHour", r.CostPerHour),
                     new XElement(NS + "Email", r.Email ?? ""),
-                    new XElement(NS + "Notes", r.Notes ?? "")
+                    new XElement(NS + "Notes", r.Notes ?? ""),
+                    new XElement(EXT + "IsImportedFromTfs", r.IsImportedFromTfs)
                 ));
             }
             return el;
@@ -193,7 +194,21 @@ namespace NXProject.Services
                 foreach (var t in tasksEl.Elements(NS + "Task"))
                     project.Tasks.Add(LoadTask(t, null));
 
+            ResolveResourceReferences(project.Tasks, project.Resources);
             return project;
+        }
+
+        private static void ResolveResourceReferences(
+            ObservableCollection<ProjectTask> tasks,
+            ObservableCollection<Resource> resources)
+        {
+            foreach (var task in tasks)
+            {
+                foreach (var assignment in task.Resources)
+                    assignment.Resource = resources.FirstOrDefault(r => r.Id == assignment.ResourceId);
+
+                ResolveResourceReferences(task.Children, resources);
+            }
         }
 
         private static SprintSettingsProfile? LoadSprintSettingsMetadata(XElement root)
@@ -222,7 +237,8 @@ namespace NXProject.Services
             MaxUnitsPerDay = double.TryParse(el.Element(NS + "MaxUnitsPerDay")?.Value, out var mu) ? mu : 8,
             CostPerHour = decimal.TryParse(el.Element(NS + "CostPerHour")?.Value, out var cp) ? cp : 0,
             Email = el.Element(NS + "Email")?.Value,
-            Notes = el.Element(NS + "Notes")?.Value
+            Notes = el.Element(NS + "Notes")?.Value,
+            IsImportedFromTfs = bool.TryParse(el.Element(EXT + "IsImportedFromTfs")?.Value, out var importedFromTfs) && importedFromTfs
         };
 
         private static ProjectTask LoadTask(XElement el, ProjectTask? parent)

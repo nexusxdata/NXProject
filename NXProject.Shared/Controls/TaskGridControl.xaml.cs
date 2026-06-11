@@ -40,6 +40,17 @@ namespace NXProject.Controls
             set => SetValue(AvailableSprintsProperty, value);
         }
 
+        public static readonly DependencyProperty AvailableResourcesProperty =
+            DependencyProperty.Register(nameof(AvailableResources), typeof(ObservableCollection<Resource>),
+                typeof(TaskGridControl), new PropertyMetadata(null));
+
+        /// <summary>Recursos disponíveis para atribuição nas tarefas.</summary>
+        public ObservableCollection<Resource>? AvailableResources
+        {
+            get => (ObservableCollection<Resource>?)GetValue(AvailableResourcesProperty);
+            set => SetValue(AvailableResourcesProperty, value);
+        }
+
         /// <summary>Disparado quando o usuário escolhe outra sprint (ou "(sem sprint)" = null) para uma tarefa.</summary>
         public event Action<TaskViewModel, Sprint?>? TaskSprintChangeRequested;
 
@@ -282,6 +293,9 @@ namespace NXProject.Controls
         {
             if (e.Column == SprintColumn && e.Row?.Item is TaskViewModel task && !task.SupportsSprint)
                 e.Cancel = true;
+
+            if (e.Column == PercentColumn && e.Row?.Item is TaskViewModel percentTask && !percentTask.CanEditPercentComplete)
+                e.Cancel = true;
         }
 
         private void OnSprintComboDropDownOpened(object? sender, EventArgs e)
@@ -307,6 +321,53 @@ namespace NXProject.Controls
             TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
         }
+
+        private void OnResourceComboDropDownClosed(object? sender, EventArgs e)
+        {
+            if (sender is not ComboBox { DataContext: TaskViewModel task } combo)
+                return;
+
+            var selected = combo.SelectedItem as Resource;
+            var typed = NormalizeManualResourceName(combo.Text);
+
+            if (selected == null)
+            {
+                if (string.IsNullOrEmpty(typed))
+                    return;
+
+                var existing = AvailableResources?.FirstOrDefault(r => string.Equals(r.Name, typed, StringComparison.OrdinalIgnoreCase));
+                Resource res;
+                if (existing == null)
+                {
+                    var nextId = (AvailableResources?.Select(r => r.Id).DefaultIfEmpty(0).Max() ?? 0) + 1;
+                    res = new Resource { Id = nextId, Name = typed, IsImportedFromTfs = false };
+                    AvailableResources?.Add(res);
+                }
+                else
+                {
+                    res = existing;
+                }
+
+                task.PrimaryResource = res;
+            }
+            else
+            {
+                task.PrimaryResource = selected;
+            }
+
+            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void OnResourceComboKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            if (sender is not ComboBox { DataContext: TaskViewModel task } combo) return;
+            OnResourceComboDropDownClosed(sender, EventArgs.Empty);
+        }
+
+        private static string NormalizeManualResourceName(string? name) =>
+            (name ?? string.Empty).Trim().TrimStart('*').Trim();
 
         private void OnIdCellClick(object sender, RoutedEventArgs e)
         {

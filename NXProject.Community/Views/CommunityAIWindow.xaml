@@ -101,7 +101,7 @@
                                       BorderThickness="1">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Tarefa" Binding="{Binding Name}" Width="*"/>
-                                    <DataGridTextColumn Header="Dias" Binding="{Binding DurationDays}" Width="90"/>
+                                    <DataGridTextColumn Header="Horas" Binding="{Binding DurationHours, StringFormat={}{0:0}}" Width="90"/>
                                     <DataGridTextColumn Header="Predecessora" Binding="{Binding PredecessorTaskName}" Width="170"/>
                                     <DataGridTextColumn Header="Responsavel" Binding="{Binding Assignee}" Width="170"/>
                                     <DataGridTextColumn Header="Observacoes" Binding="{Binding Notes}" Width="200"/>

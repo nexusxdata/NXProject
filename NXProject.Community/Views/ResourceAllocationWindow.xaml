@@ -24,10 +24,21 @@
                            Margin="0,3,0,0"
                            Foreground="#555"/>
             </StackPanel>
-            <Button Content="Atualizar"
-                    Width="92"
-                    HorizontalAlignment="Right"
-                    Click="OnRefreshClick"/>
+            <StackPanel DockPanel.Dock="Right"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="Incluir"
+                        Width="82"
+                        Margin="0,0,8,0"
+                        Click="OnAddResourceClick"/>
+                <Button Content="Excluir"
+                        Width="82"
+                        Margin="0,0,8,0"
+                        Click="OnDeleteResourceClick"/>
+                <Button Content="Atualizar"
+                        Width="92"
+                        Click="OnRefreshClick"/>
+            </StackPanel>
         </DockPanel>
 
         <Border Grid.Row="1"
@@ -72,12 +83,19 @@
                     <DataGridTextColumn Header="Horas"
                                         Binding="{Binding Hours, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"
                                         Width="80"/>
+                    <DataGridTextColumn Header="% Aloc."
+                                        Binding="{Binding AllocationPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"
+                                        Width="80"/>
                     <DataGridTemplateColumn Header="Recurso" Width="190">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <ComboBox ItemsSource="{Binding DataContext.AvailableResources, RelativeSource={RelativeSource AncestorType=Window}}"
                                           SelectedItem="{Binding Resource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          DisplayMemberPath="Name"
+                                          DisplayMemberPath="DisplayName"
+                                          IsEditable="True"
+                                          IsTextSearchEnabled="False"
+                                          DropDownClosed="OnDetailsResourceComboDropDownClosed"
+                                          KeyDown="OnDetailsResourceComboKeyDown"
                                           BorderThickness="0"
                                           Padding="4,2"/>
                             </DataTemplate>

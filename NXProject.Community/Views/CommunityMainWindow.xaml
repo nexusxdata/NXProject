@@ -159,7 +159,8 @@
                                       Grid.Column="0"
                                       DataContext="{Binding}"
                                       Tasks="{Binding FlatTasks}"
-                                      AvailableSprints="{Binding SprintOptions}"/>
+                                      AvailableSprints="{Binding SprintOptions}"
+                                      AvailableResources="{Binding Project.Resources}"/>
 
             <GridSplitter Grid.Column="1" Width="5"
                           HorizontalAlignment="Stretch"

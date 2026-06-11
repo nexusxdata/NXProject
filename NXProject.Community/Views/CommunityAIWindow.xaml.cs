@@ -247,7 +247,7 @@ namespace NXProject.Views
                 var predecessor = string.IsNullOrWhiteSpace(task.PredecessorTaskName)
                     ? (string.IsNullOrWhiteSpace(previousTaskName) ? "nenhuma" : $"{previousTaskName} (automatica)")
                     : task.PredecessorTaskName.Trim();
-                lines.Add($"- {task.Name} | duracao: {Math.Max(task.DurationDays, 1)} dia(s) | predecessora: {predecessor}");
+                lines.Add($"- {task.Name} | duracao: {Math.Max(task.DurationHours, 1.0):0} h | predecessora: {predecessor}");
                 previousTaskName = task.Name;
             }
 

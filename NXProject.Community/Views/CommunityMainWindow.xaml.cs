@@ -185,6 +185,12 @@ namespace NXProject.Views
             if (confirm != MessageBoxResult.OK)
                 return;
 
+            if (!ConfirmKnownTfsResources(vm))
+                return;
+
+            if (!ConfirmCompletedTfsState(vm))
+                return;
+
             System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
             try
             {
@@ -205,6 +211,96 @@ namespace NXProject.Views
             {
                 System.Windows.Input.Mouse.OverrideCursor = null;
             }
+        }
+
+        private static bool ConfirmKnownTfsResources(MainViewModel vm)
+        {
+            var manualResources = vm.FlatTasks
+                .Where(t => t.Model.TfsId.HasValue)
+                .SelectMany(t => t.Model.Resources.Select(a => new
+                {
+                    Task = t,
+                    Resource = a.Resource ?? vm.Project.Resources.FirstOrDefault(r => r.Id == a.ResourceId)
+                }))
+                .Where(x => x.Resource != null && !x.Resource.IsImportedFromTfs)
+                .GroupBy(x => x.Resource!.Id)
+                .Select(g => new
+                {
+                    Resource = g.First().Resource!,
+                    Count = g.Select(x => x.Task.Model.Id).Distinct().Count()
+                })
+                .OrderBy(x => x.Resource.Name)
+                .ToList();
+
+            if (manualResources.Count == 0)
+                return true;
+
+            var sample = string.Join(Environment.NewLine,
+                manualResources
+                    .Take(8)
+                    .Select(x => $"- {x.Resource.DisplayName} ({x.Count} atividade(s))"));
+            var suffix = manualResources.Count > 8
+                ? $"{Environment.NewLine}- ... e mais {manualResources.Count - 8}"
+                : string.Empty;
+
+            MessageBox.Show(
+                "Existem recursos marcados com * que nao foram identificados no TFS/DevOps:"
+                + Environment.NewLine + Environment.NewLine
+                + sample + suffix
+                + Environment.NewLine + Environment.NewLine
+                + "Ajuste a alocacao para um recurso importado do TFS/DevOps e sincronize novamente.",
+                "Sincronizar TFS/DevOps",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+
+        private static bool ConfirmCompletedTfsState(MainViewModel vm)
+        {
+            var completedNotClosed = vm.FlatTasks
+                .Where(t => !t.IsSummary
+                            && t.Model.TfsId.HasValue
+                            && t.Model.TfsId.Value > 0
+                            && t.PercentComplete >= 100
+                            && !string.Equals(t.TfsState?.Trim(), "Closed", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (completedNotClosed.Count == 0)
+                return true;
+
+            var sample = string.Join(Environment.NewLine,
+                completedNotClosed
+                    .Take(8)
+                    .Select(t => $"- #{t.TfsId}: {t.Name} ({t.TfsState ?? "sem estado"})"));
+            var suffix = completedNotClosed.Count > 8
+                ? $"{Environment.NewLine}- ... e mais {completedNotClosed.Count - 8}"
+                : string.Empty;
+
+            var decision = MessageBox.Show(
+                "Existem atividades com 100% de conclusao, mas o estado no TFS/DevOps nao esta como Closed:"
+                + Environment.NewLine + Environment.NewLine
+                + sample + suffix
+                + Environment.NewLine + Environment.NewLine
+                + "Sim = atualizar o status para Closed no TFS e sincronizar."
+                + Environment.NewLine
+                + "Nao = sincronizar mantendo o status atual."
+                + Environment.NewLine
+                + "Cancelar = nao sincronizar.",
+                "Sincronizar TFS/DevOps",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Warning);
+
+            if (decision == MessageBoxResult.Cancel)
+                return false;
+
+            if (decision == MessageBoxResult.Yes)
+            {
+                foreach (var task in completedNotClosed)
+                    task.TfsState = "Closed";
+                vm.Project.IsDirty = true;
+            }
+
+            return true;
         }
 
         private void OnImportTfsClick(object sender, RoutedEventArgs e)

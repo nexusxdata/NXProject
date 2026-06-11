@@ -148,6 +148,8 @@ Pedido do usuario:
                     var suggestion = new AITaskSuggestion
                     {
                         Name = item.TryGetProperty("name", out var name) ? name.GetString() ?? string.Empty : string.Empty,
+                        HasDurationHours = false,
+                        DurationHours = 0.0,
                         DurationDays = item.TryGetProperty("durationDays", out var duration) && duration.TryGetInt32(out var days)
                             ? Math.Max(days, 1)
                             : 1,
@@ -157,6 +159,16 @@ Pedido do usuario:
                         Assignee = item.TryGetProperty("assignee", out var assignee) ? assignee.GetString() ?? string.Empty : string.Empty,
                         Notes = item.TryGetProperty("notes", out var notes) ? notes.GetString() ?? string.Empty : string.Empty
                     };
+                    if (item.TryGetProperty("durationHours", out var durationHours) && durationHours.ValueKind == JsonValueKind.Number && durationHours.TryGetDouble(out var hours))
+                    {
+                        suggestion.HasDurationHours = true;
+                        suggestion.DurationHours = Math.Max(0.0, hours);
+                    }
+                    else if (item.TryGetProperty("durationDays", out var durationDays) && durationDays.TryGetInt32(out var parsedDays))
+                    {
+                        suggestion.HasDurationHours = true;
+                        suggestion.DurationHours = Math.Max(parsedDays, 1) * ProjectCalendarService.WorkingHoursPerDay;
+                    }
 
                     if (!string.IsNullOrWhiteSpace(suggestion.Name))
                         result.Tasks.Add(suggestion);

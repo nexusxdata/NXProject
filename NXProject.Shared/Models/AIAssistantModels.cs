@@ -13,6 +13,8 @@ namespace NXProject.Models
     public class AITaskSuggestion
     {
         public string Name { get; set; } = string.Empty;
+        public bool HasDurationHours { get; set; }
+        public double DurationHours { get; set; }
         public int DurationDays { get; set; } = 1;
         public string PredecessorTaskName { get; set; } = string.Empty;
         public string Assignee { get; set; } = string.Empty;

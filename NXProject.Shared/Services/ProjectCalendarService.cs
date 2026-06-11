@@ -95,19 +95,77 @@ namespace NXProject.Services
             return date;
         }
 
+        public static DateTime AddWorkingHours(DateTime start, double hours) => AddWorkingHours(start, hours, Current);
+
+        public static DateTime AddWorkingHours(DateTime start, double hours, ProjectCalendar? calendar)
+        {
+            if (hours <= 0)
+                return start;
+
+            calendar ??= Current;
+            var current = start;
+            var remainingHours = hours;
+            while (remainingHours > 0)
+            {
+                if (!IsWorkingDay(current.Date, calendar))
+                {
+                    current = current.Date.AddDays(1);
+                    continue;
+                }
+
+                var dayCapacity = WorkingHoursPerDay;
+                var hoursToAdd = Math.Min(remainingHours, dayCapacity);
+                current = current.AddDays(hoursToAdd / dayCapacity);
+                remainingHours -= hoursToAdd;
+            }
+
+            return current;
+        }
+
+        public static double CountWorkingHours(DateTime start, DateTime finish) => CountWorkingHours(start, finish, Current);
+
+        public static double CountWorkingHours(DateTime start, DateTime finish, ProjectCalendar? calendar)
+        {
+            if (finish <= start)
+                return 0.0;
+
+            calendar ??= Current;
+            var hours = 0.0;
+            var current = start;
+            while (current < finish)
+            {
+                if (!IsWorkingDay(current.Date, calendar))
+                {
+                    current = current.Date.AddDays(1);
+                    continue;
+                }
+
+                var nextBoundary = current.Date.AddDays(1);
+                var intervalEnd = finish < nextBoundary ? finish : nextBoundary;
+                hours += (intervalEnd - current).TotalDays * WorkingHoursPerDay;
+                current = intervalEnd;
+            }
+
+            return hours;
+        }
+
         public static int CountWorkingDays(DateTime start, DateTime finish) => CountWorkingDays(start, finish, Current);
 
         public static int CountWorkingDays(DateTime start, DateTime finish, ProjectCalendar? calendar)
         {
-            var from = start.Date;
-            var to = finish.Date;
-            if (to <= from)
+            if (finish <= start)
                 return 0;
 
+            calendar ??= Current;
             var days = 0;
-            for (var date = from.AddDays(1); date <= to; date = date.AddDays(1))
-                if (IsWorkingDay(date, calendar))
+            var current = start.Date;
+            var finishDate = finish.Date;
+            while (current < finishDate)
+            {
+                if (IsWorkingDay(current, calendar))
                     days++;
+                current = current.AddDays(1);
+            }
 
             return days;
         }

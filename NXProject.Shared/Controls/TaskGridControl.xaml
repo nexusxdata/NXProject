@@ -179,13 +179,13 @@
             </DataGridTemplateColumn>
 
             <!-- Duração -->
-            <DataGridTemplateColumn x:Name="DurationColumn" Header="Dur.(d)" Width="55">
+            <DataGridTemplateColumn x:Name="DurationColumn" Header="Dur.(h)" Width="55">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate DataType="{x:Type vm:TaskViewModel}">
                         <Border Padding="2,0"
                                 CornerRadius="2"
                                 Background="Transparent">
-                            <TextBlock Text="{Binding DurationDays}"
+                            <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
                                        TextAlignment="Center"
                                        VerticalAlignment="Center">
                                 <TextBlock.Style>
@@ -214,7 +214,7 @@
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate DataType="{x:Type vm:TaskViewModel}">
-                        <TextBox Text="{Binding DurationDays, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding DurationHours, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
                                  BorderThickness="0"
                                  TextAlignment="Center"
                                  VerticalContentAlignment="Center"
@@ -250,7 +250,7 @@
             </DataGridTextColumn>
 
             <!-- Início -->
-            <DataGridTextColumn x:Name="StartColumn" Header="Início" Binding="{Binding Start, StringFormat=d}" Width="100">
+            <DataGridTextColumn x:Name="StartColumn" Header="Início" Binding="{Binding Start, StringFormat=g}" Width="110">
                 <DataGridTextColumn.ElementStyle>
                     <Style TargetType="TextBlock">
                         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -260,7 +260,7 @@
             </DataGridTextColumn>
 
             <!-- Fim -->
-            <DataGridTextColumn x:Name="FinishColumn" Header="Fim" Binding="{Binding Finish, StringFormat=d}" Width="100">
+            <DataGridTextColumn x:Name="FinishColumn" Header="Fim" Binding="{Binding Finish, StringFormat=g}" Width="110">
                 <DataGridTextColumn.ElementStyle>
                     <Style TargetType="TextBlock">
                         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -278,10 +278,37 @@
                                          Background="#E0E0E0" Foreground="#217346"/>
                             <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0}%}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontSize="9" Foreground="Black"/>
+                                       FontSize="9" Foreground="{Binding PercentCompleteTextBrush}"/>
                         </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                        <TextBox Text="{Binding PercentComplete, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}}"
+                                 BorderThickness="0"
+                                 VerticalContentAlignment="Center"
+                                 HorizontalContentAlignment="Center">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="IsReadOnly" Value="True"/>
+                                    <Setter Property="Background" Value="#F1F1F1"/>
+                                    <Setter Property="Foreground" Value="#6E6E6E"/>
+                                    <Setter Property="IsHitTestVisible" Value="False"/>
+                                    <Setter Property="IsTabStop" Value="False"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CanEditPercentComplete}" Value="True">
+                                            <Setter Property="IsReadOnly" Value="False"/>
+                                            <Setter Property="Background" Value="White"/>
+                                            <Setter Property="Foreground" Value="Black"/>
+                                            <Setter Property="IsHitTestVisible" Value="True"/>
+                                            <Setter Property="IsTabStop" Value="True"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
@@ -294,15 +321,30 @@
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
-            <!-- Recursos -->
-            <DataGridTextColumn x:Name="ResourcesColumn" Header="Recursos" Binding="{Binding ResourcesText, Mode=OneWay}" Width="100" IsReadOnly="True">
-                <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                        <Setter Property="Margin" Value="3,0"/>
-                    </Style>
-                </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+            <!-- Recursos (editável: ComboBox com criação rápida) -->
+            <DataGridTemplateColumn x:Name="ResourcesColumn" Header="Recursos" Width="100">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding ResourcesText, Mode=OneWay}"
+                                   VerticalAlignment="Center"
+                                   Margin="3,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                        <ComboBox ItemsSource="{Binding AvailableResources, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  SelectedItem="{Binding PrimaryResource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  DisplayMemberPath="DisplayName"
+                                  IsEditable="True"
+                                  StaysOpenOnEdit="False"
+                                  IsTextSearchEnabled="False"
+                                  DropDownClosed="OnResourceComboDropDownClosed"
+                                  KeyDown="OnResourceComboKeyDown"
+                                  BorderThickness="0"
+                                  Padding="4,2"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
 
             <!-- Sprint: mostra o NOME da sprint do DevOps; editável via dropdown -->
             <DataGridTemplateColumn x:Name="SprintColumn" Header="Sprint" Width="90">

@@ -184,12 +184,13 @@ namespace NXProject.ViewModels
             get => _task.Start;
             set
             {
-                var durationDays = DurationDays;
+                var durationHours = DurationHours;
                 _task.Start = value;
-                _task.Finish = ProjectCalendarService.AddWorkingDays(value, durationDays);
+                _task.Finish = ProjectCalendarService.AddWorkingHours(value, durationHours);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Finish));
                 OnPropertyChanged(nameof(DurationDays));
+                OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
                 RecalcAncestorSummaries();
             }
@@ -200,22 +201,39 @@ namespace NXProject.ViewModels
             get => _task.Finish;
             set
             {
-                var minimumFinish = ProjectCalendarService.AddWorkingDays(_task.Start, DurationDays);
-                if (value < minimumFinish)
+                _task.Finish = value;
+                if (CanEditPercentComplete && value.Date < DateTime.Today && _task.PercentComplete < 100)
                 {
-                    MessageBox.Show(
-                        "Para reduzir a data de termino abaixo da duracao atual, altere primeiro a duracao da atividade.",
-                        "Alterar duracao",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return;
+                    _task.PercentComplete = 100;
+                    OnPropertyChanged(nameof(PercentComplete));
+                    NotifyParentPercentChanged();
                 }
 
-                _task.Finish = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DurationDays));
+                OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
                 RecalcAncestorSummaries();
+            }
+        }
+
+        public double DurationHours
+        {
+            get => ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
+            set
+            {
+                if (UsesSfpEstimate)
+                    return;
+
+                if (value >= 0)
+                {
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(DurationDays));
+                    OnPropertyChanged(nameof(DisplayAsMilestone));
+                    RecalcAncestorSummaries();
+                }
             }
         }
 
@@ -229,9 +247,10 @@ namespace NXProject.ViewModels
 
                 if (value >= 0)
                 {
-                    _task.Finish = ProjectCalendarService.AddWorkingDays(_task.Start, value);
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value * ProjectCalendarService.WorkingHoursPerDay);
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(DurationHours));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
                 }
@@ -250,6 +269,7 @@ namespace NXProject.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(UsesSfpEstimate));
                 OnPropertyChanged(nameof(DurationDays));
+                OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(Finish));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
             }
@@ -257,10 +277,94 @@ namespace NXProject.ViewModels
 
         public bool UsesSfpEstimate => (SfpPoints ?? 0) > 0;
 
+        public TaskViewModel? ParentViewModel { get; set; }
+
+        public List<TaskViewModel> ChildrenViewModels { get; } = new();
+
         public double PercentComplete
         {
-            get => _task.PercentComplete;
-            set { _task.PercentComplete = Math.Clamp(value, 0, 100); OnPropertyChanged(); }
+            get
+            {
+                if (!CanEditPercentComplete)
+                    return CalculateSummaryPercent();
+
+                return _task.PercentComplete;
+            }
+            set
+            {
+                if (!CanEditPercentComplete)
+                    return;
+
+                var normalized = Math.Clamp(value, 0, 100);
+                if (Math.Abs(_task.PercentComplete - normalized) < 0.0001)
+                    return;
+
+                _task.PercentComplete = normalized;
+                if (normalized >= 100)
+                {
+                    _task.Finish = DateTime.Today;
+                    OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(DurationDays));
+                    OnPropertyChanged(nameof(DurationHours));
+                    OnPropertyChanged(nameof(DisplayAsMilestone));
+                    RecalcAncestorSummaries();
+                }
+
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PercentCompleteTextBrush));
+                NotifyParentPercentChanged();
+            }
+        }
+
+        public bool CanEditPercentComplete => _task.Children.Count == 0;
+
+        public Brush PercentCompleteTextBrush =>
+            PercentComplete <= 30
+                ? Brushes.Black
+                : Brushes.White;
+
+        private void NotifyParentPercentChanged()
+        {
+            ParentViewModel?.OnSummaryPercentChanged();
+        }
+
+        private void OnSummaryPercentChanged()
+        {
+            OnPropertyChanged(nameof(PercentComplete));
+            OnPropertyChanged(nameof(PercentCompleteTextBrush));
+            ParentViewModel?.OnSummaryPercentChanged();
+        }
+
+        private double CalculateSummaryPercent()
+        {
+            if (ChildrenViewModels.Count == 0)
+            {
+                if (_task.Children.Count == 0)
+                    return _task.PercentComplete;
+
+                double modelTotalWeight = 0.0;
+                double modelWeightedPercent = 0.0;
+                foreach (var child in _task.Children)
+                {
+                    var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
+                    modelWeightedPercent += child.PercentComplete * weight;
+                    modelTotalWeight += weight;
+                }
+
+                return modelTotalWeight > 0 ? modelWeightedPercent / modelTotalWeight : 0.0;
+            }
+
+            double totalWeight = 0.0;
+            double weightedPercent = 0.0;
+
+            foreach (var childVm in ChildrenViewModels)
+            {
+                var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(childVm.Model));
+                weightedPercent += childVm.PercentComplete * weight;
+                totalWeight += weight;
+            }
+
+            return totalWeight > 0 ? weightedPercent / totalWeight : 0.0;
         }
 
         public bool IsMilestone
@@ -274,12 +378,18 @@ namespace NXProject.ViewModels
             }
         }
 
-        public bool DisplayAsMilestone => IsMilestone || DurationDays == 0;
+        public bool DisplayAsMilestone => IsMilestone || DurationHours == 0;
 
         public bool IsSummary
         {
             get => _task.IsSummary;
-            set { _task.IsSummary = value; OnPropertyChanged(); }
+            set
+            {
+                _task.IsSummary = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanEditPercentComplete));
+                OnPropertyChanged(nameof(PercentComplete));
+            }
         }
 
         public int SprintNumber
@@ -365,6 +475,41 @@ namespace NXProject.ViewModels
             }
         }
 
+        // Conveniência: recurso principal (primeiro da lista). Usado pela grade para
+        // permitir editar/atribuir rapidamente um recurso único.
+        public NXProject.Models.Resource? PrimaryResource
+        {
+            get => _task.Resources.Count > 0 ? _task.Resources[0].Resource : null;
+            set
+            {
+                if (value == null)
+                {
+                    _task.Resources.Clear();
+                }
+                else
+                {
+                    if (_task.Resources.Count > 0)
+                    {
+                        var first = _task.Resources[0];
+                        first.ResourceId = value.Id;
+                        first.Resource = value;
+                    }
+                    else
+                    {
+                        _task.Resources.Add(new NXProject.Models.TaskResource
+                        {
+                            ResourceId = value.Id,
+                            Resource = value,
+                            AllocationPercent = 100.0
+                        });
+                    }
+                }
+
+                OnPropertyChanged(); // PrimaryResource
+                OnPropertyChanged(nameof(ResourcesText));
+            }
+        }
+
         public string? Notes
         {
             get => _task.Notes;
@@ -406,8 +551,9 @@ namespace NXProject.ViewModels
                 : sfpPoints < 6
                     ? _mediumDaysPerSfp
                     : _highDaysPerSfp;
-            var calculatedDuration = Math.Max(1, (int)Math.Ceiling(sfpPoints * daysPerSfp));
-            _task.Finish = ProjectCalendarService.AddWorkingDays(_task.Start, calculatedDuration);
+            var calculatedWorkingDays = Math.Max(1, (int)Math.Ceiling(sfpPoints * daysPerSfp));
+            var calculatedHours = calculatedWorkingDays * ProjectCalendarService.WorkingHoursPerDay;
+            _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, calculatedHours);
             RecalcAncestorSummaries();
         }
     }

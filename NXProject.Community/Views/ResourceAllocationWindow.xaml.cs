@@ -40,6 +40,74 @@ namespace NXProject.Views
                 ShowDetails(_selectedResource, _selectedSprint);
         }
 
+        private void OnAddResourceClick(object sender, RoutedEventArgs e)
+        {
+            var name = PromptResourceName();
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            var normalizedName = NormalizeManualResourceName(name);
+            if (string.IsNullOrWhiteSpace(normalizedName))
+                return;
+            if (AvailableResources.Any(r => string.Equals(r.Name, normalizedName, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show(
+                    "Ja existe um recurso com esse nome.",
+                    "Incluir recurso",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var nextId = AvailableResources.Select(r => r.Id).DefaultIfEmpty(0).Max() + 1;
+            AvailableResources.Add(new Resource
+            {
+                Id = nextId,
+                Name = normalizedName,
+                MaxUnitsPerDay = ProjectCalendarService.WorkingHoursPerDay,
+                IsImportedFromTfs = false
+            });
+
+            _vm.Project.IsDirty = true;
+            BuildMatrix();
+        }
+
+        private void OnDeleteResourceClick(object sender, RoutedEventArgs e)
+        {
+            if (_selectedResource == null)
+            {
+                MessageBox.Show(
+                    "Selecione uma celula do recurso que deseja excluir.",
+                    "Excluir recurso",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var resource = _selectedResource;
+            var assignmentCount = _vm.FlatTasks.Count(t => t.Model.Resources.Any(r => r.ResourceId == resource.Id));
+            var confirm = MessageBox.Show(
+                assignmentCount > 0
+                    ? $"Excluir {resource.DisplayName} e remover {assignmentCount} alocacao(oes)?"
+                    : $"Excluir {resource.DisplayName}?",
+                "Excluir recurso",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            foreach (var task in _vm.FlatTasks)
+                task.Model.Resources.RemoveAll(r => r.ResourceId == resource.Id);
+
+            AvailableResources.Remove(resource);
+            _selectedResource = null;
+            SelectedDetails.Clear();
+            DetailsTitle.Text = "Selecione uma celula da grade";
+            _vm.Project.IsDirty = true;
+            _vm.RefreshTasks();
+            BuildMatrix();
+        }
+
         private void BuildMatrix()
         {
             AllocationGrid.Children.Clear();
@@ -61,13 +129,16 @@ namespace NXProject.Views
             {
                 var resource = resources[row];
                 AllocationGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
-                AddCell(resource.Name, row + 1, 0, true, horizontalAlignment: HorizontalAlignment.Left);
+                AddCell(resource.DisplayName, row + 1, 0, true, horizontalAlignment: HorizontalAlignment.Left);
 
                 for (int col = 0; col < sprints.Count; col++)
                 {
                     var sprint = sprints[col];
                     var hours = GetAllocatedHours(resource, sprint);
-                    AddHoursButton(resource, sprint, hours, row + 1, col + 1);
+                    var allocationPercent = GetAverageAllocationPercent(resource, sprint);
+                    var capacityHours = GetSprintCapacityHours(resource, sprint, allocationPercent);
+                    var isOverAllocated = hours > capacityHours + 0.0001;
+                    AddHoursButton(resource, sprint, hours, allocationPercent, capacityHours, isOverAllocated, row + 1, col + 1);
                 }
             }
         }
@@ -102,23 +173,59 @@ namespace NXProject.Views
             AllocationGrid.Children.Add(border);
         }
 
-        private void AddHoursButton(Resource resource, SprintColumn sprint, double hours, int row, int col)
+        private void AddHoursButton(
+            Resource resource,
+            SprintColumn sprint,
+            double hours,
+            double? allocationPercent,
+            double capacityHours,
+            bool isOverAllocated,
+            int row,
+            int col)
         {
+            var normalForeground = new SolidColorBrush(Color.FromRgb(31, 78, 161));
+            var overAllocatedForeground = new SolidColorBrush(Color.FromRgb(178, 34, 34));
             var button = new Button
             {
-                Content = hours > 0 ? $"{hours:0.##} h" : "-",
+                Content = hours > 0
+                    ? new StackPanel
+                    {
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = $"{hours:0.##} h",
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                Foreground = isOverAllocated ? overAllocatedForeground : normalForeground
+                            },
+                            new TextBlock
+                            {
+                                Text = $"{allocationPercent ?? 0:0.##}%",
+                                FontSize = 10,
+                                HorizontalAlignment = HorizontalAlignment.Center,
+                                Foreground = normalForeground
+                            }
+                        }
+                    }
+                    : "-",
                 Tag = (resource, sprint),
                 BorderThickness = new Thickness(0),
                 Background = hours > 0
-                    ? new SolidColorBrush(Color.FromRgb(230, 242, 255))
+                    ? isOverAllocated
+                        ? new SolidColorBrush(Color.FromRgb(255, 235, 235))
+                        : new SolidColorBrush(Color.FromRgb(230, 242, 255))
                     : Brushes.White,
                 Foreground = hours > 0
-                    ? new SolidColorBrush(Color.FromRgb(31, 78, 161))
+                    ? isOverAllocated ? overAllocatedForeground : normalForeground
                     : new SolidColorBrush(Color.FromRgb(130, 130, 130)),
                 FontWeight = hours > 0 ? FontWeights.SemiBold : FontWeights.Normal,
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
-                ToolTip = hours > 0 ? "Ver atividades desta alocacao" : "Sem atividades"
+                ToolTip = hours > 0
+                    ? isOverAllocated
+                        ? $"Sobrealocado: {hours:0.##} h de {capacityHours:0.##} h disponiveis"
+                        : $"Ver atividades desta alocacao ({hours:0.##} h de {capacityHours:0.##} h disponiveis)"
+                    : "Sem atividades"
             };
             button.Click += OnHoursCellClick;
 
@@ -144,7 +251,7 @@ namespace NXProject.Views
         {
             _selectedResource = resource;
             _selectedSprint = sprint;
-            DetailsTitle.Text = $"{resource.Name} - {sprint.Header}";
+            DetailsTitle.Text = $"{resource.DisplayName} - {sprint.Header}";
             SelectedDetails.Clear();
 
             foreach (var task in _vm.FlatTasks.Where(t => BelongsToSprint(t, sprint)))
@@ -183,6 +290,8 @@ namespace NXProject.Views
                 });
             }
 
+            TaskScheduleService.RecalculateFinishFromAssignments(task);
+            RecalcSummaryChain(task.Parent);
             _vm.Project.IsDirty = true;
             _vm.RefreshTasks();
             BuildMatrix();
@@ -195,18 +304,38 @@ namespace NXProject.Views
             return _vm.FlatTasks
                 .Where(t => BelongsToSprint(t, sprint))
                 .SelectMany(t => t.Model.Resources.Where(r => r.ResourceId == resource.Id)
-                    .Select(r => GetAssignmentHours(t, r)))
+                    .Select(r => TaskScheduleService.GetAssignmentHours(t.Model, r)))
                 .Sum();
         }
 
-        private static double GetAssignmentHours(TaskViewModel task, TaskResource assignment)
+        private double? GetAverageAllocationPercent(Resource resource, SprintColumn sprint)
         {
-            if (assignment.EstimatedHours.HasValue && assignment.EstimatedHours.Value > 0)
-                return assignment.EstimatedHours.Value;
+            var assignments = _vm.FlatTasks
+                .Where(t => BelongsToSprint(t, sprint))
+                .SelectMany(t => t.Model.Resources.Where(r => r.ResourceId == resource.Id)
+                    .Select(r => new
+                    {
+                        Hours = TaskScheduleService.GetAssignmentHours(t.Model, r),
+                        Percent = TaskScheduleService.NormalizeAllocationPercent(r.AllocationPercent)
+                    }))
+                .ToList();
 
-            return Math.Max(0, task.DurationDays)
-                   * (assignment.Resource?.MaxUnitsPerDay ?? ProjectCalendarService.WorkingHoursPerDay)
-                   * Math.Max(0, assignment.AllocationPercent) / 100.0;
+            if (assignments.Count == 0)
+                return null;
+
+            var totalHours = assignments.Sum(a => a.Hours);
+            return totalHours > 0
+                ? assignments.Sum(a => a.Percent * a.Hours) / totalHours
+                : assignments.Average(a => a.Percent);
+        }
+
+        private double GetSprintCapacityHours(Resource resource, SprintColumn sprint, double? allocationPercent)
+        {
+            var fullCapacityHours = sprint.CapacityHours > 0
+                ? sprint.CapacityHours * Math.Max(0.0, resource.MaxUnitsPerDay) / ProjectCalendarService.WorkingHoursPerDay
+                : Math.Max(1, _vm.Project.SprintDurationDays) * Math.Max(0.0, resource.MaxUnitsPerDay);
+
+            return fullCapacityHours * (allocationPercent ?? 100.0) / 100.0;
         }
 
         private bool BelongsToSprint(TaskViewModel task, SprintColumn sprint)
@@ -223,10 +352,14 @@ namespace NXProject.Views
             {
                 foreach (var sprint in _vm.Project.Sprints.OrderBy(s => s.Number).ThenBy(s => s.Start))
                 {
+                    var capacityHours = sprint.End > sprint.Start
+                        ? ProjectCalendarService.CountWorkingHours(sprint.Start, sprint.End)
+                        : Math.Max(1, _vm.Project.SprintDurationDays) * ProjectCalendarService.WorkingHoursPerDay;
                     yield return new SprintColumn(
                         sprint.Number,
                         sprint.Path,
-                        string.IsNullOrWhiteSpace(sprint.Name) ? $"Sprint {sprint.Number}" : sprint.Name);
+                        string.IsNullOrWhiteSpace(sprint.Name) ? $"Sprint {sprint.Number}" : sprint.Name,
+                        capacityHours);
                 }
                 yield break;
             }
@@ -237,14 +370,65 @@ namespace NXProject.Views
                          .Distinct()
                          .OrderBy(n => n))
             {
-                yield return new SprintColumn(number, null, $"Sprint {number}");
+                yield return new SprintColumn(
+                    number,
+                    null,
+                    $"Sprint {number}",
+                    Math.Max(1, _vm.Project.SprintDurationDays) * ProjectCalendarService.WorkingHoursPerDay);
             }
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-        private sealed record SprintColumn(int Number, string? Path, string Header);
+        private sealed record SprintColumn(int Number, string? Path, string Header, double CapacityHours);
+
+        private void OnDetailsResourceComboDropDownClosed(object? sender, EventArgs e)
+        {
+            if (sender is not ComboBox { DataContext: AllocationDetailRow row } combo)
+                return;
+
+            var selected = combo.SelectedItem as Resource;
+            var typed = NormalizeManualResourceName(combo.Text);
+
+            if (selected == null)
+            {
+                if (string.IsNullOrEmpty(typed))
+                    return;
+
+                var existing = AvailableResources.FirstOrDefault(r => string.Equals(r.Name, typed, StringComparison.OrdinalIgnoreCase));
+                Resource res;
+                if (existing == null)
+                {
+                    var nextId = AvailableResources.Select(r => r.Id).DefaultIfEmpty(0).Max() + 1;
+                    res = new Resource
+                    {
+                        Id = nextId,
+                        Name = typed,
+                        MaxUnitsPerDay = ProjectCalendarService.WorkingHoursPerDay,
+                        IsImportedFromTfs = false
+                    };
+                    AvailableResources.Add(res);
+                }
+                else
+                {
+                    res = existing;
+                }
+
+                row.Resource = res;
+            }
+            else
+            {
+                row.Resource = selected;
+            }
+        }
+
+        private void OnDetailsResourceComboKeyDown(object? sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Enter) return;
+            if (sender is not ComboBox) return;
+            OnDetailsResourceComboDropDownClosed(sender, EventArgs.Empty);
+        }
 
         public sealed class AllocationDetailRow : INotifyPropertyChanged
         {
@@ -269,13 +453,32 @@ namespace NXProject.Views
             public TaskResource Assignment { get; }
             public double Hours
             {
-                get => GetAssignmentHours(Task, Assignment);
+                get => TaskScheduleService.GetAssignmentHours(Task.Model, Assignment);
                 set
                 {
                     var normalized = double.IsNaN(value) || value < 0 ? 0 : value;
                     Assignment.EstimatedHours = normalized;
+                    TaskScheduleService.RecalculateFinishFromAssignments(Task.Model);
+                    RecalcSummaryChain(Task.Model.Parent);
                     _owner._vm.Project.IsDirty = true;
+                    _owner._vm.RefreshTasks();
                     _owner.BuildMatrix();
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Hours)));
+                }
+            }
+
+            public double AllocationPercent
+            {
+                get => TaskScheduleService.NormalizeAllocationPercent(Assignment.AllocationPercent);
+                set
+                {
+                    Assignment.AllocationPercent = TaskScheduleService.NormalizeAllocationPercent(value);
+                    TaskScheduleService.RecalculateFinishFromAssignments(Task.Model);
+                    RecalcSummaryChain(Task.Model.Parent);
+                    _owner._vm.Project.IsDirty = true;
+                    _owner._vm.RefreshTasks();
+                    _owner.BuildMatrix();
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllocationPercent)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Hours)));
                 }
             }
@@ -294,5 +497,75 @@ namespace NXProject.Views
                 }
             }
         }
+
+        private static void RecalcSummaryChain(ProjectTask? task)
+        {
+            var current = task;
+            while (current != null)
+            {
+                current.RecalcSummary();
+                current = current.Parent;
+            }
+        }
+
+        private string? PromptResourceName()
+        {
+            var dialog = new Window
+            {
+                Title = "Incluir recurso",
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Width = 360,
+                Height = 150,
+                Background = Brushes.White
+            };
+
+            var root = new Grid { Margin = new Thickness(16) };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var label = new TextBlock
+            {
+                Text = "Nome do recurso",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            Grid.SetRow(label, 0);
+            root.Children.Add(label);
+
+            var textBox = new TextBox
+            {
+                MinWidth = 300,
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            Grid.SetRow(textBox, 1);
+            root.Children.Add(textBox);
+
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            var ok = new Button { Content = "OK", Width = 82, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = "Cancelar", Width = 82, IsCancel = true };
+            ok.Click += (_, _) =>
+            {
+                dialog.DialogResult = true;
+                dialog.Close();
+            };
+            buttons.Children.Add(ok);
+            buttons.Children.Add(cancel);
+            Grid.SetRow(buttons, 2);
+            root.Children.Add(buttons);
+
+            dialog.Content = root;
+            textBox.Focus();
+            return dialog.ShowDialog() == true ? textBox.Text : null;
+        }
+
+        private static string NormalizeManualResourceName(string? name) =>
+            (name ?? string.Empty).Trim().TrimStart('*').Trim();
     }
 }

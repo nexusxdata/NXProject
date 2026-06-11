@@ -349,6 +349,12 @@ namespace NXProject.Services
                             StringComparison.OrdinalIgnoreCase))
                         ops.Add(PatchAdd("/fields/System.IterationPath", task.TfsIterationPath.Trim()));
 
+                    if (!string.IsNullOrWhiteSpace(task.TfsState) &&
+                        !string.Equals(task.TfsState.Trim(), wi.State?.Trim() ?? string.Empty, StringComparison.Ordinal))
+                    {
+                        ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
+                    }
+
                     var effectiveState = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
                     if (finishRef != null && IsClosedState(effectiveState))
                     {
@@ -487,6 +493,9 @@ namespace NXProject.Services
 
             if (!string.IsNullOrWhiteSpace(task.Tags))
                 ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(task.Tags)));
+
+            if (!string.IsNullOrWhiteSpace(task.TfsState))
+                ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
 
             if (task.TfsStackRank.HasValue)
                 ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
@@ -726,10 +735,16 @@ namespace NXProject.Services
                 : sprintStart;
 
             DateTime start = explicitStart ?? baseStart;
+            var durationHours = hours.HasValue
+                ? Math.Max(0.0, hours.Value)
+                : ctx.HoursPerDay > 0
+                    ? ctx.HoursPerDay
+                    : ProjectCalendarService.WorkingHoursPerDay;
+
             DateTime finish = isMilestone
                 ? start
-                : (explicitFinish ?? AddWorkingDays(start, workDays));
-            if (finish < start) finish = isMilestone ? start : AddWorkingDays(start, workDays);
+                : (explicitFinish ?? ProjectCalendarService.AddWorkingHours(start, durationHours));
+            if (finish < start) finish = isMilestone ? start : ProjectCalendarService.AddWorkingHours(start, durationHours);
 
             // Avanca a fila (pessoa, sprint) — SO para frente. Uma Story com data
             // explicita anterior nao pode puxar o cursor para tras (senao as
@@ -798,7 +813,8 @@ namespace NXProject.Services
                 Id = project.Resources.Select(r => r.Id).DefaultIfEmpty(0).Max() + 1,
                 Name = string.IsNullOrWhiteSpace(item.AssigneeName) ? key : item.AssigneeName.Trim(),
                 Email = string.IsNullOrWhiteSpace(item.AssigneeEmail) ? null : item.AssigneeEmail.Trim(),
-                MaxUnitsPerDay = hoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : hoursPerDay
+                MaxUnitsPerDay = hoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : hoursPerDay,
+                IsImportedFromTfs = true
             };
             project.Resources.Add(resource);
             resourcesByKey[key] = resource;
