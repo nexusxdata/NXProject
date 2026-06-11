@@ -20,7 +20,7 @@
                        FontSize="24"
                        FontWeight="SemiBold"
                        Foreground="#2B579A"/>
-            <TextBlock Text="Esta edicao Community possui licenca e direitos proprios, diferentes da versao paga do NXProject."
+            <TextBlock Text="Modelo Open Core: a edicao Community e gratuita para qualquer pessoa ou empresa. A edicao Comercial/Enterprise com suporte e vendida separadamente."
                        Margin="0,8,0,0"
                        TextWrapping="Wrap"
                        Foreground="#444"/>
@@ -37,48 +37,28 @@
                     <TextBlock Text="Empresa: Nexus XData Tecnologia Ltda"
                                FontWeight="SemiBold"
                                Margin="0,0,0,10"/>
-                    <TextBlock Text="Contato: comercial.nexus.xdata@gamail.com"
+                    <TextBlock Text="Contato comercial: comercial.nexus.xdata@gmail.com"
                                Margin="0,0,0,16"/>
 
-                    <TextBlock Text="Resumo da licenca Community"
+                    <TextBlock Text="Resumo da licenca Community (Open Core)"
                                FontSize="15"
                                FontWeight="SemiBold"
                                Margin="0,0,0,8"/>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Esta edicao Community e gratuita para empresas com ate 20 funcionarios, conforme os termos desta licenca.
+Esta edicao Community e gratuita para qualquer pessoa fisica ou empresa, inclusive para uso comercial interno (rodar projetos da sua propria empresa), sem limite de numero de usuarios.
                     </TextBlock>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Para empresas com ate 20 funcionarios, serao aceitos donativos.
+Voce pode usar, estudar, modificar para uso interno e redistribuir gratuitamente o Software, desde que mantenha o credito a Nexus XData Tecnologia Ltda e este aviso de licenca.
                     </TextBlock>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Instituicoes de educacao possuem licenca 100% gratuita, mas devem solicitar registro pelo e-mail comercial.nexus.xdata@gamail.com apenas para catalogo e citar o uso da ferramenta quando aplicavel.
+Direitos reservados a Nexus XData: vender, alugar ou cobrar pelo Software, oferece-lo como servico pago (SaaS) ou prestar suporte pago sobre ele exige uma licenca comercial. A redistribuicao permitida e apenas gratuita.
                     </TextBlock>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Empresas com mais de 20 funcionarios deverao solicitar licenca pelo e-mail comercial.nexus.xdata@gamail.com ate o respectivo prazo orcamentario ou, no maximo, durante o primeiro ano de uso.
-                    </TextBlock>
-
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Para empresas com mais de 20 funcionarios, o valor padrao atual da licenca Community e de USD 10 por usuario por ano, podendo variar conforme a contratacao de suporte.
-                    </TextBlock>
-
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-O codigo, os direitos e os recursos desta edicao Community nao se confundem com a versao comercial/proprietaria do NXProject.
-                    </TextBlock>
-
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Ao redistribuir, publicar ou referenciar esta edicao, deve ser mantido o credito a Nexus XData Tecnologia Ltda.
-                    </TextBlock>
-
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Recursos pagos, suporte oficial, impressao, PDF, calendario e demais modulos comerciais podem existir apenas na versao proprietaria, a criterio da empresa.
-                    </TextBlock>
-
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-A versao comercial podera incluir integracoes com OpenAI, Claude AI e outras plataformas de inteligencia artificial, conforme disponibilidade e contratacao.
+Edicao Comercial / Enterprise (via paga): a Nexus XData oferece, mediante contratacao, licenca comercial sem essas restricoes, suporte oficial, SLA, garantias e modulos exclusivos (por exemplo impressao/PDF, calendario avancado e integracoes com IA como OpenAI e Claude).
                     </TextBlock>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
@@ -90,7 +70,7 @@ A Nexus XData Tecnologia Ltda podera alterar, limitar, evoluir ou descontinuar a
                     </TextBlock>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
-Quem desejar contratar suporte, solicitar a licenca aplicavel ou migrar para a versao paga podera entrar em contato pelo e-mail comercial.nexus.xdata@gamail.com.
+Quem desejar contratar suporte, a licenca comercial ou a edicao Enterprise podera entrar em contato pelo e-mail comercial.nexus.xdata@gmail.com. O texto completo da licenca esta no arquivo LICENSE.txt.
                     </TextBlock>
 
                     <TextBlock TextWrapping="Wrap" Margin="0,8,0,0" FontStyle="Italic" Foreground="#555">

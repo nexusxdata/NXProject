@@ -1,42 +1,147 @@
-NXProject License 1.0
+NXProject License 2.0 — Open Core / Licenciamento Dual
 
 Copyright (c) Nexus XData Tecnologia Ltda
-Contato: comercial.nexus.xdata@gmail.com
+Contato comercial: comercial.nexus.xdata@gmail.com
 
-Esta licença é baseada nas licenças MIT e BSD, com cláusula adicional de atribuição à empresa criadora.
+O NXProject é distribuído sob um modelo "Open Core" com licenciamento dual:
 
-1. Permissão de uso
+  • Edição Community (esta licença): gratuita para qualquer pessoa física ou
+    empresa, conforme os termos abaixo.
+  • Edição Comercial / Enterprise: licença paga, com suporte oficial e recursos
+    adicionais, oferecida separadamente pela Nexus XData Tecnologia Ltda.
 
-É permitido a qualquer pessoa usar, copiar, estudar, modificar e distribuir este software, inclusive para uso comercial, desde que sejam respeitadas as condições abaixo.
+A mesma base de código pode ser licenciada por uma destas duas vias. Quem não
+puder ou não quiser cumprir as condições da Edição Community pode contratar a
+licença comercial.
 
-2. Atribuição obrigatória
+--------------------------------------------------------------------------------
+1. Definições
+--------------------------------------------------------------------------------
 
-Toda cópia, redistribuição, publicação, fork ou versão modificada deste software deve manter, de forma visível e legível:
+"Licenciante" é a Nexus XData Tecnologia Ltda.
+"Software" é o NXProject Edição Community, incluindo seu código-fonte, binários,
+recursos e documentação distribuídos sob esta licença.
+"Você" é a pessoa física ou jurídica que usa o Software.
+"Uso interno" é o uso do Software para operar as próprias atividades de Você,
+inclusive atividades comerciais (por exemplo, gerenciar projetos da sua empresa).
 
-- o nome da empresa criadora: Nexus XData Tecnologia Ltda;
-- a informação de que o software original foi criado pela Nexus XData Tecnologia Ltda;
-- este aviso de licença.
+--------------------------------------------------------------------------------
+2. Concessão da Licença Community (gratuita)
+--------------------------------------------------------------------------------
 
-3. Suporte e contribuições financeiras
+O Licenciante concede a Você uma licença mundial, perpétua, gratuita e isenta de
+royalties para, respeitadas as condições e restrições desta licença:
 
-O uso desta licença não cria obrigação de suporte, manutenção, correção ou evolução do software.
+  a) usar e executar o Software, para fins pessoais ou comerciais (uso interno),
+     seja Você pessoa física ou empresa, sem limite de número de usuários;
+  b) estudar e modificar o Software para uso interno;
+  c) copiar e redistribuir o Software, de forma gratuita, mantendo esta licença
+     e a atribuição exigida.
 
-Quem desejar contratar suporte, solicitar melhorias ou realizar donativo para evolução do produto poderá entrar em contato pelo e-mail:
+Esta concessão vale igualmente para indivíduos e empresas. A Edição Community não
+exige pagamento para uso.
 
-comercial.nexus.xdata@gmail.com
+--------------------------------------------------------------------------------
+3. Condições (atribuição)
+--------------------------------------------------------------------------------
 
-4. Ausência de garantia
+Toda cópia, redistribuição, publicação, fork ou versão modificada do Software deve
+manter, de forma visível e legível:
 
-ESTE SOFTWARE É FORNECIDO "NO ESTADO EM QUE SE ENCONTRA", SEM GARANTIAS DE QUALQUER TIPO, EXPRESSAS OU IMPLÍCITAS, INCLUINDO, SEM LIMITAÇÃO, GARANTIAS DE COMERCIALIZAÇÃO, ADEQUAÇÃO A UMA FINALIDADE ESPECÍFICA E NÃO VIOLAÇÃO.
+  • o nome da empresa criadora: Nexus XData Tecnologia Ltda;
+  • a informação de que o software original foi criado pela Nexus XData
+    Tecnologia Ltda;
+  • este aviso de licença, sem alterações nos avisos de copyright e atribuição.
 
-5. Limitação de responsabilidade
+--------------------------------------------------------------------------------
+4. Restrições (direitos reservados ao Licenciante)
+--------------------------------------------------------------------------------
 
-EM NENHUMA HIPÓTESE A NEXUS XDATA TECNOLOGIA LTDA SERÁ RESPONSÁVEL POR QUAISQUER DANOS, PREJUÍZOS, PERDAS, LUCROS CESSANTES, FALHAS, INTERRUPÇÕES OU CONSEQUÊNCIAS DECORRENTES DO USO, DA IMPOSSIBILIDADE DE USO, DA MODIFICAÇÃO OU DA DISTRIBUIÇÃO DESTE SOFTWARE.
+A Licença Community NÃO autoriza, e o Licenciante reserva para si com
+exclusividade, os seguintes atos. Sem uma licença comercial por escrito do
+Licenciante, Você NÃO pode:
 
-6. Descontinuação
+  a) vender, alugar, sublicenciar, cobrar por, ou de qualquer outra forma
+     comercializar o Software ou um trabalho derivado como produto;
+  b) oferecer o Software (ou derivado substancialmente similar) a terceiros como
+     serviço pago, incluindo hospedagem/SaaS, ou como serviço pago de suporte,
+     manutenção ou consultoria sobre o próprio Software;
+  c) remover, ocultar ou alterar a atribuição, os avisos de copyright, a marca
+     ou esta licença.
 
-A Nexus XData Tecnologia Ltda poderá, a qualquer tempo e a seu exclusivo critério, alterar a estratégia do produto, interromper seu desenvolvimento, suspender sua distribuição ou descontinuá-lo, sem obrigação de continuidade, atualização ou aviso prévio.
+A redistribuição permitida na cláusula 2(c) é apenas gratuita: Você não pode
+cobrar pelo Software nem embutí-lo em um produto ou serviço pago.
 
-7. Aceitação
+O direito de explorar comercialmente o Software — vendê-lo, oferecê-lo como
+serviço e prestar suporte pago sobre ele — é exclusivo do Licenciante.
 
-Ao usar, copiar, modificar ou distribuir este software, o usuário declara estar de acordo com os termos desta licença.
+--------------------------------------------------------------------------------
+5. Edição Comercial, Suporte e Licença Comercial (via paga)
+--------------------------------------------------------------------------------
+
+O Licenciante oferece, mediante contratação e remuneração separadas:
+
+  • licença comercial do NXProject, sem as restrições da cláusula 4, para empresas
+    que desejem termos próprios;
+  • a Edição Comercial / Enterprise, que pode incluir módulos e recursos
+    exclusivos (por exemplo, suporte oficial, SLA, relatórios/impressão/PDF,
+    calendário avançado, integrações com plataformas de IA como OpenAI e Claude,
+    entre outros), conforme disponibilidade;
+  • suporte técnico, manutenção, garantias e indenização contratuais.
+
+A contratação da via comercial é opcional para quem usa a Edição Community em
+conformidade com esta licença. Interessados devem contatar:
+comercial.nexus.xdata@gmail.com.
+
+--------------------------------------------------------------------------------
+6. Contribuições
+--------------------------------------------------------------------------------
+
+Ao enviar contribuições (código, correções, melhorias) para o Software, Você
+concede ao Licenciante uma licença perpétua, mundial, isenta de royalties e
+sublicenciável para usar, modificar e distribuir a contribuição, inclusive na
+Edição Comercial, permitindo o licenciamento dual. Você declara ter os direitos
+necessários para conceder essa licença.
+
+--------------------------------------------------------------------------------
+7. Marcas
+--------------------------------------------------------------------------------
+
+"NXProject" e "Nexus XData" são marcas do Licenciante. Esta licença não concede
+direito de uso das marcas, exceto para a atribuição exigida na cláusula 3.
+
+--------------------------------------------------------------------------------
+8. Ausência de garantia
+--------------------------------------------------------------------------------
+
+ESTE SOFTWARE É FORNECIDO "NO ESTADO EM QUE SE ENCONTRA", SEM GARANTIAS DE
+QUALQUER TIPO, EXPRESSAS OU IMPLÍCITAS, INCLUINDO, SEM LIMITAÇÃO, GARANTIAS DE
+COMERCIALIZAÇÃO, ADEQUAÇÃO A UMA FINALIDADE ESPECÍFICA E NÃO VIOLAÇÃO. A Edição
+Community não inclui obrigação de suporte, manutenção, correção ou evolução.
+
+--------------------------------------------------------------------------------
+9. Limitação de responsabilidade
+--------------------------------------------------------------------------------
+
+EM NENHUMA HIPÓTESE A NEXUS XDATA TECNOLOGIA LTDA SERÁ RESPONSÁVEL POR QUAISQUER
+DANOS, PREJUÍZOS, PERDAS, LUCROS CESSANTES, FALHAS, INTERRUPÇÕES OU CONSEQUÊNCIAS
+DECORRENTES DO USO, DA IMPOSSIBILIDADE DE USO, DA MODIFICAÇÃO OU DA DISTRIBUIÇÃO
+DESTE SOFTWARE.
+
+--------------------------------------------------------------------------------
+10. Descontinuação
+--------------------------------------------------------------------------------
+
+A Nexus XData Tecnologia Ltda poderá, a qualquer tempo e a seu exclusivo critério,
+alterar a estratégia do produto, interromper seu desenvolvimento, suspender sua
+distribuição ou descontinuá-lo, sem obrigação de continuidade, atualização ou
+aviso prévio. Direitos já concedidos sobre versões da Edição Community
+permanecem válidos nos termos desta licença.
+
+--------------------------------------------------------------------------------
+11. Aceitação
+--------------------------------------------------------------------------------
+
+Ao usar, copiar, modificar ou distribuir este software, Você declara estar de
+acordo com os termos desta licença. Caso não concorde, não use o Software sob a
+Edição Community; entre em contato para a licença comercial.

@@ -38,6 +38,9 @@ namespace NXProject.Controls
         public event Action<IReadOnlyList<double>>? RowTopsMeasured;
         public event Action<TaskViewModel, TaskViewModel, bool>? TaskMoveRequested;
 
+        /// <summary>Disparado quando o usuário clica no ID de uma tarefa (editar vínculo DevOps).</summary>
+        public event Action<TaskViewModel>? TaskIdClicked;
+
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
         private bool _suppressScrollNotification;
@@ -91,6 +94,7 @@ namespace NXProject.Controls
         public void SetPresentationMode(bool expanded)
         {
             IdColumn.Width = new DataGridLength(expanded ? 48 : 35);
+            DevOpsColumn.Width = new DataGridLength(expanded ? 58 : 50);
             NameColumn.MinWidth = expanded ? 240 : 120;
             NameColumn.Width = expanded
                 ? new DataGridLength(2.2, DataGridLengthUnitType.Star)
@@ -248,6 +252,16 @@ namespace NXProject.Controls
 
             TaskMoveRequested?.Invoke(sourceTask, targetTask, insertAfter);
             e.Handled = true;
+        }
+
+        private void OnIdCellClick(object sender, RoutedEventArgs e)
+        {
+            _dragSourceTask = null;
+            if (sender is FrameworkElement { DataContext: TaskViewModel task })
+            {
+                e.Handled = true;
+                TaskIdClicked?.Invoke(task);
+            }
         }
 
         private void OnHierarchyTogglePreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

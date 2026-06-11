@@ -1,0 +1,136 @@
+using System;
+using System.IO;
+using System.Text.Json;
+
+namespace NXProject.Services
+{
+    /// <summary>
+    /// Dados de conexao com o Azure DevOps / TFS usados pelo import.
+    /// </summary>
+    public sealed class TfsConnectionOptions
+    {
+        /// <summary>URL da organizacao, ex.: https://dev.azure.com/sua-organizacao </summary>
+        public string OrganizationUrl { get; set; } = "";
+
+        /// <summary>Nome do team project, ex.: Seu Projeto </summary>
+        public string TeamProject { get; set; } = "";
+
+        /// <summary>Personal Access Token (Work Items - Read).</summary>
+        public string PersonalAccessToken { get; set; } = string.Empty;
+
+        /// <summary>ID do work item raiz (tipo Project) a ser importado.</summary>
+        public int RootWorkItemId { get; set; }
+
+        /// <summary>Horas que equivalem a 1 dia util ao converter esforco.</summary>
+        public double HoursPerDay { get; set; } = 8.0;
+
+        /// <summary>Nome do campo de esforco em horas (rotulo "HH Estimado").</summary>
+        public string EffortFieldName { get; set; } = "HH Estimado";
+
+        /// <summary>Nome do campo de data de inicio da Story.</summary>
+        public string StartFieldName { get; set; } = "Data_Inicio";
+
+        /// <summary>Nome do campo de data de fim da Story.</summary>
+        public string FinishFieldName { get; set; } = "Data_Fim";
+
+        public bool IsValid =>
+            !string.IsNullOrWhiteSpace(OrganizationUrl) &&
+            !string.IsNullOrWhiteSpace(TeamProject) &&
+            !string.IsNullOrWhiteSpace(PersonalAccessToken) &&
+            RootWorkItemId > 0;
+    }
+
+    /// <summary>
+    /// Persiste a conexao do TFS (org, projeto, ultimo ID, horas/dia) e,
+    /// opcionalmente, o PAT cifrado via DPAPI no escopo do usuario.
+    /// </summary>
+    public static class TfsConnectionStore
+    {
+        private sealed class StoredConnection
+        {
+            public string OrganizationUrl { get; set; } = "";
+            public string TeamProject { get; set; } = "";
+            public int RootWorkItemId { get; set; }
+            public double HoursPerDay { get; set; } = 8.0;
+            public string EffortFieldName { get; set; } = "HH Estimado";
+            public string StartFieldName { get; set; } = "Data_Inicio";
+            public string FinishFieldName { get; set; } = "Data_Fim";
+            public bool RememberToken { get; set; }
+            public string EncryptedToken { get; set; } = string.Empty;
+        }
+
+        public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
+        {
+            var file = GetSettingsFile(storageKey);
+            var options = new TfsConnectionOptions();
+            if (!File.Exists(file))
+                return options;
+
+            try
+            {
+                var stored = JsonSerializer.Deserialize<StoredConnection>(File.ReadAllText(file));
+                if (stored == null)
+                    return options;
+
+                options.OrganizationUrl = string.IsNullOrWhiteSpace(stored.OrganizationUrl)
+                    ? options.OrganizationUrl
+                    : stored.OrganizationUrl.Trim();
+                options.TeamProject = string.IsNullOrWhiteSpace(stored.TeamProject)
+                    ? options.TeamProject
+                    : stored.TeamProject.Trim();
+                options.RootWorkItemId = stored.RootWorkItemId;
+                options.HoursPerDay = stored.HoursPerDay <= 0 ? 8.0 : stored.HoursPerDay;
+                options.EffortFieldName = string.IsNullOrWhiteSpace(stored.EffortFieldName)
+                    ? options.EffortFieldName : stored.EffortFieldName.Trim();
+                options.StartFieldName = string.IsNullOrWhiteSpace(stored.StartFieldName)
+                    ? options.StartFieldName : stored.StartFieldName.Trim();
+                options.FinishFieldName = string.IsNullOrWhiteSpace(stored.FinishFieldName)
+                    ? options.FinishFieldName : stored.FinishFieldName.Trim();
+                if (stored.RememberToken)
+                    options.PersonalAccessToken = WindowsDataProtection.Decrypt(stored.EncryptedToken);
+            }
+            catch
+            {
+                return new TfsConnectionOptions();
+            }
+
+            return options;
+        }
+
+        public static void Save(TfsConnectionOptions options, bool rememberToken, string storageKey = "NXProject.Community")
+        {
+            var directory = GetSettingsDirectory(storageKey);
+            Directory.CreateDirectory(directory);
+
+            var payload = new StoredConnection
+            {
+                OrganizationUrl = options.OrganizationUrl?.Trim() ?? string.Empty,
+                TeamProject = options.TeamProject?.Trim() ?? string.Empty,
+                RootWorkItemId = options.RootWorkItemId,
+                HoursPerDay = options.HoursPerDay <= 0 ? 8.0 : options.HoursPerDay,
+                EffortFieldName = string.IsNullOrWhiteSpace(options.EffortFieldName) ? "HH Estimado" : options.EffortFieldName.Trim(),
+                StartFieldName = string.IsNullOrWhiteSpace(options.StartFieldName) ? "Data_Inicio" : options.StartFieldName.Trim(),
+                FinishFieldName = string.IsNullOrWhiteSpace(options.FinishFieldName) ? "Data_Fim" : options.FinishFieldName.Trim(),
+                RememberToken = rememberToken,
+                EncryptedToken = rememberToken
+                    ? WindowsDataProtection.Encrypt(options.PersonalAccessToken ?? string.Empty, "NXProject.Tfs")
+                    : string.Empty
+            };
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(GetSettingsFile(storageKey), json);
+        }
+
+        private static string GetSettingsDirectory(string storageKey)
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                string.IsNullOrWhiteSpace(storageKey) ? "NXProject.Community" : storageKey.Trim());
+        }
+
+        private static string GetSettingsFile(string storageKey)
+        {
+            return Path.Combine(GetSettingsDirectory(storageKey), "config_nxproject.json");
+        }
+    }
+}

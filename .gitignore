@@ -24,3 +24,10 @@ teste_openproj.pod
 
 *.user
 *.suo
+
+# Configuracao local de conexao (org/projeto/PAT) — nunca versionar.
+# O app grava em %LocalAppData%\NXProject.Community\config_nxproject.json,
+# mas este padrao protege qualquer copia criada na pasta do projeto.
+config_nxproject.json
+**/config_nxproject.json
+*.local.json

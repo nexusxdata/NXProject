@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NXProject.Models;
 
@@ -45,6 +47,128 @@ namespace NXProject.ViewModels
             get => _task.Id;
             set { _task.Id = value; OnPropertyChanged(); }
         }
+
+        // ID exibido na grade: o do DevOps quando vinculado, senão o interno.
+        public string DisplayId => _task.TfsId?.ToString() ?? _task.Id.ToString();
+
+        public int? TfsId
+        {
+            get => _task.TfsId;
+            set
+            {
+                _task.TfsId = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayId));
+            }
+        }
+
+        public string? TfsType
+        {
+            get => _task.TfsType;
+            set
+            {
+                _task.TfsType = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DevOpsTag));
+                OnPropertyChanged(nameof(DevOpsTooltip));
+            }
+        }
+
+        public string? TfsState
+        {
+            get => _task.TfsState;
+            set
+            {
+                _task.TfsState = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PercentComplete));
+                OnPropertyChanged(nameof(DevOpsTag));
+                OnPropertyChanged(nameof(DevOpsTooltip));
+                OnPropertyChanged(nameof(DevOpsBrush));
+            }
+        }
+
+        // ── Selo compacto DevOps (cronograma) ────────────────────────────────
+        // Ex.: "FEA·A" (Feature, Active). Vazio quando não vinculado.
+        public string DevOpsTag
+        {
+            get
+            {
+                var t = TypeShort(_task.TfsType);
+                var s = StateShort(_task.TfsState);
+                if (string.IsNullOrEmpty(t) && string.IsNullOrEmpty(s)) return string.Empty;
+                if (string.IsNullOrEmpty(s)) return t;
+                if (string.IsNullOrEmpty(t)) return s;
+                return $"{t}·{s}";
+            }
+        }
+
+        public string DevOpsTooltip
+        {
+            get
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                if (!string.IsNullOrWhiteSpace(_task.TfsType)) parts.Add(_task.TfsType!);
+                if (!string.IsNullOrWhiteSpace(_task.TfsState)) parts.Add(_task.TfsState!);
+                return string.Join(" · ", parts);
+            }
+        }
+
+        // Cor pelo estado DevOps.
+        public Brush DevOpsBrush => (_task.TfsState?.Trim().ToLowerInvariant()) switch
+        {
+            "active" => new SolidColorBrush(Color.FromRgb(0x2B, 0x57, 0x9A)),   // azul
+            "resolved" => new SolidColorBrush(Color.FromRgb(0x87, 0x64, 0xB8)), // roxo
+            "closed" => new SolidColorBrush(Color.FromRgb(0x21, 0x73, 0x46)),   // verde
+            "removed" => new SolidColorBrush(Color.FromRgb(0xA4, 0x26, 0x2C)),  // vermelho
+            _ => new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70))           // cinza (New/none)
+        };
+
+        private static string TypeShort(string? type) => (type?.Trim().ToLowerInvariant()) switch
+        {
+            "project" => "PRJ",
+            "epic" => "EPC",
+            "feature" => "FEA",
+            "user story" or "story" => "STO",
+            null or "" => string.Empty,
+            _ => type!.Trim().ToUpperInvariant()[..Math.Min(3, type!.Trim().Length)]
+        };
+
+        private static string StateShort(string? state) => (state?.Trim().ToLowerInvariant()) switch
+        {
+            "new" => "N",
+            "active" => "A",
+            "resolved" => "R",
+            "closed" => "C",
+            "removed" => "X",
+            null or "" => string.Empty,
+            _ => state!.Trim().ToUpperInvariant()[..1]
+        };
+
+        public string? Description
+        {
+            get => _task.Description;
+            set { _task.Description = value; OnPropertyChanged(); }
+        }
+
+        public string? Tags
+        {
+            get => _task.Tags;
+            set
+            {
+                _task.Tags = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsBlocked));
+            }
+        }
+
+        // Conveniência: item bloqueado — tag "Block" própria OU rollup de Task filha
+        // bloqueada (este último é só visão, não sincroniza).
+        public bool IsBlocked =>
+            _task.BlockedByChild ||
+            (_task.Tags ?? string.Empty)
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Any(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
 
         public string Name
         {

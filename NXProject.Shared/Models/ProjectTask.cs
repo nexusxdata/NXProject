@@ -23,6 +23,29 @@ namespace NXProject.Models
 
         public double? SfpPoints { get; set; }
 
+        // ── Vínculo com TFS / Azure DevOps ──────────────────────────────────
+        // Id do work item no DevOps (distinto do Id interno, que é sequencial).
+        // 0 = marcado para criar no DevOps na próxima sincronização.
+        public int? TfsId { get; set; }
+        // Id do work item PAI no DevOps (parent hierárquico) na época da importação,
+        // usado para detectar reparenting e atualizar o link na sincronização.
+        public int? TfsParentId { get; set; }
+        // Tipo no DevOps: Project, Epic, Feature, Story.
+        public string? TfsType { get; set; }
+        // Estado no DevOps: New, Active, Block, Closed, Removed, Resolved.
+        public string? TfsState { get; set; }
+        // Descrição (System.Description) importada do DevOps, usada na sincronização.
+        public string? Description { get; set; }
+        // Tags do DevOps (System.Tags), separadas por "; " (ex.: "Block"). Lidas no
+        // import e sincronizadas de volta se mudarem.
+        public string? Tags { get; set; }
+        // Bloqueio DERIVADO de Tasks filhas com tag Block. SÓ visão no NXProject —
+        // nunca é sincronizado de volta (distinto de Tags).
+        public bool BlockedByChild { get; set; }
+        // Ordem no backlog do DevOps (Microsoft.VSTS.Common.StackRank): menor = mais
+        // acima. Importado, usado para ordenar irmãos e sincronizado se a ordem mudar.
+        public double? TfsStackRank { get; set; }
+
         // Recursos alocados nesta tarefa
         public List<TaskResource> Resources { get; set; } = new();
 

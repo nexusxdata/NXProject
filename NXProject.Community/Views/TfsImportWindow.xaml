@@ -1,0 +1,112 @@
+<Window x:Class="NXProject.Views.TfsImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Importar do TFS / Azure DevOps"
+        Width="560"
+        Height="600"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="White">
+
+    <Border Padding="24">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                <TextBlock Text="Importar projeto do TFS / Azure DevOps"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="#2B579A"/>
+                <TextBlock Text="Monta o cronograma Project → Epic → Feature → Story (sem Task)."
+                           FontSize="12"
+                           Foreground="#666"
+                           Margin="0,4,0,0"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+            <StackPanel>
+                <TextBlock Text="URL da organização (ex.: https://dev.azure.com/sua-org ou https://suaorg.visualstudio.com)"
+                           FontWeight="SemiBold" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                <TextBox x:Name="OrgUrlBox" Height="28" Padding="6,4"/>
+
+                <TextBlock Text="Team project (nome do projeto no DevOps)" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <TextBox x:Name="ProjectBox" Height="28" Padding="6,4"/>
+
+                <TextBlock Text="Personal Access Token (escopo: Work Items - Read)"
+                           FontWeight="SemiBold" Margin="0,12,0,4"/>
+                <PasswordBox x:Name="PatBox" Height="28" Padding="6,4"/>
+                <CheckBox x:Name="RememberTokenCheck"
+                          Content="Lembrar o token neste computador (cifrado)"
+                          Margin="0,6,0,0"/>
+
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="ID do work item raiz (tipo Project)"
+                                   FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBox x:Name="RootIdBox" Height="28" Padding="6,4"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Horas por dia útil"
+                                   FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBox x:Name="HoursPerDayBox" Height="28" Padding="6,4" Text="8"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Background="#F5F7FA" BorderBrush="#D9E1EA" BorderThickness="1"
+                        CornerRadius="8" Padding="12" Margin="0,16,0,0">
+                    <TextBlock TextWrapping="Wrap" Foreground="#444" FontSize="12"
+                               Text="O esforço de cada Story (campo HH Estimado) é convertido em dias úteis. Se Data_Inicio estiver preenchida, a barra começa nela; Data_Fim, se preenchida, é usada diretamente. Sem datas, as Stories são encadeadas a partir da data do projeto."/>
+                </Border>
+
+                <Expander Header="Campos (avançado)" Margin="0,12,0,0" Foreground="#2B579A">
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Campo de esforço (horas)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                            <TextBox x:Name="EffortFieldBox" Height="26" Padding="6,3"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Campo data início" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                            <TextBox x:Name="StartFieldBox" Height="26" Padding="6,3"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Text="Campo data fim" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                            <TextBox x:Name="FinishFieldBox" Height="26" Padding="6,3"/>
+                        </StackPanel>
+                    </Grid>
+                </Expander>
+
+                <TextBlock x:Name="StatusText"
+                           Foreground="#B00020"
+                           TextWrapping="Wrap"
+                           Margin="0,12,0,0"
+                           Visibility="Collapsed"/>
+            </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal"
+                        HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="ImportButton" Content="Importar" Width="110" Height="32"
+                        IsDefault="True" Click="OnImportClick"/>
+                <Button Content="Cancelar" Width="100" Height="32" Margin="10,0,0,0"
+                        IsCancel="True"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

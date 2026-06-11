@@ -92,7 +92,15 @@ namespace NXProject.Services
                 new XElement(NS + "SprintNumber", task.SprintNumber),
                 new XElement(NS + "Notes", task.Notes ?? ""),
                 new XElement(NS + "SfpPoints", task.SfpPoints ?? 0),
-                new XElement(NS + "EstimatedHours", task.EstimatedHours ?? 0)
+                new XElement(NS + "EstimatedHours", task.EstimatedHours ?? 0),
+                new XElement(EXT + "TfsId", task.TfsId?.ToString() ?? ""),
+                new XElement(EXT + "TfsParentId", task.TfsParentId?.ToString() ?? ""),
+                new XElement(EXT + "TfsType", task.TfsType ?? ""),
+                new XElement(EXT + "TfsState", task.TfsState ?? ""),
+                new XElement(EXT + "TfsTags", task.Tags ?? ""),
+                new XElement(EXT + "BlockedByChild", task.BlockedByChild),
+                new XElement(EXT + "TfsStackRank", task.TfsStackRank?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? ""),
+                new XElement(EXT + "Description", task.Description ?? "")
             );
 
             // Predecessoras
@@ -203,6 +211,14 @@ namespace NXProject.Services
                 Notes = el.Element(NS + "Notes")?.Value,
                 SfpPoints = double.TryParse(el.Element(NS + "SfpPoints")?.Value, out var sfp) ? sfp : null,
                 EstimatedHours = double.TryParse(el.Element(NS + "EstimatedHours")?.Value, out var eh) ? eh : null,
+                TfsId = int.TryParse(el.Element(EXT + "TfsId")?.Value, out var tfsId) ? tfsId : null,
+                TfsParentId = int.TryParse(el.Element(EXT + "TfsParentId")?.Value, out var tfsPid) ? tfsPid : null,
+                TfsType = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsType")?.Value) ? null : el.Element(EXT + "TfsType")?.Value,
+                TfsState = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsState")?.Value) ? null : el.Element(EXT + "TfsState")?.Value,
+                Tags = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsTags")?.Value) ? null : el.Element(EXT + "TfsTags")?.Value,
+                BlockedByChild = bool.TryParse(el.Element(EXT + "BlockedByChild")?.Value, out var bbc) && bbc,
+                TfsStackRank = double.TryParse(el.Element(EXT + "TfsStackRank")?.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tsr) ? tsr : null,
+                Description = string.IsNullOrWhiteSpace(el.Element(EXT + "Description")?.Value) ? null : el.Element(EXT + "Description")?.Value,
                 Parent = parent
             };
 

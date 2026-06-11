@@ -327,6 +327,29 @@ namespace NXProject.ViewModels
             }
         }
 
+        /// <summary>
+        /// Aplica um projeto importado externamente (ex.: TFS/Azure DevOps) ao
+        /// estado atual, replicando os passos dos comandos de import de arquivo.
+        /// </summary>
+        public void ApplyImportedProject(Project project, string? statusMessage = null)
+        {
+            if (project == null) return;
+
+            Project = project;
+            ApplyProjectSprintSettingsToViewModel(project);
+            _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
+            RebuildFlatTasks();
+            Project.IsDirty = true;
+            StatusMessage = statusMessage ?? "Projeto importado.";
+        }
+
+        /// <summary>Reconstrói a lista plana (ex.: após sincronizar com o TFS, quando
+        /// IDs/vínculos de tarefas mudam fora da grade).</summary>
+        public void RefreshTasks()
+        {
+            RebuildFlatTasks();
+        }
+
         [RelayCommand]
         private void ImportMspdi()
         {

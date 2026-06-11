@@ -26,6 +26,8 @@
                     <MenuItem Header="OpenProj (.pod)..." Command="{Binding ImportOpenProjCommand}"/>
                     <MenuItem Header="MS Project XML..." Command="{Binding ImportMspdiCommand}"/>
                     <MenuItem Header="Excel XML..." Command="{Binding ImportExcelCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="TFS / Azure DevOps..." Click="OnImportTfsClick"/>
                 </MenuItem>
                 <MenuItem Header="_Exportar">
                     <MenuItem Header="OpenProj (.pod)..." Command="{Binding ExportOpenProjCommand}"/>
@@ -33,6 +35,8 @@
                     <MenuItem Header="Excel XML..." Command="{Binding ExportExcelCommand}"/>
                     <Separator/>
                     <MenuItem Header="CSV..." Command="{Binding ExportCsvCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Sincronizar TFS / Azure DevOps..." Click="OnSyncTfsClick"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Sa_ir" Click="OnExitClick"/>

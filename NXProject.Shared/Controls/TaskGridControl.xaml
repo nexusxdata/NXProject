@@ -3,6 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:NXProject.ViewModels">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
     <DataGrid x:Name="TaskGrid"
               ItemsSource="{Binding Tasks, RelativeSource={RelativeSource AncestorType=UserControl}}"
               SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
@@ -23,15 +27,49 @@
 
         <DataGrid.Columns>
 
-            <!-- ID -->
-            <DataGridTextColumn x:Name="IdColumn" Header="ID" Binding="{Binding Id}" Width="35" IsReadOnly="True">
-                <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="TextAlignment" Value="Center"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                    </Style>
-                </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+            <!-- ID (clicável: abre edição do vínculo DevOps) -->
+            <DataGridTemplateColumn x:Name="IdColumn" Header="ID" Width="35" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                        <Button Content="{Binding DisplayId}"
+                                Click="OnIdCellClick"
+                                ToolTip="Clique para editar o vínculo DevOps (ID, tipo, estado)"
+                                Cursor="Hand"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                Foreground="#2B579A"
+                                FontSize="11"
+                                Padding="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <TextBlock Text="{TemplateBinding Content}"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               TextAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextDecorations="Underline"/>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <!-- Tipo + Estado DevOps (compacto: ex. "FEA·A") -->
+            <DataGridTemplateColumn x:Name="DevOpsColumn" Header="T·E" Width="50" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                        <TextBlock Text="{Binding DevOpsTag}"
+                                   Foreground="{Binding DevOpsBrush}"
+                                   ToolTip="{Binding DevOpsTooltip}"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
 
             <!-- Nome (com indentação) -->
             <DataGridTemplateColumn x:Name="NameColumn" Header="Nome da Tarefa" Width="*" MinWidth="120">
@@ -101,18 +139,27 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <!-- Nome -->
-                            <TextBlock Grid.Column="3" Text="{Binding Name}" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSummary}" Value="True">
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                            <!-- Nome (+ selo BLOCK quando bloqueado) -->
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Margin="0,0,5,0" Padding="4,0" CornerRadius="3"
+                                        Background="#FDE7E9" BorderBrush="#D13438" BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsBlocked, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="⛔ BLOCK" FontSize="9" FontWeight="SemiBold"
+                                               Foreground="#A4262C" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSummary}" Value="True">
+                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
                         </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>

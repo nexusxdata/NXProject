@@ -72,9 +72,9 @@
                         <TextBlock Text="Nexus XData Tecnologia Ltda"
                                    Margin="0,2,0,10"/>
 
-                        <TextBlock Text="Direitos da Community"
+                        <TextBlock Text="Licenca (Open Core)"
                                    FontWeight="SemiBold"/>
-                        <TextBlock Text="Uso sujeito a licenca propria da edicao Community. Recursos pagos e proprietarios nao fazem parte desta edicao."
+                        <TextBlock Text="Edicao Community gratuita para pessoas e empresas. Edicao Comercial/Enterprise com suporte e vendida separadamente. Recursos pagos nao fazem parte desta edicao."
                                    Margin="0,2,0,10"
                                    TextWrapping="Wrap"/>
 

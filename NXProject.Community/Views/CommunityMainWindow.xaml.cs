@@ -57,6 +57,8 @@ namespace NXProject.Views
                     GanttCtrl.ForceRender();
             };
 
+            TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
+
             vm.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(MainViewModel.SelectedTask))
@@ -144,6 +146,78 @@ namespace NXProject.Views
             aiWindow.ShowDialog();
         }
 
+        private void OnTaskIdClicked(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            var dialog = new TfsWorkItemEditWindow(task) { Owner = this };
+            if (dialog.ShowDialog() == true)
+                vm.Project.IsDirty = true;
+        }
+
+        private async void OnSyncTfsClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            var options = Services.TfsConnectionStore.Load("NXProject.Community");
+            if (string.IsNullOrWhiteSpace(options.OrganizationUrl) ||
+                string.IsNullOrWhiteSpace(options.TeamProject) ||
+                string.IsNullOrWhiteSpace(options.PersonalAccessToken))
+            {
+                MessageBox.Show(
+                    "Configure a conexão e marque \"Lembrar o token\" primeiro em Arquivo → Importar → TFS / Azure DevOps.",
+                    "Sincronizar TFS/DevOps", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                "Isto vai atualizar os work items vinculados no DevOps (título/descrição, horas, e datas conforme as regras). Continuar?",
+                "Sincronizar TFS/DevOps", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.OK)
+                return;
+
+            System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+            try
+            {
+                var report = await Services.TfsImportService.SyncAsync(vm.Project, options);
+                System.Windows.Input.Mouse.OverrideCursor = null;
+                vm.Project.IsDirty = true;
+                vm.RefreshTasks();
+                MessageBox.Show(report.ToString(), "Sincronização concluída",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Input.Mouse.OverrideCursor = null;
+                MessageBox.Show($"Erro ao sincronizar:\n{ex.Message}", "Erro",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                System.Windows.Input.Mouse.OverrideCursor = null;
+            }
+        }
+
+        private void OnImportTfsClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            var dialog = new TfsImportWindow("NXProject.Community")
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true && dialog.ImportedProject is { } project)
+            {
+                vm.ApplyImportedProject(
+                    project,
+                    $"Projeto importado do TFS: {project.Name}");
+            }
+        }
+
         private void OnSprintSettingsClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm)
@@ -221,7 +295,6 @@ namespace NXProject.Views
             if (HasAcceptedLicense())
             {
                 _licenseAccepted = true;
-                OpenAiAssistantOnFirstAccess();
                 return;
             }
 
@@ -231,8 +304,6 @@ namespace NXProject.Views
                 Close();
                 return;
             }
-
-            OpenAiAssistantOnFirstAccess();
         }
 
         private bool ShowLicenseDialog(bool requireAcceptance)
