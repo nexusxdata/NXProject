@@ -16,6 +16,27 @@ namespace NXProject.ViewModels
         private readonly double _mediumDaysPerSfp;
         private readonly double _highDaysPerSfp;
 
+        // Callback fornecido pelo MainViewModel para recalcular o início quando
+        // o usuário limpa o fix (digita "0"). Retorna a data de início calculada.
+        public Func<DateTime>? GetSprintStart { get; set; }
+
+        // Lookups injetados pelo MainViewModel para resolução de IDs de predecessoras.
+        // FindByInternalId : Id interno → TaskViewModel (para exibir o DisplayId correto).
+        // FindByDisplayId  : DisplayId digitado pelo usuário → Id interno da tarefa.
+        public Func<int, TaskViewModel?>? FindByInternalId { get; set; }
+        public Func<string, int?>? FindByDisplayId { get; set; }
+
+        // Lista filtrada de sprints disponíveis para este ViewModel (Start >= task.Start).
+        // Alimentada e atualizada pelo MainViewModel.
+        public ObservableCollection<Sprint> AvailableSprintsForTask { get; } = new();
+
+        public void RefreshSprintOptions(IEnumerable<Sprint> allOptions)
+        {
+            AvailableSprintsForTask.Clear();
+            foreach (var s in allOptions.Where(s => s.Start == default || s.Start >= _task.Start.Date))
+                AvailableSprintsForTask.Add(s);
+        }
+
         public TaskViewModel(
             ProjectTask task,
             int depth = 0,
@@ -179,6 +200,51 @@ namespace NXProject.ViewModels
             set { _task.Name = value; OnPropertyChanged(); _task.Parent?.RecalcSummary(); }
         }
 
+        public bool StartFixed
+        {
+            get => _task.StartFixed;
+            set
+            {
+                _task.StartFixed = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(StartDisplay));
+            }
+        }
+
+        // Exibição na célula: "📌 dd/MM/yy" quando fixado, "dd/MM/yy" normal.
+        public string StartDisplay =>
+            _task.StartFixed
+                ? "📌 " + _task.Start.ToString("dd/MM/yy")
+                : _task.Start.ToString("dd/MM/yy");
+
+        // Setter de texto aceita data válida (marca fix) ou "0" (limpa fix e recalcula).
+        public string StartText
+        {
+            set
+            {
+                var raw = value?.Trim() ?? string.Empty;
+                if (raw == "0")
+                {
+                    _task.StartFixed = false;
+                    var newStart = GetSprintStart?.Invoke() ?? _task.Start;
+                    var durationHours = DurationHours;
+                    _task.Start = newStart;
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(newStart, durationHours);
+                    OnPropertyChanged(nameof(Start));
+                    OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(StartFixed));
+                    OnPropertyChanged(nameof(StartDisplay));
+                    OnPropertyChanged(nameof(DurationDays));
+                    OnPropertyChanged(nameof(DurationHours));
+                    RecalcAncestorSummaries();
+                }
+                else if (DateTime.TryParse(raw, out var parsed))
+                {
+                    Start = parsed; // setter abaixo marca StartFixed = true
+                }
+            }
+        }
+
         public DateTime Start
         {
             get => _task.Start;
@@ -187,11 +253,14 @@ namespace NXProject.ViewModels
                 var durationHours = DurationHours;
                 _task.Start = value;
                 _task.Finish = ProjectCalendarService.AddWorkingHours(value, durationHours);
+                _task.StartFixed = true;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Finish));
                 OnPropertyChanged(nameof(DurationDays));
                 OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
+                OnPropertyChanged(nameof(StartFixed));
+                OnPropertyChanged(nameof(StartDisplay));
                 RecalcAncestorSummaries();
             }
         }
@@ -234,6 +303,30 @@ namespace NXProject.ViewModels
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
                 }
+            }
+        }
+
+        // Setter de texto aceita horas ("32") ou dias com sufixo "d" ("5d" → 5 × horas/dia).
+        // O getter não é usado pelo binding; o display fica no CellTemplate via DurationHours.
+        public string DurationText
+        {
+            set
+            {
+                if (UsesSfpEstimate) return;
+                var raw = value?.Trim() ?? string.Empty;
+                double hours;
+                if (raw.EndsWith("d", StringComparison.OrdinalIgnoreCase) &&
+                    double.TryParse(raw[..^1].Trim(), System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.CurrentCulture, out var days))
+                {
+                    hours = days * ProjectCalendarService.WorkingHoursPerDay;
+                }
+                else if (!double.TryParse(raw, System.Globalization.NumberStyles.Any,
+                             System.Globalization.CultureInfo.CurrentCulture, out hours))
+                {
+                    return; // entrada inválida — ignora
+                }
+                DurationHours = Math.Max(0, hours);
             }
         }
 
@@ -453,7 +546,20 @@ namespace NXProject.ViewModels
 
         public string PredecessorsText
         {
-            get => string.Join(",", _task.PredecessorIds);
+            get
+            {
+                // Exibe o DisplayId (TfsId se vinculado, senão Id interno) de cada predecessora.
+                if (FindByInternalId == null)
+                    return string.Join(",", _task.PredecessorIds);
+
+                var parts = new System.Collections.Generic.List<string>();
+                foreach (var internalId in _task.PredecessorIds)
+                {
+                    var pred = FindByInternalId(internalId);
+                    parts.Add(pred != null ? pred.DisplayId : internalId.ToString());
+                }
+                return string.Join(",", parts);
+            }
             set
             {
                 if (!CanEditPredecessors)
@@ -461,8 +567,24 @@ namespace NXProject.ViewModels
 
                 _task.PredecessorIds.Clear();
                 foreach (var part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
-                    if (int.TryParse(part.Trim(), out int id))
+                {
+                    var raw = part.Trim();
+                    if (string.IsNullOrEmpty(raw)) continue;
+
+                    // Tenta resolver pelo DisplayId (TfsId ou Id interno) → armazena Id interno.
+                    if (FindByDisplayId != null)
+                    {
+                        var resolved = FindByDisplayId(raw);
+                        if (resolved.HasValue)
+                        {
+                            _task.PredecessorIds.Add(resolved.Value);
+                            continue;
+                        }
+                    }
+                    // Fallback: trata como Id interno direto.
+                    if (int.TryParse(raw, out int id))
                         _task.PredecessorIds.Add(id);
+                }
                 OnPropertyChanged();
             }
         }

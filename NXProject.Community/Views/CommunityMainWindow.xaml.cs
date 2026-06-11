@@ -192,24 +192,35 @@ namespace NXProject.Views
                 return;
 
             System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+            Services.TfsImportService.SyncReport? report = null;
             try
             {
-                var report = await Services.TfsImportService.SyncAsync(vm.Project, options);
-                System.Windows.Input.Mouse.OverrideCursor = null;
-                vm.Project.IsDirty = true;
-                vm.RefreshTasks();
-                MessageBox.Show(report.ToString(), "Sincronização concluída",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                report = await Services.TfsImportService.SyncAsync(vm.Project, options);
             }
             catch (Exception ex)
             {
                 System.Windows.Input.Mouse.OverrideCursor = null;
-                MessageBox.Show($"Erro ao sincronizar:\n{ex.Message}", "Erro",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"Erro ao sincronizar:\n{ex.Message}\n\nTipo: {ex.GetType().Name}\n\n{ex.StackTrace}",
+                    "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
             }
             finally
             {
                 System.Windows.Input.Mouse.OverrideCursor = null;
+            }
+
+            vm.Project.IsDirty = true;
+            vm.RefreshTasks();
+            try
+            {
+                new SyncResultWindow(report) { Owner = this }.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Erro ao abrir resultado:\n{ex.Message}\n\nTipo: {ex.GetType().Name}\n\n{ex.StackTrace}",
+                    "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

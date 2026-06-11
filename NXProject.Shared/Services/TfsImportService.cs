@@ -150,7 +150,8 @@ namespace NXProject.Services
                 SprintStartByPath = sprintStarts,
                 ParentByChild = parentByChild,
                 Project = project,
-                ResourcesByKey = resourcesByKey
+                ResourcesByKey = resourcesByKey,
+                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim()
             };
 
             // Os Epics (filhos diretos da raiz) viram tarefas de nivel 0.
@@ -176,7 +177,11 @@ namespace NXProject.Services
             }
 
             NormalizeIds(project.Tasks);
-            ApplyTfsPredecessors(project.Tasks, items);
+
+            // Etapa 2: leitura separada dos links de predecessora via WIQL.
+            var depLinks = await LoadDependencyLinksAsync(
+                orgBase, options.TeamProject, authHeader, allIds, cancellationToken);
+            ApplyTfsPredecessors(project.Tasks, depLinks);
             foreach (var t in project.Tasks)
                 t.RecalcSummary();
 
@@ -189,6 +194,15 @@ namespace NXProject.Services
 
         // ── Sincronizacao (Export -> TFS/DevOps) ─────────────────────────────
 
+        public enum SyncLogLevel { Success, Warning, Error }
+
+        public sealed class SyncLogEntry
+        {
+            public SyncLogLevel Level { get; }
+            public string Message { get; }
+            public SyncLogEntry(SyncLogLevel level, string message) { Level = level; Message = message; }
+        }
+
         public sealed class SyncReport
         {
             public int Updated;
@@ -196,9 +210,20 @@ namespace NXProject.Services
             public int Reparented;
             public int Skipped;
             public int NotFound;
-            public List<string> Messages = new();
+            // Detalhes por item (sucesso, aviso, erro).
+            public List<SyncLogEntry> Log = new();
             // Features/Stories que ficaram sem sprint (IterationPath vazio).
             public List<string> WithoutSprint = new();
+
+            // Mantido para compatibilidade; redireciona para Log.
+            public List<string> Messages => Log
+                .Where(e => e.Level != SyncLogLevel.Success)
+                .Select(e => e.Message)
+                .ToList();
+
+            public void LogSuccess(string msg) => Log.Add(new SyncLogEntry(SyncLogLevel.Success, msg));
+            public void LogWarning(string msg) => Log.Add(new SyncLogEntry(SyncLogLevel.Warning, msg));
+            public void LogError(string msg)   => Log.Add(new SyncLogEntry(SyncLogLevel.Error,   msg));
 
             public override string ToString()
             {
@@ -208,7 +233,8 @@ namespace NXProject.Services
                 if (Reparented > 0) sb.AppendLine($"Reparentados (parent atualizado): {Reparented}");
                 sb.AppendLine($"Sem alteracao: {Skipped}");
                 if (NotFound > 0) sb.AppendLine($"Nao encontrados no DevOps: {NotFound}");
-                foreach (var m in Messages) sb.AppendLine(m);
+                foreach (var e in Log.Where(e => e.Level != SyncLogLevel.Success))
+                    sb.AppendLine(e.Message);
                 if (WithoutSprint.Count > 0)
                 {
                     sb.AppendLine();
@@ -258,9 +284,11 @@ namespace NXProject.Services
                 .ToDictionary(g => g.Key, g => g.First());
 
             var report = new SyncReport();
+            report.LogSuccess($"[config] hoursRef={hoursRef ?? "(não resolvido)"} | startRef={startRef ?? "(não resolvido)"} | finishRef={finishRef ?? "(não resolvido)"}");
+
             if (tasks.Count == 0)
             {
-                report.Messages.Add("Nenhuma tarefa vinculada ao DevOps (clique no ID para vincular ou digite 0 para criar).");
+                report.LogWarning("Nenhuma tarefa vinculada ao DevOps (clique no ID para vincular ou digite 0 para criar).");
                 return report;
             }
 
@@ -287,20 +315,21 @@ namespace NXProject.Services
                         // CRIAR no DevOps.
                         if (string.IsNullOrWhiteSpace(task.TfsType))
                         {
-                            report.Messages.Add($"\"{task.Name}\": defina o Tipo DevOps para criar (clique no ID).");
+                            report.LogWarning($"\"{task.Name}\": defina o Tipo DevOps para criar (clique no ID).");
                             continue;
                         }
                         if (desiredParent <= 0)
                         {
-                            report.Messages.Add($"\"{task.Name}\": pai sem vínculo DevOps; vincule/crie o pai primeiro.");
+                            report.LogWarning($"\"{task.Name}\": pai sem vínculo DevOps; vincule/crie o pai primeiro.");
                             continue;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, task.TfsType!, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
                         report.Created++;
+                        report.LogSuccess($"Criado #{newId} — {task.Name} ({task.TfsType})");
                         continue;
                     }
 
@@ -308,43 +337,116 @@ namespace NXProject.Services
                     if (!current.TryGetValue(task.TfsId.Value, out var wi))
                     {
                         report.NotFound++;
-                        report.Messages.Add($"#{task.TfsId} ({task.Name}): não encontrado no DevOps.");
+                        report.LogError($"#{task.TfsId} ({task.Name}): não encontrado no DevOps.");
                         continue;
                     }
 
                     var ops = new List<object>();
+                    var changes = new List<string>();
 
                     if (!string.Equals((task.Name ?? string.Empty).Trim(), (wi.Title ?? string.Empty).Trim(), StringComparison.Ordinal))
+                    {
                         ops.Add(PatchAdd("/fields/System.Title", task.Name ?? string.Empty));
+                        changes.Add("título");
+                    }
 
                     if (task.Description != null &&
                         !string.Equals(task.Description.Trim(), (wi.Description ?? string.Empty).Trim(), StringComparison.Ordinal))
+                    {
                         ops.Add(PatchAdd("/fields/System.Description", task.Description));
+                        changes.Add("descrição");
+                    }
 
                     // Tags (ex.: "Block") — sincroniza se o conjunto mudou.
                     if (!TagsEqual(task.Tags, wi.Tags))
+                    {
                         ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(task.Tags)));
+                        changes.Add("tags");
+                    }
 
                     // Ordem (StackRank) — sincroniza se o rank desejado mudou.
                     if (task.TfsStackRank.HasValue)
                     {
                         var currentRank = ReadDouble(wi, "Microsoft.VSTS.Common.StackRank");
                         if (currentRank == null || Math.Abs(currentRank.Value - task.TfsStackRank.Value) > 0.0001)
+                        {
                             ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
+                            changes.Add("ordem");
+                        }
                     }
 
-                    if (hoursRef != null && task.EstimatedHours.HasValue)
+                    var desiredHours = GetSyncHours(task);
+                    if (hoursRef != null && desiredHours.HasValue)
                     {
                         var currentHours = ReadDouble(wi, hoursRef);
-                        if (currentHours == null || Math.Abs(currentHours.Value - task.EstimatedHours.Value) > 0.0001)
-                            ops.Add(PatchAdd($"/fields/{hoursRef}", task.EstimatedHours.Value));
+                        if (currentHours == null || Math.Abs(currentHours.Value - desiredHours.Value) > 0.0001)
+                        {
+                            ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
+                            var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
+                            changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
+                        }
+                    }
+
+                    var desiredAssignee = GetDesiredAssigneeEmail(task);
+                    if (!string.IsNullOrWhiteSpace(desiredAssignee) && !AssigneeEquals(wi, desiredAssignee))
+                    {
+                        ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
+                        changes.Add($"responsável: {desiredAssignee}");
                     }
 
                     if (startRef != null)
                     {
                         var currentStart = ReadDate(wi, startRef);
-                        if (currentStart != null && currentStart.Value.Date != task.Start.Date)
-                            ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+                        var effectiveStateForStart = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
+                        bool isClosed = IsClosedState(effectiveStateForStart) || task.PercentComplete >= 100;
+
+                        // Calcula o início esperado da sprint para saber se o início da tarefa
+                        // diverge da janela da sprint (o que justifica enviar ao TFS).
+                        var sprintObj = string.IsNullOrWhiteSpace(task.TfsIterationPath)
+                            ? null
+                            : project.Sprints.FirstOrDefault(s =>
+                                string.Equals(s.Path, task.TfsIterationPath, StringComparison.OrdinalIgnoreCase));
+                        var sprintStart = sprintObj?.Start;
+                        bool startDiffersFromSprint = sprintStart == null || task.Start.Date != sprintStart.Value.Date;
+
+                        if (isClosed || task.StartFixed || startDiffersFromSprint)
+                        {
+                            // Envia o início: tarefa encerrada/100%, fixada ou calculada diferente da sprint.
+                            if (currentStart == null || currentStart.Value.Date != task.Start.Date)
+                            {
+                                ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+                                changes.Add(task.StartFixed
+                                    ? $"início: {task.Start:dd/MM} (fixado)"
+                                    : $"início: {task.Start:dd/MM}");
+                            }
+                        }
+                        else if (currentStart != null)
+                        {
+                            // Início alinhado com sprint, não fixado e não encerrada → limpa campo no TFS.
+                            ops.Add(PatchAdd($"/fields/{startRef}", string.Empty));
+                            changes.Add("início: limpo (alinhado com sprint)");
+                        }
+                    }
+
+                    // Tag de data fixada: presente quando StartFixed (📌), ausente quando calculado.
+                    {
+                        var fixedTag = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
+                        var currentTags = wi.Tags ?? string.Empty;
+                        bool hasFixedTagNow = HasTag(currentTags, fixedTag);
+                        if (task.StartFixed && !hasFixedTagNow)
+                        {
+                            var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedTag).Trim().TrimStart(';').Trim();
+                            ops.Add(PatchAdd("/fields/System.Tags", newTags));
+                            changes.Add($"tag: +{fixedTag}");
+                        }
+                        else if (!task.StartFixed && hasFixedTagNow)
+                        {
+                            var parts = currentTags
+                                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .Where(t => !string.Equals(t, fixedTag, StringComparison.OrdinalIgnoreCase));
+                            ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
+                            changes.Add($"tag: -{fixedTag}");
+                        }
                     }
 
                     // Sprint (System.IterationPath): sincroniza se a sprint escolhida
@@ -352,20 +454,28 @@ namespace NXProject.Services
                     if (!string.IsNullOrWhiteSpace(task.TfsIterationPath) &&
                         !string.Equals(task.TfsIterationPath.Trim(), (wi.IterationPath ?? string.Empty).Trim(),
                             StringComparison.OrdinalIgnoreCase))
+                    {
                         ops.Add(PatchAdd("/fields/System.IterationPath", task.TfsIterationPath.Trim()));
+                        var sprintName = task.TfsIterationPath.Trim().Split('\\').LastOrDefault() ?? task.TfsIterationPath.Trim();
+                        changes.Add($"sprint: {sprintName}");
+                    }
 
                     if (!string.IsNullOrWhiteSpace(task.TfsState) &&
                         !string.Equals(task.TfsState.Trim(), wi.State?.Trim() ?? string.Empty, StringComparison.Ordinal))
                     {
                         ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
+                        changes.Add($"estado: {task.TfsState.Trim()}");
                     }
 
                     var effectiveState = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
-                    if (finishRef != null && IsClosedState(effectiveState))
+                    if (finishRef != null && (IsClosedState(effectiveState) || task.PercentComplete >= 100))
                     {
                         var currentFinish = ReadDate(wi, finishRef);
                         if (currentFinish == null || currentFinish.Value.Date != task.Finish.Date)
+                        {
                             ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(task.Finish)));
+                            changes.Add($"fim: {task.Finish:dd/MM}");
+                        }
                     }
 
                     // Parent: reparenta SÓ se o pai mudou em relação ao que está no DevOps.
@@ -375,34 +485,36 @@ namespace NXProject.Services
                     if (reparent && relIndex >= 0)
                         relationRemovals.Add(relIndex);
 
-                    if (ShouldSyncPredecessors(task))
+                    if (options.SyncPredecessorLinks && ShouldSyncPredecessors(task))
                     {
-                        if (!TryGetDesiredPredecessorTfsIds(task, tasksById, out var desiredPredecessors, out var invalidPredecessors))
-                        {
-                            report.Messages.Add(
-                                $"#{task.TfsId} ({task.Name}): predecessora(s) invalida(s) no cronograma ({string.Join(", ", invalidPredecessors)}). Ajuste antes de sincronizar os links.");
-                        }
-                        else
-                        {
-                            var currentPredecessorRelations = FindPredecessorRelations(wi);
-                            var currentPredecessors = currentPredecessorRelations
-                                .Select(p => p.id)
-                                .ToHashSet();
+                        TryGetDesiredPredecessorTfsIds(task, tasksById, out var desiredPredecessors, out var invalidPredecessors);
 
-                            if (!currentPredecessors.SetEquals(desiredPredecessors))
+                        // Avisa sobre IDs não resolvíveis, mas ainda assim sincroniza
+                        // os válidos e remove os que saíram do cronograma.
+                        if (invalidPredecessors.Count > 0)
+                            report.LogWarning(
+                                $"#{task.TfsId} ({task.Name}): predecessora(s) não resolvida(s) no cronograma ({string.Join(", ", invalidPredecessors)}) — ignoradas na sincronização.");
+
+                        var currentPredecessorRelations = FindPredecessorRelations(wi);
+                        var currentPredecessors = currentPredecessorRelations
+                            .Select(p => p.id)
+                            .ToHashSet();
+
+                        if (!currentPredecessors.SetEquals(desiredPredecessors))
+                        {
+                            // Remove links que existem no TFS mas não estão mais no cronograma.
+                            foreach (var predecessor in currentPredecessorRelations)
                             {
-                                foreach (var predecessor in currentPredecessorRelations)
-                                {
-                                    if (!desiredPredecessors.Contains(predecessor.id))
-                                        relationRemovals.Add(predecessor.index);
-                                }
-
-                                foreach (var predecessorId in desiredPredecessors)
-                                {
-                                    if (!currentPredecessors.Contains(predecessorId))
-                                        ops.Add(AddPredecessorRelation(orgBase, predecessorId));
-                                }
+                                if (!desiredPredecessors.Contains(predecessor.id))
+                                    relationRemovals.Add(predecessor.index);
                             }
+                            // Adiciona links que estão no cronograma mas não existem no TFS.
+                            foreach (var predecessorId in desiredPredecessors)
+                            {
+                                if (!currentPredecessors.Contains(predecessorId))
+                                    ops.Add(AddPredecessorRelation(orgBase, predecessorId));
+                            }
+                            changes.Add("predecessoras");
                         }
                     }
 
@@ -421,6 +533,7 @@ namespace NXProject.Services
                                 url = $"{orgBase}/_apis/wit/workItems/{desiredParent}"
                             }
                         });
+                        changes.Add($"pai→#{desiredParent}");
                     }
 
                     if (ops.Count == 0)
@@ -431,6 +544,7 @@ namespace NXProject.Services
 
                     await PatchWorkItemAsync(orgBase, auth, task.TfsId.Value, ops, cancellationToken);
                     report.Updated++;
+                    report.LogSuccess($"#{task.TfsId} — {task.Name ?? "(sem nome)"} [{string.Join(", ", changes)}]");
                     if (reparent)
                     {
                         report.Reparented++;
@@ -439,7 +553,7 @@ namespace NXProject.Services
                 }
                 catch (Exception ex)
                 {
-                    report.Messages.Add($"#{task.TfsId} ({task.Name}): erro — {ex.Message}");
+                    report.LogError($"#{task.TfsId} ({task.Name}): erro — {ex.Message}");
                 }
             }
 
@@ -522,28 +636,41 @@ namespace NXProject.Services
 
         private static void ApplyTfsPredecessors(
             System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks,
-            Dictionary<int, WorkItem> items)
+            List<(int predecessor, int successor)> depLinks)
         {
+            if (depLinks.Count == 0)
+                return;
+
             var flatTasks = new List<ProjectTask>();
             CollectAllTasks(tasks, flatTasks);
+
+            // Índice TfsId → tarefa interna.
             var taskByTfsId = flatTasks
                 .Where(t => t.TfsId.HasValue && t.TfsId.Value > 0)
                 .GroupBy(t => t.TfsId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
 
-            foreach (var task in flatTasks.Where(ShouldSyncPredecessors))
+            // Agrupa links por successor.
+            var linksBySuccessor = depLinks
+                .GroupBy(l => l.successor)
+                .ToDictionary(g => g.Key, g => g.Select(l => l.predecessor).Distinct().ToList());
+
+            foreach (var task in flatTasks)
             {
-                if (!task.TfsId.HasValue || !items.TryGetValue(task.TfsId.Value, out var item))
+                if (!task.TfsId.HasValue || task.TfsId.Value <= 0)
+                    continue;
+                if (!linksBySuccessor.TryGetValue(task.TfsId.Value, out var predecessorTfsIds))
                     continue;
 
                 task.PredecessorIds.Clear();
-                foreach (var predecessorId in FindPredecessorRelations(item).Select(p => p.id).Distinct())
+                foreach (var predTfsId in predecessorTfsIds)
                 {
-                    if (taskByTfsId.TryGetValue(predecessorId, out var predecessor) &&
-                        ShouldSyncPredecessors(predecessor))
-                    {
+                    if (taskByTfsId.TryGetValue(predTfsId, out var predecessor))
+                        // Predecessora está no projeto: armazena Id interno (estável).
                         task.PredecessorIds.Add(predecessor.Id);
-                    }
+                    else
+                        // Predecessora externa ao projeto: armazena o TfsId diretamente.
+                        task.PredecessorIds.Add(predTfsId);
                 }
             }
         }
@@ -581,18 +708,42 @@ namespace NXProject.Services
         {
             desired = new HashSet<int>();
             invalidPredecessors = new List<int>();
-            foreach (var predecessorInternalId in task.PredecessorIds)
+
+            // Índice auxiliar: TfsId → tarefa, para detectar IDs armazenados como TfsId.
+            var tasksByTfsId = tasksById.Values
+                .Where(t => t.TfsId.HasValue && t.TfsId.Value > 0)
+                .GroupBy(t => t.TfsId!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var storedId in task.PredecessorIds)
             {
-                if (!tasksById.TryGetValue(predecessorInternalId, out var predecessor) ||
-                    !ShouldSyncPredecessors(predecessor) ||
-                    !predecessor.TfsId.HasValue ||
-                    predecessor.TfsId.Value <= 0)
+                // 1. Tarefa interna (Id interno) com TfsId resolvível.
+                if (tasksById.TryGetValue(storedId, out var predecessor) &&
+                    ShouldSyncPredecessors(predecessor) &&
+                    predecessor.TfsId.HasValue && predecessor.TfsId.Value > 0)
                 {
-                    invalidPredecessors.Add(predecessorInternalId);
+                    desired.Add(predecessor.TfsId.Value);
                     continue;
                 }
 
-                desired.Add(predecessor.TfsId.Value);
+                // 2. O valor armazenado é o próprio TfsId (tarefa de outro escopo ou
+                //    salva antes da resolução de IDs). Usa diretamente se > 0.
+                if (storedId > 0 && !tasksById.ContainsKey(storedId))
+                {
+                    // Pode ser TfsId de tarefa interna (já resolvida acima) ou externa.
+                    // Se bate com um TfsId do projeto, usa a tarefa interna.
+                    if (tasksByTfsId.TryGetValue(storedId, out var byTfs) &&
+                        ShouldSyncPredecessors(byTfs))
+                    {
+                        desired.Add(storedId);
+                        continue;
+                    }
+                    // Externo: aceita diretamente como TfsId do DevOps.
+                    desired.Add(storedId);
+                    continue;
+                }
+
+                invalidPredecessors.Add(storedId);
             }
 
             return invalidPredecessors.Count == 0;
@@ -610,10 +761,65 @@ namespace NXProject.Services
                 }
             };
 
+        // Retorna apenas o e-mail do primeiro recurso alocado.
+        // Usamos só e-mail (uniqueName no Azure DevOps) para evitar ambiguidade de
+        // nomes de exibição que o TFS não consegue resolver e retornaria erro 400,
+        // derrubando todo o PATCH — inclusive as horas.
+        private static string? GetDesiredAssigneeEmail(ProjectTask task)
+        {
+            var resource = task.Resources
+                .Select(r => r.Resource)
+                .FirstOrDefault(r => r != null);
+
+            return string.IsNullOrWhiteSpace(resource?.Email) ? null : resource.Email.Trim();
+        }
+
+        private static bool AssigneeEquals(WorkItem wi, string desiredEmail)
+        {
+            var desired = desiredEmail.Trim();
+            return string.Equals(desired, wi.AssigneeEmail?.Trim(), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(desired, wi.Assignee?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Horas a enviar para o TFS.
+        // Ordem de prioridade:
+        //   1. task.EstimatedHours — valor que o usuário editou explicitamente
+        //   2. Soma de resource.EstimatedHours — alocações com HH manual
+        //   3. Soma de GetAssignmentHours — derivado de duração × %alocação
+        // Retorna null só se a tarefa for milestone (duração 0) ou não tiver recurso e duração zero.
+        private static double? GetSyncHours(ProjectTask task)
+        {
+            if (task.EstimatedHours.HasValue && task.EstimatedHours.Value > 0)
+                return task.EstimatedHours.Value;
+
+            var assignmentExplicit = task.Resources
+                .Where(r => r.EstimatedHours.HasValue && r.EstimatedHours.Value > 0)
+                .Sum(r => r.EstimatedHours!.Value);
+            if (assignmentExplicit > 0)
+                return assignmentExplicit;
+
+            // Fallback: duração * % de alocação por recurso.
+            if (task.Resources.Count > 0)
+            {
+                var durationBased = task.Resources
+                    .Sum(r => TaskScheduleService.GetAssignmentHours(task, r));
+                if (durationBased > 0)
+                    return durationBased;
+            }
+            else if (task.DurationHours > 0)
+            {
+                // Sem recurso: usa a duração diretamente.
+                return task.DurationHours;
+            }
+
+            return null;
+        }
+
         private static List<object> BuildCreateOps(
             ProjectTask task, int parentId, string orgBase,
             string? hoursRef, string? startRef, string? finishRef,
-            Dictionary<int, ProjectTask> tasksById)
+            Dictionary<int, ProjectTask> tasksById,
+            bool syncPredecessorLinks = true)
         {
             var ops = new List<object>
             {
@@ -632,8 +838,13 @@ namespace NXProject.Services
             if (task.TfsStackRank.HasValue)
                 ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
 
-            if (hoursRef != null && task.EstimatedHours.HasValue)
-                ops.Add(PatchAdd($"/fields/{hoursRef}", task.EstimatedHours.Value));
+            var desiredHours = GetSyncHours(task);
+            if (hoursRef != null && desiredHours.HasValue)
+                ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
+
+            var desiredAssignee = GetDesiredAssigneeEmail(task);
+            if (!string.IsNullOrWhiteSpace(desiredAssignee))
+                ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
 
             if (startRef != null)
                 ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
@@ -652,7 +863,7 @@ namespace NXProject.Services
                 }
             });
 
-            if (ShouldSyncPredecessors(task))
+            if (syncPredecessorLinks && ShouldSyncPredecessors(task))
             {
                 foreach (var predecessorId in GetDesiredPredecessorTfsIds(task, tasksById))
                     ops.Add(AddPredecessorRelation(orgBase, predecessorId));
@@ -684,8 +895,8 @@ namespace NXProject.Services
             return doc.RootElement.GetProperty("id").GetInt32();
         }
 
-        private static object PatchAdd(string path, object value) =>
-            new { op = "add", path, value };
+        private static object PatchAdd(string path, object? value) =>
+            new { op = "add", path, value = value ?? string.Empty };
 
         private static string[] SplitTags(string? tags) =>
             string.IsNullOrWhiteSpace(tags)
@@ -764,6 +975,7 @@ namespace NXProject.Services
             // diferentes) correm em paralelo. Assim, mover a Story para outra
             // sprint a faz escorregar para a janela da nova sprint.
             public Dictionary<string, DateTime> CursorByLane = new();
+            public string FixedStartTagName = "DT-INI-NEG";
 
             public DateTime? GetSprintStart(string? iterationPath)
             {
@@ -872,7 +1084,8 @@ namespace NXProject.Services
                 ? cursor
                 : sprintStart;
 
-            DateTime start = explicitStart ?? baseStart;
+            bool hasFixedTag = HasTag(item.Tags, ctx.FixedStartTagName);
+            DateTime start = (hasFixedTag && explicitStart != null) ? explicitStart.Value : baseStart;
             var durationHours = hours.HasValue
                 ? Math.Max(0.0, hours.Value)
                 : ctx.HoursPerDay > 0
@@ -909,6 +1122,7 @@ namespace NXProject.Services
                 BlockedByChild = blockedByChild,
                 TfsStackRank = item.StackRank,
                 TfsIterationPath = item.IterationPath,
+                StartFixed = hasFixedTag,
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
             };
@@ -1200,6 +1414,48 @@ namespace NXProject.Services
             return edges;
         }
 
+        // Retorna pares (predecessorTfsId, successorTfsId) para todos os links
+        // Dependency-Reverse dentro do escopo de IDs fornecido.
+        private static async Task<List<(int predecessor, int successor)>> LoadDependencyLinksAsync(
+            string orgBase, string project, AuthenticationHeaderValue auth,
+            IEnumerable<int> scopeIds, CancellationToken ct)
+        {
+            var idSet = scopeIds.ToHashSet();
+            if (idSet.Count == 0)
+                return new List<(int, int)>();
+
+            // WIQL: todos os links de dependência cujo SOURCE está no escopo.
+            // "Dependency-Reverse" visto do successor = "A predecessor of B":
+            //   source = successor (B), target = predecessor (A).
+            var idList = string.Join(",", idSet);
+            var wiql =
+                "SELECT [System.Id] FROM WorkItemLinks " +
+                $"WHERE [Source].[System.Id] IN ({idList}) " +
+                "AND [System.Links.LinkType] = 'System.LinkTypes.Dependency-Reverse' " +
+                "MODE(MayContain)";
+
+            var url = $"{orgBase}/{Uri.EscapeDataString(project)}/_apis/wit/wiql?{ApiVersion}";
+            var body = JsonSerializer.Serialize(new { query = wiql });
+
+            using var doc = await PostJsonAsync(url, body, auth, ct);
+            var links = new List<(int, int)>();
+            if (!doc.RootElement.TryGetProperty("workItemRelations", out var rels))
+                return links;
+
+            foreach (var rel in rels.EnumerateArray())
+            {
+                if (!rel.TryGetProperty("source", out var src) || src.ValueKind != JsonValueKind.Object)
+                    continue;
+                if (!rel.TryGetProperty("target", out var tgt) || tgt.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                int successor   = src.GetProperty("id").GetInt32();
+                int predecessor = tgt.GetProperty("id").GetInt32();
+                links.Add((predecessor, successor));
+            }
+            return links;
+        }
+
         private static async Task<Dictionary<int, WorkItem>> LoadWorkItemsAsync(
             string orgBase, AuthenticationHeaderValue auth, IEnumerable<int> ids,
             List<string> fields, CancellationToken ct, bool expandRelations = false)
@@ -1367,10 +1623,12 @@ namespace NXProject.Services
             public JsonElement? Relations;
         }
 
-        private static bool HasBlockTag(string? tags) =>
+        private static bool HasBlockTag(string? tags) => HasTag(tags, "Block");
+
+        private static bool HasTag(string? tags, string tag) =>
             !string.IsNullOrWhiteSpace(tags) &&
             tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Any(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
+                .Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
 
         private static bool IsType(WorkItem item, string type) =>
             string.Equals(item.WorkItemType, type, StringComparison.OrdinalIgnoreCase);

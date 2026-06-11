@@ -1,0 +1,129 @@
+<Window x:Class="NXProject.Views.SyncResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Resultado da Sincronização"
+        Width="680" Height="500"
+        MinWidth="480" MinHeight="300"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Window.Resources>
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+        <Style x:Key="CardNum" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="CardLbl" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#555"/>
+        </Style>
+        <Style x:Key="FilterBtn" TargetType="ToggleButton">
+            <Setter Property="Padding" Value="10,3"/>
+            <Setter Property="Margin" Value="0,0,5,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="18">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Título -->
+            <TextBlock Grid.Row="0"
+                       Text="Resultado — Sincronização Azure DevOps"
+                       FontSize="15" FontWeight="SemiBold" Foreground="#2B579A"
+                       Margin="0,0,0,14"/>
+
+            <!-- Cards de resumo -->
+            <UniformGrid Grid.Row="1" Rows="1" Columns="5" Margin="0,0,0,12">
+                <Border Style="{StaticResource CardBorder}" Background="#E8F5E9">
+                    <StackPanel>
+                        <TextBlock x:Name="UpdatedNum" Style="{StaticResource CardNum}" Foreground="#2E7D32"/>
+                        <TextBlock Text="Atualizados" Style="{StaticResource CardLbl}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Background="#E3F2FD">
+                    <StackPanel>
+                        <TextBlock x:Name="CreatedNum" Style="{StaticResource CardNum}" Foreground="#1565C0"/>
+                        <TextBlock Text="Criados" Style="{StaticResource CardLbl}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Background="#F5F5F5">
+                    <StackPanel>
+                        <TextBlock x:Name="SkippedNum" Style="{StaticResource CardNum}" Foreground="#757575"/>
+                        <TextBlock Text="Sem alteração" Style="{StaticResource CardLbl}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Background="#FFF8E1">
+                    <StackPanel>
+                        <TextBlock x:Name="WarningNum" Style="{StaticResource CardNum}" Foreground="#E65100"/>
+                        <TextBlock Text="Avisos" Style="{StaticResource CardLbl}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Background="#FFEBEE" Margin="0">
+                    <StackPanel>
+                        <TextBlock x:Name="ErrorNum" Style="{StaticResource CardNum}" Foreground="#C62828"/>
+                        <TextBlock Text="Erros" Style="{StaticResource CardLbl}"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- Filtros + botão copiar -->
+            <Grid Grid.Row="2" Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Mostrar:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#555" FontSize="12"/>
+                    <ToggleButton x:Name="ShowSuccess" Content="✔ Sucesso" IsChecked="True"
+                                  Style="{StaticResource FilterBtn}"
+                                  Checked="OnFilterChanged" Unchecked="OnFilterChanged"/>
+                    <ToggleButton x:Name="ShowWarning" Content="⚠ Aviso" IsChecked="True"
+                                  Style="{StaticResource FilterBtn}"
+                                  Checked="OnFilterChanged" Unchecked="OnFilterChanged"/>
+                    <ToggleButton x:Name="ShowError" Content="✖ Erro" IsChecked="True"
+                                  Style="{StaticResource FilterBtn}"
+                                  Checked="OnFilterChanged" Unchecked="OnFilterChanged"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="Copiar log" Padding="8,3"
+                        Click="OnCopyClick" Cursor="Hand"/>
+            </Grid>
+
+            <!-- Log textual -->
+            <TextBox Grid.Row="3"
+                     x:Name="LogBox"
+                     IsReadOnly="True"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     TextWrapping="NoWrap"
+                     FontFamily="Consolas, Courier New"
+                     FontSize="12"
+                     Background="#FAFAFA"
+                     BorderBrush="#CCC"
+                     BorderThickness="1"
+                     Padding="8"
+                     AcceptsReturn="True"/>
+
+            <!-- Botão fechar -->
+            <StackPanel Grid.Row="4" Orientation="Horizontal"
+                        HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button Content="Fechar" Width="100" Height="28"
+                        IsDefault="True" IsCancel="True"
+                        Click="OnCloseClick"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -78,6 +78,10 @@ namespace NXProject.Controls
         private Point _dragStartPoint;
         private TaskViewModel? _dragSourceTask;
 
+        // Estado da edição de predecessoras por clique.
+        private TextBox? _predEditBox;
+        private bool _inPredecessorEdit;
+
         public TaskGridControl()
         {
             InitializeComponent();
@@ -241,6 +245,26 @@ namespace NXProject.Controls
             _dragSourceTask = FindTaskViewModel(e.OriginalSource as DependencyObject);
         }
 
+        private void OnTaskGridPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_inPredecessorEdit || _predEditBox == null)
+                return;
+
+            // Clique direito em modo de edição de predecessora: adiciona o DisplayId
+            // da linha clicada ao campo, sem fechar a edição.
+            var clicked = FindTaskViewModel(e.OriginalSource as DependencyObject);
+            if (clicked == null || ReferenceEquals(clicked, _predEditBox.DataContext))
+                return;
+
+            var current = _predEditBox.Text.Trim().TrimEnd(',');
+            _predEditBox.Text = string.IsNullOrEmpty(current)
+                ? clicked.DisplayId
+                : current + "," + clicked.DisplayId;
+            _predEditBox.CaretIndex = _predEditBox.Text.Length;
+            _predEditBox.Focus();
+            e.Handled = true; // suprime o menu de contexto padrão
+        }
+
         private void OnTaskGridPreviewMouseMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed || _dragSourceTask == null)
@@ -371,6 +395,98 @@ namespace NXProject.Controls
 
         private static string NormalizeManualResourceName(string? name) =>
             (name ?? string.Empty).Trim().TrimStart('*').Trim();
+
+        private void OnPredEditGotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+            {
+                _predEditBox = tb;
+                _inPredecessorEdit = true;
+            }
+        }
+
+        private void CommitPredEdit(TextBox tb)
+        {
+            _inPredecessorEdit = false;
+            _predEditBox = null;
+            tb.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void OnPredEditKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && sender is TextBox tb)
+            {
+                CommitPredEdit(tb);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape && sender is TextBox tb2)
+            {
+                _inPredecessorEdit = false;
+                _predEditBox = null;
+                TaskGrid.CancelEdit(DataGridEditingUnit.Cell);
+                e.Handled = true;
+            }
+        }
+
+        private void OnPredEditLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is not TextBox tb) return;
+            // Usa Dispatcher para verificar após o ciclo de eventos: se _inPredecessorEdit
+            // ainda for true o foco voltou ao TextBox (clique em outra linha capturado).
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!_inPredecessorEdit)
+                    CommitPredEdit(tb);
+            });
+        }
+
+        private void CommitDurationEdit(TextBox tb)
+        {
+            if (tb.DataContext is not TaskViewModel vm) return;
+            vm.DurationText = tb.Text;
+            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void OnDurationEditKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && sender is TextBox tb)
+            {
+                CommitDurationEdit(tb);
+                e.Handled = true;
+            }
+        }
+
+        private void OnDurationEditLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+                CommitDurationEdit(tb);
+        }
+
+        private void CommitStartEdit(TextBox tb)
+        {
+            if (tb.DataContext is not TaskViewModel vm) return;
+            vm.StartText = tb.Text;
+            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void OnStartEditKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && sender is TextBox tb)
+            {
+                CommitStartEdit(tb);
+                e.Handled = true;
+            }
+        }
+
+        private void OnStartEditLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+                CommitStartEdit(tb);
+        }
 
         private void OnIdCellClick(object sender, RoutedEventArgs e)
         {

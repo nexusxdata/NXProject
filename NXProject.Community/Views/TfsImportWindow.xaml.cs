@@ -27,6 +27,8 @@ namespace NXProject.Views
             EffortFieldBox.Text = saved.EffortFieldName;
             StartFieldBox.Text = saved.StartFieldName;
             FinishFieldBox.Text = saved.FinishFieldName;
+            FixedStartTagBox.Text = saved.FixedStartTagName;
+            SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
             if (saved.RootWorkItemId > 0)
                 RootIdBox.Text = saved.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
             if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
@@ -70,7 +72,9 @@ namespace NXProject.Views
                 HoursPerDay = hoursPerDay,
                 EffortFieldName = string.IsNullOrWhiteSpace(EffortFieldBox.Text) ? "HH Estimado" : EffortFieldBox.Text.Trim(),
                 StartFieldName = string.IsNullOrWhiteSpace(StartFieldBox.Text) ? "Data_Inicio" : StartFieldBox.Text.Trim(),
-                FinishFieldName = string.IsNullOrWhiteSpace(FinishFieldBox.Text) ? "Data_Fim" : FinishFieldBox.Text.Trim()
+                FinishFieldName = string.IsNullOrWhiteSpace(FinishFieldBox.Text) ? "Data_Fim" : FinishFieldBox.Text.Trim(),
+                FixedStartTagName = string.IsNullOrWhiteSpace(FixedStartTagBox.Text) ? "DT-INI-NEG" : FixedStartTagBox.Text.Trim(),
+                SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true
             };
 
             SetImporting(true);

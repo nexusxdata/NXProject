@@ -21,6 +21,7 @@
               RowHeight="22"
               ColumnHeaderHeight="40"
               PreviewMouseLeftButtonDown="OnTaskGridPreviewMouseLeftButtonDown"
+              PreviewMouseRightButtonDown="OnTaskGridPreviewMouseRightButtonDown"
               PreviewMouseMove="OnTaskGridPreviewMouseMove"
               DragOver="OnTaskGridDragOver"
               Drop="OnTaskGridDrop"
@@ -214,11 +215,13 @@
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate DataType="{x:Type vm:TaskViewModel}">
-                        <TextBox Text="{Binding DurationHours, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
+                        <TextBox Text="{Binding DurationHours, StringFormat={}{0:0}, Mode=OneTime}"
                                  BorderThickness="0"
                                  TextAlignment="Center"
                                  VerticalContentAlignment="Center"
-                                 IsReadOnly="{Binding UsesSfpEstimate}">
+                                 IsReadOnly="{Binding UsesSfpEstimate}"
+                                 LostFocus="OnDurationEditLostFocus"
+                                 KeyDown="OnDurationEditKeyDown">
                             <TextBox.Style>
                                 <Style TargetType="TextBox">
                                     <Setter Property="Background" Value="White"/>
@@ -250,14 +253,22 @@
             </DataGridTextColumn>
 
             <!-- Início -->
-            <DataGridTextColumn x:Name="StartColumn" Header="Início" Binding="{Binding Start, StringFormat=g}" Width="110">
-                <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                        <Setter Property="Margin" Value="3,0"/>
-                    </Style>
-                </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+            <DataGridTemplateColumn x:Name="StartColumn" Header="Início" Width="110" SortMemberPath="Start">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding StartDisplay}" VerticalAlignment="Center" Margin="3,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                        <TextBox x:Name="StartEditBox"
+                                 Text="{Binding Start, StringFormat=dd/MM/yyyy, UpdateSourceTrigger=Explicit}"
+                                 VerticalAlignment="Center"
+                                 KeyDown="OnStartEditKeyDown"
+                                 LostFocus="OnStartEditLostFocus"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
 
             <!-- Fim -->
             <DataGridTextColumn x:Name="FinishColumn" Header="Fim" Binding="{Binding Finish, StringFormat=g}" Width="110">
@@ -312,14 +323,25 @@
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
-            <DataGridTextColumn x:Name="PredecessorColumn" Header="Pred." Binding="{Binding PredecessorsText}" Width="55">
-                <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                        <Setter Property="Margin" Value="3,0"/>
-                    </Style>
-                </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="55" SortMemberPath="PredecessorsText">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding PredecessorsText}" VerticalAlignment="Center" Margin="3,0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                        <TextBox x:Name="PredEditBox"
+                                 Text="{Binding PredecessorsText, UpdateSourceTrigger=Explicit}"
+                                 VerticalAlignment="Center"
+                                 Margin="2,0"
+                                 Tag="PredecessorEdit"
+                                 KeyDown="OnPredEditKeyDown"
+                                 LostFocus="OnPredEditLostFocus"
+                                 GotFocus="OnPredEditGotFocus"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
 
             <!-- Recursos (editável: ComboBox com criação rápida) -->
             <DataGridTemplateColumn x:Name="ResourcesColumn" Header="Recursos" Width="100">
@@ -358,7 +380,7 @@
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate>
-                        <ComboBox ItemsSource="{Binding AvailableSprints, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        <ComboBox ItemsSource="{Binding AvailableSprintsForTask}"
                                   SelectedValuePath="Path"
                                   SelectedValue="{Binding SprintPath, Mode=OneWay}"
                                   IsEditable="False"

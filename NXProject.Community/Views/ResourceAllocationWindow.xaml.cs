@@ -254,7 +254,7 @@ namespace NXProject.Views
             DetailsTitle.Text = $"{resource.DisplayName} - {sprint.Header}";
             SelectedDetails.Clear();
 
-            foreach (var task in _vm.FlatTasks.Where(t => BelongsToSprint(t, sprint)))
+            foreach (var task in _vm.FlatTasks.Where(t => IsLeafTask(t) && BelongsToSprint(t, sprint)))
             {
                 var assignment = task.Model.Resources.FirstOrDefault(r => r.ResourceId == resource.Id);
                 if (assignment == null)
@@ -302,7 +302,7 @@ namespace NXProject.Views
         private double GetAllocatedHours(Resource resource, SprintColumn sprint)
         {
             return _vm.FlatTasks
-                .Where(t => BelongsToSprint(t, sprint))
+                .Where(t => IsLeafTask(t) && BelongsToSprint(t, sprint))
                 .SelectMany(t => t.Model.Resources.Where(r => r.ResourceId == resource.Id)
                     .Select(r => TaskScheduleService.GetAssignmentHours(t.Model, r)))
                 .Sum();
@@ -311,7 +311,7 @@ namespace NXProject.Views
         private double? GetAverageAllocationPercent(Resource resource, SprintColumn sprint)
         {
             var assignments = _vm.FlatTasks
-                .Where(t => BelongsToSprint(t, sprint))
+                .Where(t => IsLeafTask(t) && BelongsToSprint(t, sprint))
                 .SelectMany(t => t.Model.Resources.Where(r => r.ResourceId == resource.Id)
                     .Select(r => new
                     {
@@ -345,6 +345,9 @@ namespace NXProject.Views
 
             return task.SprintNumber == sprint.Number;
         }
+
+        private static bool IsLeafTask(TaskViewModel task) =>
+            task.Model.Children.Count == 0;
 
         private System.Collections.Generic.IEnumerable<SprintColumn> BuildSprintColumns()
         {

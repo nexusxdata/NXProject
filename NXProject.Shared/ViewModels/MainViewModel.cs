@@ -92,13 +92,36 @@ namespace NXProject.ViewModels
         {
             var vm = new TaskViewModel(task, depth, LowDaysPerSfp, MediumDaysPerSfp, HighDaysPerSfp)
             {
-                ParentViewModel = parentVm
+                ParentViewModel = parentVm,
+                GetSprintStart = () => GetTaskSprintStart(task),
+                FindByInternalId = internalId =>
+                    FlatTasks.FirstOrDefault(t => t.Model.Id == internalId),
+                FindByDisplayId = displayId =>
+                {
+                    // Tenta TfsId primeiro; fallback para Id interno.
+                    if (int.TryParse(displayId, out var num))
+                    {
+                        var byTfs = FlatTasks.FirstOrDefault(t => t.Model.TfsId == num);
+                        if (byTfs != null) return byTfs.Model.Id;
+                        var byInternal = FlatTasks.FirstOrDefault(t => t.Model.Id == num);
+                        if (byInternal != null) return byInternal.Model.Id;
+                    }
+                    return null;
+                }
             };
             if (parentVm != null)
                 parentVm.ChildrenViewModels.Add(vm);
 
             vm.IsSelected = SelectedTask?.Model == task;
             vm.IsExpanded = !_collapsedTaskIds.Contains(task.Id);
+            vm.RefreshSprintOptions(SprintOptions);
+
+            // Reagir a mudanças que afetam a lista filtrada de sprints por tarefa.
+            vm.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(TaskViewModel.Start))
+                    vm.RefreshSprintOptions(SprintOptions);
+            };
 
             // Reagir ao toggle de expand/collapse sem criar loop infinito
             vm.PropertyChanged += (_, args) =>
@@ -121,6 +144,18 @@ namespace NXProject.ViewModels
             if (vm.IsExpanded)
                 foreach (var child in task.Children)
                     AddFlatRecursive(child, depth + 1, vm);
+        }
+
+        private DateTime GetTaskSprintStart(ProjectTask task)
+        {
+            if (Project.Sprints.Count > 0 && !string.IsNullOrWhiteSpace(task.TfsIterationPath))
+            {
+                var sprint = Project.Sprints.FirstOrDefault(s =>
+                    string.Equals(s.Path, task.TfsIterationPath, StringComparison.OrdinalIgnoreCase));
+                if (sprint != null)
+                    return sprint.Start;
+            }
+            return Project.StartDate;
         }
 
         private void RecalcSprints()
@@ -1041,7 +1076,7 @@ namespace NXProject.ViewModels
                     CapacityText = $"Capacidade: {resource.MaxUnitsPerDay}h/dia"
                 };
 
-                foreach (var vm in FlatTasks)
+                foreach (var vm in FlatTasks.Where(t => t.Model.Children.Count == 0))
                 {
                     var assignment = vm.Model.Resources.FirstOrDefault(r => r.ResourceId == resource.Id);
                     if (assignment == null) continue;
@@ -1051,7 +1086,7 @@ namespace NXProject.ViewModels
                         SprintNumber = vm.SprintNumber,
                         TaskName = vm.Name,
                         AllocationPercent = assignment.AllocationPercent,
-                        EstimatedHours = assignment.EstimatedHours ?? 0
+                        EstimatedHours = TaskScheduleService.GetAssignmentHours(vm.Model, assignment)
                     });
                 }
 
@@ -1092,6 +1127,8 @@ namespace NXProject.ViewModels
                     Sprints.Add(s);
                     SprintOptions.Add(s);
                 }
+            foreach (var vm in FlatTasks)
+                vm.RefreshSprintOptions(SprintOptions);
         }
 
         private void ApplyProjectSprintSettingsToViewModel(Project project)

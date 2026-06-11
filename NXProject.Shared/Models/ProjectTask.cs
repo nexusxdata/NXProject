@@ -57,6 +57,11 @@ namespace NXProject.Models
         // Predecessoras: lista de IDs de tarefas
         public List<int> PredecessorIds { get; set; } = new();
 
+        // Data de início fixada manualmente (não recalculada pelo cronograma).
+        // true  → envia Data_Inicio ao TFS na sincronização.
+        // false → limpa Data_Inicio no TFS (se tarefa não estiver Closed).
+        public bool StartFixed { get; set; } = false;
+
         // Subtarefas
         public ObservableCollection<ProjectTask> Children { get; set; } = new();
 

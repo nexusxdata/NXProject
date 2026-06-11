@@ -33,6 +33,12 @@ namespace NXProject.Services
         /// <summary>Nome do campo de data de fim da Story.</summary>
         public string FinishFieldName { get; set; } = "Data_Fim";
 
+        /// <summary>Tag DevOps que marca data de início fixada/negociada (ex.: "DT-INI-NEG").</summary>
+        public string FixedStartTagName { get; set; } = "DT-INI-NEG";
+
+        /// <summary>Sincroniza links de predecessora no DevOps durante Export → Sincronizar.</summary>
+        public bool SyncPredecessorLinks { get; set; } = true;
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&
@@ -55,6 +61,8 @@ namespace NXProject.Services
             public string EffortFieldName { get; set; } = "HH Estimado";
             public string StartFieldName { get; set; } = "Data_Inicio";
             public string FinishFieldName { get; set; } = "Data_Fim";
+            public string FixedStartTagName { get; set; } = "DT-INI-NEG";
+            public bool SyncPredecessorLinks { get; set; } = true;
             public bool RememberToken { get; set; }
             public string EncryptedToken { get; set; } = string.Empty;
         }
@@ -89,6 +97,9 @@ namespace NXProject.Services
                     ? options.StartFieldName : stored.StartFieldName.Trim();
                 options.FinishFieldName = string.IsNullOrWhiteSpace(stored.FinishFieldName)
                     ? options.FinishFieldName : stored.FinishFieldName.Trim();
+                options.FixedStartTagName = string.IsNullOrWhiteSpace(stored.FixedStartTagName)
+                    ? options.FixedStartTagName : stored.FixedStartTagName.Trim();
+                options.SyncPredecessorLinks = stored.SyncPredecessorLinks;
                 if (stored.RememberToken)
                     options.PersonalAccessToken = WindowsDataProtection.Decrypt(stored.EncryptedToken);
             }
@@ -114,6 +125,8 @@ namespace NXProject.Services
                 EffortFieldName = string.IsNullOrWhiteSpace(options.EffortFieldName) ? "HH Estimado" : options.EffortFieldName.Trim(),
                 StartFieldName = string.IsNullOrWhiteSpace(options.StartFieldName) ? "Data_Inicio" : options.StartFieldName.Trim(),
                 FinishFieldName = string.IsNullOrWhiteSpace(options.FinishFieldName) ? "Data_Fim" : options.FinishFieldName.Trim(),
+                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
+                SyncPredecessorLinks = options.SyncPredecessorLinks,
                 RememberToken = rememberToken,
                 EncryptedToken = rememberToken
                     ? WindowsDataProtection.Encrypt(options.PersonalAccessToken ?? string.Empty, "NXProject.Tfs")

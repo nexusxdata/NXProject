@@ -41,6 +41,13 @@ royalties para, respeitadas as condições e restrições desta licença:
 Esta concessão vale igualmente para indivíduos e empresas. A Edição Community não
 exige pagamento para uso.
 
+Fica expressamente permitido baixar o código-fonte da Edição Community, compilá-lo
+e usar o produto resultante, inclusive em ambiente empresarial, desde que o
+Software continue sendo apresentado e utilizado como NXProject Community, sem
+descaracterização do produto, sem remoção da atribuição e mantendo a Nexus XData
+Tecnologia Ltda como proprietária e criadora original. Essa liberdade faz parte
+do modelo Open Core adotado pelo Licenciante.
+
 --------------------------------------------------------------------------------
 3. Condições (atribuição)
 --------------------------------------------------------------------------------
@@ -74,6 +81,13 @@ cobrar pelo Software nem embutí-lo em um produto ou serviço pago.
 
 O direito de explorar comercialmente o Software — vendê-lo, oferecê-lo como
 serviço e prestar suporte pago sobre ele — é exclusivo do Licenciante.
+
+O uso do código-fonte do Software para criar, oferecer, vender, sublicenciar,
+hospedar ou incorporar produto ou serviço comercial derivado, próprio ou de
+terceiros, é proibido sem licença comercial expressa do Licenciante. Exceções
+poderão ser concedidas, a critério exclusivo do Licenciante, a empresas parceiras
+formalmente autorizadas ou entidades sem fins lucrativos, mediante autorização
+prévia por escrito pelo e-mail comercial.nexus.xdata@gmail.com.
 
 --------------------------------------------------------------------------------
 5. Edição Comercial, Suporte e Licença Comercial (via paga)
