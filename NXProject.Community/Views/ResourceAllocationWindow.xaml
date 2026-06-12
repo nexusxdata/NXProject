@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Grade de alocacao"
         Width="980"
-        Height="640"
+        Height="680"
         WindowStartupLocation="CenterOwner"
         Background="White">
     <Grid Margin="16">
@@ -41,17 +41,114 @@
             </StackPanel>
         </DockPanel>
 
-        <Border Grid.Row="1"
-                BorderBrush="#D0D7E2"
-                BorderThickness="1"
-                Background="#FAFBFD">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto">
-                <Grid x:Name="AllocationGrid"/>
-            </ScrollViewer>
-        </Border>
+        <TabControl Grid.Row="1"
+                    x:Name="MainTabControl"
+                    SelectionChanged="OnTabChanged">
 
-        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <!-- Aba 1: grade de alocação por sprint -->
+            <TabItem Header="Alocação">
+                <Border BorderBrush="#D0D7E2"
+                        BorderThickness="1"
+                        Background="#FAFBFD">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="AllocationGrid"/>
+                    </ScrollViewer>
+                </Border>
+            </TabItem>
+
+            <!-- Aba 2: linha do tempo com gaps -->
+            <TabItem Header="Gaps / Linha do tempo">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="180"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Legenda -->
+                    <StackPanel Grid.Row="0"
+                                Orientation="Horizontal"
+                                Margin="4,6,4,4">
+                        <Rectangle Width="16" Height="12" RadiusX="2" RadiusY="2"
+                                   Fill="#4A90D9" Margin="0,0,4,0"/>
+                        <TextBlock Text="Atividade" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Rectangle Width="16" Height="12" RadiusX="2" RadiusY="2"
+                                   Fill="#F5A623" Margin="0,0,4,0"/>
+                        <TextBlock Text="Gap (clique para justificar)" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Rectangle Width="16" Height="12" RadiusX="2" RadiusY="2"
+                                   Fill="#7B5EA7" Margin="0,0,4,0"/>
+                        <TextBlock Text="Gap justificado" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Rectangle Width="2" Height="12"
+                                   Fill="#E53935" Margin="0,0,4,0"/>
+                        <TextBlock Text="Hoje" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Timeline -->
+                    <Border Grid.Row="1"
+                            BorderBrush="#D0D7E2"
+                            BorderThickness="1"
+                            Background="White">
+                        <ScrollViewer x:Name="GapScroll"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto">
+                            <Canvas x:Name="GapCanvas"/>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Splitter visual -->
+                    <Border Grid.Row="2" Background="#D0D7E2"/>
+
+                    <!-- Painel de justificativas -->
+                    <Grid Grid.Row="3" Margin="0,4,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Justificativas de gaps  —  clique em uma barra laranja na linha do tempo para adicionar"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   Margin="0,0,0,4"/>
+
+                        <DataGrid Grid.Row="1"
+                                  x:Name="GapJustGrid"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  RowHeight="28"
+                                  ItemsSource="{Binding GapJustRows, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Recurso"
+                                                    Binding="{Binding ResourceName}"
+                                                    IsReadOnly="True"
+                                                    Width="160"/>
+                                <DataGridTextColumn Header="Início gap"
+                                                    Binding="{Binding StartDisplay}"
+                                                    IsReadOnly="True"
+                                                    Width="80"/>
+                                <DataGridTextColumn Header="Fim gap"
+                                                    Binding="{Binding EndDisplay}"
+                                                    IsReadOnly="True"
+                                                    Width="80"/>
+                                <DataGridTextColumn Header="Dias úteis"
+                                                    Binding="{Binding WorkDays}"
+                                                    IsReadOnly="True"
+                                                    Width="72"/>
+                                <DataGridTextColumn Header="Justificativa"
+                                                    Binding="{Binding Justification, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                    Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Painel de detalhe (apenas na aba Alocação) -->
+        <Grid Grid.Row="2" Margin="0,14,0,0" x:Name="DetailsPanel">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -80,6 +177,14 @@
                                         Binding="{Binding Task.Name}"
                                         IsReadOnly="True"
                                         Width="*"/>
+                    <DataGridTextColumn Header="Início"
+                                        Binding="{Binding Task.StartDisplay}"
+                                        IsReadOnly="True"
+                                        Width="80"/>
+                    <DataGridTextColumn Header="Fim"
+                                        Binding="{Binding Task.FinishDisplay}"
+                                        IsReadOnly="True"
+                                        Width="80"/>
                     <DataGridTextColumn Header="Horas"
                                         Binding="{Binding Hours, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"
                                         Width="80"/>

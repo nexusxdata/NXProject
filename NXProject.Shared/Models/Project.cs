@@ -1,8 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace NXProject.Models
 {
+    public class GapJustification
+    {
+        public int ResourceId { get; set; }
+        public DateTime GapStart { get; set; }
+        public DateTime GapEnd { get; set; }
+        public string Justification { get; set; } = string.Empty;
+    }
+
     public class SprintSettingsProfile
     {
         public int SprintDurationDays { get; set; } = 14;
@@ -44,6 +53,9 @@ namespace NXProject.Models
 
         // Recursos do projeto
         public ObservableCollection<Resource> Resources { get; set; } = new();
+
+        // Justificativas de gaps no cronograma de recursos
+        public List<GapJustification> GapJustifications { get; set; } = new();
 
         // Caminho do arquivo salvo
         public string? FilePath { get; set; }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using NXProject.Models;
 using NXProject.Services;
 using NXProject.ViewModels;
@@ -32,12 +34,24 @@ namespace NXProject.Views
 
         public ObservableCollection<Resource> AvailableResources { get; }
         public ObservableCollection<AllocationDetailRow> SelectedDetails { get; } = new();
+        public ObservableCollection<GapJustificationRow> GapJustRows { get; } = new();
 
         private void OnRefreshClick(object sender, RoutedEventArgs e)
         {
             BuildMatrix();
             if (_selectedResource != null && _selectedSprint != null)
                 ShowDetails(_selectedResource, _selectedSprint);
+            if (MainTabControl.SelectedIndex == 1)
+                BuildGapTimeline();
+        }
+
+        private void OnTabChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded) return;
+            var isGapTab = MainTabControl.SelectedIndex == 1;
+            DetailsPanel.Visibility = isGapTab ? Visibility.Collapsed : Visibility.Visible;
+            if (isGapTab)
+                BuildGapTimeline();
         }
 
         private void OnAddResourceClick(object sender, RoutedEventArgs e)
@@ -115,14 +129,17 @@ namespace NXProject.Views
             AllocationGrid.ColumnDefinitions.Clear();
 
             var sprints = BuildSprintColumns().ToList();
+            // col 0 = Recurso, col 1 = Última Ativ., col 2..N = sprints
             AllocationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+            AllocationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
             foreach (var _ in sprints)
                 AllocationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(125) });
 
             AllocationGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
             AddCell("Recurso", 0, 0, true);
+            AddCell("Última Ativ.", 0, 1, true);
             for (int i = 0; i < sprints.Count; i++)
-                AddCell(sprints[i].Header, 0, i + 1, true);
+                AddCell(sprints[i].Header, 0, i + 2, true);
 
             var resources = _vm.Project.Resources.OrderBy(r => r.Name).ToList();
             for (int row = 0; row < resources.Count; row++)
@@ -131,6 +148,9 @@ namespace NXProject.Views
                 AllocationGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
                 AddCell(resource.DisplayName, row + 1, 0, true, horizontalAlignment: HorizontalAlignment.Left);
 
+                var lastFinish = GetLastActivityDate(resource);
+                AddCell(lastFinish.HasValue ? lastFinish.Value.ToString("dd/MM/yy") : "-", row + 1, 1, false);
+
                 for (int col = 0; col < sprints.Count; col++)
                 {
                     var sprint = sprints[col];
@@ -138,9 +158,18 @@ namespace NXProject.Views
                     var allocationPercent = GetAverageAllocationPercent(resource, sprint);
                     var capacityHours = GetSprintCapacityHours(resource, sprint, allocationPercent);
                     var isOverAllocated = hours > capacityHours + 0.0001;
-                    AddHoursButton(resource, sprint, hours, allocationPercent, capacityHours, isOverAllocated, row + 1, col + 1);
+                    AddHoursButton(resource, sprint, hours, allocationPercent, capacityHours, isOverAllocated, row + 1, col + 2);
                 }
             }
+        }
+
+        private DateTime? GetLastActivityDate(Resource resource)
+        {
+            var tasks = _vm.FlatTasks
+                .Where(t => IsLeafTask(t) && t.Model.Resources.Any(r => r.ResourceId == resource.Id))
+                .ToList();
+            if (tasks.Count == 0) return null;
+            return tasks.Max(t => t.Model.Finish);
         }
 
         private void AddCell(
@@ -570,5 +599,345 @@ namespace NXProject.Views
 
         private static string NormalizeManualResourceName(string? name) =>
             (name ?? string.Empty).Trim().TrimStart('*').Trim();
+
+        // ── Gap / Timeline ───────────────────────────────────────────────────
+
+        private void OnGapBarClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: (Resource res, DateTime gapStart, DateTime gapEnd, int workDays) }) return;
+
+            // find or create justification in the project model
+            var just = _vm.Project.GapJustifications
+                .FirstOrDefault(j => j.ResourceId == res.Id
+                                     && j.GapStart == gapStart
+                                     && j.GapEnd == gapEnd);
+            if (just == null)
+            {
+                just = new GapJustification { ResourceId = res.Id, GapStart = gapStart, GapEnd = gapEnd };
+                _vm.Project.GapJustifications.Add(just);
+                _vm.Project.IsDirty = true;
+            }
+
+            // add to grid if not already there
+            var existing = GapJustRows.FirstOrDefault(r => r.Model == just);
+            if (existing == null)
+            {
+                GapJustRows.Add(new GapJustificationRow(just, res.DisplayName, workDays, () =>
+                {
+                    _vm.Project.IsDirty = true;
+                    BuildGapTimeline(); // refresh colors
+                }));
+            }
+
+            // scroll to and select it
+            GapJustGrid.SelectedItem = existing ?? GapJustRows.Last();
+            GapJustGrid.ScrollIntoView(GapJustGrid.SelectedItem);
+        }
+
+        private void BuildGapTimeline()
+        {
+            GapCanvas.Children.Clear();
+
+            // Sync GapJustRows from project model (rebuild without losing justification text)
+            GapJustRows.Clear();
+            foreach (var j in _vm.Project.GapJustifications)
+            {
+                var res = _vm.Project.Resources.FirstOrDefault(r => r.Id == j.ResourceId);
+                if (res == null) continue;
+                int wd = ProjectCalendarService.CountWorkingDays(j.GapStart, j.GapEnd);
+                GapJustRows.Add(new GapJustificationRow(j, res.DisplayName, wd, () =>
+                {
+                    _vm.Project.IsDirty = true;
+                    BuildGapTimeline();
+                }));
+            }
+
+            var resources = _vm.Project.Resources.OrderBy(r => r.Name).ToList();
+            var allLeaf = _vm.FlatTasks.Where(IsLeafTask).ToList();
+            if (allLeaf.Count == 0 || resources.Count == 0) return;
+
+            var minDate = allLeaf.Min(t => t.Model.Start).Date;
+            var maxDate = allLeaf.Max(t => t.Model.Finish).Date;
+            if (maxDate <= minDate) return;
+
+            const double leftCol = 200;
+            const double rowH = 36;
+            const double headerH = 30;
+            const double barPad = 6;
+            const double pxPerDay = 14;
+
+            double totalDays = (maxDate - minDate).TotalDays + 2;
+            double timelineW = totalDays * pxPerDay;
+            double canvasW = leftCol + timelineW + 24;
+            double canvasH = headerH + resources.Count * rowH + 4;
+
+            GapCanvas.Width = canvasW;
+            GapCanvas.Height = canvasH;
+
+            // ── Background
+            var bg = new Rectangle { Width = canvasW, Height = canvasH, Fill = Brushes.White };
+            Canvas.SetLeft(bg, 0); Canvas.SetTop(bg, 0);
+            GapCanvas.Children.Add(bg);
+
+            // ── Week gridlines + date labels
+            var d = minDate;
+            // align to nearest Monday on or before minDate
+            while (d.DayOfWeek != DayOfWeek.Monday) d = d.AddDays(-1);
+            while (d <= maxDate.AddDays(7))
+            {
+                double x = leftCol + (d - minDate).TotalDays * pxPerDay;
+                if (x >= leftCol)
+                {
+                    var line = new Line
+                    {
+                        X1 = x, Y1 = headerH - 6,
+                        X2 = x, Y2 = canvasH,
+                        Stroke = new SolidColorBrush(Color.FromRgb(230, 230, 230)),
+                        StrokeThickness = 1
+                    };
+                    GapCanvas.Children.Add(line);
+
+                    var lbl = new TextBlock
+                    {
+                        Text = d.ToString("dd/MM"),
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(120, 120, 120))
+                    };
+                    Canvas.SetLeft(lbl, x + 2);
+                    Canvas.SetTop(lbl, 6);
+                    GapCanvas.Children.Add(lbl);
+                }
+                d = d.AddDays(7);
+            }
+
+            // ── Today line
+            if (DateTime.Today >= minDate && DateTime.Today <= maxDate)
+            {
+                double todayX = leftCol + (DateTime.Today - minDate).TotalDays * pxPerDay;
+                var todayLine = new Line
+                {
+                    X1 = todayX, Y1 = 0,
+                    X2 = todayX, Y2 = canvasH,
+                    Stroke = new SolidColorBrush(Color.FromRgb(229, 57, 53)),
+                    StrokeThickness = 1.5,
+                    StrokeDashArray = new DoubleCollection { 5, 3 }
+                };
+                GapCanvas.Children.Add(todayLine);
+
+                var todayLbl = new TextBlock
+                {
+                    Text = "hoje",
+                    FontSize = 9,
+                    Foreground = new SolidColorBrush(Color.FromRgb(229, 57, 53)),
+                    FontWeight = FontWeights.SemiBold
+                };
+                Canvas.SetLeft(todayLbl, todayX + 2);
+                Canvas.SetTop(todayLbl, 4);
+                GapCanvas.Children.Add(todayLbl);
+            }
+
+            // ── Per-resource rows
+            for (int ri = 0; ri < resources.Count; ri++)
+            {
+                var resource = resources[ri];
+                double rowY = headerH + ri * rowH;
+
+                // Row background (alternating)
+                var rowBg = new Rectangle
+                {
+                    Width = canvasW,
+                    Height = rowH,
+                    Fill = ri % 2 == 0
+                        ? new SolidColorBrush(Color.FromRgb(250, 251, 253))
+                        : Brushes.White
+                };
+                Canvas.SetLeft(rowBg, 0); Canvas.SetTop(rowBg, rowY);
+                GapCanvas.Children.Add(rowBg);
+
+                // Bottom border of row
+                var rowLine = new Line
+                {
+                    X1 = 0, Y1 = rowY + rowH,
+                    X2 = canvasW, Y2 = rowY + rowH,
+                    Stroke = new SolidColorBrush(Color.FromRgb(230, 230, 230)),
+                    StrokeThickness = 1
+                };
+                GapCanvas.Children.Add(rowLine);
+
+                // Resource name cell
+                var nameBorder = new Border
+                {
+                    Width = leftCol - 1,
+                    Height = rowH,
+                    Background = new SolidColorBrush(Color.FromRgb(235, 239, 246)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(210, 218, 230)),
+                    BorderThickness = new Thickness(0, 0, 1, 0),
+                    Child = new TextBlock
+                    {
+                        Text = resource.DisplayName,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(8, 0, 8, 0),
+                        FontWeight = FontWeights.SemiBold,
+                        FontSize = 12
+                    }
+                };
+                Canvas.SetLeft(nameBorder, 0); Canvas.SetTop(nameBorder, rowY);
+                GapCanvas.Children.Add(nameBorder);
+
+                // Tasks for this resource
+                var resTasks = allLeaf
+                    .Where(t => t.Model.Resources.Any(r => r.ResourceId == resource.Id))
+                    .OrderBy(t => t.Model.Start)
+                    .ToList();
+
+                if (resTasks.Count == 0) continue;
+
+                // Task bars (blue)
+                foreach (var task in resTasks)
+                {
+                    double barX = leftCol + (task.Model.Start.Date - minDate).TotalDays * pxPerDay;
+                    double barW = Math.Max(6, (task.Model.Finish.Date - task.Model.Start.Date).TotalDays * pxPerDay);
+                    var taskBar = new Border
+                    {
+                        Width = barW,
+                        Height = rowH - barPad * 2,
+                        Background = new SolidColorBrush(Color.FromRgb(74, 144, 217)),
+                        CornerRadius = new CornerRadius(3),
+                        ToolTip = $"{task.Model.Name}\n{task.Model.Start:dd/MM/yy} → {task.Model.Finish:dd/MM/yy}"
+                    };
+                    Canvas.SetLeft(taskBar, barX);
+                    Canvas.SetTop(taskBar, rowY + barPad);
+                    GapCanvas.Children.Add(taskBar);
+                }
+
+                // Gap bars (orange) — between merged task intervals
+                var intervals = MergeIntervals(
+                    resTasks.Select(t => (t.Model.Start.Date, t.Model.Finish.Date)).ToList());
+
+                for (int i = 0; i < intervals.Count - 1; i++)
+                {
+                    var gapStart = intervals[i].End.AddDays(1);
+                    var gapEnd = intervals[i + 1].Start.AddDays(-1);
+                    if (gapEnd < gapStart) continue;
+
+                    int workDays = ProjectCalendarService.CountWorkingDays(gapStart, gapEnd);
+                    if (workDays <= 0) continue;
+
+                    bool hasJust = _vm.Project.GapJustifications.Any(j =>
+                        j.ResourceId == resource.Id && j.GapStart == gapStart && j.GapEnd == gapEnd
+                        && !string.IsNullOrWhiteSpace(j.Justification));
+
+                    double gapX = leftCol + (gapStart - minDate).TotalDays * pxPerDay;
+                    double gapW = Math.Max(8, (gapEnd - gapStart).TotalDays * pxPerDay + pxPerDay);
+
+                    var gapFill = hasJust
+                        ? new SolidColorBrush(Color.FromRgb(123, 94, 167))
+                        : new SolidColorBrush(Color.FromRgb(245, 166, 35));
+
+                    var capturedRes = resource;
+                    var capturedStart = gapStart;
+                    var capturedEnd = gapEnd;
+                    var capturedWd = workDays;
+
+                    var gapButton = new Button
+                    {
+                        Width = gapW,
+                        Height = rowH - barPad * 2,
+                        Background = gapFill,
+                        BorderThickness = new Thickness(0),
+                        Padding = new Thickness(2, 0, 2, 0),
+                        Content = new TextBlock
+                        {
+                            Text = $"{workDays}d",
+                            FontSize = 9,
+                            FontWeight = FontWeights.SemiBold,
+                            Foreground = Brushes.White,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            HorizontalAlignment = HorizontalAlignment.Center
+                        },
+                        Tag = (capturedRes, capturedStart, capturedEnd, capturedWd),
+                        ToolTip = hasJust
+                            ? $"Gap: {gapStart:dd/MM/yy} - {gapEnd:dd/MM/yy} ({workDays}d)\n[Justificado] Clique para editar"
+                            : $"Gap: {gapStart:dd/MM/yy} - {gapEnd:dd/MM/yy} ({workDays}d)\nClique para justificar",
+                        Cursor = System.Windows.Input.Cursors.Hand
+                    };
+                    gapButton.Click += OnGapBarClick;
+
+                    Canvas.SetLeft(gapButton, gapX);
+                    Canvas.SetTop(gapButton, rowY + barPad);
+                    GapCanvas.Children.Add(gapButton);
+                }
+            }
+
+            // ── Left column top-left header cell
+            var headerCorner = new Border
+            {
+                Width = leftCol - 1,
+                Height = headerH,
+                Background = new SolidColorBrush(Color.FromRgb(235, 239, 246)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(210, 218, 230)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Child = new TextBlock
+                {
+                    Text = "Recurso",
+                    FontWeight = FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0, 0, 0)
+                }
+            };
+            Canvas.SetLeft(headerCorner, 0); Canvas.SetTop(headerCorner, 0);
+            GapCanvas.Children.Add(headerCorner);
+        }
+
+        public sealed class GapJustificationRow : INotifyPropertyChanged
+        {
+            private readonly Action _onChanged;
+
+            public GapJustificationRow(GapJustification model, string resourceName, int workDays, Action onChanged)
+            {
+                Model = model;
+                ResourceName = resourceName;
+                WorkDays = workDays;
+                _onChanged = onChanged;
+            }
+
+            public event PropertyChangedEventHandler? PropertyChanged;
+
+            public GapJustification Model { get; }
+            public string ResourceName { get; }
+            public int WorkDays { get; }
+            public string StartDisplay => Model.GapStart.ToString("dd/MM/yy");
+            public string EndDisplay => Model.GapEnd.ToString("dd/MM/yy");
+
+            public string Justification
+            {
+                get => Model.Justification;
+                set
+                {
+                    if (Model.Justification == value) return;
+                    Model.Justification = value ?? string.Empty;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Justification)));
+                    _onChanged();
+                }
+            }
+        }
+
+        private static List<(DateTime Start, DateTime End)> MergeIntervals(
+            List<(DateTime Start, DateTime End)> intervals)
+        {
+            if (intervals.Count == 0) return intervals;
+            var sorted = intervals.OrderBy(i => i.Start).ToList();
+            var merged = new List<(DateTime Start, DateTime End)> { sorted[0] };
+            for (int i = 1; i < sorted.Count; i++)
+            {
+                var last = merged[^1];
+                if (sorted[i].Start <= last.End.AddDays(1))
+                    merged[^1] = (last.Start, sorted[i].End > last.End ? sorted[i].End : last.End);
+                else
+                    merged.Add(sorted[i]);
+            }
+            return merged;
+        }
     }
 }
