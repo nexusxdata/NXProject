@@ -144,7 +144,7 @@ namespace NXProject.Views
 
             AllocationGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
             AddCell("Recurso", 0, 0, true);
-            AddCell("Última Ativ.", 0, 1, true);
+            AddCell("Liberação", 0, 1, true);
             for (int i = 0; i < sprints.Count; i++)
                 AddCell(sprints[i].Header, 0, i + 2, true);
 
