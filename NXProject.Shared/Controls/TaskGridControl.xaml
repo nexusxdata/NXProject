@@ -348,29 +348,53 @@
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
-            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="55" SortMemberPath="PredecessorsText">
+            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="75" SortMemberPath="PredecessorsText">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <Button Content="{Binding PredecessorsText}"
-                                Click="OnPredecessorCellClick"
-                                ToolTip="Clique para escolher predecessoras"
-                                BorderThickness="0"
-                                Background="Transparent"
-                                Padding="3,0"
-                                HorizontalContentAlignment="Left"
-                                VerticalContentAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding PredecessorsText}"
+                                    Click="OnPredecessorCellClick"
+                                    ToolTip="Clique para escolher predecessoras"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    Padding="3,0"
+                                    HorizontalContentAlignment="Left"
+                                    VerticalContentAlignment="Center"
+                                    MinWidth="30"/>
+                            <Button Click="OnHighlightPredecessorsClick"
+                                    ToolTip="Destacar predecessoras no Gantt"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    Padding="2,0"
+                                    Width="18"
+                                    VerticalContentAlignment="Center">
+                                <TextBlock Text="&#x1F517;" FontSize="9"/>
+                            </Button>
+                        </StackPanel>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate>
-                        <Button Content="{Binding PredecessorsText}"
-                                Click="OnPredecessorCellClick"
-                                ToolTip="Clique para escolher predecessoras"
-                                BorderThickness="0"
-                                Background="Transparent"
-                                Padding="3,0"
-                                HorizontalContentAlignment="Left"
-                                VerticalContentAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding PredecessorsText}"
+                                    Click="OnPredecessorCellClick"
+                                    ToolTip="Clique para escolher predecessoras"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    Padding="3,0"
+                                    HorizontalContentAlignment="Left"
+                                    VerticalContentAlignment="Center"
+                                    MinWidth="30"/>
+                            <Button Click="OnHighlightPredecessorsClick"
+                                    ToolTip="Destacar predecessoras no Gantt"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    Padding="2,0"
+                                    Width="18"
+                                    VerticalContentAlignment="Center">
+                                <TextBlock Text="&#x1F517;" FontSize="9"/>
+                            </Button>
+                        </StackPanel>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellEditingTemplate>
             </DataGridTemplateColumn>

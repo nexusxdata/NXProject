@@ -72,6 +72,9 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário clica no ID de uma tarefa (editar vínculo DevOps).</summary>
         public event Action<TaskViewModel>? TaskIdClicked;
 
+        /// <summary>Disparado quando o usuário quer destacar as predecessoras de uma tarefa no Gantt.</summary>
+        public event Action<TaskViewModel>? HighlightPredecessorsRequested;
+
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
         private bool _suppressScrollNotification;
@@ -337,6 +340,14 @@ namespace NXProject.Controls
                 TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
             }
+        }
+
+        private void OnHighlightPredecessorsClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: TaskViewModel task })
+                return;
+            e.Handled = true;
+            HighlightPredecessorsRequested?.Invoke(task);
         }
 
         private void OnSprintComboDropDownOpened(object? sender, EventArgs e)

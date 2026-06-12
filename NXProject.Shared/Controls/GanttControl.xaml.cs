@@ -136,6 +136,17 @@ namespace NXProject.Controls
             set => SetValue(ShowDayHeaderProperty, value);
         }
 
+        // IDs de tarefas destacadas (predecessoras da task selecionada via botão)
+        public HashSet<int> HighlightedPredecessorIds { get; } = new();
+
+        public void HighlightPredecessors(IEnumerable<int> ids)
+        {
+            HighlightedPredecessorIds.Clear();
+            foreach (var id in ids)
+                HighlightedPredecessorIds.Add(id);
+            ForceRender();
+        }
+
         private double DayWidth => ZoomLevel switch
         {
             "Dia"        => 22.0,
@@ -262,6 +273,24 @@ namespace NXProject.Controls
 
                         TaskClicked?.Invoke(dragTask);
                         GanttCanvas.CaptureMouse();
+                        e.Handled = true;
+                        return;
+                    }
+                }
+
+                if (e.ChangedButton == MouseButton.Right)
+                {
+                    if (HighlightedPredecessorIds.Count > 0)
+                    {
+                        var cm = new System.Windows.Controls.ContextMenu();
+                        var mi = new System.Windows.Controls.MenuItem { Header = "Desmarcar predecessoras" };
+                        mi.Click += (_, _) =>
+                        {
+                            HighlightedPredecessorIds.Clear();
+                            ForceRender();
+                        };
+                        cm.Items.Add(mi);
+                        cm.IsOpen = true;
                         e.Handled = true;
                         return;
                     }
@@ -805,6 +834,7 @@ namespace NXProject.Controls
             {
                 var vm = Tasks[i];
                 var isSelected = SelectedTask != null && SelectedTask.Id == vm.Id;
+                var isPredecessor = HighlightedPredecessorIds.Contains(vm.Model.Id);
                 var y = GetRowTop(i);
                 var startOffset = (vm.Start - ProjectStart).TotalDays;
                 var endOffset = (vm.Finish - ProjectStart).TotalDays;
@@ -816,9 +846,9 @@ namespace NXProject.Controls
                 if (vm.DisplayAsMilestone)
                     RenderMilestone(vm, x, y, isSelected);
                 else if (vm.IsSummary)
-                    RenderSummaryBar(vm, x, y, width, isSelected);
+                    RenderSummaryBar(vm, x, y, width, isSelected, isPredecessor);
                 else
-                    RenderTaskBar(vm, x, y, width, vm.PercentComplete, isSelected);
+                    RenderTaskBar(vm, x, y, width, vm.PercentComplete, isSelected, isPredecessor);
             }
         }
 
@@ -862,7 +892,7 @@ namespace NXProject.Controls
             GanttCanvas.Children.Add(hitArea);
         }
 
-        private void RenderTaskBar(TaskViewModel task, double x, double y, double width, double percent, bool isSelected)
+        private void RenderTaskBar(TaskViewModel task, double x, double y, double width, double percent, bool isSelected, bool isPredecessor = false)
         {
             if (width < 3)
             {
@@ -870,7 +900,9 @@ namespace NXProject.Controls
                 return;
             }
 
-            var bgColor = isSelected ? Color.FromRgb(220, 124, 0) : Color.FromRgb(68, 114, 196);
+            var bgColor = isSelected    ? Color.FromRgb(220, 124, 0)
+                        : isPredecessor ? Color.FromRgb(200, 100, 20)
+                        :                 Color.FromRgb(68, 114, 196);
             var bg = new Rectangle
             {
                 Width = width,
@@ -961,9 +993,11 @@ namespace NXProject.Controls
             GanttCanvas.Children.Add(circle);
         }
 
-        private void RenderSummaryBar(TaskViewModel task, double x, double y, double width, bool isSelected)
+        private void RenderSummaryBar(TaskViewModel task, double x, double y, double width, bool isSelected, bool isPredecessor = false)
         {
-            var barColor = isSelected ? Color.FromRgb(220, 124, 0) : Color.FromRgb(43, 87, 154);
+            var barColor = isSelected    ? Color.FromRgb(220, 124, 0)
+                         : isPredecessor ? Color.FromRgb(200, 100, 20)
+                         :                 Color.FromRgb(43, 87, 154);
             var bar = new Rectangle
             {
                 Width = width,

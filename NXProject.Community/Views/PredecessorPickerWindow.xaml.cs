@@ -28,7 +28,10 @@ namespace NXProject.Views
 
             foreach (var task in candidates)
             {
-                var row = new PredecessorRow(task.DisplayId, task.Name)
+                var parentName = task.ParentViewModel?.Name ?? "";
+                var startStr = task.Start.ToString("dd/MM/yy");
+                var finishStr = task.Finish.ToString("dd/MM/yy");
+                var row = new PredecessorRow(task.DisplayId, task.Name, parentName, startStr, finishStr)
                 {
                     IsSelected = selectedIds.Contains(task.DisplayId)
                 };
@@ -61,7 +64,7 @@ namespace NXProject.Views
             var query = SearchBox.Text?.Trim() ?? string.Empty;
             return string.IsNullOrWhiteSpace(query)
                    || row.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                   || row.DisplayId.Contains(query, StringComparison.OrdinalIgnoreCase);
+                   || row.ParentName.Contains(query, StringComparison.OrdinalIgnoreCase);
         }
 
         private void OnSearchTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -111,14 +114,20 @@ namespace NXProject.Views
         {
             private bool _isSelected;
 
-            public PredecessorRow(string displayId, string name)
+            public PredecessorRow(string displayId, string name, string parentName = "", string startDate = "", string finishDate = "")
             {
                 DisplayId = displayId;
                 Name = name;
+                ParentName = parentName;
+                StartDate = startDate;
+                FinishDate = finishDate;
             }
 
             public string DisplayId { get; }
             public string Name { get; }
+            public string ParentName { get; }
+            public string StartDate { get; }
+            public string FinishDate { get; }
 
             public bool IsSelected
             {

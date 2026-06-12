@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Selecionar predecessoras"
-        Width="760"
+        Width="860"
         Height="620"
-        MinWidth="620"
+        MinWidth="700"
         MinHeight="460"
         WindowStartupLocation="CenterOwner"
         Background="White">
@@ -75,15 +75,27 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  Margin="8,5">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding DisplayId}"
-                                           Width="72"
-                                           FontWeight="SemiBold"
-                                           Foreground="#2B579A"/>
-                                <TextBlock Text="{Binding Name}"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
+                                  Margin="4,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="80"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding DisplayId}"
+                                           FontWeight="SemiBold" Foreground="#2B579A" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ParentName}" FontSize="10" Foreground="#888"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Name}" TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding StartDate}" FontSize="10"
+                                           Foreground="#555" VerticalAlignment="Center" TextAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding FinishDate}" FontSize="10"
+                                           Foreground="#555" VerticalAlignment="Center" TextAlignment="Center"/>
+                            </Grid>
                         </CheckBox>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
