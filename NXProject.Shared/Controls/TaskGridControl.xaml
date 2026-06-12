@@ -331,14 +331,37 @@
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate>
-                        <TextBox x:Name="PredEditBox"
-                                 Text="{Binding PredecessorsText, UpdateSourceTrigger=Explicit}"
-                                 VerticalAlignment="Center"
-                                 Margin="2,0"
-                                 Tag="PredecessorEdit"
-                                 KeyDown="OnPredEditKeyDown"
-                                 LostFocus="OnPredEditLostFocus"
-                                 GotFocus="OnPredEditGotFocus"/>
+                        <Grid MinWidth="250">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="86"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox x:Name="PredEditBox"
+                                     Grid.Column="0"
+                                     Text="{Binding PredecessorsText, UpdateSourceTrigger=Explicit}"
+                                     VerticalAlignment="Center"
+                                     Margin="2,0,4,0"
+                                     Tag="PredecessorEdit"
+                                     ToolTip="IDs de predecessoras, separados por virgula"
+                                     KeyDown="OnPredEditKeyDown"
+                                     LostFocus="OnPredEditLostFocus"
+                                     GotFocus="OnPredEditGotFocus"/>
+
+                            <ComboBox x:Name="PredPicker"
+                                      Grid.Column="1"
+                                      IsEditable="True"
+                                      IsTextSearchEnabled="False"
+                                      StaysOpenOnEdit="True"
+                                      DisplayMemberPath="Name"
+                                      ToolTip="Pesquise pelo nome e selecione uma atividade de ultimo nivel"
+                                      Loaded="OnPredPickerLoaded"
+                                      DropDownOpened="OnPredPickerDropDownOpened"
+                                      SelectionChanged="OnPredPickerSelectionChanged"
+                                      KeyUp="OnPredPickerKeyUp"
+                                      KeyDown="OnPredPickerKeyDown"
+                                      LostFocus="OnPredPickerLostFocus"/>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellEditingTemplate>
             </DataGridTemplateColumn>
