@@ -1,184 +1,162 @@
-# NXProject Community 1.0.2
+# NXProject Community
 
-Edicao comunitaria do NXProject para gerenciamento de tarefas, grafico Gantt e importacao/exportacao de projetos.
+**Cronograma de projetos com visibilidade real sobre o seu Azure DevOps.**
+
+O NXProject conecta o backlog do Azure DevOps a uma visão de planejamento com datas, dependências, alocação de pessoas e Gantt — tudo em um aplicativo desktop gratuito para Windows.
+
+---
+
+## O problema que o NXProject resolve
+
+Equipes que usam Azure DevOps têm o backlog organizado, sprints definidas e work items atualizados — mas **não têm uma visão de cronograma integrada**. Perguntas simples ficam sem resposta rápida:
+
+- Quando essa Feature vai terminar, considerando todas as Stories?
+- Qual recurso está sobrecarregado no próximo mês?
+- Se essa Story atrasar, o que mais é impactado?
+- O projeto vai entregar no prazo?
+
+O NXProject importa a hierarquia do Azure DevOps e transforma esses dados em um cronograma gerenciável, com Gantt, dependências, alocação e alertas de atraso.
+
+---
 
 ## Capturas de tela
 
-As imagens abaixo ficam versionadas no repositorio para visualizacao direta no GitHub:
-
 ![Tela principal do NXProject Community](ScreenShot/Tela01.png)
 ![Tela com hierarquia e Gantt](ScreenShot/Tela02.png)
-![Tela de configuracao e acompanhamento](ScreenShot/Tela03.png)
-![Tela de importacao do TFS / Azure DevOps](ScreenShot/Tela04.png)
+![Tela de configuração e acompanhamento](ScreenShot/Tela03.png)
+![Tela de importação do TFS / Azure DevOps](ScreenShot/Tela04.png)
 ![Tela conceitual Azure DevOps Backlog](ScreenShot/Tela05-Azure-DevOps-Backlog.svg)
 
-## Conteudo deste repositorio
+---
 
-- `NXProject.Shared`: modelos, servicos e UI compartilhada da edicao publica
-- `NXProject.Community`: aplicativo desktop Community
-- `NXProject.Community.sln`: solution publica da Community
-- `setup-community-vscode.ps1`, `build-community.ps1`, `run-community.ps1`, `release-community.ps1`: scripts de preparacao, build, execucao e empacotamento
+## Para quem é o NXProject
 
-## Download rapido
+| Perfil | O que o NXProject entrega |
+|---|---|
+| **Gerente de Projeto** | Cronograma integrado ao backlog, alertas de atraso, visão de dependências |
+| **Scrum Master / RTE** | Capacidade por sprint, conflito de alocação, impacto de mudanças de data |
+| **Tech Lead** | Visão de Features e Stories com predecessoras e estimativas em horas |
+| **PMO** | Consolidação de múltiplos projetos, exportação para MS Project / Excel |
 
-O pacote compilado para usuario final esta em:
+---
 
-- `dist/community/NXProject.Community-Release.zip`
-- [Baixar NXProject Community 1.0.2 (.zip)](dist/community/NXProject.Community-Release.zip)
+## Integração com Azure DevOps
 
-O `.zip` de distribuicao foi gerado em ambiente com antivirus McAfee. Se houver qualquer duvida sobre o binario, o executavel pode ser gerado novamente a partir deste codigo-fonte seguindo as instrucoes de compilacao abaixo.
+### Do backlog ao cronograma em minutos
 
-Se preferir baixar os componentes oficiais:
+O NXProject importa a hierarquia completa do seu projeto diretamente do Azure DevOps:
 
-- Runtime para executar no Windows: https://dotnet.microsoft.com/en-us/download/dotnet/10.0
-- SDK para compilar no VS Code: https://dotnet.microsoft.com/en-us/download/dotnet/10.0
-- Download do VS Code: https://code.visualstudio.com/download
+```
+Project → Epic → Feature → Story
+```
 
-## Requisito do Windows
+Cada Story vira uma linha do cronograma com data de início, duração calculada em dias úteis, responsável e sprint — tudo extraído dos campos que seu time já preenche no DevOps.
 
-Para executar o aplicativo, a maquina deve ter instalado:
+### Lista de Projetos DevOps
 
-- `Microsoft .NET Desktop Runtime 10.0 (x64)`
+Gerencie múltiplos projetos DevOps em um arquivo compartilhado entre toda a equipe. Cada projeto tem nome e ID raiz; ao importar, basta selecionar o projeto da lista, sem precisar lembrar o ID manualmente.
 
-Se o Windows ainda nao tiver esse runtime, instale primeiro e depois execute `NXProject.Community.exe`.
+### O que é lido automaticamente
 
-## Compilar no VS Code
+- **Hierarquia**: `Project → Epic → Feature → Story` via links `Child`
+- **Estimativas**: campo `HH Estimado` → duração em dias úteis no calendário do projeto
+- **Datas**: `Data_Inicio` e `Data_Fim` quando já definidas no DevOps
+- **Responsável**: `System.AssignedTo` → recurso do projeto
+- **Sprint**: `System.IterationPath` → associação com sprints do NXProject
+- **Ordem do backlog**: `Microsoft.VSTS.Common.StackRank`
+- **Bloqueios**: Tasks filhas com tag `Block` marcam a Story como bloqueada
+- **Estado**: Stories `Closed`/`Resolved` com Tasks filhas ainda em aberto são sinalizadas e corrigidas automaticamente
 
-Se voce nao quiser baixar o `.zip`, pode compilar o projeto no VS Code:
+### Log de importação
 
-1. Instale o `.NET 10 SDK` pelo link oficial: https://dotnet.microsoft.com/en-us/download/dotnet/10.0
-2. Instale o VS Code: https://code.visualstudio.com/download
-3. Abra a pasta do repositorio `NXProject` no VS Code.
-4. Abra o terminal integrado do VS Code em `Terminal > New Terminal`.
-5. Prepare o ambiente com o script abaixo na raiz do projeto:
+Ao importar, o NXProject gera um relatório com:
+- Stories cujo estado foi corrigido automaticamente (ex: Story fechada com Task em aberto)
+- Predecessoras que apontam para itens fora do escopo importado
+- Avisos e inconsistências para revisão antes de publicar o cronograma
+
+### Sincronização de volta ao DevOps
+
+Após ajustar datas, dependências e estimativas no cronograma, o NXProject sincroniza as alterações de volta para o Azure DevOps: título, descrição, horas, datas, estado, tags, sprint e links de predecessora.
+
+### Abrir work item direto no DevOps
+
+Em qualquer tarefa vinculada, o botão **"Abrir no DevOps ↗"** abre o work item no browser. A janela de vínculo também exibe a lista de Tasks filhas com ID, nome e estado — para referência rápida sem sair do NXProject.
+
+---
+
+## Outras funcionalidades
+
+- **Gráfico de Gantt** interativo com zoom por dia, sprint ou período
+- **Dependências entre tarefas** (predecessoras), inclusive entre Stories de Epics diferentes
+- **Alocação de recursos**: visão de carga por pessoa e período
+- **Health Check do Projeto**: lista tarefas atrasadas e sem responsável
+- **Calendário configurável**: feriados, dias úteis, horas por dia
+- **Exportação**: MS Project XML, OpenProj, Excel XML, CSV
+- **Assistente IA** para sugestão de estrutura de tarefas
+
+---
+
+## Download
+
+- [Baixar NXProject Community (última versão)](../../releases/latest)
+
+O `.exe` é autocontido — não exige instalação do .NET na máquina.
+
+> O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
+
+---
+
+## Compilar a partir do código-fonte
+
+Pré-requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) e [VS Code](https://code.visualstudio.com/download).
 
 ```powershell
+# Preparar ambiente
 .\setup-community-vscode.ps1
-```
 
-6. Depois rode o build do executavel:
-
-```powershell
+# Compilar
 .\build-community.ps1 -Configuration Release
-```
 
-7. Ao final da compilacao, o executavel sera gerado em:
-
-```text
-NXProject.Community\bin\Release\net10.0-windows\NXProject.Community.exe
-```
-
-Para abrir o executavel gerado, basta executar esse arquivo no Windows.
-
-Se preferir executar diretamente em modo de desenvolvimento, use:
-
-```powershell
-.\run-community.ps1
-```
-
-## Como gerar o zip de distribuicao
-
-```powershell
+# Ou gerar o zip de distribuição
 .\release-community.ps1 -Configuration Release
 ```
 
-## Importacao do Azure DevOps / TFS
+O executável será gerado em `NXProject.Community\bin\Release\net10.0-windows\`.
 
-No aplicativo, use:
+---
 
-```text
-Arquivo > Importar > TFS / Azure DevOps...
-```
-
-A importacao monta a hierarquia:
-
-```text
-Project -> Epic -> Feature -> Story
-```
-
-Itens do tipo `Task` nao viram linhas do cronograma; eles sao usados apenas como informacao auxiliar, por exemplo para indicar bloqueio quando houver tag `Block`.
-
-### Tela Azure DevOps Backlog no GitHub
-
-A tela conceitual acima mostra como o backlog do Azure DevOps se conecta ao cronograma do NXProject em projetos ageis. O Azure DevOps continua sendo a origem do backlog, enquanto o NXProject transforma os work items em uma visao de planejamento com datas, duracao, dependencias, alocacao de pessoas e Gantt.
-
-Na pratica, a integracao permite:
-
-- importar a hierarquia `Project -> Epic -> Feature -> Story` a partir de um work item raiz;
-- preservar a ordem do backlog usando `Microsoft.VSTS.Common.StackRank`;
-- associar Stories e Features as sprints do Azure DevOps por `System.IterationPath`;
-- converter estimativas em horas (`HH Estimado`) para duracao no cronograma;
-- ler `Data_Inicio` e `Data_Fim` quando o time ja definiu datas no DevOps;
-- importar o responsavel (`System.AssignedTo`) como recurso do projeto;
-- indicar bloqueios quando houver tag `Block` em Tasks filhas;
-- sincronizar de volta titulo, descricao, horas, datas, estado, tags, sprint e links de predecessora quando configurado.
-
-Esse fluxo ajuda equipes ageis a manter o backlog no Azure DevOps e usar o NXProject para responder perguntas de planejamento: capacidade por sprint, conflito de alocacao, atividades atrasadas, Curva S, dependencias entre Stories e impacto de mudancas de data no cronograma.
-
-### Pre-requisitos no Azure DevOps
-
-O work item raiz informado no NXProject deve ser do tipo `Project` e deve ter filhos hierarquicos (`Child`) abaixo dele.
-
-Para calcular o cronograma das Stories, o NXProject procura estes campos:
-
-- `HH Estimado`: horas estimadas da Story. O valor e convertido para dias uteis usando as horas uteis por dia configuradas no calendario do NXProject.
-- `Data_Inicio`: data de inicio da Story. Se preenchida, a barra comeca nessa data.
-- `Data_Fim`: data de fim da Story. Se preenchida, essa data e usada diretamente como termino.
-
-Se `Data_Inicio` estiver vazia, a Story e posicionada a partir do inicio da sprint dela. Se `Data_Fim` estiver vazia, o termino e calculado por dias uteis. Se a Story tiver `System.AssignedTo`, o responsavel e importado como recurso.
-
-Esses nomes podem ser alterados na area **Campos (avancado)** da janela de importacao, caso seu processo use nomes diferentes.
+## Configurar o Azure DevOps
 
 ### Personal Access Token
 
-Para gerar o token no Azure DevOps:
+1. No Azure DevOps, clique no ícone de usuário → **Personal access tokens**
+2. Clique em **New Token**
+3. Em **Scopes**, selecione **Work Items → Read** (adicione **Write** se quiser sincronizar de volta)
+4. Copie o token e cole no campo correspondente na tela de importação do NXProject
 
-1. Acesse sua organizacao no Azure DevOps.
-2. Clique no icone de usuario, no canto superior direito.
-3. Abra **Personal access tokens**.
-4. Clique em **New Token**.
-5. Informe um nome, por exemplo `NXProject Import`.
-6. Escolha a organizacao correta.
-7. Defina uma expiracao adequada para sua politica de seguranca.
-8. Em **Scopes**, selecione **Custom defined**.
-9. Marque **Work Items** com permissao **Read**.
-10. Clique em **Create**.
-11. Copie o token gerado e cole no campo `Personal Access Token` do NXProject.
+O token pode ser salvo localmente cifrado com as credenciais do Windows (DPAPI).
 
-O token aparece somente uma vez no Azure DevOps. Se marcar **Lembrar o token neste computador**, o NXProject salva o token localmente cifrado no usuario do Windows.
+### Campos personalizados
 
-### Calendario de trabalho
+Se o seu processo usa nomes de campo diferentes de `HH Estimado`, `Data_Inicio` ou `Data_Fim`, esses nomes podem ser ajustados na área **Campos (avançado)** da janela de importação.
 
-O calculo de prazo usa o calendario configurado em:
+### Calendário de trabalho
 
-```text
-Exibir > Calendario...
-```
+Configure feriados, horas úteis por dia e dias da semana em **Exibir → Calendário...**  
+O padrão é 8 horas por dia, segunda a sexta.
 
-Esse calendario fica salvo em:
+---
 
-```text
-%LocalAppData%\NXProject.Community\nxproject_calender.json
-```
+## Licença e contato
 
-Nele e possivel configurar feriados, considerar sabado/domingo como dias uteis e alterar as horas uteis por dia. O padrao e `8` horas por dia.
+- **Empresa**: Nexus XData Tecnologia Ltda
+- **Contato comercial**: `comercial.nexus.xdata@gmail.com`
 
-## Observacao sobre build local
+O NXProject usa modelo **Open Core / licenciamento dual**:
 
-O aviso `NU1900` do NuGet era um caso conhecido neste ambiente quando a checagem online de vulnerabilidades nao conseguia acessar `https://api.nuget.org/v3/index.json`.
+| Edição | Uso |
+|---|---|
+| **Community (gratuita)** | Uso livre para pessoas físicas e empresas, inclusive uso comercial interno, sem limite de usuários. Redistribuição gratuita permitida mantendo o crédito à Nexus XData. |
+| **Comercial / Enterprise** | Sem restrições de revenda ou SaaS, suporte oficial, SLA, módulos exclusivos (impressão/PDF, calendário avançado, integrações com IA). Contate-nos para proposta. |
 
-Como isso nao indicava vulnerabilidade confirmada no projeto e apenas falha de consulta online, ele foi suprimido nos arquivos de projeto para nao poluir o build local.
-
-## Licenca e contato
-
-- Empresa: Nexus XData Tecnologia Ltda
-- Contato: `comercial.nexus.xdata@gmail.com`
-
-O NXProject usa um modelo **Open Core / licenciamento dual** (ver `LICENSE.txt`). A licenca Community e exibida na primeira execucao do aplicativo.
-
-Resumo atual:
-
-- **Edicao Community (gratuita)**: livre para qualquer pessoa fisica ou empresa, inclusive uso comercial interno, sem limite de usuarios; pode usar, estudar, modificar para uso interno e redistribuir gratuitamente, mantendo o credito a Nexus XData Tecnologia Ltda.
-- **Direitos reservados a Nexus XData**: vender/cobrar pelo Software, oferece-lo como servico pago (SaaS) ou prestar suporte pago sobre ele exige licenca comercial; a redistribuicao permitida e apenas gratuita.
-- **Edicao Comercial / Enterprise (paga)**: licenca comercial sem essas restricoes, suporte oficial, SLA, garantias e modulos exclusivos (impressao/PDF, calendario avancado, integracoes com IA como OpenAI e Claude), mediante contratacao.
-- Contato comercial: `comercial.nexus.xdata@gmail.com`
+> Vender, cobrar ou oferecer o NXProject como serviço pago exige licença comercial.
