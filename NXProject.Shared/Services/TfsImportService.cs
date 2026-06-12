@@ -561,8 +561,7 @@ namespace NXProject.Services
 
         private static bool IsFeatureOrStory(ProjectTask task) =>
             string.Equals(task.TfsType, "Feature", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(task.TfsType, "Story", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(task.TfsType, "User Story", StringComparison.OrdinalIgnoreCase);
+            IsStoryType(task.TfsType);
 
         /// <summary>
         /// Recalcula o StackRank desejado para refletir a ordem do NXProject, por
@@ -683,8 +682,7 @@ namespace NXProject.Services
             task.Children.Count == 0 && IsStoryTask(task);
 
         private static bool IsStoryTask(ProjectTask task) =>
-            string.Equals(task.TfsType, "Story", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(task.TfsType, "User Story", StringComparison.OrdinalIgnoreCase);
+            IsStoryType(task.TfsType);
 
         private static HashSet<int> GetDesiredPredecessorTfsIds(
             ProjectTask task,
@@ -1333,7 +1331,11 @@ namespace NXProject.Services
 
         private static bool IsStoryType(string? type) =>
             string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase);
+            string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Product Backlog Item", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Requirement", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Historia de Usuario", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "História de Usuário", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Ordena as sprints por inicio, atribui numeros sequenciais (1..N) e,
