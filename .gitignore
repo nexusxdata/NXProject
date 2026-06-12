@@ -31,3 +31,4 @@ teste_openproj.pod
 config_nxproject.json
 **/config_nxproject.json
 *.local.json
+publish/
