@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using NXProject.Models;
 using NXProject.ViewModels;
+using NXProject.Views;
 
 namespace NXProject.Controls
 {
@@ -78,10 +79,6 @@ namespace NXProject.Controls
         private Point _dragStartPoint;
         private TaskViewModel? _dragSourceTask;
 
-        // Estado da edição de predecessoras por clique.
-        private TextBox? _predEditBox;
-        private bool _inPredecessorEdit;
-
         public TaskGridControl()
         {
             InitializeComponent();
@@ -141,7 +138,7 @@ namespace NXProject.Controls
             StartColumn.Width = new DataGridLength(expanded ? 96 : 76);
             FinishColumn.Width = new DataGridLength(expanded ? 96 : 76);
             PercentColumn.Width = new DataGridLength(expanded ? 82 : 62);
-            PredecessorColumn.Width = new DataGridLength(expanded ? 260 : 54);
+            PredecessorColumn.Width = new DataGridLength(expanded ? 120 : 54);
             ResourcesColumn.Width = new DataGridLength(expanded ? 190 : 88);
             SprintColumn.Width = new DataGridLength(expanded ? 190 : 118);
         }
@@ -235,15 +232,6 @@ namespace NXProject.Controls
 
         private void OnTaskGridPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_inPredecessorEdit &&
-                Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
-                TryAppendClickedPredecessor(e.OriginalSource as DependencyObject))
-            {
-                e.Handled = true;
-                _dragSourceTask = null;
-                return;
-            }
-
             if (FindParent<ToggleButton>(e.OriginalSource as DependencyObject) != null)
             {
                 _dragSourceTask = null;
@@ -252,36 +240,6 @@ namespace NXProject.Controls
 
             _dragStartPoint = e.GetPosition(TaskGrid);
             _dragSourceTask = FindTaskViewModel(e.OriginalSource as DependencyObject);
-        }
-
-        private void OnTaskGridPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (TryAppendClickedPredecessor(e.OriginalSource as DependencyObject))
-                e.Handled = true; // suprime o menu de contexto padrão
-        }
-
-        private bool TryAppendClickedPredecessor(DependencyObject? source)
-        {
-            if (!_inPredecessorEdit || _predEditBox == null)
-                return false;
-
-            // Clique direito ou Ctrl+clique durante a edição de Pred.: adiciona
-            // o DisplayId da linha clicada sem trocar a seleção nem fechar a célula.
-            var clicked = FindTaskViewModel(source);
-            if (clicked == null || ReferenceEquals(clicked, _predEditBox.DataContext))
-                return false;
-
-            var parts = _predEditBox.Text
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToList();
-            if (!parts.Any(p => string.Equals(p, clicked.DisplayId, StringComparison.OrdinalIgnoreCase)))
-                parts.Add(clicked.DisplayId);
-
-            _predEditBox.Text = string.Join(",", parts);
-            _predEditBox.CaretIndex = _predEditBox.Text.Length;
-            _predEditBox.Focus();
-            Keyboard.Focus(_predEditBox);
-            return true;
         }
 
         private void OnTaskGridPreviewMouseMove(object sender, MouseEventArgs e)
@@ -342,6 +300,36 @@ namespace NXProject.Controls
 
             if (e.Column == PredecessorColumn && e.Row?.Item is TaskViewModel predecessorTask && !predecessorTask.CanEditPredecessors)
                 e.Cancel = true;
+        }
+
+        private void OnPredecessorCellClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: TaskViewModel task })
+                return;
+            if (!task.CanEditPredecessors)
+                return;
+
+            _dragSourceTask = null;
+            e.Handled = true;
+
+            var candidates = (Tasks ?? new ObservableCollection<TaskViewModel>())
+                .Where(t => !ReferenceEquals(t, task))
+                .Where(t => t.Model.Children.Count == 0)
+                .OrderBy(t => t.Name)
+                .ToList();
+
+            var owner = Window.GetWindow(this);
+            var dialog = new PredecessorPickerWindow(task, candidates)
+            {
+                Owner = owner
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                task.PredecessorsText = dialog.SelectedPredecessorsText;
+                TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            }
         }
 
         private void OnSprintComboDropDownOpened(object? sender, EventArgs e)
@@ -414,179 +402,6 @@ namespace NXProject.Controls
 
         private static string NormalizeManualResourceName(string? name) =>
             (name ?? string.Empty).Trim().TrimStart('*').Trim();
-
-        private void OnPredEditGotFocus(object sender, RoutedEventArgs e)
-        {
-            if (sender is TextBox tb)
-            {
-                _predEditBox = tb;
-                _inPredecessorEdit = true;
-            }
-        }
-
-        private void OnPredPickerLoaded(object sender, RoutedEventArgs e)
-        {
-            if (sender is ComboBox combo)
-            {
-                EnsurePredEditorFromPicker(combo);
-                RefreshPredPicker(combo);
-            }
-        }
-
-        private void OnPredPickerDropDownOpened(object sender, EventArgs e)
-        {
-            if (sender is ComboBox combo)
-            {
-                EnsurePredEditorFromPicker(combo);
-                RefreshPredPicker(combo);
-            }
-        }
-
-        private void OnPredPickerKeyUp(object sender, KeyEventArgs e)
-        {
-            if (sender is not ComboBox combo)
-                return;
-
-            if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Enter or Key.Escape or Key.Tab)
-                return;
-
-            EnsurePredEditorFromPicker(combo);
-            RefreshPredPicker(combo, combo.Text);
-            combo.IsDropDownOpen = true;
-        }
-
-        private void OnPredPickerKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter && sender is ComboBox { SelectedItem: TaskViewModel selected } combo)
-            {
-                AppendPredecessorToEditor(selected);
-                ClearPredPicker(combo);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                _inPredecessorEdit = false;
-                _predEditBox = null;
-                TaskGrid.CancelEdit(DataGridEditingUnit.Cell);
-                e.Handled = true;
-            }
-        }
-
-        private void OnPredPickerSelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (sender is not ComboBox combo || combo.SelectedItem is not TaskViewModel selected)
-                return;
-
-            EnsurePredEditorFromPicker(combo);
-            AppendPredecessorToEditor(selected);
-            ClearPredPicker(combo);
-        }
-
-        private void OnPredPickerLostFocus(object sender, RoutedEventArgs e)
-        {
-            if (_predEditBox == null || sender is not ComboBox combo)
-                return;
-
-            var cell = FindParent<DataGridCell>(combo);
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (_predEditBox != null && cell?.IsKeyboardFocusWithin == false)
-                    CommitPredEdit(_predEditBox);
-            });
-        }
-
-        private void RefreshPredPicker(ComboBox combo, string? searchText = null)
-        {
-            if (combo.DataContext is not TaskViewModel current)
-                return;
-
-            var query = (searchText ?? combo.Text ?? string.Empty).Trim();
-            var candidates = (Tasks ?? new ObservableCollection<TaskViewModel>())
-                .Where(t => !ReferenceEquals(t, current))
-                .Where(t => t.Model.Children.Count == 0)
-                .Where(t => string.IsNullOrWhiteSpace(query)
-                            || t.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                            || t.DisplayId.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .Take(80)
-                .ToList();
-
-            combo.ItemsSource = candidates;
-        }
-
-        private void EnsurePredEditorFromPicker(ComboBox combo)
-        {
-            if (_predEditBox?.DataContext == combo.DataContext)
-                return;
-
-            var cell = FindParent<DataGridCell>(combo);
-            var textBox = cell == null ? null : FindChild<TextBox>(cell);
-            if (textBox == null)
-                return;
-
-            _predEditBox = textBox;
-            _inPredecessorEdit = true;
-        }
-
-        private void AppendPredecessorToEditor(TaskViewModel predecessor)
-        {
-            if (_predEditBox == null)
-                return;
-
-            var parts = _predEditBox.Text
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToList();
-            if (!parts.Any(p => string.Equals(p, predecessor.DisplayId, StringComparison.OrdinalIgnoreCase)))
-                parts.Add(predecessor.DisplayId);
-
-            _predEditBox.Text = string.Join(",", parts);
-            _predEditBox.CaretIndex = _predEditBox.Text.Length;
-        }
-
-        private static void ClearPredPicker(ComboBox combo)
-        {
-            combo.SelectedItem = null;
-            combo.Text = string.Empty;
-            combo.IsDropDownOpen = false;
-        }
-
-        private void CommitPredEdit(TextBox tb)
-        {
-            _inPredecessorEdit = false;
-            _predEditBox = null;
-            tb.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
-        }
-
-        private void OnPredEditKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter && sender is TextBox tb)
-            {
-                CommitPredEdit(tb);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape && sender is TextBox tb2)
-            {
-                _inPredecessorEdit = false;
-                _predEditBox = null;
-                TaskGrid.CancelEdit(DataGridEditingUnit.Cell);
-                e.Handled = true;
-            }
-        }
-
-        private void OnPredEditLostFocus(object sender, RoutedEventArgs e)
-        {
-            if (sender is not TextBox tb) return;
-            // Usa Dispatcher para deixar o clique em outra linha terminar. Se o
-            // gesto de captura de predecessora devolveu o foco ao TextBox, mantem
-            // a edição aberta; se não, confirma o valor digitado.
-            Dispatcher.BeginInvoke(() =>
-            {
-                var cell = FindParent<DataGridCell>(tb);
-                if (_predEditBox == tb && cell?.IsKeyboardFocusWithin == false)
-                    CommitPredEdit(tb);
-            });
-        }
 
         private void CommitDurationEdit(TextBox tb)
         {

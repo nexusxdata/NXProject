@@ -154,26 +154,17 @@ namespace NXProject.Services
                 FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim()
             };
 
-            // Os Epics (filhos diretos da raiz) viram tarefas de nivel 0.
-            foreach (var epicId in OrderedChildren(childrenByParent, options.RootWorkItemId, items))
+            // Filhos diretos do raiz viram ramos do cronograma quando forem
+            // Epic, Feature ou Story. Em alguns backlogs, Stories em New ficam
+            // diretamente abaixo do item raiz, e nao dentro de um Epic.
+            foreach (var childId in OrderedChildren(childrenByParent, options.RootWorkItemId, items))
             {
-                if (!items.TryGetValue(epicId, out var epic)) continue;
-                if (!IsType(epic, "Epic")) continue;
+                if (!items.TryGetValue(childId, out var child)) continue;
+                if (!IsImportRootType(child.WorkItemType)) continue;
 
-                var epicTask = BuildBranch(context, epicId, level: 0);
-                if (epicTask != null)
-                    project.Tasks.Add(epicTask);
-            }
-
-            // Se nao houver Epics, cai para o nivel imediatamente abaixo da raiz.
-            if (project.Tasks.Count == 0)
-            {
-                foreach (var childId in OrderedChildren(childrenByParent, options.RootWorkItemId, items))
-                {
-                    var task = BuildBranch(context, childId, level: 0);
-                    if (task != null)
-                        project.Tasks.Add(task);
-                }
+                var task = BuildBranch(context, childId, level: 0);
+                if (task != null)
+                    project.Tasks.Add(task);
             }
 
             NormalizeIds(project.Tasks);
@@ -996,12 +987,19 @@ namespace NXProject.Services
             if (!ctx.Items.TryGetValue(id, out var item))
                 return null;
 
-            // Nivel 2 = Story: nao descemos para Task.
+            // Story/User Story vira atividade de cronograma independentemente do
+            // nivel em que apareceu na hierarquia do DevOps. Isso evita perder
+            // Stories em estado New quando o backlog nao esta exatamente em
+            // Epic -> Feature -> Story.
+            if (IsStoryType(item.WorkItemType))
+                return BuildStory(ctx, item, Math.Max(level, 2));
+
+            // Nivel 2+ sem ser Story: nao descemos para Task nem tipos auxiliares.
             if (level >= 2)
             {
                 if (IsType(item, "Task"))
                     return null;
-                return BuildStory(ctx, item, level);
+                return null;
             }
 
             // Bloqueio derivado: Task filha direta com tag Block (só visão).
@@ -1326,6 +1324,14 @@ namespace NXProject.Services
 
         private static bool IsFeatureOrStoryType(string? type) =>
             string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase) ||
+            IsStoryType(type);
+
+        private static bool IsImportRootType(string? type) =>
+            string.Equals(type, "Epic", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase) ||
+            IsStoryType(type);
+
+        private static bool IsStoryType(string? type) =>
             string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase);
 

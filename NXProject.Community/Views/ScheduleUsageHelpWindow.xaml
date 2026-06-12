@@ -86,12 +86,12 @@ Se a atividade veio de uma sprint do Azure DevOps, digitar 0 no campo Inicio rem
                                Foreground="#2B579A"
                                Margin="0,8,0,8"/>
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-A coluna Pred. indica quais atividades precisam terminar antes da atividade atual. Ela fica mais visivel no modo expandido da grade e possui uma lista pesquisavel de atividades de ultimo nivel.
+A coluna Pred. indica quais atividades precisam terminar antes da atividade atual. Ao clicar no campo, o NXProject abre uma janela de selecao com atividades de ultimo nivel.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Edite Pred. na atividade que depende de outra."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Pesquise pelo nome da atividade predecessora no seletor ao lado."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao selecionar uma atividade, o ID dela entra automaticamente no campo."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Tambem e possivel digitar IDs separados por virgula, como 12,15,18."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Clique em Pred. na atividade que depende de outra."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Use a busca para localizar a atividade pelo nome ou ID."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Marque uma ou mais atividades usando os checkboxes."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A parte superior da janela mostra as predecessoras ja marcadas antes de confirmar."/>
 
                     <TextBlock Text="6. Interprete o Gantt"
                                FontSize="16"
@@ -119,7 +119,7 @@ O Gantt mostra as barras das atividades, marcos, sprints e setas de dependencia.
                             Margin="0,8,0,0">
                         <TextBlock TextWrapping="Wrap"
                                    Foreground="#444"
-                                   Text="Dica rapida: informe Inicio e Dur.(h); o Fim e calculado pelo calendario. Para dependencias, edite Pred. na atividade que depende e pesquise pelo nome da atividade anterior."/>
+                                   Text="Dica rapida: informe Inicio e Dur.(h); o Fim e calculado pelo calendario. Para dependencias, clique em Pred. na atividade que depende e marque as atividades anteriores na janela de selecao."/>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
