@@ -278,23 +278,6 @@ namespace NXProject.Controls
                     }
                 }
 
-                if (e.ChangedButton == MouseButton.Right)
-                {
-                    if (HighlightedPredecessorIds.Count > 0)
-                    {
-                        var cm = new System.Windows.Controls.ContextMenu();
-                        var mi = new System.Windows.Controls.MenuItem { Header = "Desmarcar predecessoras" };
-                        mi.Click += (_, _) =>
-                        {
-                            HighlightedPredecessorIds.Clear();
-                            ForceRender();
-                        };
-                        cm.Items.Add(mi);
-                        cm.IsOpen = true;
-                        e.Handled = true;
-                        return;
-                    }
-                }
 
                 var clickedTask = FindTaskFromVisual(source);
                 if (clickedTask != null)

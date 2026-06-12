@@ -24,7 +24,18 @@
               PreviewMouseMove="OnTaskGridPreviewMouseMove"
               DragOver="OnTaskGridDragOver"
               Drop="OnTaskGridDrop"
-              BeginningEdit="OnTaskGridBeginningEdit">
+              BeginningEdit="OnTaskGridBeginningEdit"
+              SelectionChanged="OnTaskGridSelectionChanged">
+
+        <DataGrid.RowStyle>
+            <Style TargetType="DataGridRow">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsHighlightedPredecessor}" Value="True">
+                        <Setter Property="Background" Value="#FFEEDD"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </DataGrid.RowStyle>
 
         <DataGrid.Columns>
 
@@ -348,53 +359,41 @@
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
-            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="75" SortMemberPath="PredecessorsText">
+            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="55" SortMemberPath="PredecessorsText">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="{Binding PredecessorsText}"
-                                    Click="OnPredecessorCellClick"
-                                    ToolTip="Clique para escolher predecessoras"
-                                    BorderThickness="0"
-                                    Background="Transparent"
-                                    Padding="3,0"
-                                    HorizontalContentAlignment="Left"
-                                    VerticalContentAlignment="Center"
-                                    MinWidth="30"/>
-                            <Button Click="OnHighlightPredecessorsClick"
-                                    ToolTip="Destacar predecessoras no Gantt"
-                                    BorderThickness="0"
-                                    Background="Transparent"
-                                    Padding="2,0"
-                                    Width="18"
-                                    VerticalContentAlignment="Center">
-                                <TextBlock Text="&#x1F517;" FontSize="9"/>
-                            </Button>
-                        </StackPanel>
+                        <Button Content="{Binding PredecessorsText}"
+                                Click="OnPredecessorCellClick"
+                                ToolTip="Clique para escolher predecessoras&#x0a;Botão direito para destacar no Gantt"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                Padding="3,0"
+                                HorizontalContentAlignment="Left"
+                                VerticalContentAlignment="Center">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Destacar predecessoras" Click="OnHighlightPredecessorsClick"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="{Binding PredecessorsText}"
-                                    Click="OnPredecessorCellClick"
-                                    ToolTip="Clique para escolher predecessoras"
-                                    BorderThickness="0"
-                                    Background="Transparent"
-                                    Padding="3,0"
-                                    HorizontalContentAlignment="Left"
-                                    VerticalContentAlignment="Center"
-                                    MinWidth="30"/>
-                            <Button Click="OnHighlightPredecessorsClick"
-                                    ToolTip="Destacar predecessoras no Gantt"
-                                    BorderThickness="0"
-                                    Background="Transparent"
-                                    Padding="2,0"
-                                    Width="18"
-                                    VerticalContentAlignment="Center">
-                                <TextBlock Text="&#x1F517;" FontSize="9"/>
-                            </Button>
-                        </StackPanel>
+                        <Button Content="{Binding PredecessorsText}"
+                                Click="OnPredecessorCellClick"
+                                ToolTip="Clique para escolher predecessoras&#x0a;Botão direito para destacar no Gantt"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                Padding="3,0"
+                                HorizontalContentAlignment="Left"
+                                VerticalContentAlignment="Center">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Destacar predecessoras" Click="OnHighlightPredecessorsClick"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellEditingTemplate>
             </DataGridTemplateColumn>

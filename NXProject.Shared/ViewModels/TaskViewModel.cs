@@ -66,6 +66,7 @@ namespace NXProject.ViewModels
 
         [ObservableProperty] private bool _isExpanded = true;
         [ObservableProperty] private bool _isSelected;
+        [ObservableProperty] private bool _isHighlightedPredecessor;
 
         public int Id
         {

@@ -344,11 +344,51 @@ namespace NXProject.Controls
 
         private void OnHighlightPredecessorsClick(object sender, RoutedEventArgs e)
         {
-            if (sender is not FrameworkElement { DataContext: TaskViewModel task })
-                return;
+            // O sender pode ser MenuItem dentro do ContextMenu; DataContext vem do PlacementTarget
+            TaskViewModel? task = null;
+            if (sender is FrameworkElement fe)
+            {
+                task = fe.DataContext as TaskViewModel;
+                if (task == null && fe is MenuItem mi && mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement pt)
+                    task = pt.DataContext as TaskViewModel;
+            }
+            if (task == null) return;
             e.Handled = true;
+
+            _highlightSourceTaskId = task.Model.Id;
+            ClearPredecessorHighlight();
+            if (Tasks != null)
+            {
+                var predIds = task.Model.PredecessorIds.ToHashSet();
+                foreach (var t in Tasks)
+                    if (predIds.Contains(t.Model.Id))
+                        t.IsHighlightedPredecessor = true;
+            }
             HighlightPredecessorsRequested?.Invoke(task);
         }
+
+        private void OnTaskGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_highlightSourceTaskId.HasValue)
+            {
+                var selected = TaskGrid.SelectedItem as TaskViewModel;
+                if (selected == null || selected.Model.Id != _highlightSourceTaskId.Value)
+                {
+                    ClearPredecessorHighlight();
+                    HighlightPredecessorsRequested?.Invoke(null!);
+                }
+            }
+        }
+
+        private void ClearPredecessorHighlight()
+        {
+            _highlightSourceTaskId = null;
+            if (Tasks == null) return;
+            foreach (var t in Tasks)
+                t.IsHighlightedPredecessor = false;
+        }
+
+        private int? _highlightSourceTaskId;
 
         private void OnSprintComboDropDownOpened(object? sender, EventArgs e)
         {

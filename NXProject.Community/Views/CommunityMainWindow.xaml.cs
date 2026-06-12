@@ -71,7 +71,7 @@ namespace NXProject.Views
 
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
-                GanttCtrl.HighlightPredecessors(task.Model.PredecessorIds);
+                GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {
