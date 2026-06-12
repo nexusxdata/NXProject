@@ -285,7 +285,7 @@ namespace NXProject.Services
             }
 
             // Lê os itens existentes (TfsId > 0) com relations (para detectar o pai atual).
-            var existingIds = tasks.Where(t => t.TfsId!.Value > 0).Select(t => t.TfsId!.Value).ToList();
+            var existingIds = tasks.Where(t => t.TfsId.HasValue && t.TfsId.Value > 0).Select(t => t.TfsId!.Value).ToList();
             var requested = new List<string> { "System.Id", "System.Title", "System.State", "System.Description" };
             if (hoursRef != null) requested.Add(hoursRef);
             if (startRef != null) requested.Add(startRef);
@@ -302,26 +302,34 @@ namespace NXProject.Services
                     // Pai desejado = pai na hierarquia do NXProject; raiz = work item do projeto.
                     int desiredParent = task.Parent?.TfsId ?? options.RootWorkItemId;
 
-                    if (task.TfsId!.Value == 0)
+                    if (!task.TfsId.HasValue || task.TfsId.Value == 0)
                     {
                         // CRIAR no DevOps.
-                        if (string.IsNullOrWhiteSpace(task.TfsType))
-                        {
-                            report.LogWarning($"\"{task.Name}\": defina o Tipo DevOps para criar (clique no ID).");
-                            continue;
-                        }
                         if (desiredParent <= 0)
                         {
                             report.LogWarning($"\"{task.Name}\": pai sem vínculo DevOps; vincule/crie o pai primeiro.");
                             continue;
                         }
 
+                        // Infere o tipo a partir do pai quando não definido.
+                        var createType = task.TfsType;
+                        if (string.IsNullOrWhiteSpace(createType))
+                        {
+                            createType = task.Parent?.TfsType switch
+                            {
+                                "Epic"    => "Feature",
+                                "Feature" => "User Story",
+                                _         => "User Story"
+                            };
+                            task.TfsType = createType;
+                        }
+
                         var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks);
-                        var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, task.TfsType!, createOps, cancellationToken);
+                        var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
                         report.Created++;
-                        report.LogSuccess($"Criado #{newId} — {task.Name} ({task.TfsType})");
+                        report.LogSuccess($"Criado #{newId} — {task.Name} ({createType})");
                         continue;
                     }
 
@@ -658,15 +666,19 @@ namespace NXProject.Services
             }
         }
 
-        // Inclui tarefas com TfsId definido (incluindo 0 = criar), em ordem top-down.
+        // Inclui tarefas vinculadas (TfsId definido, inclusive 0 = criar) e tarefas sem
+        // vínculo ainda (TfsId null) cujo pai já tem TfsId — serão criadas automaticamente.
         private static void CollectLinkedTasks(
-            System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks, List<ProjectTask> acc)
+            System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks,
+            List<ProjectTask> acc,
+            bool parentIsLinked = false)
         {
             foreach (var t in tasks)
             {
-                if (t.TfsId.HasValue)
+                var include = t.TfsId.HasValue || parentIsLinked;
+                if (include)
                     acc.Add(t);
-                CollectLinkedTasks(t.Children, acc);
+                CollectLinkedTasks(t.Children, acc, include || (t.TfsId.HasValue && t.TfsId.Value > 0));
             }
         }
 

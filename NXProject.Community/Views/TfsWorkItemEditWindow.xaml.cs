@@ -45,7 +45,7 @@ namespace NXProject.Views
             StatusText.Visibility = Visibility.Collapsed;
 
             int? id = null;
-            var idText = IdBox.Text?.Trim();
+            var idText = ExtractId(IdBox.Text);
             if (!string.IsNullOrEmpty(idText))
             {
                 if (!int.TryParse(idText, out var parsed) || parsed < 0)
@@ -55,6 +55,7 @@ namespace NXProject.Views
                     return;
                 }
                 id = parsed;
+                IdBox.Text = parsed.ToString(); // normaliza para só o número
             }
 
             // 0 = criar no DevOps: exige um tipo selecionado.
@@ -72,6 +73,18 @@ namespace NXProject.Views
 
             DialogResult = true;
             Close();
+        }
+
+        // Extrai o ID numérico de um texto que pode ser um número puro ou uma URL do DevOps.
+        // Ex: "https://dev.azure.com/org/proj/_workitems/edit/12345" → "12345"
+        private static string? ExtractId(string? text)
+        {
+            var raw = text?.Trim();
+            if (string.IsNullOrEmpty(raw)) return raw;
+            if (!raw.Contains('/') && !raw.Contains('?')) return raw; // já é número ou texto simples
+
+            var match = System.Text.RegularExpressions.Regex.Match(raw, @"(?:^|[/?&=])(\d{3,7})(?:[/?&=]|$)");
+            return match.Success ? match.Groups[1].Value : raw;
         }
 
         private static System.Collections.Generic.List<string> SplitTags(string? tags) =>

@@ -30,14 +30,13 @@ namespace NXProject.ViewModels
         // reagendamento das tarefas que a têm como predecessora.
         public Action<TaskViewModel>? ScheduleSuccessors { get; set; }
 
-        // Lista filtrada de sprints disponíveis para este ViewModel (Start >= task.Start).
-        // Alimentada e atualizada pelo MainViewModel.
+        // Todas as sprints disponíveis para este ViewModel, sem filtro de data.
         public ObservableCollection<Sprint> AvailableSprintsForTask { get; } = new();
 
         public void RefreshSprintOptions(IEnumerable<Sprint> allOptions)
         {
             AvailableSprintsForTask.Clear();
-            foreach (var s in allOptions.Where(s => s.Start == default || s.Start >= _task.Start.Date))
+            foreach (var s in allOptions)
                 AvailableSprintsForTask.Add(s);
         }
 
