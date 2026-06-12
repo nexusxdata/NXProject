@@ -356,9 +356,10 @@ namespace NXProject.Controls
             e.Handled = true;
 
             _highlightSourceTaskId = task.Model.Id;
-            ClearPredecessorHighlight();
             if (Tasks != null)
             {
+                foreach (var t in Tasks)
+                    t.IsHighlightedPredecessor = false;
                 var predIds = task.Model.PredecessorIds.ToHashSet();
                 foreach (var t in Tasks)
                     if (predIds.Contains(t.Model.Id))
@@ -367,25 +368,27 @@ namespace NXProject.Controls
             HighlightPredecessorsRequested?.Invoke(task);
         }
 
-        private void OnTaskGridSelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_highlightSourceTaskId.HasValue)
-            {
-                var selected = TaskGrid.SelectedItem as TaskViewModel;
-                if (selected == null || selected.Model.Id != _highlightSourceTaskId.Value)
-                {
-                    ClearPredecessorHighlight();
-                    HighlightPredecessorsRequested?.Invoke(null!);
-                }
-            }
-        }
-
-        private void ClearPredecessorHighlight()
+        private void OnClearPredecessorHighlightClick(object sender, RoutedEventArgs e)
         {
             _highlightSourceTaskId = null;
-            if (Tasks == null) return;
-            foreach (var t in Tasks)
-                t.IsHighlightedPredecessor = false;
+            if (Tasks != null)
+                foreach (var t in Tasks)
+                    t.IsHighlightedPredecessor = false;
+            HighlightPredecessorsRequested?.Invoke(null!);
+        }
+
+        private void OnTaskGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_highlightSourceTaskId.HasValue) return;
+            var selected = TaskGrid.SelectedItem as TaskViewModel;
+            if (selected == null || selected.Model.Id != _highlightSourceTaskId.Value)
+            {
+                _highlightSourceTaskId = null;
+                if (Tasks != null)
+                    foreach (var t in Tasks)
+                        t.IsHighlightedPredecessor = false;
+                HighlightPredecessorsRequested?.Invoke(null!);
+            }
         }
 
         private int? _highlightSourceTaskId;

@@ -383,6 +383,7 @@ namespace NXProject.ViewModels
 
             if (newValue != null)
                 newValue.IsSelected = true;
+
         }
 
         // ── Comandos ─────────────────────────────────────────────────────────

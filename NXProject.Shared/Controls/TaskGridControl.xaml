@@ -373,6 +373,7 @@
                             <Button.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Destacar predecessoras" Click="OnHighlightPredecessorsClick"/>
+                                    <MenuItem Header="Desmarcar predecessoras" Click="OnClearPredecessorHighlightClick"/>
                                 </ContextMenu>
                             </Button.ContextMenu>
                         </Button>
@@ -391,6 +392,7 @@
                             <Button.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Destacar predecessoras" Click="OnHighlightPredecessorsClick"/>
+                                    <MenuItem Header="Desmarcar predecessoras" Click="OnClearPredecessorHighlightClick"/>
                                 </ContextMenu>
                             </Button.ContextMenu>
                         </Button>
