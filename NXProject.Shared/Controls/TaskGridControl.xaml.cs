@@ -359,7 +359,8 @@ namespace NXProject.Controls
             if (Tasks != null)
             {
                 foreach (var t in Tasks)
-                    t.IsHighlightedPredecessor = false;
+                { t.IsHighlightedPredecessor = false; t.IsHighlightSource = false; }
+                task.IsHighlightSource = true;
                 var predIds = task.Model.PredecessorIds.ToHashSet();
                 foreach (var t in Tasks)
                     if (predIds.Contains(t.Model.Id))
@@ -370,10 +371,7 @@ namespace NXProject.Controls
 
         private void OnClearPredecessorHighlightClick(object sender, RoutedEventArgs e)
         {
-            _highlightSourceTaskId = null;
-            if (Tasks != null)
-                foreach (var t in Tasks)
-                    t.IsHighlightedPredecessor = false;
+            ClearHighlightState();
             HighlightPredecessorsRequested?.Invoke(null!);
         }
 
@@ -383,12 +381,17 @@ namespace NXProject.Controls
             var selected = TaskGrid.SelectedItem as TaskViewModel;
             if (selected == null || selected.Model.Id != _highlightSourceTaskId.Value)
             {
-                _highlightSourceTaskId = null;
-                if (Tasks != null)
-                    foreach (var t in Tasks)
-                        t.IsHighlightedPredecessor = false;
+                ClearHighlightState();
                 HighlightPredecessorsRequested?.Invoke(null!);
             }
+        }
+
+        private void ClearHighlightState()
+        {
+            _highlightSourceTaskId = null;
+            if (Tasks == null) return;
+            foreach (var t in Tasks)
+            { t.IsHighlightedPredecessor = false; t.IsHighlightSource = false; }
         }
 
         private int? _highlightSourceTaskId;
