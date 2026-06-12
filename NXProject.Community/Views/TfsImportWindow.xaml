@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Importar do TFS / Azure DevOps"
-        Width="560"
-        Height="600"
+        Width="580"
+        Height="640"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="White">
@@ -43,6 +43,35 @@
                 <CheckBox x:Name="RememberTokenCheck"
                           Content="Lembrar o token neste computador (cifrado)"
                           Margin="0,6,0,0"/>
+
+                <!-- Seleção de projeto DevOps da lista cadastrada -->
+                <Border Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1"
+                        CornerRadius="6" Padding="12,10" Margin="0,14,0,0">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Projeto DevOps (lista cadastrada)"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" x:Name="ManageListButton"
+                                    Content="⚙ Gerenciar Lista..."
+                                    Height="26" Padding="8,2"
+                                    FontSize="11"
+                                    Click="OnManageListClick"/>
+                        </Grid>
+                        <ComboBox x:Name="DevOpsProjectCombo"
+                                  Height="30" Padding="6,4"
+                                  DisplayMemberPath="Name"
+                                  SelectionChanged="OnProjectComboChanged"
+                                  ToolTip="Selecione o projeto ou informe o ID manualmente no campo abaixo"/>
+                        <TextBlock x:Name="ListPathLabel"
+                                   FontSize="10" Foreground="#888" Margin="0,4,0,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   Text="(nenhuma lista carregada — clique em ⚙ Gerenciar Lista)"/>
+                    </StackPanel>
+                </Border>
 
                 <Grid Margin="0,12,0,0">
                     <Grid.ColumnDefinitions>

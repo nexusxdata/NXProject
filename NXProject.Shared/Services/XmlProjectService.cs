@@ -31,6 +31,8 @@ namespace NXProject.Services
                     new XElement(NS + "LowDaysPerSfp", project.LowDaysPerSfp),
                     new XElement(NS + "MediumDaysPerSfp", project.MediumDaysPerSfp),
                     new XElement(NS + "HighDaysPerSfp", project.HighDaysPerSfp),
+                    new XElement(EXT + "DevOpsProjectName", project.DevOpsProjectName ?? ""),
+                    new XElement(EXT + "DevOpsRootWorkItemId", project.DevOpsRootWorkItemId),
                     SaveSprintSettingsMetadata(sprintProfile),
                     SaveSprints(project.Sprints),
                     SaveResources(project.Resources),
@@ -169,6 +171,9 @@ namespace NXProject.Services
                 LowDaysPerSfp = double.TryParse(root.Element(NS + "LowDaysPerSfp")?.Value, out var ldps) ? ldps : 1.0,
                 MediumDaysPerSfp = double.TryParse(root.Element(NS + "MediumDaysPerSfp")?.Value, out var mdps) ? mdps : 1.0,
                 HighDaysPerSfp = double.TryParse(root.Element(NS + "HighDaysPerSfp")?.Value, out var hdps) ? hdps : 1.0,
+                DevOpsProjectName = string.IsNullOrWhiteSpace(root.Element(EXT + "DevOpsProjectName")?.Value)
+                    ? null : root.Element(EXT + "DevOpsProjectName")!.Value,
+                DevOpsRootWorkItemId = int.TryParse(root.Element(EXT + "DevOpsRootWorkItemId")?.Value, out var devOpsId) ? devOpsId : 0,
                 FilePath = filePath
             };
 

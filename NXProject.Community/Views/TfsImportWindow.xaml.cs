@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using NXProject.Models;
 using NXProject.Services;
@@ -11,6 +13,8 @@ namespace NXProject.Views
     {
         private readonly string _storageKey;
         private bool _isImporting;
+        private string _devOpsProjectListPath = string.Empty;
+        private List<DevOpsProject> _devOpsProjects = new();
 
         /// <summary>Projeto importado quando o diálogo retorna true.</summary>
         public Project? ImportedProject { get; private set; }
@@ -30,12 +34,62 @@ namespace NXProject.Views
             FixedStartTagBox.Text = saved.FixedStartTagName;
             SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
             FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
-            if (saved.RootWorkItemId > 0)
-                RootIdBox.Text = saved.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
+
             if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
             {
                 PatBox.Password = saved.PersonalAccessToken;
                 RememberTokenCheck.IsChecked = true;
+            }
+
+            // Carrega lista de projetos DevOps do path salvo
+            if (!string.IsNullOrWhiteSpace(saved.DevOpsProjectListPath))
+                LoadProjectList(saved.DevOpsProjectListPath, saved.RootWorkItemId);
+            else if (saved.RootWorkItemId > 0)
+                RootIdBox.Text = saved.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private void LoadProjectList(string path, int selectId = 0)
+        {
+            _devOpsProjectListPath = path;
+            _devOpsProjects = DevOpsProjectListService.Load(path);
+
+            DevOpsProjectCombo.ItemsSource = null;
+            DevOpsProjectCombo.ItemsSource = _devOpsProjects;
+            ListPathLabel.Text = path;
+
+            if (selectId > 0)
+            {
+                foreach (var p in _devOpsProjects)
+                {
+                    if (p.RootWorkItemId == selectId)
+                    {
+                        DevOpsProjectCombo.SelectedItem = p;
+                        break;
+                    }
+                }
+            }
+
+            if (DevOpsProjectCombo.SelectedItem == null && selectId > 0)
+                RootIdBox.Text = selectId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private void OnProjectComboChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DevOpsProjectCombo.SelectedItem is DevOpsProject selected)
+                RootIdBox.Text = selected.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private void OnManageListClick(object sender, RoutedEventArgs e)
+        {
+            var dlg = new DevOpsProjectListWindow(_devOpsProjectListPath) { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                var newPath = dlg.ResultFilePath ?? string.Empty;
+                LoadProjectList(newPath);
+
+                var saved = TfsConnectionStore.Load(_storageKey);
+                saved.DevOpsProjectListPath = newPath;
+                TfsConnectionStore.Save(saved, RememberTokenCheck.IsChecked == true, _storageKey);
             }
         }
 
@@ -48,7 +102,7 @@ namespace NXProject.Views
 
             if (!int.TryParse(RootIdBox.Text?.Trim(), out var rootId) || rootId <= 0)
             {
-                ShowStatus("Informe um ID de work item raiz válido.");
+                ShowStatus("Selecione um projeto da lista ou informe um ID de work item raiz válido.");
                 return;
             }
 
@@ -76,19 +130,37 @@ namespace NXProject.Views
                 FinishFieldName = string.IsNullOrWhiteSpace(FinishFieldBox.Text) ? "Data_Fim" : FinishFieldBox.Text.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(FixedStartTagBox.Text) ? "DT-INI-NEG" : FixedStartTagBox.Text.Trim(),
                 SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
-                FutureSprintDays = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90
+                FutureSprintDays = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90,
+                DevOpsProjectListPath = _devOpsProjectListPath
             };
 
             SetImporting(true);
             try
             {
-                var project = await TfsImportService.ImportAsync(options);
+                var importResult = await TfsImportService.ImportAsync(options);
+                var project = importResult.Project;
+
+                if (DevOpsProjectCombo.SelectedItem is DevOpsProject selected)
+                {
+                    project.DevOpsProjectName = selected.Name;
+                    project.DevOpsRootWorkItemId = selected.RootWorkItemId;
+                }
+                else
+                {
+                    project.DevOpsRootWorkItemId = rootId;
+                }
 
                 TfsConnectionStore.Save(options, RememberTokenCheck.IsChecked == true, _storageKey);
 
                 ImportedProject = project;
                 DialogResult = true;
                 Close();
+
+                if (importResult.Report.HasIssues)
+                {
+                    var reportWin = new ImportResultWindow(importResult.Report) { Owner = System.Windows.Application.Current.MainWindow };
+                    reportWin.Show();
+                }
             }
             catch (Exception ex)
             {

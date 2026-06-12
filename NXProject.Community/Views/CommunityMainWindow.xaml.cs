@@ -36,6 +36,14 @@ namespace NXProject.Views
             StatusLogoImage.Source = ProtectedLogoProvider.GetLogoImage();
             var vm = new MainViewModel("NXProject.Community");
             DataContext = vm;
+
+            // Atualiza o banner quando um projeto é aberto/carregado
+            vm.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(vm.Project))
+                    UpdateDevOpsProjectBanner(vm.Project.DevOpsProjectName, vm.Project.DevOpsRootWorkItemId);
+            };
+
             var syncingVerticalScroll = false;
 
             TaskGridCtrl.VerticalScrollChanged += offset =>
@@ -524,6 +532,38 @@ namespace NXProject.Views
                 vm.ApplyImportedProject(
                     project,
                     $"Projeto importado do TFS: {project.Name}");
+                UpdateDevOpsProjectBanner(project.DevOpsProjectName, project.DevOpsRootWorkItemId);
+            }
+        }
+
+        private void OnDevOpsProjectListClick(object sender, RoutedEventArgs e)
+        {
+            var saved = Services.TfsConnectionStore.Load("NXProject.Community");
+            var dlg = new DevOpsProjectListWindow(saved.DevOpsProjectListPath) { Owner = this };
+            if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.ResultFilePath))
+            {
+                saved.DevOpsProjectListPath = dlg.ResultFilePath;
+                Services.TfsConnectionStore.Save(saved, !string.IsNullOrWhiteSpace(saved.PersonalAccessToken), "NXProject.Community");
+            }
+        }
+
+        private void UpdateDevOpsProjectBanner(string? name, int id)
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                DevOpsProjectNameLabel.Text = name;
+                DevOpsProjectIdLabel.Text = id > 0 ? $"(ID: {id})" : string.Empty;
+                DevOpsProjectBanner.Visibility = Visibility.Visible;
+            }
+            else if (id > 0)
+            {
+                DevOpsProjectNameLabel.Text = $"ID {id}";
+                DevOpsProjectIdLabel.Text = string.Empty;
+                DevOpsProjectBanner.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                DevOpsProjectBanner.Visibility = Visibility.Collapsed;
             }
         }
 

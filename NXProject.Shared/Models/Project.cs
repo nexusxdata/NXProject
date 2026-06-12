@@ -42,6 +42,10 @@ namespace NXProject.Models
         // Último nível de zoom selecionado pelo usuário
         public string LastZoom { get; set; } = "Mês";
 
+        // Vínculo com o Azure DevOps: nome e ID do work item raiz importado
+        public string? DevOpsProjectName { get; set; }
+        public int DevOpsRootWorkItemId { get; set; }
+
         // Quantos dias de duracao equivalem a 1 SFP em cada faixa
         public double LowDaysPerSfp { get; set; } = 1.0;
         public double MediumDaysPerSfp { get; set; } = 1.0;

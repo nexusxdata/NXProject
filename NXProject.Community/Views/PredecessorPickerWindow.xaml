@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Selecionar predecessoras"
         Width="860"
-        Height="620"
+        Height="660"
         MinWidth="700"
-        MinHeight="460"
+        MinHeight="500"
         WindowStartupLocation="CenterOwner"
         Background="White">
 
@@ -29,6 +29,7 @@
                        Foreground="#444"/>
         </StackPanel>
 
+        <!-- Seção de marcadas: normais + externas separadas -->
         <Border Grid.Row="1"
                 Background="#F5F7FA"
                 BorderBrush="#D9E1EA"
@@ -43,6 +44,27 @@
                 <TextBlock x:Name="SelectedSummaryText"
                            TextWrapping="Wrap"
                            Foreground="#444"/>
+
+                <!-- Lista de predecessoras externas (fora da lista filtrada) -->
+                <ItemsControl x:Name="ExternalPredsList"
+                              Margin="0,6,0,0"
+                              Visibility="Collapsed">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                <Border Background="#FFF3CD" BorderBrush="#FFEAA0" BorderThickness="1"
+                                        CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                                    <TextBlock Text="{Binding}" FontSize="11" Foreground="#856404"/>
+                                </Border>
+                                <Button Content="✕ Remover"
+                                        FontSize="10" Height="20" Padding="4,1"
+                                        Background="#FFF3CD" BorderBrush="#FFEAA0"
+                                        Tag="{Binding}"
+                                        Click="OnRemoveExternalClick"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </StackPanel>
         </Border>
 
@@ -57,8 +79,8 @@
                      VerticalContentAlignment="Center"
                      TextChanged="OnSearchTextChanged"/>
             <Button Grid.Column="1"
-                    Content="Limpar"
-                    Width="86"
+                    Content="Limpar busca"
+                    Width="96"
                     Height="30"
                     Margin="8,0,0,0"
                     Click="OnClearSearchClick"/>

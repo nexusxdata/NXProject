@@ -63,6 +63,8 @@
                 <MenuItem Header="S_PF..." Click="OnSfpSettingsClick"/>
                 <MenuItem Header="_Calendario..." Click="OnCalendarSettingsClick"/>
                 <MenuItem Header="_Alocacao de Recursos..." Click="OnResourceAllocationClick"/>
+                <Separator/>
+                <MenuItem Header="Projetos _DevOps (lista)..." Click="OnDevOpsProjectListClick"/>
                 <MenuItem Header="_Health Check do Projeto..." Click="OnDelayedTasksClick"/>
                 <MenuItem Header="_Pessoas..." Click="OnPeopleClick"/>
             </MenuItem>
@@ -207,6 +209,19 @@
                        Margin="8,0,0,0"/>
             </StatusBarItem>
         </StatusBar>
+
+        <!-- Barra de nome do projeto DevOps (visível somente quando há vínculo) -->
+        <Border x:Name="DevOpsProjectBanner"
+                DockPanel.Dock="Top"
+                Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="0,0,0,1"
+                Padding="14,4"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="🔗 Projeto DevOps: " FontSize="12" Foreground="#2B579A" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="DevOpsProjectNameLabel" FontSize="12" Foreground="#2B579A" VerticalAlignment="Center"/>
+                <TextBlock x:Name="DevOpsProjectIdLabel" FontSize="11" Foreground="#888" VerticalAlignment="Center" Margin="6,0,0,0"/>
+            </StackPanel>
+        </Border>
 
         <Grid>
             <Grid.ColumnDefinitions>

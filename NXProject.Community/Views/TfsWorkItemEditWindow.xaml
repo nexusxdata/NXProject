@@ -3,7 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Vínculo DevOps"
         Width="420"
-        Height="470"
+        Height="Auto"
+        SizeToContent="Height"
+        MaxHeight="700"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="White">
@@ -14,11 +16,25 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                <TextBlock Text="Vínculo com o TFS / Azure DevOps"
-                           FontSize="16" FontWeight="SemiBold" Foreground="#2B579A"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Vínculo com o TFS / Azure DevOps"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A"/>
+                    <Button x:Name="OpenInDevOpsButton"
+                            Grid.Column="1"
+                            Content="Abrir no DevOps ↗"
+                            Padding="8,3" FontSize="11"
+                            Visibility="Collapsed"
+                            Click="OnOpenInDevOpsClick"
+                            Cursor="Hand"/>
+                </Grid>
                 <TextBlock x:Name="TaskNameText" Foreground="#666" FontSize="12"
                            Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
@@ -55,7 +71,42 @@
                            Margin="0,12,0,0" Visibility="Collapsed"/>
             </StackPanel>
 
-            <StackPanel Grid.Row="2" Orientation="Horizontal"
+            <!-- Atividades filhas (Tasks DevOps) -->
+            <Border x:Name="ChildTasksPanel"
+                    Grid.Row="2"
+                    Visibility="Collapsed"
+                    Background="#F5F7FA" BorderBrush="#D9E1EA" BorderThickness="1"
+                    CornerRadius="4" Padding="8,6" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Atividades vinculadas (Tasks DevOps)"
+                               FontWeight="SemiBold" FontSize="11" Foreground="#2B579A"
+                               Margin="0,0,0,4"/>
+                    <ItemsControl x:Name="ChildTasksList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="54"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="72"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding TfsIdText}"
+                                               FontSize="11" Foreground="#2B579A" FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                               FontSize="11" TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding State}"
+                                               FontSize="10" Foreground="#666"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal"
                         HorizontalAlignment="Right" Margin="0,16,0,0">
                 <Button Content="OK" Width="90" Height="30" IsDefault="True" Click="OnOkClick"/>
                 <Button Content="Cancelar" Width="90" Height="30" Margin="10,0,0,0" IsCancel="True"/>

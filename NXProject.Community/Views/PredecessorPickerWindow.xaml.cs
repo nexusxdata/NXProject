@@ -9,7 +9,7 @@ namespace NXProject.Views
     public partial class PredecessorPickerWindow : Window
     {
         private readonly ICollectionView _view;
-        private readonly List<string> _externalIds;
+        private readonly ObservableCollection<string> _externalIds;
 
         public ObservableCollection<PredecessorRow> CandidateRows { get; } = new();
 
@@ -46,10 +46,15 @@ namespace NXProject.Views
             var candidateIds = CandidateRows
                 .Select(r => r.DisplayId)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            _externalIds = selectedIds
-                .Where(id => !candidateIds.Contains(id))
-                .OrderBy(id => id)
-                .ToList();
+
+            _externalIds = new ObservableCollection<string>(
+                selectedIds
+                    .Where(id => !candidateIds.Contains(id))
+                    .OrderBy(id => id)
+                    .Select(id => $"{id} - fora da lista filtrada"));
+
+            ExternalPredsList.ItemsSource = _externalIds;
+            ExternalPredsList.Visibility = _externalIds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
             _view = CollectionViewSource.GetDefaultView(CandidateRows);
             _view.Filter = FilterRow;
@@ -79,6 +84,16 @@ namespace NXProject.Views
             SearchBox.Focus();
         }
 
+        private void OnRemoveExternalClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button btn && btn.Tag is string entry)
+            {
+                _externalIds.Remove(entry);
+                ExternalPredsList.Visibility = _externalIds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                RefreshSelectedSummary();
+            }
+        }
+
         private void RefreshSelectedSummary()
         {
             var selected = CandidateRows
@@ -87,21 +102,26 @@ namespace NXProject.Views
                 .Select(r => $"{r.DisplayId} - {r.Name}")
                 .ToList();
 
-            var allSelected = _externalIds
-                .Select(id => $"{id} - fora da lista filtrada")
-                .Concat(selected)
-                .ToList();
+            var allLines = selected.ToList();
 
-            SelectedSummaryText.Text = allSelected.Count == 0
+            SelectedSummaryText.Text = allLines.Count == 0 && _externalIds.Count == 0
                 ? "Nenhuma predecessora marcada."
-                : string.Join(Environment.NewLine, allSelected);
+                : allLines.Count == 0
+                    ? string.Empty
+                    : string.Join(Environment.NewLine, allLines);
 
-            CountText.Text = $"{allSelected.Count} marcada(s)";
+            int total = selected.Count + _externalIds.Count;
+            CountText.Text = $"{total} marcada(s)";
         }
 
         private void OnOkClick(object sender, RoutedEventArgs e)
         {
-            var ids = _externalIds
+            // IDs externos restantes (os que o usuário não removeu)
+            var externalRawIds = _externalIds
+                .Select(entry => entry.Split(' ')[0])   // "1234 - fora da lista" → "1234"
+                .Where(id => !string.IsNullOrWhiteSpace(id));
+
+            var ids = externalRawIds
                 .Concat(CandidateRows.Where(r => r.IsSelected).Select(r => r.DisplayId))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -136,7 +156,6 @@ namespace NXProject.Views
                 {
                     if (_isSelected == value)
                         return;
-
                     _isSelected = value;
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
                 }

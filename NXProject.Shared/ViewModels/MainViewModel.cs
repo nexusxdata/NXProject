@@ -446,6 +446,8 @@ namespace NXProject.ViewModels
                 try
                 {
                     var project = XmlProjectService.Load(dlg.FileName);
+                    foreach (var root in project.Tasks)
+                        root.RecalcSummary();
                     Project = project;
                     ApplyProjectSprintSettingsToViewModel(project);
                     _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;

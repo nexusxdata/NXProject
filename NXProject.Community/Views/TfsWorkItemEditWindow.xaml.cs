@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using NXProject.Services;
 using NXProject.ViewModels;
 
 namespace NXProject.Views
@@ -9,6 +12,7 @@ namespace NXProject.Views
     public partial class TfsWorkItemEditWindow : Window
     {
         private readonly TaskViewModel _task;
+        private string? _devOpsItemUrl;
 
         public TfsWorkItemEditWindow(TaskViewModel task)
         {
@@ -24,6 +28,50 @@ namespace NXProject.Views
             _suppressBlockToggle = true;
             BlockCheck.IsChecked = HasTag(TagsBox.Text, "Block");
             _suppressBlockToggle = false;
+
+            LoadDevOpsExtras(task);
+        }
+
+        private void LoadDevOpsExtras(TaskViewModel task)
+        {
+            if (task.TfsId is > 0)
+            {
+                try
+                {
+                    var conn = TfsConnectionStore.Load();
+                    if (!string.IsNullOrWhiteSpace(conn.OrganizationUrl) && !string.IsNullOrWhiteSpace(conn.TeamProject))
+                    {
+                        var org = conn.OrganizationUrl.TrimEnd('/');
+                        var proj = Uri.EscapeDataString(conn.TeamProject.Trim());
+                        _devOpsItemUrl = $"{org}/{proj}/_workitems/edit/{task.TfsId}";
+                        OpenInDevOpsButton.Visibility = Visibility.Visible;
+                    }
+                }
+                catch { }
+            }
+
+            var children = task.ChildrenViewModels
+                .Where(c => c.TfsId is > 0)
+                .Select(c => new ChildTaskRow(c.TfsId!.Value, c.Name, c.TfsState ?? ""))
+                .ToList();
+
+            if (children.Count > 0)
+            {
+                ChildTasksList.ItemsSource = children;
+                ChildTasksPanel.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void OnOpenInDevOpsClick(object sender, RoutedEventArgs e)
+        {
+            if (_devOpsItemUrl is null) return;
+            try { Process.Start(new ProcessStartInfo(_devOpsItemUrl) { UseShellExecute = true }); }
+            catch { }
+        }
+
+        private sealed record ChildTaskRow(int TfsId, string Name, string State)
+        {
+            public string TfsIdText => $"#{TfsId}";
         }
 
         private bool _suppressBlockToggle;

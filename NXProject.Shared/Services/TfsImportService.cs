@@ -40,7 +40,7 @@ namespace NXProject.Services
         private static readonly string[] FinishFieldNames =
             { "Data_Fim", "Data Fim", "DataFim" };
 
-        public static async Task<Project> ImportAsync(
+        public static async Task<ImportResult> ImportAsync(
             TfsConnectionOptions options,
             CancellationToken cancellationToken = default)
         {
@@ -173,7 +173,7 @@ namespace NXProject.Services
             // Etapa 2: leitura separada dos links de predecessora via WIQL.
             var depLinks = await LoadDependencyLinksAsync(
                 orgBase, options.TeamProject, authHeader, allIds, cancellationToken);
-            ApplyTfsPredecessors(project.Tasks, depLinks);
+            var externalPredTfsIds = ApplyTfsPredecessors(project.Tasks, depLinks);
             foreach (var t in project.Tasks)
                 t.RecalcSummary();
 
@@ -181,10 +181,56 @@ namespace NXProject.Services
                 throw new InvalidOperationException(
                     "Nenhum Epic/Feature/Story encontrado abaixo do work item raiz informado.");
 
-            return project;
+            // Etapa 3: resolve predecessoras externas (fora do escopo deste import).
+            if (externalPredTfsIds.Count > 0)
+            {
+                var extItems = await FetchWorkItemsByIdsAsync(
+                    orgBase, options.TeamProject, authHeader, externalPredTfsIds, cancellationToken);
+                foreach (var extId in externalPredTfsIds.OrderBy(x => x))
+                {
+                    context.Report.ExternalPredecessors++;
+                    if (extItems.TryGetValue(extId, out var extItem))
+                    {
+                        if (IsStoryType(extItem.WorkItemType))
+                            context.Report.LogWarning(
+                                $"[PRED EXTERNA] #{extId} \"{extItem.Title}\" é uma Story fora do escopo deste import (type={extItem.WorkItemType}, state={extItem.State}).");
+                        else
+                            context.Report.LogWarning(
+                                $"[PRED EXTERNA] #{extId} \"{extItem.Title}\" fora de escopo (type={extItem.WorkItemType}, state={extItem.State}).");
+                    }
+                    else
+                    {
+                        context.Report.LogWarning($"[PRED EXTERNA] #{extId} não encontrado no DevOps ou sem acesso.");
+                    }
+                }
+            }
+
+            return new ImportResult(project, context.Report);
         }
 
         // ── Sincronizacao (Export -> TFS/DevOps) ─────────────────────────────
+
+        // ── Relatório de Importação ──────────────────────────────────────────
+
+        public sealed class ImportReport
+        {
+            public int StoriesStateFixed;
+            public int ExternalPredecessors;
+            public List<SyncLogEntry> Log = new();
+
+            public void LogInfo(string msg)    => Log.Add(new SyncLogEntry(SyncLogLevel.Success, msg));
+            public void LogWarning(string msg) => Log.Add(new SyncLogEntry(SyncLogLevel.Warning, msg));
+            public void LogError(string msg)   => Log.Add(new SyncLogEntry(SyncLogLevel.Error,   msg));
+
+            public bool HasIssues => Log.Any(e => e.Level != SyncLogLevel.Success);
+        }
+
+        public sealed class ImportResult
+        {
+            public Project Project { get; }
+            public ImportReport Report { get; }
+            public ImportResult(Project project, ImportReport report) { Project = project; Report = report; }
+        }
 
         public enum SyncLogLevel { Success, Warning, Error }
 
@@ -682,12 +728,13 @@ namespace NXProject.Services
             }
         }
 
-        private static void ApplyTfsPredecessors(
+        private static List<int> ApplyTfsPredecessors(
             System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks,
             List<(int predecessor, int successor)> depLinks)
         {
+            var externalIds = new List<int>();
             if (depLinks.Count == 0)
-                return;
+                return externalIds;
 
             var flatTasks = new List<ProjectTask>();
             CollectAllTasks(tasks, flatTasks);
@@ -697,6 +744,9 @@ namespace NXProject.Services
                 .Where(t => t.TfsId.HasValue && t.TfsId.Value > 0)
                 .GroupBy(t => t.TfsId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
+
+            // Conjunto de todos os TfsIds do projeto para detectar externos.
+            var projectTfsIds = new HashSet<int>(taskByTfsId.Keys);
 
             // Agrupa links por successor.
             var linksBySuccessor = depLinks
@@ -714,13 +764,20 @@ namespace NXProject.Services
                 foreach (var predTfsId in predecessorTfsIds)
                 {
                     if (taskByTfsId.TryGetValue(predTfsId, out var predecessor))
+                    {
                         // Predecessora está no projeto: armazena Id interno (estável).
                         task.PredecessorIds.Add(predecessor.Id);
+                    }
                     else
+                    {
                         // Predecessora externa ao projeto: armazena o TfsId diretamente.
                         task.PredecessorIds.Add(predTfsId);
+                        if (!externalIds.Contains(predTfsId))
+                            externalIds.Add(predTfsId);
+                    }
                 }
             }
+            return externalIds;
         }
 
         private static void CollectAllTasks(
@@ -731,6 +788,52 @@ namespace NXProject.Services
                 acc.Add(task);
                 CollectAllTasks(task.Children, acc);
             }
+        }
+
+        private static async Task<Dictionary<int, WorkItem>> FetchWorkItemsByIdsAsync(
+            string orgBase, string teamProject,
+            AuthenticationHeaderValue authHeader,
+            IEnumerable<int> ids,
+            CancellationToken ct)
+        {
+            var result = new Dictionary<int, WorkItem>();
+            var idList = ids.Distinct().ToList();
+            if (idList.Count == 0) return result;
+
+            // API suporta até 200 IDs por chamada.
+            const int batchSize = 200;
+            for (int i = 0; i < idList.Count; i += batchSize)
+            {
+                var batch = idList.Skip(i).Take(batchSize);
+                var idsParam = string.Join(",", batch);
+                var url = $"{orgBase}/{Uri.EscapeDataString(teamProject)}/_apis/wit/workitems?ids={idsParam}&$expand=none&{ApiVersion}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = authHeader;
+                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                try
+                {
+                    using var doc = await SendAsync(req, ct);
+                    if (doc.RootElement.TryGetProperty("value", out var arr))
+                    {
+                        foreach (var el in arr.EnumerateArray())
+                        {
+                            if (!el.TryGetProperty("fields", out var fields)) continue;
+                            var wi = new WorkItem
+                            {
+                                Id = el.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0,
+                                Fields = fields
+                            };
+                            if (fields.TryGetProperty("System.Title", out var t)) wi.Title = t.GetString() ?? "";
+                            if (fields.TryGetProperty("System.WorkItemType", out var wt)) wi.WorkItemType = wt.GetString() ?? "";
+                            if (fields.TryGetProperty("System.State", out var st)) wi.State = st.GetString() ?? "";
+                            if (wi.Id == 0) continue;
+                            result[wi.Id] = wi;
+                        }
+                    }
+                }
+                catch { /* ignora erros de itens inacessíveis */ }
+            }
+            return result;
         }
 
         private static bool ShouldSyncPredecessors(ProjectTask task) =>
@@ -1024,6 +1127,7 @@ namespace NXProject.Services
             public Dictionary<string, DateTime> CursorByLane = new();
             public string FixedStartTagName = "DT-INI-NEG";
             public string FixedFinishTagName = "DT_FIM_NEG";
+            public ImportReport Report = new();
 
             public DateTime? GetSprintStart(string? iterationPath)
             {
@@ -1129,6 +1233,23 @@ namespace NXProject.Services
                 blockedByChild = taskChildren.Any(cid =>
                     ctx.Items.TryGetValue(cid, out var c) && HasBlockTag(c.Tags));
 
+            // Story fechada/resolvida com Task filha ainda aberta → corrige estado para Active e loga.
+            bool stateFixedToActive = false;
+            if (IsCompletedState(item.State) && ctx.ChildrenByParent.TryGetValue(item.Id, out var childTaskIds))
+            {
+                bool hasOpenTask = childTaskIds.Any(cid =>
+                    ctx.Items.TryGetValue(cid, out var c) &&
+                    IsType(c, "Task") &&
+                    IsOpenState(c.State));
+                if (hasOpenTask)
+                {
+                    stateFixedToActive = true;
+                    ctx.Report.StoriesStateFixed++;
+                    ctx.Report.LogWarning(
+                        $"[ESTADO CORRIGIDO] Story #{item.Id} \"{item.Title}\" estava {item.State} mas tem Tasks em aberto → ajustado para Active.");
+                }
+            }
+
             // Sem Data_Inicio, a Story ancora no inicio da SPRINT dela. A fila e
             // por (pessoa, sprint): a 1a Story da fila comeca na data de inicio da
             // sprint e as seguintes encadeiam; ao mover a Story para outra sprint,
@@ -1168,11 +1289,11 @@ namespace NXProject.Services
                 Start = start,
                 Finish = finish,
                 EstimatedHours = hours,
-                PercentComplete = StateToPercent(item.State),
+                PercentComplete = stateFixedToActive ? 0 : StateToPercent(item.State),
                 TfsId = item.Id,
                 TfsParentId = ctx.GetParent(item.Id),
                 TfsType = item.WorkItemType,
-                TfsState = item.State,
+                TfsState = stateFixedToActive ? "Active" : item.State,
                 Description = item.Description,
                 Tags = item.Tags,
                 BlockedByChild = blockedByChild,
@@ -1755,6 +1876,20 @@ namespace NXProject.Services
 
         private static bool IsType(WorkItem item, string type) =>
             string.Equals(item.WorkItemType, type, StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsCompletedState(string? state) =>
+            state != null && (
+                string.Equals(state, "Closed",    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "Resolved",  StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "Done",      StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "Completed", StringComparison.OrdinalIgnoreCase));
+
+        private static bool IsOpenState(string? state) =>
+            state != null && (
+                string.Equals(state, "Active",      StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "New",         StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "In Progress", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "Committed",   StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// Resolve o reference name de um campo. Tenta, em ordem: o nome configurado

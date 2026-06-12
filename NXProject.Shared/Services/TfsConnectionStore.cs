@@ -48,6 +48,9 @@ namespace NXProject.Services
         /// </summary>
         public int FutureSprintDays { get; set; } = 90;
 
+        /// <summary>Caminho do arquivo JSON da lista de projetos DevOps (compartilhável entre usuários).</summary>
+        public string DevOpsProjectListPath { get; set; } = string.Empty;
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&
@@ -76,6 +79,7 @@ namespace NXProject.Services
             public int FutureSprintDays { get; set; } = 90;
             public bool RememberToken { get; set; }
             public string EncryptedToken { get; set; } = string.Empty;
+            public string DevOpsProjectListPath { get; set; } = string.Empty;
         }
 
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
@@ -116,6 +120,7 @@ namespace NXProject.Services
                 options.FutureSprintDays = stored.FutureSprintDays >= 0 ? stored.FutureSprintDays : 90;
                 if (stored.RememberToken)
                     options.PersonalAccessToken = WindowsDataProtection.Decrypt(stored.EncryptedToken);
+                options.DevOpsProjectListPath = stored.DevOpsProjectListPath ?? string.Empty;
             }
             catch
             {
@@ -146,7 +151,8 @@ namespace NXProject.Services
                 RememberToken = rememberToken,
                 EncryptedToken = rememberToken
                     ? WindowsDataProtection.Encrypt(options.PersonalAccessToken ?? string.Empty, "NXProject.Tfs")
-                    : string.Empty
+                    : string.Empty,
+                DevOpsProjectListPath = options.DevOpsProjectListPath ?? string.Empty
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
