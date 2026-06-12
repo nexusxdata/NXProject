@@ -141,6 +141,22 @@ namespace NXProject.Views
             ShowLicenseDialog(requireAcceptance: false);
         }
 
+        private void OnAzureDevOpsBacklogHelpClick(object sender, RoutedEventArgs e)
+        {
+            new AzureDevOpsBacklogHelpWindow
+            {
+                Owner = this
+            }.ShowDialog();
+        }
+
+        private void OnPredecessorUsageHelpClick(object sender, RoutedEventArgs e)
+        {
+            new PredecessorUsageHelpWindow
+            {
+                Owner = this
+            }.ShowDialog();
+        }
+
         private void OnAiAssistantClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm)

@@ -10,6 +10,7 @@ As imagens abaixo ficam versionadas no repositorio para visualizacao direta no G
 ![Tela com hierarquia e Gantt](ScreenShot/Tela02.png)
 ![Tela de configuracao e acompanhamento](ScreenShot/Tela03.png)
 ![Tela de importacao do TFS / Azure DevOps](ScreenShot/Tela04.png)
+![Tela conceitual Azure DevOps Backlog](ScreenShot/Tela05-Azure-DevOps-Backlog.svg)
 
 ## Conteudo deste repositorio
 
@@ -96,6 +97,23 @@ Project -> Epic -> Feature -> Story
 ```
 
 Itens do tipo `Task` nao viram linhas do cronograma; eles sao usados apenas como informacao auxiliar, por exemplo para indicar bloqueio quando houver tag `Block`.
+
+### Tela Azure DevOps Backlog no GitHub
+
+A tela conceitual acima mostra como o backlog do Azure DevOps se conecta ao cronograma do NXProject em projetos ageis. O Azure DevOps continua sendo a origem do backlog, enquanto o NXProject transforma os work items em uma visao de planejamento com datas, duracao, dependencias, alocacao de pessoas e Gantt.
+
+Na pratica, a integracao permite:
+
+- importar a hierarquia `Project -> Epic -> Feature -> Story` a partir de um work item raiz;
+- preservar a ordem do backlog usando `Microsoft.VSTS.Common.StackRank`;
+- associar Stories e Features as sprints do Azure DevOps por `System.IterationPath`;
+- converter estimativas em horas (`HH Estimado`) para duracao no cronograma;
+- ler `Data_Inicio` e `Data_Fim` quando o time ja definiu datas no DevOps;
+- importar o responsavel (`System.AssignedTo`) como recurso do projeto;
+- indicar bloqueios quando houver tag `Block` em Tasks filhas;
+- sincronizar de volta titulo, descricao, horas, datas, estado, tags, sprint e links de predecessora quando configurado.
+
+Esse fluxo ajuda equipes ageis a manter o backlog no Azure DevOps e usar o NXProject para responder perguntas de planejamento: capacidade por sprint, conflito de alocacao, atividades atrasadas, Curva S, dependencias entre Stories e impacto de mudancas de data no cronograma.
 
 ### Pre-requisitos no Azure DevOps
 

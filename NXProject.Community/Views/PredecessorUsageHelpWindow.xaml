@@ -1,0 +1,124 @@
+<Window x:Class="NXProject.Views.PredecessorUsageHelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Como usar predecessoras"
+        Width="760"
+        Height="560"
+        MinWidth="640"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Como usar predecessoras"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="#2B579A"/>
+            <TextBlock Text="Use predecessoras para indicar que uma atividade depende de outra. O NXProject desenha o vínculo no Gantt e usa essa relação para apoiar o cronograma."
+                       Margin="0,8,0,0"
+                       TextWrapping="Wrap"
+                       Foreground="#444"/>
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                BorderBrush="#D9E1EA"
+                BorderThickness="1"
+                CornerRadius="8"
+                Background="#F8FAFC"
+                Padding="16">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="1. Abra a coluna Pred."
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#2B579A"
+                               Margin="0,0,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
+A coluna Pred. fica mais visivel no modo expandido da grade. Use o botao de expandir/encolher da barra superior quando precisar editar muitas dependencias.
+                    </TextBlock>
+
+                    <TextBlock Text="2. Edite a atividade sucessora"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#2B579A"
+                               Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
+Clique duas vezes na celula Pred. da atividade que deve esperar outra atividade terminar. Essa atividade e a sucessora.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
+Exemplo: se "Testes" depende de "Desenvolvimento", edite o Pred. da linha "Testes".
+                    </TextBlock>
+
+                    <TextBlock Text="3. Escolha a predecessora com o mouse"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#2B579A"
+                               Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Clique com o botao direito sobre outra atividade para adicionar o ID dela."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ou use Ctrl + clique esquerdo sobre outra atividade."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- O campo permanece aberto para escolher mais de uma predecessora."/>
+
+                    <TextBlock Text="4. Digite manualmente quando preferir"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#2B579A"
+                               Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
+Tambem e possivel digitar os IDs separados por virgula, por exemplo: 12,15,18.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
+Quando uma tarefa veio do Azure DevOps, o ID exibido pode ser o ID do work item; o NXProject resolve esse valor internamente.
+                    </TextBlock>
+
+                    <TextBlock Text="5. Confirme ou cancele"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#2B579A"
+                               Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Enter confirma a edicao."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Esc cancela a edicao atual."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Ao sair do campo, o valor tambem e salvo."/>
+
+                    <TextBlock Text="6. Veja o resultado no Gantt"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#2B579A"
+                               Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
+Depois de confirmar, o Gantt mostra a seta de dependencia entre a predecessora e a sucessora. Se voce mover a predecessora no Gantt, atividades dependentes podem acompanhar o deslocamento.
+                    </TextBlock>
+
+                    <Border Background="#FFF7E8"
+                            BorderBrush="#E8D39A"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,8,0,0">
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="#444"
+                                   Text="Dica rapida: edite Pred. na atividade que depende, depois use botao direito ou Ctrl + clique na atividade que vem antes."/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button Content="Fechar"
+                    Width="100"
+                    Height="30"
+                    IsDefault="True"
+                    IsCancel="True"
+                    Click="OnCloseClick"/>
+        </StackPanel>
+    </Grid>
+</Window>

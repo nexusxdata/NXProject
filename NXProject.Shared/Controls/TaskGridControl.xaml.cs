@@ -235,6 +235,15 @@ namespace NXProject.Controls
 
         private void OnTaskGridPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (_inPredecessorEdit &&
+                Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
+                TryAppendClickedPredecessor(e.OriginalSource as DependencyObject))
+            {
+                e.Handled = true;
+                _dragSourceTask = null;
+                return;
+            }
+
             if (FindParent<ToggleButton>(e.OriginalSource as DependencyObject) != null)
             {
                 _dragSourceTask = null;
@@ -247,22 +256,32 @@ namespace NXProject.Controls
 
         private void OnTaskGridPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (TryAppendClickedPredecessor(e.OriginalSource as DependencyObject))
+                e.Handled = true; // suprime o menu de contexto padrão
+        }
+
+        private bool TryAppendClickedPredecessor(DependencyObject? source)
+        {
             if (!_inPredecessorEdit || _predEditBox == null)
-                return;
+                return false;
 
-            // Clique direito em modo de edição de predecessora: adiciona o DisplayId
-            // da linha clicada ao campo, sem fechar a edição.
-            var clicked = FindTaskViewModel(e.OriginalSource as DependencyObject);
+            // Clique direito ou Ctrl+clique durante a edição de Pred.: adiciona
+            // o DisplayId da linha clicada sem trocar a seleção nem fechar a célula.
+            var clicked = FindTaskViewModel(source);
             if (clicked == null || ReferenceEquals(clicked, _predEditBox.DataContext))
-                return;
+                return false;
 
-            var current = _predEditBox.Text.Trim().TrimEnd(',');
-            _predEditBox.Text = string.IsNullOrEmpty(current)
-                ? clicked.DisplayId
-                : current + "," + clicked.DisplayId;
+            var parts = _predEditBox.Text
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            if (!parts.Any(p => string.Equals(p, clicked.DisplayId, StringComparison.OrdinalIgnoreCase)))
+                parts.Add(clicked.DisplayId);
+
+            _predEditBox.Text = string.Join(",", parts);
             _predEditBox.CaretIndex = _predEditBox.Text.Length;
             _predEditBox.Focus();
-            e.Handled = true; // suprime o menu de contexto padrão
+            Keyboard.Focus(_predEditBox);
+            return true;
         }
 
         private void OnTaskGridPreviewMouseMove(object sender, MouseEventArgs e)
@@ -433,11 +452,12 @@ namespace NXProject.Controls
         private void OnPredEditLostFocus(object sender, RoutedEventArgs e)
         {
             if (sender is not TextBox tb) return;
-            // Usa Dispatcher para verificar após o ciclo de eventos: se _inPredecessorEdit
-            // ainda for true o foco voltou ao TextBox (clique em outra linha capturado).
+            // Usa Dispatcher para deixar o clique em outra linha terminar. Se o
+            // gesto de captura de predecessora devolveu o foco ao TextBox, mantem
+            // a edição aberta; se não, confirma o valor digitado.
             Dispatcher.BeginInvoke(() =>
             {
-                if (!_inPredecessorEdit)
+                if (_predEditBox == tb && !tb.IsKeyboardFocusWithin)
                     CommitPredEdit(tb);
             });
         }
