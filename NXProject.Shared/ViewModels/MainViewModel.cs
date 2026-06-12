@@ -1035,7 +1035,18 @@ namespace NXProject.ViewModels
             {
                 task.PredecessorIds.Clear();
                 if (previousTask != null)
+                {
                     task.PredecessorIds.Add(previousTask.Id);
+                    var start = ProjectCalendarService.AddWorkingDays(
+                        ProjectCalendarService.GetInclusiveFinishDate(previousTask.Start, previousTask.Finish),
+                        1);
+                    var durationHours = TaskScheduleService.GetEffectiveDurationHours(task);
+                    task.Start = start;
+                    task.Finish = durationHours <= 0
+                        ? start
+                        : ProjectCalendarService.AddWorkingHours(start, durationHours);
+                    task.StartFixed = true;
+                }
 
                 previousTask = task;
             }

@@ -814,7 +814,9 @@ namespace NXProject.Views
                             * (1.0 - _vm.Model.PercentComplete / 100.0));
             public string RemainingHoursText => $"{RemainingHours:0.##} h";
             public string StartText  => _vm.Model.Start.ToString("dd/MM/yy");
-            public string FinishText => _vm.Model.Finish.ToString("dd/MM/yy");
+            public string FinishText => ProjectCalendarService
+                .GetInclusiveFinishDate(_vm.Model.Start, _vm.Model.Finish)
+                .ToString("dd/MM/yy");
             public string Predecessors => _vm.PredecessorsText;
             public string PercentText  => $"{_vm.Model.PercentComplete:0}%";
             public double DelayDays    => ComputeDelayDays(_vm.Model);

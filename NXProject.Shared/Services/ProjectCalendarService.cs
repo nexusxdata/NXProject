@@ -149,6 +149,25 @@ namespace NXProject.Services
             return hours;
         }
 
+        public static DateTime GetInclusiveFinishDate(DateTime start, DateTime finish) =>
+            GetInclusiveFinishDate(start, finish, Current);
+
+        public static DateTime GetInclusiveFinishDate(DateTime start, DateTime finish, ProjectCalendar? calendar)
+        {
+            if (finish <= start)
+                return finish.Date;
+
+            calendar ??= Current;
+            if (finish.TimeOfDay != TimeSpan.Zero)
+                return finish.Date;
+
+            var date = finish.Date.AddDays(-1);
+            while (date > start.Date && !IsWorkingDay(date, calendar))
+                date = date.AddDays(-1);
+
+            return date;
+        }
+
         public static int CountWorkingDays(DateTime start, DateTime finish) => CountWorkingDays(start, finish, Current);
 
         public static int CountWorkingDays(DateTime start, DateTime finish, ProjectCalendar? calendar)

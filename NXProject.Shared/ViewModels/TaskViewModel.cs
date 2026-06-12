@@ -256,6 +256,7 @@ namespace NXProject.ViewModels
                 _task.StartFixed = true;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Finish));
+                OnPropertyChanged(nameof(FinishDisplay));
                 OnPropertyChanged(nameof(DurationDays));
                 OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
@@ -279,6 +280,7 @@ namespace NXProject.ViewModels
                 }
 
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(FinishDisplay));
                 OnPropertyChanged(nameof(DurationDays));
                 OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
@@ -299,6 +301,7 @@ namespace NXProject.ViewModels
                     _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value);
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
@@ -343,6 +346,7 @@ namespace NXProject.ViewModels
                     _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value * ProjectCalendarService.WorkingHoursPerDay);
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationHours));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
@@ -364,9 +368,13 @@ namespace NXProject.ViewModels
                 OnPropertyChanged(nameof(DurationDays));
                 OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(Finish));
+                OnPropertyChanged(nameof(FinishDisplay));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
             }
         }
+
+        public string FinishDisplay =>
+            ProjectCalendarService.GetInclusiveFinishDate(_task.Start, _task.Finish).ToString("dd/MM/yy");
 
         public bool UsesSfpEstimate => (SfpPoints ?? 0) > 0;
 
@@ -585,11 +593,49 @@ namespace NXProject.ViewModels
                     if (int.TryParse(raw, out int id))
                         _task.PredecessorIds.Add(id);
                 }
+                MoveAfterLatestPredecessor();
                 OnPropertyChanged();
             }
         }
 
         public bool CanEditPredecessors => _task.Children.Count == 0;
+
+        private void MoveAfterLatestPredecessor()
+        {
+            if (_task.PredecessorIds.Count == 0 || FindByInternalId == null)
+                return;
+
+            var predecessors = _task.PredecessorIds
+                .Select(id => FindByInternalId(id))
+                .Where(pred => pred != null && !ReferenceEquals(pred, this))
+                .Cast<TaskViewModel>()
+                .ToList();
+
+            if (predecessors.Count == 0)
+                return;
+
+            var latestFinish = predecessors
+                .Select(pred => ProjectCalendarService.GetInclusiveFinishDate(pred.Model.Start, pred.Model.Finish))
+                .Max();
+            var nextStart = ProjectCalendarService.AddWorkingDays(latestFinish, 1);
+            if (_task.Start.Date == nextStart.Date)
+                return;
+
+            var durationHours = DurationHours;
+            _task.Start = nextStart;
+            _task.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
+            _task.StartFixed = true;
+
+            OnPropertyChanged(nameof(Start));
+            OnPropertyChanged(nameof(StartDisplay));
+            OnPropertyChanged(nameof(Finish));
+            OnPropertyChanged(nameof(FinishDisplay));
+            OnPropertyChanged(nameof(DurationDays));
+            OnPropertyChanged(nameof(DurationHours));
+            OnPropertyChanged(nameof(DisplayAsMilestone));
+            OnPropertyChanged(nameof(StartFixed));
+            RecalcAncestorSummaries();
+        }
 
         public string ResourcesText
         {
@@ -658,6 +704,7 @@ namespace NXProject.ViewModels
             _task.Finish = _task.Finish.AddDays(dayDelta);
             OnPropertyChanged(nameof(Start));
             OnPropertyChanged(nameof(Finish));
+            OnPropertyChanged(nameof(FinishDisplay));
             OnPropertyChanged(nameof(DurationDays));
             OnPropertyChanged(nameof(DisplayAsMilestone));
             RecalcAncestorSummaries();
@@ -687,6 +734,7 @@ namespace NXProject.ViewModels
             var calculatedWorkingDays = Math.Max(1, (int)Math.Ceiling(sfpPoints * daysPerSfp));
             var calculatedHours = calculatedWorkingDays * ProjectCalendarService.WorkingHoursPerDay;
             _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, calculatedHours);
+            OnPropertyChanged(nameof(FinishDisplay));
             RecalcAncestorSummaries();
         }
     }

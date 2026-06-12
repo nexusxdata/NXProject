@@ -860,7 +860,7 @@ namespace NXProject.Controls
             });
             content.Children.Add(CreateHintLine("ID", task.Id.ToString(CultureInfo.CurrentCulture)));
             content.Children.Add(CreateHintLine("Inicio", task.Start.ToString("g", CultureInfo.CurrentCulture)));
-            content.Children.Add(CreateHintLine("Fim", task.Finish.ToString("g", CultureInfo.CurrentCulture)));
+            content.Children.Add(CreateHintLine("Fim", task.FinishDisplay));
             content.Children.Add(CreateHintLine("Duracao", $"{task.DurationHours:0} h"));
             content.Children.Add(CreateHintLine("Concluido", $"{task.PercentComplete:0}%"));
 

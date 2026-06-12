@@ -270,7 +270,7 @@
             </DataGridTemplateColumn>
 
             <!-- Fim -->
-            <DataGridTextColumn x:Name="FinishColumn" Header="Fim" Binding="{Binding Finish, StringFormat=g}" Width="110">
+            <DataGridTextColumn x:Name="FinishColumn" Header="Fim" Binding="{Binding FinishDisplay}" Width="110">
                 <DataGridTextColumn.ElementStyle>
                     <Style TargetType="TextBlock">
                         <Setter Property="VerticalAlignment" Value="Center"/>
