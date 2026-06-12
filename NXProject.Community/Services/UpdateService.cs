@@ -100,6 +100,7 @@ public static class UpdateService
 
             $exe_path = Join-Path $app_dir $exe_name
             if (Test-Path $exe_path) {
+                Get-ChildItem -Path $app_dir -Filter "old_*$exe_name" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
                 Rename-Item -Path $exe_path -NewName $old_name -Force
             }
 

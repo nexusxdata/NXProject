@@ -224,56 +224,45 @@ namespace NXProject.Views
         {
             var dlg = new System.Windows.Window
             {
-                Title = "Atualizacao disponivel",
+                Title = "Atualização disponível",
                 Owner = this,
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
                 ResizeMode = System.Windows.ResizeMode.NoResize,
-                Width = 420,
-                Height = 200,
+                Width = 360,
+                Height = 230,
                 Background = System.Windows.Media.Brushes.White
             };
 
             var result = UpdateChoice.Cancel;
 
-            var root = new System.Windows.Controls.Grid { Margin = new System.Windows.Thickness(20) };
-            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
-            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
-            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            var root = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(24, 20, 24, 20) };
 
-            var msg = new System.Windows.Controls.TextBlock
+            root.Children.Add(new System.Windows.Controls.TextBlock
             {
-                Text = $"Nova versao disponivel: {tagName}\n\nDeseja atualizar automaticamente (o app sera reiniciado)\nou prefere baixar manualmente pelo browser?",
-                TextWrapping = System.Windows.TextWrapping.Wrap,
-                Margin = new System.Windows.Thickness(0, 0, 0, 16)
-            };
-            System.Windows.Controls.Grid.SetRow(msg, 0);
-            root.Children.Add(msg);
-
-            var btns = new System.Windows.Controls.StackPanel
+                Text = $"Nova versão disponível: {tagName}",
+                FontSize = 13,
+                FontWeight = System.Windows.FontWeights.SemiBold,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 87, 154)),
+                Margin = new System.Windows.Thickness(0, 0, 0, 8)
+            });
+            root.Children.Add(new System.Windows.Controls.TextBlock
             {
-                Orientation = System.Windows.Controls.Orientation.Horizontal,
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Right
-            };
-            System.Windows.Controls.Grid.SetRow(btns, 2);
+                Text = "Como deseja atualizar?",
+                Margin = new System.Windows.Thickness(0, 0, 0, 14),
+                Foreground = System.Windows.Media.Brushes.DimGray
+            });
 
-            var btnAuto = new System.Windows.Controls.Button
-            {
-                Content = "Atualizar automaticamente",
-                Width = 170,
-                IsDefault = true,
-                Margin = new System.Windows.Thickness(0, 0, 8, 0)
-            };
-            var btnManual = new System.Windows.Controls.Button { Content = "Baixar manualmente", Width = 140, Margin = new System.Windows.Thickness(0, 0, 8, 0) };
-            var btnCancel = new System.Windows.Controls.Button { Content = "Agora nao", Width = 90, IsCancel = true };
+            var btnAuto = new System.Windows.Controls.Button { Content = "⬇  Atualizar automaticamente", Height = 32, IsDefault = true, HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch, Margin = new System.Windows.Thickness(0, 0, 0, 6) };
+            var btnManual = new System.Windows.Controls.Button { Content = "🌐  Baixar manualmente", Height = 32, HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch, Margin = new System.Windows.Thickness(0, 0, 0, 6) };
+            var btnCancel = new System.Windows.Controls.Button { Content = "Agora não", Height = 32, IsCancel = true, HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch };
 
-            btnAuto.Click += (_, _) => { result = UpdateChoice.Auto; dlg.DialogResult = true; dlg.Close(); };
+            btnAuto.Click   += (_, _) => { result = UpdateChoice.Auto;   dlg.DialogResult = true; dlg.Close(); };
             btnManual.Click += (_, _) => { result = UpdateChoice.Manual; dlg.DialogResult = true; dlg.Close(); };
             btnCancel.Click += (_, _) => { dlg.Close(); };
 
-            btns.Children.Add(btnAuto);
-            btns.Children.Add(btnManual);
-            btns.Children.Add(btnCancel);
-            root.Children.Add(btns);
+            root.Children.Add(btnAuto);
+            root.Children.Add(btnManual);
+            root.Children.Add(btnCancel);
 
             dlg.Content = root;
             dlg.ShowDialog();
