@@ -27,6 +27,18 @@ A equipe de desenvolvimento segue usando o Azure DevOps como fonte da verdade: c
 
 ---
 
+## A motivação por trás do NXProject
+
+Depois de mais de 20 anos gerenciando projetos de TI, percebi que sempre existia um conflito silencioso: as ferramentas técnicas eram ótimas para a equipe de desenvolvimento, mas não entregavam a visibilidade que a gestão precisava. As ferramentas de gestão, por sua vez, davam os relatórios e o Gantt que os executivos pediam, mas penalizavam a equipe técnica com processos paralelos, retrabalho e perda de rastreabilidade.
+
+A solução que eu encontrava era sempre um meio-termo insatisfatório — ou a equipe sofria, ou a gestão ficava no escuro.
+
+Depois de muito tempo buscando uma saída, decidi criar algo diferente: uma ferramenta que não obriga ninguém a escolher entre rigor técnico e visibilidade gerencial. Que respeite o fluxo da equipe no Azure DevOps e, ao mesmo tempo, entregue ao gestor o cronograma, as dependências e os alertas que ele precisa para tomar decisões com confiança.
+
+Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o técnico e o gerencial caminham juntos, sem atrito e sem concessões.
+
+---
+
 ## Capturas de tela
 
 ![Tela principal do NXProject Community](ScreenShot/Tela01.png)
