@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -28,6 +29,9 @@ namespace NXProject.Views
         public CommunityMainWindow()
         {
             InitializeComponent();
+            var v = Assembly.GetExecutingAssembly().GetName().Version;
+            if (v != null)
+                Title = $"NXProject Community {v.Major}.{v.Minor}.{v.Build}";
             ProjectCalendarService.Load("NXProject.Community");
             StatusLogoImage.Source = ProtectedLogoProvider.GetLogoImage();
             var vm = new MainViewModel("NXProject.Community");
@@ -155,6 +159,50 @@ namespace NXProject.Views
             {
                 Owner = this
             }.ShowDialog();
+        }
+
+        private async void OnCheckUpdateClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                IsEnabled = false;
+                var release = await NXProject.Services.UpdateService.CheckForUpdateAsync();
+                IsEnabled = true;
+
+                if (release is null)
+                {
+                    MessageBox.Show(
+                        "Voce ja esta usando a versao mais recente.",
+                        "Verificar Atualizacao",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                var confirm = MessageBox.Show(
+                    $"Nova versao disponivel: {release.TagName}\n\nDeseja baixar e instalar agora?\n\nO aplicativo sera reiniciado automaticamente.",
+                    "Atualizacao Disponivel",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes)
+                    return;
+
+                var progressWindow = new UpdateProgressWindow(release.DownloadUrl)
+                {
+                    Owner = this
+                };
+                progressWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                IsEnabled = true;
+                MessageBox.Show(
+                    $"Nao foi possivel verificar atualizacoes.\n\n{ex.Message}",
+                    "Verificar Atualizacao",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
         }
 
         private void OnAiAssistantClick(object sender, RoutedEventArgs e)
@@ -377,6 +425,22 @@ namespace NXProject.Views
             };
 
             window.ShowDialog();
+        }
+
+        private void OnRefreshViewClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
+                vm.RefreshTasks();
+            GanttCtrl.ForceRender();
+        }
+
+        private void OnRecalcDatesClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            vm.RecalculateScheduleRespectingAssignments();
+            GanttCtrl.ForceRender();
         }
 
         private void OnCalendarSettingsClick(object sender, RoutedEventArgs e)

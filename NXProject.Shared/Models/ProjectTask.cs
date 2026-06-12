@@ -62,6 +62,9 @@ namespace NXProject.Models
         // false → limpa Data_Inicio no TFS (se tarefa não estiver Closed).
         public bool StartFixed { get; set; } = false;
 
+        // Data de fim fixada (prazo comprometido). true → envia Data_Fim + tag DT_FIM_NEG ao TFS.
+        public bool FinishFixed { get; set; } = false;
+
         // Justificativa de atraso ou observação relevante. Persiste na description
         // do DevOps como "Justificativa: <texto>." e é lida de volta no import.
         public string? Justificativa { get; set; }

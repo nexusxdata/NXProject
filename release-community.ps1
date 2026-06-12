@@ -1,6 +1,8 @@
 param(
     [ValidateSet("Release", "Debug")]
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [ValidateSet("patch", "minor", "major")]
+    [string]$Bump = "patch"
 )
 
 $SolutionDir = $PSScriptRoot
@@ -8,9 +10,46 @@ $ProjectFile = Join-Path $SolutionDir "NXProject.Community\NXProject.Community.c
 $OutputDir = Join-Path $SolutionDir "NXProject.Community\bin\$Configuration\net10.0-windows"
 $DistDir = Join-Path $SolutionDir "dist\community"
 $StageDir = Join-Path $DistDir "NXProject.Community"
-$ZipPath = Join-Path $DistDir "NXProject.Community-$Configuration.zip"
 $ReadmePath = Join-Path $StageDir "README-INSTALACAO.txt"
 $SharedDllLockPattern = "because it is being used by another process"
+
+# ── Bump de versão ────────────────────────────────────────────────────────────
+function Get-ProjectVersion([string]$CsprojPath) {
+    $content = Get-Content $CsprojPath -Raw
+    if ($content -match '<Version>([^<]+)</Version>') { return $Matches[1] }
+    return "1.0.0"
+}
+
+function Set-ProjectVersion([string]$CsprojPath, [string]$NewVersion) {
+    $content = Get-Content $CsprojPath -Raw
+    $content = $content -replace '<Version>[^<]+</Version>',           "<Version>$NewVersion</Version>"
+    $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$NewVersion.0</AssemblyVersion>"
+    $content = $content -replace '<FileVersion>[^<]+</FileVersion>',   "<FileVersion>$NewVersion.0</FileVersion>"
+    $content = $content -replace '<InformationalVersion>[^<]+</InformationalVersion>', "<InformationalVersion>$NewVersion</InformationalVersion>"
+    Set-Content -Path $CsprojPath -Value $content -Encoding UTF8 -NoNewline
+}
+
+function Step-Version([string]$Version, [string]$BumpType) {
+    $parts = $Version.Split('.')
+    $major = [int]$parts[0]
+    $minor = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
+    $patch = if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }
+    switch ($BumpType) {
+        "major" { $major++; $minor = 0; $patch = 0 }
+        "minor" { $minor++; $patch = 0 }
+        "patch" { $patch++ }
+    }
+    return "$major.$minor.$patch"
+}
+
+$CurrentVersion = Get-ProjectVersion $ProjectFile
+$NewVersion = Step-Version $CurrentVersion $Bump
+
+Write-Host ""
+Write-Host ">> Versao: $CurrentVersion → $NewVersion" -ForegroundColor Yellow
+Set-ProjectVersion $ProjectFile $NewVersion
+
+$ZipPath = Join-Path $DistDir "NXProject.Community-$Configuration.zip"
 
 function Write-Step($msg) {
     Write-Host ""

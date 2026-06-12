@@ -255,7 +255,15 @@
             <DataGridTemplateColumn x:Name="StartColumn" Header="Início" Width="110" SortMemberPath="Start">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding StartDisplay}" VerticalAlignment="Center" Margin="3,0"/>
+                        <TextBlock Text="{Binding StartDisplay}" VerticalAlignment="Center" Margin="3,0">
+                            <TextBlock.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Retirar data fixa"
+                                              Command="{Binding ClearStartFixedCommand}"
+                                              IsEnabled="{Binding StartFixed}"/>
+                                </ContextMenu>
+                            </TextBlock.ContextMenu>
+                        </TextBlock>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
@@ -270,14 +278,32 @@
             </DataGridTemplateColumn>
 
             <!-- Fim -->
-            <DataGridTextColumn x:Name="FinishColumn" Header="Fim" Binding="{Binding FinishDisplay}" Width="110">
-                <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                        <Setter Property="Margin" Value="3,0"/>
-                    </Style>
-                </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+            <DataGridTemplateColumn x:Name="FinishColumn" Header="Fim" Width="110" SortMemberPath="Finish">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding FinishDisplay}" VerticalAlignment="Center" Margin="3,0">
+                            <TextBlock.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Fixar data fim"
+                                              Command="{Binding FixFinishCommand}"/>
+                                    <MenuItem Header="Retirar data fixa"
+                                              Command="{Binding ClearFinishFixedCommand}"
+                                              IsEnabled="{Binding FinishFixed}"/>
+                                </ContextMenu>
+                            </TextBlock.ContextMenu>
+                        </TextBlock>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                        <TextBox x:Name="FinishEditBox"
+                                 Text="{Binding Finish, StringFormat=dd/MM/yyyy, UpdateSourceTrigger=Explicit}"
+                                 VerticalAlignment="Center"
+                                 KeyDown="OnFinishEditKeyDown"
+                                 LostFocus="OnFinishEditLostFocus"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
 
             <!-- % Completo -->
             <DataGridTemplateColumn x:Name="PercentColumn" Header="% Compl." Width="70">

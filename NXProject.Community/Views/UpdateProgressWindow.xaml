@@ -1,0 +1,32 @@
+<Window x:Class="NXProject.Views.UpdateProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Atualizando NXProject"
+        Width="420"
+        Height="160"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="White">
+
+    <Border Padding="24">
+        <StackPanel VerticalAlignment="Center">
+            <TextBlock x:Name="StatusText"
+                       Text="Baixando atualização..."
+                       FontSize="13"
+                       Foreground="#2B579A"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,10"/>
+            <ProgressBar x:Name="DownloadProgress"
+                         Height="14"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="0"
+                         Margin="0,0,0,4"/>
+            <TextBlock x:Name="PercentText"
+                       Text="0%"
+                       FontSize="11"
+                       Foreground="#555"
+                       HorizontalAlignment="Right"/>
+        </StackPanel>
+    </Border>
+</Window>

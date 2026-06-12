@@ -107,7 +107,8 @@ namespace NXProject.ViewModels
                         if (byInternal != null) return byInternal.Model.Id;
                     }
                     return null;
-                }
+                },
+                ScheduleSuccessors = source => CascadeSuccessors(source)
             };
             if (parentVm != null)
                 parentVm.ChildrenViewModels.Add(vm);
@@ -549,6 +550,52 @@ namespace NXProject.ViewModels
                 .ToDictionary(t => t.Id, t => Math.Max(0.0, t.DurationHours));
         }
 
+        private bool _cascading;
+
+        private void CascadeSuccessors(TaskViewModel changed)
+        {
+            if (_cascading) return;
+            _cascading = true;
+            try
+            {
+                var visited = new System.Collections.Generic.HashSet<int> { changed.Model.Id };
+                var queue = new System.Collections.Generic.Queue<int>();
+                queue.Enqueue(changed.Model.Id);
+
+                while (queue.Count > 0)
+                {
+                    var currentId = queue.Dequeue();
+                    foreach (var task in FlatTasks)
+                    {
+                        if (!task.Model.PredecessorIds.Contains(currentId)) continue;
+                        if (!visited.Add(task.Model.Id)) continue;
+
+                        var oldFinish = task.Model.Finish;
+                        task.MoveAfterLatestPredecessor();
+                        if (task.Model.Finish != oldFinish)
+                            queue.Enqueue(task.Model.Id);
+                    }
+                }
+            }
+            finally
+            {
+                _cascading = false;
+            }
+        }
+
+        public void RecalculateScheduleRespectingAssignments()
+        {
+            foreach (var task in AllTasks().Where(t => !t.IsSummary && !t.FinishFixed))
+                TaskScheduleService.RecalculateFinishFromAssignments(task);
+
+            foreach (var root in Project.Tasks)
+                root.RecalcSummary();
+
+            Project.IsDirty = true;
+            RebuildFlatTasks();
+            StatusMessage = "Datas recalculadas considerando alocacao e disponibilidade.";
+        }
+
         public void RecalculateScheduleFromCalendar(Dictionary<int, double> durationByTaskId)
         {
             if (durationByTaskId.Count == 0)
@@ -559,9 +606,10 @@ namespace NXProject.ViewModels
                 if (!durationByTaskId.TryGetValue(task.Id, out var duration))
                     continue;
 
-                task.Finish = task.IsMilestone
-                    ? task.Start
-                    : ProjectCalendarService.AddWorkingHours(task.Start, duration);
+                if (!task.FinishFixed)
+                    task.Finish = task.IsMilestone
+                        ? task.Start
+                        : ProjectCalendarService.AddWorkingHours(task.Start, duration);
             }
 
             foreach (var root in Project.Tasks)
@@ -792,11 +840,10 @@ namespace NXProject.ViewModels
         [RelayCommand]
         private void AddTask()
         {
-            var start = SelectedTask?.Start
+            var selected = SelectedTask;
+            var start = selected?.Start
                 ?? AllTasks().Select(t => t.Start).DefaultIfEmpty(Project.StartDate).Min();
-            var previousTask = SelectedTask?.Model.Parent == null
-                ? Project.Tasks.LastOrDefault()
-                : null;
+
             var task = new ProjectTask
             {
                 Id = _nextId++,
@@ -805,15 +852,35 @@ namespace NXProject.ViewModels
                 Finish = ProjectCalendarService.AddWorkingHours(start, ProjectCalendarService.WorkingHoursPerDay)
             };
 
-            if (previousTask != null)
-                task.PredecessorIds.Add(previousTask.Id);
+            if (selected == null)
+            {
+                var prev = Project.Tasks.LastOrDefault();
+                if (prev != null) task.PredecessorIds.Add(prev.Id);
+                Project.Tasks.Add(task);
+            }
+            else if (selected.Model.Parent == null)
+            {
+                // Raiz: insere imediatamente após a selecionada
+                task.PredecessorIds.Add(selected.Model.Id);
+                var idx = Project.Tasks.IndexOf(selected.Model);
+                Project.Tasks.Insert(idx + 1, task);
+            }
+            else
+            {
+                // Filho: insere como irmão logo após a selecionada
+                var parent = selected.Model.Parent;
+                task.Level = selected.Model.Level;
+                task.Parent = parent;
+                task.PredecessorIds.Add(selected.Model.Id);
+                var idx = parent.Children.IndexOf(selected.Model);
+                parent.Children.Insert(idx + 1, task);
+                parent.RecalcSummary();
+            }
 
-            Project.Tasks.Add(task);
             Project.IsDirty = true;
             RebuildFlatTasks();
-            StatusMessage = previousTask != null
-                ? "Tarefa adicionada com predecessora da tarefa anterior."
-                : "Tarefa adicionada";
+            SelectedTask = FlatTasks.FirstOrDefault(t => t.Id == task.Id);
+            StatusMessage = "Tarefa adicionada abaixo da selecionada.";
         }
 
         [RelayCommand]

@@ -26,6 +26,10 @@ namespace NXProject.ViewModels
         public Func<int, TaskViewModel?>? FindByInternalId { get; set; }
         public Func<string, int?>? FindByDisplayId { get; set; }
 
+        // Callback acionado quando o Finish desta tarefa muda, para cascatear o
+        // reagendamento das tarefas que a têm como predecessora.
+        public Action<TaskViewModel>? ScheduleSuccessors { get; set; }
+
         // Lista filtrada de sprints disponíveis para este ViewModel (Start >= task.Start).
         // Alimentada e atualizada pelo MainViewModel.
         public ObservableCollection<Sprint> AvailableSprintsForTask { get; } = new();
@@ -217,6 +221,9 @@ namespace NXProject.ViewModels
                 ? "📌 " + _task.Start.ToString("dd/MM/yy")
                 : _task.Start.ToString("dd/MM/yy");
 
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        private void ClearStartFixed() => StartText = "0";
+
         // Setter de texto aceita data válida (marca fix) ou "0" (limpa fix e recalcula).
         public string StartText
         {
@@ -252,7 +259,8 @@ namespace NXProject.ViewModels
             {
                 var durationHours = DurationHours;
                 _task.Start = value;
-                _task.Finish = ProjectCalendarService.AddWorkingHours(value, durationHours);
+                if (!_task.FinishFixed)
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(value, durationHours);
                 _task.StartFixed = true;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Finish));
@@ -263,6 +271,7 @@ namespace NXProject.ViewModels
                 OnPropertyChanged(nameof(StartFixed));
                 OnPropertyChanged(nameof(StartDisplay));
                 RecalcAncestorSummaries();
+                ScheduleSuccessors?.Invoke(this);
             }
         }
 
@@ -281,10 +290,12 @@ namespace NXProject.ViewModels
 
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(FinishDisplay));
+                OnPropertyChanged(nameof(FinishFixed));
                 OnPropertyChanged(nameof(DurationDays));
                 OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(DisplayAsMilestone));
                 RecalcAncestorSummaries();
+                ScheduleSuccessors?.Invoke(this);
             }
         }
 
@@ -293,7 +304,7 @@ namespace NXProject.ViewModels
             get => ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
             set
             {
-                if (UsesSfpEstimate)
+                if (UsesSfpEstimate || _task.FinishFixed)
                     return;
 
                 if (value >= 0)
@@ -373,8 +384,62 @@ namespace NXProject.ViewModels
             }
         }
 
+        public bool FinishFixed
+        {
+            get => _task.FinishFixed;
+            set
+            {
+                _task.FinishFixed = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FinishDisplay));
+                FixFinishCommand.NotifyCanExecuteChanged();
+            }
+        }
+
         public string FinishDisplay =>
-            ProjectCalendarService.GetInclusiveFinishDate(_task.Start, _task.Finish).ToString("dd/MM/yy");
+            _task.FinishFixed
+                ? "📌 " + ProjectCalendarService.GetInclusiveFinishDate(_task.Start, _task.Finish).ToString("dd/MM/yy")
+                : ProjectCalendarService.GetInclusiveFinishDate(_task.Start, _task.Finish).ToString("dd/MM/yy");
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand(CanExecute = nameof(CanFixFinish))]
+        private void FixFinish() => FinishFixed = true;
+        private bool CanFixFinish() => !_task.FinishFixed;
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        private void ClearFinishFixed()
+        {
+            _task.FinishFixed = false;
+            OnPropertyChanged(nameof(FinishFixed));
+            OnPropertyChanged(nameof(FinishDisplay));
+        }
+
+        // Setter de texto aceita data válida (marca fix) ou "0" (limpa fix).
+        public string FinishText
+        {
+            set
+            {
+                var raw = value?.Trim() ?? string.Empty;
+                if (raw == "0")
+                {
+                    FinishFixed = false;
+                }
+                else if (DateTime.TryParse(raw, out var parsed))
+                {
+                    var inclusive = ProjectCalendarService.GetInclusiveFinishDate(_task.Start, _task.Finish);
+                    if (parsed.Date != inclusive.Date)
+                    {
+                        _task.Finish = parsed;
+                        _task.FinishFixed = true;
+                        OnPropertyChanged(nameof(Finish));
+                        OnPropertyChanged(nameof(FinishFixed));
+                        OnPropertyChanged(nameof(FinishDisplay));
+                        OnPropertyChanged(nameof(DurationDays));
+                        OnPropertyChanged(nameof(DurationHours));
+                        RecalcAncestorSummaries();
+                    }
+                }
+            }
+        }
 
         public bool UsesSfpEstimate => (SfpPoints ?? 0) > 0;
 
@@ -593,6 +658,13 @@ namespace NXProject.ViewModels
                     if (int.TryParse(raw, out int id))
                         _task.PredecessorIds.Add(id);
                 }
+                if (_task.PredecessorIds.Count == 0 && _task.StartFixed)
+                {
+                    _task.StartFixed = false;
+                    OnPropertyChanged(nameof(StartFixed));
+                    OnPropertyChanged(nameof(StartDisplay));
+                }
+
                 MoveAfterLatestPredecessor();
                 OnPropertyChanged();
             }
@@ -600,7 +672,7 @@ namespace NXProject.ViewModels
 
         public bool CanEditPredecessors => _task.Children.Count == 0;
 
-        private void MoveAfterLatestPredecessor()
+        public void MoveAfterLatestPredecessor()
         {
             if (_task.PredecessorIds.Count == 0 || FindByInternalId == null)
                 return;
@@ -635,6 +707,7 @@ namespace NXProject.ViewModels
             OnPropertyChanged(nameof(DisplayAsMilestone));
             OnPropertyChanged(nameof(StartFixed));
             RecalcAncestorSummaries();
+            ScheduleSuccessors?.Invoke(this);
         }
 
         public string ResourcesText

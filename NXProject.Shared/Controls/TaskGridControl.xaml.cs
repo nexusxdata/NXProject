@@ -449,6 +449,29 @@ namespace NXProject.Controls
                 CommitStartEdit(tb);
         }
 
+        private void CommitFinishEdit(TextBox tb)
+        {
+            if (tb.DataContext is not TaskViewModel vm) return;
+            vm.FinishText = tb.Text;
+            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void OnFinishEditKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && sender is TextBox tb)
+            {
+                CommitFinishEdit(tb);
+                e.Handled = true;
+            }
+        }
+
+        private void OnFinishEditLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+                CommitFinishEdit(tb);
+        }
+
         private void OnIdCellClick(object sender, RoutedEventArgs e)
         {
             _dragSourceTask = null;

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
 using NXProject.Services;
 
@@ -14,6 +15,11 @@ namespace NXProject.Views
         {
             InitializeComponent();
             CompanyLogoImage.Source = ProtectedLogoProvider.GetLogoImage();
+
+            var v = Assembly.GetExecutingAssembly().GetName().Version;
+            var ver = v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "?";
+            Title = $"Sobre o NXProject Community {ver}";
+            VersionText.Text = $"Versao {ver}";
         }
 
         private void OnCloseClick(object sender, RoutedEventArgs e)

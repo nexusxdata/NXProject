@@ -151,7 +151,8 @@ namespace NXProject.Services
                 ParentByChild = parentByChild,
                 Project = project,
                 ResourcesByKey = resourcesByKey,
-                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim()
+                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
+                FixedFinishTagName = string.IsNullOrWhiteSpace(options.FixedFinishTagName) ? "DT_FIM_NEG" : options.FixedFinishTagName.Trim()
             };
 
             // Filhos diretos do raiz viram ramos do cronograma quando forem
@@ -440,6 +441,48 @@ namespace NXProject.Services
                                 .Where(t => !string.Equals(t, fixedTag, StringComparison.OrdinalIgnoreCase));
                             ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
                             changes.Add($"tag: -{fixedTag}");
+                        }
+                    }
+
+                    // Data fim e tag DT_FIM_NEG: sincroniza quando FinishFixed.
+                    if (finishRef != null && task.FinishFixed)
+                    {
+                        var inclusiveFinish = ProjectCalendarService.GetInclusiveFinishDate(task.Start, task.Finish);
+                        var currentFinish = ReadDate(wi, finishRef);
+                        if (currentFinish == null || currentFinish.Value.Date != inclusiveFinish.Date)
+                        {
+                            ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(inclusiveFinish)));
+                            changes.Add($"fim: {inclusiveFinish:dd/MM} (fixado)");
+                        }
+                    }
+                    else if (finishRef != null && !task.FinishFixed)
+                    {
+                        var currentFinish = ReadDate(wi, finishRef);
+                        if (currentFinish != null)
+                        {
+                            ops.Add(PatchAdd($"/fields/{finishRef}", string.Empty));
+                            changes.Add("fim: limpo");
+                        }
+                    }
+
+                    // Tag de data fim fixada.
+                    {
+                        var fixedFinishTag = string.IsNullOrWhiteSpace(options.FixedFinishTagName) ? "DT_FIM_NEG" : options.FixedFinishTagName.Trim();
+                        var currentTags = wi.Tags ?? string.Empty;
+                        bool hasTagNow = HasTag(currentTags, fixedFinishTag);
+                        if (task.FinishFixed && !hasTagNow)
+                        {
+                            var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedFinishTag).Trim().TrimStart(';').Trim();
+                            ops.Add(PatchAdd("/fields/System.Tags", newTags));
+                            changes.Add($"tag: +{fixedFinishTag}");
+                        }
+                        else if (!task.FinishFixed && hasTagNow)
+                        {
+                            var parts = currentTags
+                                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .Where(t => !string.Equals(t, fixedFinishTag, StringComparison.OrdinalIgnoreCase));
+                            ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
+                            changes.Add($"tag: -{fixedFinishTag}");
                         }
                     }
 
@@ -968,6 +1011,7 @@ namespace NXProject.Services
             // sprint a faz escorregar para a janela da nova sprint.
             public Dictionary<string, DateTime> CursorByLane = new();
             public string FixedStartTagName = "DT-INI-NEG";
+            public string FixedFinishTagName = "DT_FIM_NEG";
 
             public DateTime? GetSprintStart(string? iterationPath)
             {
@@ -1123,6 +1167,7 @@ namespace NXProject.Services
                 TfsStackRank = item.StackRank,
                 TfsIterationPath = item.IterationPath,
                 StartFixed = hasFixedTag,
+                FinishFixed = explicitFinish.HasValue || HasTag(item.Tags, ctx.FixedFinishTagName),
                 Justificativa = ParseJustificativa(item.Description),
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
