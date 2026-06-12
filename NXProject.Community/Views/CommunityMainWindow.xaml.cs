@@ -149,9 +149,9 @@ namespace NXProject.Views
             }.ShowDialog();
         }
 
-        private void OnPredecessorUsageHelpClick(object sender, RoutedEventArgs e)
+        private void OnScheduleUsageHelpClick(object sender, RoutedEventArgs e)
         {
-            new PredecessorUsageHelpWindow
+            new ScheduleUsageHelpWindow
             {
                 Owner = this
             }.ShowDialog();

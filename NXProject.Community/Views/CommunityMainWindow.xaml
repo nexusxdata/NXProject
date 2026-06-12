@@ -70,7 +70,7 @@
                 <MenuItem Header="Assistente de _Tarefas..." Click="OnAiAssistantClick"/>
             </MenuItem>
             <MenuItem Header="A_juda">
-                <MenuItem Header="_Como usar predecessoras..." Click="OnPredecessorUsageHelpClick"/>
+                <MenuItem Header="_Como usar o cronograma..." Click="OnScheduleUsageHelpClick"/>
                 <MenuItem Header="_Integracao Azure DevOps Backlog..." Click="OnAzureDevOpsBacklogHelpClick"/>
                 <Separator/>
                 <MenuItem Header="_Licen&#231;a Community..." Click="OnLicenseClick"/>

@@ -2,9 +2,9 @@ using System.Windows;
 
 namespace NXProject.Views
 {
-    public partial class PredecessorUsageHelpWindow : Window
+    public partial class ScheduleUsageHelpWindow : Window
     {
-        public PredecessorUsageHelpWindow()
+        public ScheduleUsageHelpWindow()
         {
             InitializeComponent();
         }
