@@ -602,9 +602,24 @@ namespace NXProject.Views
 
         // ── Gap / Timeline ───────────────────────────────────────────────────
 
+        private sealed class GapBarTag
+        {
+            public Resource Resource { get; }
+            public DateTime GapStart { get; }
+            public DateTime GapEnd { get; }
+            public int WorkDays { get; }
+            public GapBarTag(Resource r, DateTime s, DateTime e, int wd)
+            { Resource = r; GapStart = s; GapEnd = e; WorkDays = wd; }
+        }
+
         private void OnGapBarClick(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button { Tag: (Resource res, DateTime gapStart, DateTime gapEnd, int workDays) }) return;
+            if (sender is not Button { Tag: GapBarTag tag }) return;
+
+            var res = tag.Resource;
+            var gapStart = tag.GapStart;
+            var gapEnd = tag.GapEnd;
+            var workDays = tag.WorkDays;
 
             // find or create justification in the project model
             var just = _vm.Project.GapJustifications
@@ -615,23 +630,91 @@ namespace NXProject.Views
             {
                 just = new GapJustification { ResourceId = res.Id, GapStart = gapStart, GapEnd = gapEnd };
                 _vm.Project.GapJustifications.Add(just);
-                _vm.Project.IsDirty = true;
             }
 
-            // add to grid if not already there
-            var existing = GapJustRows.FirstOrDefault(r => r.Model == just);
-            if (existing == null)
+            // open inline dialog to enter/edit justification
+            var text = PromptJustification(res.DisplayName, gapStart, gapEnd, workDays, just.Justification);
+            if (text == null) return; // cancelled
+
+            just.Justification = text;
+            _vm.Project.IsDirty = true;
+
+            // rebuild list and timeline to reflect new state
+            BuildGapTimeline();
+
+            // select the row in the grid
+            var row = GapJustRows.FirstOrDefault(r => r.Model == just);
+            if (row != null)
             {
-                GapJustRows.Add(new GapJustificationRow(just, res.DisplayName, workDays, () =>
-                {
-                    _vm.Project.IsDirty = true;
-                    BuildGapTimeline(); // refresh colors
-                }));
+                GapJustGrid.SelectedItem = row;
+                GapJustGrid.ScrollIntoView(row);
             }
+        }
 
-            // scroll to and select it
-            GapJustGrid.SelectedItem = existing ?? GapJustRows.Last();
-            GapJustGrid.ScrollIntoView(GapJustGrid.SelectedItem);
+        private string? PromptJustification(string resourceName, DateTime gapStart, DateTime gapEnd,
+            int workDays, string currentText)
+        {
+            var dlg = new Window
+            {
+                Title = "Justificar gap",
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Width = 420,
+                Height = 230,
+                Background = Brushes.White
+            };
+
+            var root = new Grid { Margin = new Thickness(16) };
+            for (int i = 0; i < 4; i++)
+                root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var header = new TextBlock
+            {
+                Text = $"{resourceName}  ·  {gapStart:dd/MM/yy} – {gapEnd:dd/MM/yy}  ({workDays} dia{(workDays != 1 ? "s" : "")} útil{(workDays != 1 ? "eis" : "")})",
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(31, 78, 161)),
+                Margin = new Thickness(0, 0, 0, 8),
+                TextWrapping = TextWrapping.Wrap
+            };
+            Grid.SetRow(header, 0);
+            root.Children.Add(header);
+
+            var label = new TextBlock { Text = "Justificativa:", Margin = new Thickness(0, 0, 0, 4) };
+            Grid.SetRow(label, 1);
+            root.Children.Add(label);
+
+            var textBox = new TextBox
+            {
+                Text = currentText,
+                MinHeight = 64,
+                MaxHeight = 64,
+                TextWrapping = TextWrapping.Wrap,
+                AcceptsReturn = true,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            Grid.SetRow(textBox, 2);
+            root.Children.Add(textBox);
+
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            var ok = new Button { Content = "Salvar", Width = 90, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = "Cancelar", Width = 90, IsCancel = true };
+            ok.Click += (_, _) => { dlg.DialogResult = true; dlg.Close(); };
+            buttons.Children.Add(ok);
+            buttons.Children.Add(cancel);
+            Grid.SetRow(buttons, 3);
+            root.Children.Add(buttons);
+
+            dlg.Content = root;
+            textBox.Focus();
+            textBox.SelectAll();
+
+            return dlg.ShowDialog() == true ? textBox.Text.Trim() : null;
         }
 
         private void BuildGapTimeline()
@@ -660,10 +743,10 @@ namespace NXProject.Views
             var maxDate = allLeaf.Max(t => t.Model.Finish).Date;
             if (maxDate <= minDate) return;
 
-            const double leftCol = 200;
-            const double rowH = 36;
-            const double headerH = 30;
-            const double barPad = 6;
+            const double leftCol = 220;
+            const double rowH = 46;
+            const double headerH = 34;
+            const double barPad = 7;
             const double pxPerDay = 14;
 
             double totalDays = (maxDate - minDate).TotalDays + 2;
@@ -856,7 +939,7 @@ namespace NXProject.Views
                             VerticalAlignment = VerticalAlignment.Center,
                             HorizontalAlignment = HorizontalAlignment.Center
                         },
-                        Tag = (capturedRes, capturedStart, capturedEnd, capturedWd),
+                        Tag = new GapBarTag(capturedRes, capturedStart, capturedEnd, capturedWd),
                         ToolTip = hasJust
                             ? $"Gap: {gapStart:dd/MM/yy} - {gapEnd:dd/MM/yy} ({workDays}d)\n[Justificado] Clique para editar"
                             : $"Gap: {gapStart:dd/MM/yy} - {gapEnd:dd/MM/yy} ({workDays}d)\nClique para justificar",

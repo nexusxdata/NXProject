@@ -17,7 +17,7 @@ public static class UpdateService
     private const string ApiUrl = "https://api.github.com/repos/nexusxdata/NXProject/releases/latest";
     private const string AssetName = "NXProject.Community-Release.zip";
 
-    public record ReleaseInfo(string TagName, string DownloadUrl);
+    public record ReleaseInfo(string TagName, string DownloadUrl, string HtmlUrl);
 
     public static async Task<ReleaseInfo?> CheckForUpdateAsync(CancellationToken ct = default)
     {
@@ -32,7 +32,7 @@ public static class UpdateService
         var asset = release.Assets?.Find(a => a.Name == AssetName);
         if (asset is null) return null;
 
-        return new ReleaseInfo(release.TagName, asset.BrowserDownloadUrl);
+        return new ReleaseInfo(release.TagName, asset.BrowserDownloadUrl, release.HtmlUrl);
     }
 
     public static async Task<string> DownloadAndExtractAsync(
@@ -92,8 +92,10 @@ public static class UpdateService
             $src_dir  = '{{Escape(extractedDir)}}'
             $script_path = '{{Escape(scriptPath)}}'
 
-            while (Get-Process -Id $pid_target -ErrorAction SilentlyContinue) {
+            $waited = 0
+            while ((Get-Process -Id $pid_target -ErrorAction SilentlyContinue) -and $waited -lt 30000) {
                 Start-Sleep -Milliseconds 300
+                $waited += 300
             }
 
             $exe_path = Join-Path $app_dir $exe_name
@@ -158,6 +160,9 @@ public static class UpdateService
     {
         [JsonPropertyName("tag_name")]
         public string TagName { get; set; } = "";
+
+        [JsonPropertyName("html_url")]
+        public string HtmlUrl { get; set; } = "";
 
         [JsonPropertyName("assets")]
         public List<GithubAsset>? Assets { get; set; }

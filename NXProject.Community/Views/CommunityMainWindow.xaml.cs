@@ -179,20 +179,17 @@ namespace NXProject.Views
                     return;
                 }
 
-                var confirm = MessageBox.Show(
-                    $"Nova versao disponivel: {release.TagName}\n\nDeseja baixar e instalar agora?\n\nO aplicativo sera reiniciado automaticamente.",
-                    "Atualizacao Disponivel",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                var choice = ShowUpdateDialog(release.TagName);
 
-                if (confirm != MessageBoxResult.Yes)
-                    return;
-
-                var progressWindow = new UpdateProgressWindow(release.DownloadUrl)
+                if (choice == UpdateChoice.Auto)
                 {
-                    Owner = this
-                };
-                progressWindow.ShowDialog();
+                    var progressWindow = new UpdateProgressWindow(release.DownloadUrl) { Owner = this };
+                    progressWindow.ShowDialog();
+                }
+                else if (choice == UpdateChoice.Manual)
+                {
+                    ShowDownloadLinkDialog(release.HtmlUrl, release.DownloadUrl, release.TagName);
+                }
             }
             catch (Exception ex)
             {
@@ -203,6 +200,133 @@ namespace NXProject.Views
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
             }
+        }
+
+        private enum UpdateChoice { Auto, Manual, Cancel }
+
+        private UpdateChoice ShowUpdateDialog(string tagName)
+        {
+            var dlg = new System.Windows.Window
+            {
+                Title = "Atualizacao disponivel",
+                Owner = this,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                ResizeMode = System.Windows.ResizeMode.NoResize,
+                Width = 420,
+                Height = 200,
+                Background = System.Windows.Media.Brushes.White
+            };
+
+            var result = UpdateChoice.Cancel;
+
+            var root = new System.Windows.Controls.Grid { Margin = new System.Windows.Thickness(20) };
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+
+            var msg = new System.Windows.Controls.TextBlock
+            {
+                Text = $"Nova versao disponivel: {tagName}\n\nDeseja atualizar automaticamente (o app sera reiniciado)\nou prefere baixar manualmente pelo browser?",
+                TextWrapping = System.Windows.TextWrapping.Wrap,
+                Margin = new System.Windows.Thickness(0, 0, 0, 16)
+            };
+            System.Windows.Controls.Grid.SetRow(msg, 0);
+            root.Children.Add(msg);
+
+            var btns = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+            };
+            System.Windows.Controls.Grid.SetRow(btns, 2);
+
+            var btnAuto = new System.Windows.Controls.Button
+            {
+                Content = "Atualizar automaticamente",
+                Width = 170,
+                IsDefault = true,
+                Margin = new System.Windows.Thickness(0, 0, 8, 0)
+            };
+            var btnManual = new System.Windows.Controls.Button { Content = "Baixar manualmente", Width = 140, Margin = new System.Windows.Thickness(0, 0, 8, 0) };
+            var btnCancel = new System.Windows.Controls.Button { Content = "Agora nao", Width = 90, IsCancel = true };
+
+            btnAuto.Click += (_, _) => { result = UpdateChoice.Auto; dlg.DialogResult = true; dlg.Close(); };
+            btnManual.Click += (_, _) => { result = UpdateChoice.Manual; dlg.DialogResult = true; dlg.Close(); };
+            btnCancel.Click += (_, _) => { dlg.Close(); };
+
+            btns.Children.Add(btnAuto);
+            btns.Children.Add(btnManual);
+            btns.Children.Add(btnCancel);
+            root.Children.Add(btns);
+
+            dlg.Content = root;
+            dlg.ShowDialog();
+            return result;
+        }
+
+        private void ShowDownloadLinkDialog(string htmlUrl, string downloadUrl, string tagName)
+        {
+            var dlg = new System.Windows.Window
+            {
+                Title = $"Download — {tagName}",
+                Owner = this,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                ResizeMode = System.Windows.ResizeMode.NoResize,
+                Width = 500,
+                Height = 220,
+                Background = System.Windows.Media.Brushes.White
+            };
+
+            var root = new System.Windows.Controls.Grid { Margin = new System.Windows.Thickness(20) };
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+
+            void AddRow(int row, string label, string url)
+            {
+                var lbl = new System.Windows.Controls.TextBlock
+                {
+                    Text = label,
+                    FontWeight = System.Windows.FontWeights.SemiBold,
+                    Margin = new System.Windows.Thickness(0, row == 0 ? 0 : 12, 0, 4)
+                };
+                System.Windows.Controls.Grid.SetRow(lbl, row * 2);
+                root.Children.Add(lbl);
+
+                var panel = new System.Windows.Controls.StackPanel
+                {
+                    Orientation = System.Windows.Controls.Orientation.Horizontal
+                };
+                var box = new System.Windows.Controls.TextBox
+                {
+                    Text = url,
+                    IsReadOnly = true,
+                    Width = 360,
+                    Margin = new System.Windows.Thickness(0, 0, 6, 0),
+                    VerticalContentAlignment = System.Windows.VerticalAlignment.Center
+                };
+                var btnCopy = new System.Windows.Controls.Button { Content = "Copiar", Width = 70 };
+                btnCopy.Click += (_, _) =>
+                {
+                    System.Windows.Clipboard.SetText(url);
+                    btnCopy.Content = "Copiado!";
+                };
+                panel.Children.Add(box);
+                panel.Children.Add(btnCopy);
+                System.Windows.Controls.Grid.SetRow(panel, row * 2 + 1);
+                root.Children.Add(panel);
+            }
+
+            // Adiciona linhas extras no Grid para os dois grupos
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+
+            AddRow(0, "Pagina do release:", htmlUrl);
+            AddRow(1, "Link direto do ZIP:", downloadUrl);
+
+            dlg.Content = root;
+            dlg.ShowDialog();
         }
 
         private void OnAiAssistantClick(object sender, RoutedEventArgs e)

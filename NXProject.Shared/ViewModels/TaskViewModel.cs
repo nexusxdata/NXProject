@@ -657,11 +657,30 @@ namespace NXProject.ViewModels
                     if (int.TryParse(raw, out int id))
                         _task.PredecessorIds.Add(id);
                 }
-                if (_task.PredecessorIds.Count == 0 && _task.StartFixed)
+                if (_task.PredecessorIds.Count == 0)
                 {
-                    _task.StartFixed = false;
-                    OnPropertyChanged(nameof(StartFixed));
-                    OnPropertyChanged(nameof(StartDisplay));
+                    if (_task.StartFixed)
+                    {
+                        _task.StartFixed = false;
+                        OnPropertyChanged(nameof(StartFixed));
+                        OnPropertyChanged(nameof(StartDisplay));
+                    }
+                    // Recalcula início a partir do irmão anterior (ou início da sprint)
+                    var newStart = GetSprintStart?.Invoke() ?? _task.Start;
+                    if (newStart != _task.Start)
+                    {
+                        var durationHours = DurationHours;
+                        _task.Start = newStart;
+                        if (!_task.FinishFixed)
+                            _task.Finish = ProjectCalendarService.AddWorkingHours(newStart, durationHours);
+                        OnPropertyChanged(nameof(Start));
+                        OnPropertyChanged(nameof(Finish));
+                        OnPropertyChanged(nameof(StartDisplay));
+                        OnPropertyChanged(nameof(FinishDisplay));
+                        OnPropertyChanged(nameof(DurationDays));
+                        RecalcAncestorSummaries();
+                        ScheduleSuccessors?.Invoke(this);
+                    }
                 }
 
                 MoveAfterLatestPredecessor();

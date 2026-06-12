@@ -93,7 +93,7 @@ namespace NXProject.ViewModels
             var vm = new TaskViewModel(task, depth, LowDaysPerSfp, MediumDaysPerSfp, HighDaysPerSfp)
             {
                 ParentViewModel = parentVm,
-                GetSprintStart = () => GetTaskSprintStart(task),
+                GetSprintStart = () => GetDefaultStart(task),
                 FindByInternalId = internalId =>
                     FlatTasks.FirstOrDefault(t => t.Model.Id == internalId),
                 FindByDisplayId = displayId =>
@@ -157,6 +157,26 @@ namespace NXProject.ViewModels
                     return sprint.Start;
             }
             return Project.StartDate;
+        }
+
+        // Retorna a data de início padrão ao limpar o fix de uma tarefa sem predecessora:
+        // se existe irmão anterior no mesmo nível → dia útil seguinte ao fim do irmão,
+        // caso contrário → início da sprint/projeto.
+        private DateTime GetDefaultStart(ProjectTask task)
+        {
+            System.Collections.Generic.IList<ProjectTask> siblings = task.Parent != null
+                ? (System.Collections.Generic.IList<ProjectTask>)task.Parent.Children
+                : Project.Tasks;
+
+            var idx = siblings.IndexOf(task);
+            if (idx > 0)
+            {
+                var prev = siblings[idx - 1];
+                var inclusiveFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Start, prev.Finish);
+                return ProjectCalendarService.AddWorkingDays(inclusiveFinish, 1);
+            }
+
+            return GetTaskSprintStart(task);
         }
 
         private void RecalcSprints()

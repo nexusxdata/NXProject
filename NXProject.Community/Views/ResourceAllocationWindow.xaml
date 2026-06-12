@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Grade de alocacao"
-        Width="980"
-        Height="680"
+        Width="1100"
+        Height="820"
         WindowStartupLocation="CenterOwner"
         Background="White">
     <Grid Margin="16">
