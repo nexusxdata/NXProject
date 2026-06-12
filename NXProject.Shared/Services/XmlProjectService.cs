@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Xml.Linq;
 using NXProject.Models;
 
@@ -36,6 +37,9 @@ namespace NXProject.Services
                     SaveTasks(project.Tasks)
                 )
             );
+            var dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
             doc.Save(filePath);
         }
 
