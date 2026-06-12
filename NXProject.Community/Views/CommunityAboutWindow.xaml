@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Sobre o NXProject Community 1.0.2"
         Width="580"
-        Height="360"
+        Height="410"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="White">
@@ -77,6 +77,15 @@
                         <TextBlock Text="Edicao Community gratuita para pessoas e empresas. Edicao Comercial/Enterprise com suporte e vendida separadamente. Recursos pagos nao fazem parte desta edicao."
                                    Margin="0,2,0,10"
                                    TextWrapping="Wrap"/>
+
+                        <TextBlock Text="Novas versoes (NXStore)"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="Baixe atualizacoes e o pacote Community mais recente em:"
+                                   Margin="0,2,0,4"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Margin="0,0,0,10">
+                            <Hyperlink Click="OnNxStoreClick">https://github.com/nexusxdata/NXProject</Hyperlink>
+                        </TextBlock>
 
                         <TextBlock Text="Contato"
                                    FontWeight="SemiBold"/>
