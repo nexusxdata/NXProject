@@ -30,7 +30,7 @@ namespace NXProject.ViewModels
 
         public ObservableCollection<string> ZoomLevels { get; } = new()
         {
-            "Dia", "Semana", "Mês", "Trimestre"
+            "Dia", "Semana", "Sprint", "Mês", "Trimestre", "Semestre"
         };
 
         public ObservableCollection<string> SprintNumberingModes { get; } = new()
@@ -1240,7 +1240,18 @@ namespace NXProject.ViewModels
                     yield return ft;
         }
 
-        partial void OnProjectChanged(Project value) => RebuildSprintCollections();
+        partial void OnProjectChanged(Project value)
+        {
+            RebuildSprintCollections();
+            if (!string.IsNullOrEmpty(value?.LastZoom))
+                SelectedZoom = value.LastZoom;
+        }
+
+        partial void OnSelectedZoomChanged(string value)
+        {
+            if (Project != null)
+                Project.LastZoom = value;
+        }
 
         /// <summary>
         /// Sincroniza Sprints/SprintOptions com Project.Sprints e recalcula números

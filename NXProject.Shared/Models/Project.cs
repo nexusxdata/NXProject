@@ -39,6 +39,9 @@ namespace NXProject.Models
         // Modo de numeracao das sprints: Sequencial, Par ou Impar
         public string SprintNumberingMode { get; set; } = "Sequencial";
 
+        // Último nível de zoom selecionado pelo usuário
+        public string LastZoom { get; set; } = "Mês";
+
         // Quantos dias de duracao equivalem a 1 SFP em cada faixa
         public double LowDaysPerSfp { get; set; } = 1.0;
         public double MediumDaysPerSfp { get; set; } = 1.0;

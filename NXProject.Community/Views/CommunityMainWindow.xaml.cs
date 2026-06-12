@@ -54,7 +54,14 @@ namespace NXProject.Views
                 syncingVerticalScroll = false;
             };
 
-            TaskGridCtrl.HeaderHeightMeasured += h => GanttCtrl.SetHeaderHeight(h);
+            TaskGridCtrl.HeaderHeightMeasured += h =>
+            {
+                // Em modo Dia o cabeçalho do Gantt tem 3 tiers (60px); não deixar TaskGrid sobrescrever.
+                if (GanttCtrl.ShowDayHeader)
+                    GanttCtrl.SetHeaderHeight(60.0);
+                else
+                    GanttCtrl.SetHeaderHeight(h);
+            };
             TaskGridCtrl.RowTopsMeasured += tops => GanttCtrl.SetRowTops(tops);
             TaskGridCtrl.TaskMoveRequested += (sourceTask, targetTask, insertAfter) =>
             {
@@ -76,9 +83,18 @@ namespace NXProject.Views
                     GanttCtrl.SelectedTask = vm.SelectedTask;
 
                 if (args.PropertyName == nameof(MainViewModel.SelectedZoom))
-                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded,
-                        () => GanttCtrl.ScrollToProjectStart());
+                {
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+                    {
+                        ZoomLabel.Text = vm.SelectedZoom;
+                        GanttCtrl.ZoomLevel = vm.SelectedZoom;
+                        GanttCtrl.ForceRender();
+                        GanttCtrl.ScrollToProjectStart();
+                    });
+                }
             };
+
+            ZoomLabel.Text = vm.SelectedZoom;
 
             GanttCtrl.TaskClicked += task =>
             {
@@ -551,6 +567,50 @@ namespace NXProject.Views
             window.ShowDialog();
         }
 
+        private void OnZoomMenuClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var levels = vm.ZoomLevels;
+            var idx = levels.IndexOf(vm.SelectedZoom);
+            var next = levels[(idx + 1) % levels.Count];
+            ApplyZoom(next);
+        }
+
+        private void ApplyZoom(string zoom)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            vm.SelectedZoom = zoom;
+            ZoomLabel.Text = zoom;
+            GanttCtrl.ZoomLevel = zoom;
+
+            // Dia, Semana, Trimestre e Semestre mostram header por dia; Sprint e Mês usam view por sprint
+            bool dayMode = zoom is "Dia" or "Semana" or "Trimestre" or "Semestre";
+            DayHeaderToggle.IsChecked = dayMode;
+            GanttCtrl.ShowDayHeader = dayMode;
+            double h = dayMode ? 60.0 : 40.0;
+            TaskGridCtrl.SetColumnHeaderHeight(h);
+            GanttCtrl.SetHeaderHeight(h);
+
+            GanttCtrl.ForceRender();
+        }
+
+        private void OnDayHeaderToggled(object sender, RoutedEventArgs e)
+        {
+            var isDayMode = DayHeaderToggle.IsChecked == true;
+            GanttCtrl.ShowDayHeader = isDayMode;
+            if (isDayMode)
+            {
+                TaskGridCtrl.SetColumnHeaderHeight(60.0);
+                GanttCtrl.SetHeaderHeight(60.0);
+            }
+            else
+            {
+                TaskGridCtrl.SetColumnHeaderHeight(40.0);
+                GanttCtrl.SetHeaderHeight(40.0);
+            }
+            GanttCtrl.ForceRender();
+        }
+
         private void OnRefreshViewClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is MainViewModel vm)
@@ -661,6 +721,7 @@ namespace NXProject.Views
 
         private void OnCommunityWindowLoaded(object sender, RoutedEventArgs e)
         {
+
             if (_licenseAccepted)
                 return;
 

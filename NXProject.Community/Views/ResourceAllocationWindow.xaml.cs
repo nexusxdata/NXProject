@@ -49,7 +49,14 @@ namespace NXProject.Views
         {
             if (!IsLoaded) return;
             var isGapTab = MainTabControl.SelectedIndex == 1;
+
+            // Colapsar/expandir também a RowDefinition — height fixa não some só com Visibility.Collapsed
+            var outerGrid = (Grid)DetailsPanel.Parent;
+            outerGrid.RowDefinitions[2].Height = isGapTab
+                ? new GridLength(0)
+                : new GridLength(220);
             DetailsPanel.Visibility = isGapTab ? Visibility.Collapsed : Visibility.Visible;
+
             if (isGapTab)
                 BuildGapTimeline();
         }
@@ -743,7 +750,7 @@ namespace NXProject.Views
             var maxDate = allLeaf.Max(t => t.Model.Finish).Date;
             if (maxDate <= minDate) return;
 
-            const double leftCol = 220;
+            const double leftCol = 250;
             const double rowH = 46;
             const double headerH = 34;
             const double barPad = 7;

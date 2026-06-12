@@ -146,9 +146,43 @@
                 <TextBlock x:Name="LayoutToggleText" Text="⤢" FontSize="14" FontWeight="SemiBold"/>
             </Button>
             <Separator/>
-            <TextBlock Text="Zoom:" VerticalAlignment="Center" Margin="4,0,4,0" FontSize="11"/>
-            <ComboBox ItemsSource="{Binding ZoomLevels}" SelectedItem="{Binding SelectedZoom}"
-                      Width="80" VerticalAlignment="Center"/>
+            <Button x:Name="ZoomMenuButton"
+                    Style="{StaticResource ToolbarButtonStyle}"
+                    Click="OnZoomMenuClick"
+                    ToolTip="Alterar nível de zoom"
+                    MinWidth="52" Padding="4,2">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#x1F50D;" FontSize="12" Margin="0,0,3,0"/>
+                    <TextBlock x:Name="ZoomLabel" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Separator/>
+            <ToggleButton x:Name="DayHeaderToggle"
+                          ToolTip="Visão por dia (mês / sprint / dias úteis)"
+                          Width="28"
+                          Height="24"
+                          Padding="3"
+                          Checked="OnDayHeaderToggled"
+                          Unchecked="OnDayHeaderToggled"
+                          VerticalAlignment="Center">
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="18" Height="18">
+                        <!-- calendário: borda + grade 3x2 -->
+                        <Rectangle Canvas.Left="0" Canvas.Top="2" Width="18" Height="16"
+                                   Stroke="#444" StrokeThickness="1.5" Fill="Transparent" RadiusX="1" RadiusY="1"/>
+                        <!-- linha topo (cabeçalho) -->
+                        <Line X1="0" Y1="6" X2="18" Y2="6" Stroke="#444" StrokeThickness="1.2"/>
+                        <!-- colunas -->
+                        <Line X1="6"  Y1="6" X2="6"  Y2="18" Stroke="#444" StrokeThickness="1"/>
+                        <Line X1="12" Y1="6" X2="12" Y2="18" Stroke="#444" StrokeThickness="1"/>
+                        <!-- linha meio -->
+                        <Line X1="0" Y1="12" X2="18" Y2="12" Stroke="#444" StrokeThickness="1"/>
+                        <!-- pinos do topo -->
+                        <Line X1="5"  Y1="0" X2="5"  Y2="4" Stroke="#444" StrokeThickness="1.5"/>
+                        <Line X1="13" Y1="0" X2="13" Y2="4" Stroke="#444" StrokeThickness="1.5"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
         </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom" Background="{StaticResource PrimaryBrush}" Foreground="White" Height="22">

@@ -52,6 +52,10 @@ namespace NXProject.Controls
             DependencyProperty.Register(nameof(SelectedTask), typeof(TaskViewModel),
                 typeof(GanttControl), new PropertyMetadata(null, OnSelectedTaskChanged));
 
+        public static readonly DependencyProperty ShowDayHeaderProperty =
+            DependencyProperty.Register(nameof(ShowDayHeader), typeof(bool),
+                typeof(GanttControl), new PropertyMetadata(false, OnLayoutChanged));
+
         private const double RowHeight = 22;
         private const double BarPadding = 4;
         private const double LeftPadding = 16;
@@ -126,13 +130,21 @@ namespace NXProject.Controls
             set => SetValue(SelectedTaskProperty, value);
         }
 
+        public bool ShowDayHeader
+        {
+            get => (bool)GetValue(ShowDayHeaderProperty);
+            set => SetValue(ShowDayHeaderProperty, value);
+        }
+
         private double DayWidth => ZoomLevel switch
         {
-            "Dia" => 48,
-            "Semana" => 18,
-            "Mês" => 8,
-            "Trimestre" => 2.4,
-            _ => 18
+            "Dia"        => 22.0,
+            "Semana"     => 14.0,
+            "Sprint"     => 10.0,
+            "Mês"        => 7.0,
+            "Trimestre"  => 3.5,
+            "Semestre"   => 1.8,
+            _            => 14.0
         };
 
         public void SetHeaderHeight(double height)
@@ -294,6 +306,21 @@ namespace NXProject.Controls
 
         private void OnCanvasMouseMove(object sender, MouseEventArgs e)
         {
+            // Atualiza coordenada de data no overlay do cabeçalho
+            var pos = e.GetPosition(GanttCanvas);
+            var scrollOffset = GanttScroll.HorizontalOffset;
+            var dayIndex = (int)Math.Floor((pos.X + scrollOffset - LeftPadding) / DayWidth);
+            if (dayIndex >= 0 && ProjectStart != default)
+            {
+                var hoverDate = ProjectStart.AddDays(dayIndex);
+                DateCoordLabel.Text = hoverDate.ToString("ddd, dd/MM/yyyy", CultureInfo.CurrentCulture);
+                // Posiciona o overlay próximo ao cursor, dentro dos limites do cabeçalho
+                double labelX = pos.X + scrollOffset - LeftPadding < 10 ? 4
+                              : Math.Min(pos.X - 10, ActualWidth - 140);
+                DateCoordBorder.Margin = new Thickness(labelX, 0, 0, 0);
+                DateCoordBorder.Visibility = Visibility.Visible;
+            }
+
             if (_dragState == null)
                 return;
 
@@ -324,6 +351,8 @@ namespace NXProject.Controls
 
         private void OnCanvasMouseLeave(object sender, MouseEventArgs e)
         {
+            DateCoordBorder.Visibility = Visibility.Collapsed;
+
             if (_dragState == null || e.LeftButton == MouseButtonState.Pressed)
                 return;
 
@@ -344,7 +373,7 @@ namespace NXProject.Controls
             GanttCanvas.Children.Clear();
             if (Tasks == null || Tasks.Count == 0) return;
 
-            var totalDays = 365;
+            var totalDays = ZoomLevel is "Semestre" ? 730 : 365;
             var canvasWidth = LeftPadding + (totalDays * DayWidth);
             GanttCanvas.Width = canvasWidth;
             GanttCanvas.Height = GetCanvasHeight();
@@ -366,7 +395,9 @@ namespace NXProject.Controls
         private void RenderHeader(double scrollOffset)
         {
             HeaderCanvas.Children.Clear();
-            var totalDays = 365;
+            if (ShowDayHeader) { RenderDayHeader(scrollOffset); return; }
+
+            var totalDays = ZoomLevel is "Semestre" ? 730 : 365;
             var topBandHeight = Math.Max(18, HeaderHeight * 0.48);
             var sprintBandTop = topBandHeight;
             var sprintBandHeight = Math.Max(14, HeaderHeight - sprintBandTop);
@@ -538,8 +569,172 @@ namespace NXProject.Controls
             });
         }
 
+        private void RenderDayHeader(double scrollOffset)
+        {
+            var totalDays = ZoomLevel is "Semestre" ? 730 : 365;
+            double tierH = Math.Floor(HeaderHeight / 3.0);
+            double dayTop = tierH;       // Tier 2: dias
+            double sprintTop = tierH * 2; // Tier 3: sprints
+            double canvasW = Math.Max(ActualWidth, LeftPadding + totalDays * DayWidth);
+
+            // ── Background bands
+            HeaderCanvas.Children.Add(new Rectangle { Width = canvasW, Height = tierH, Fill = new SolidColorBrush(Color.FromRgb(232, 232, 232)) });
+            var dayBgFull = new Rectangle { Width = canvasW, Height = tierH, Fill = new SolidColorBrush(Color.FromRgb(245, 247, 251)) };
+            Canvas.SetTop(dayBgFull, dayTop);
+            HeaderCanvas.Children.Add(dayBgFull);
+            var sprintBgFull = new Rectangle { Width = canvasW, Height = tierH, Fill = new SolidColorBrush(Color.FromRgb(220, 228, 240)) };
+            Canvas.SetTop(sprintBgFull, sprintTop);
+            HeaderCanvas.Children.Add(sprintBgFull);
+
+            // Separators between tiers
+            foreach (var ty in new[] { dayTop, sprintTop })
+                HeaderCanvas.Children.Add(new Line { X1 = 0, Y1 = ty, X2 = canvasW, Y2 = ty, Stroke = new SolidColorBrush(Color.FromRgb(190, 200, 215)), StrokeThickness = 1 });
+
+            // ── Tier 1: Month spans
+            int? curMonthKey = null;
+            double monthStartX = 0;
+            for (int d = 0; d <= totalDays; d++)
+            {
+                var date = ProjectStart.AddDays(d < totalDays ? d : d - 1);
+                int monthKey = date.Year * 100 + date.Month;
+                bool flush = d == totalDays || (curMonthKey.HasValue && monthKey != curMonthKey);
+                if (flush && curMonthKey.HasValue)
+                {
+                    double endX = LeftPadding + (d * DayWidth) - scrollOffset;
+                    double w = endX - monthStartX;
+                    if (w > 2 && monthStartX < canvasW + 80 && endX > -80)
+                    {
+                        var prevDate = ProjectStart.AddDays(d - 1);
+                        var lbl = new TextBlock
+                        {
+                            Text = prevDate.ToString("MMMM yyyy", CultureInfo.CurrentCulture),
+                            FontSize = 10,
+                            FontWeight = FontWeights.SemiBold,
+                            Foreground = Brushes.DimGray,
+                            Width = Math.Max(8, w - 6),
+                            TextTrimming = TextTrimming.CharacterEllipsis
+                        };
+                        Canvas.SetLeft(lbl, monthStartX + 4);
+                        Canvas.SetTop(lbl, (tierH - 13) / 2);
+                        HeaderCanvas.Children.Add(lbl);
+                        if (d < totalDays)
+                            HeaderCanvas.Children.Add(new Line { X1 = endX, Y1 = 0, X2 = endX, Y2 = dayTop, Stroke = new SolidColorBrush(Color.FromRgb(180, 190, 210)), StrokeThickness = 1 });
+                    }
+                }
+                if (d < totalDays && (!curMonthKey.HasValue || monthKey != curMonthKey))
+                {
+                    curMonthKey = monthKey;
+                    monthStartX = LeftPadding + (d * DayWidth) - scrollOffset;
+                }
+            }
+
+            // ── Tier 2: Sprint spans
+            var realSprints = Sprints;
+            if (realSprints != null && realSprints.Count > 0)
+            {
+                foreach (var sprint in realSprints)
+                {
+                    var dayOffset = (sprint.Start - ProjectStart).TotalDays;
+                    var spanDays = Math.Max(1, (sprint.End - sprint.Start).TotalDays + 1);
+                    var x = LeftPadding + (dayOffset * DayWidth) - scrollOffset;
+                    var sw = spanDays * DayWidth;
+                    if (x + sw < -80 || x > ActualWidth + 80) continue;
+                    var bg = new Rectangle { Width = sw, Height = tierH, Fill = new SolidColorBrush(sprint.Number % 2 == 0 ? Color.FromRgb(210, 221, 236) : Color.FromRgb(222, 231, 243)), Stroke = new SolidColorBrush(Color.FromRgb(180, 194, 214)), StrokeThickness = 1 };
+                    Canvas.SetLeft(bg, x); Canvas.SetTop(bg, sprintTop); HeaderCanvas.Children.Add(bg);
+                    var lbl = new TextBlock { Text = sprint.Name, FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)), Width = Math.Max(16, sw - 4), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = $"{sprint.Name}  ({sprint.Start:dd/MM/yy} – {sprint.End:dd/MM/yy})" };
+                    Canvas.SetLeft(lbl, x + 2); Canvas.SetTop(lbl, sprintTop + (tierH - 12) / 2); HeaderCanvas.Children.Add(lbl);
+                }
+            }
+            else
+            {
+                var sprintDays = Math.Max(1, SprintDurationDays);
+                var firstSprint = Math.Max(1, FirstSprintNumber);
+                for (int so = 0; so < totalDays; so += sprintDays)
+                {
+                    var sn = GetSprintNumberFromIndex(so / sprintDays, firstSprint);
+                    var x = LeftPadding + (so * DayWidth) - scrollOffset;
+                    var sw = sprintDays * DayWidth;
+                    if (x + sw < -80 || x > ActualWidth + 80) continue;
+                    var bg = new Rectangle { Width = sw, Height = tierH, Fill = new SolidColorBrush(sn % 2 == 0 ? Color.FromRgb(210, 221, 236) : Color.FromRgb(222, 231, 243)), Stroke = new SolidColorBrush(Color.FromRgb(180, 194, 214)), StrokeThickness = 1 };
+                    Canvas.SetLeft(bg, x); Canvas.SetTop(bg, sprintTop); HeaderCanvas.Children.Add(bg);
+                    var lbl = new TextBlock { Text = $"Sprint {sn}", FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)), Width = Math.Max(16, sw - 4), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                    Canvas.SetLeft(lbl, x + 2); Canvas.SetTop(lbl, sprintTop + (tierH - 12) / 2); HeaderCanvas.Children.Add(lbl);
+                }
+            }
+
+            // ── Tier 3: Working day numbers + weekend shading
+            for (int d = 0; d < totalDays; d++)
+            {
+                var date = ProjectStart.AddDays(d);
+                var x = LeftPadding + (d * DayWidth) - scrollOffset;
+                if (x + DayWidth < -4 || x > ActualWidth + 4) continue;
+
+                bool isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+                bool isToday = date.Date == DateTime.Today;
+
+                bool isMonday    = date.DayOfWeek == DayOfWeek.Monday;
+                bool isWednesday = date.DayOfWeek == DayOfWeek.Wednesday;
+                bool isFriday    = date.DayOfWeek == DayOfWeek.Friday;
+
+                // Cell background: seg=azul suave, qua/sex=azul mais vivo, ter/qui=neutro, fim semana=cinza
+                Color cellFill = isWeekend                ? Color.FromRgb(220, 220, 224)
+                    : isToday                             ? Color.FromRgb(198, 225, 255)
+                    : isMonday                            ? Color.FromRgb(220, 232, 250)
+                    : isWednesday || isFriday             ? Color.FromRgb(170, 200, 235)
+                    :                                       Color.FromRgb(245, 247, 251);
+                var cell = new Rectangle { Width = DayWidth, Height = tierH, Fill = new SolidColorBrush(cellFill) };
+                Canvas.SetLeft(cell, x); Canvas.SetTop(cell, dayTop);
+                HeaderCanvas.Children.Add(cell);
+
+                // Segunda: número do dia — sempre visível, pode invadir a célula da terça
+                if (isMonday)
+                {
+                    var dayLbl = new TextBlock
+                    {
+                        Text = date.Day.ToString(),
+                        FontSize = 9,
+                        Foreground = isToday ? new SolidColorBrush(Color.FromRgb(0, 80, 180))
+                                             : new SolidColorBrush(Color.FromRgb(40, 70, 130)),
+                        FontWeight = FontWeights.SemiBold,
+                        Width = 20,   // largura fixa — invade a terça quando DayWidth < 20
+                        TextAlignment = TextAlignment.Left,
+                        TextTrimming = TextTrimming.None
+                    };
+                    Canvas.SetLeft(dayLbl, x + 1); Canvas.SetTop(dayLbl, dayTop + (tierH - 12) / 2);
+                    Panel.SetZIndex(dayLbl, 1); // fica sobre a célula da terça
+                    HeaderCanvas.Children.Add(dayLbl);
+                }
+
+                // Separador: mostra a cada dia se ≥8px, senão só nas segundas
+                var drawSep = DayWidth >= 8 || date.DayOfWeek == DayOfWeek.Monday;
+                if (drawSep)
+                    HeaderCanvas.Children.Add(new Line { X1 = x, Y1 = dayTop, X2 = x, Y2 = HeaderHeight, Stroke = new SolidColorBrush(Color.FromRgb(218, 220, 225)), StrokeThickness = 0.5 });
+            }
+
+            // Bottom border
+            HeaderCanvas.Children.Add(new Line { X1 = 0, Y1 = HeaderHeight - 1, X2 = canvasW, Y2 = HeaderHeight - 1, Stroke = Brushes.LightGray, StrokeThickness = 1 });
+        }
+
         private void RenderGrid(int totalDays, double canvasWidth)
         {
+            // Weekend column shading in day view (drawn first, below grid lines)
+            if (ShowDayHeader)
+            {
+                for (int d = 0; d < totalDays; d++)
+                {
+                    var date = ProjectStart.AddDays(d);
+                    if (date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday) continue;
+                    var wkRect = new Rectangle
+                    {
+                        Width = DayWidth,
+                        Height = GanttCanvas.Height,
+                        Fill = new SolidColorBrush(Color.FromRgb(242, 242, 244))
+                    };
+                    Canvas.SetLeft(wkRect, LeftPadding + (d * DayWidth));
+                    GanttCanvas.Children.Add(wkRect);
+                }
+            }
+
             var rowCount = Tasks?.Count ?? 0;
             for (int i = 0; i <= rowCount; i++)
             {
@@ -558,13 +753,16 @@ namespace NXProject.Controls
             for (int d = 0; d < totalDays; d++)
             {
                 var date = ProjectStart.AddDays(d);
+                var sprintDaysG = Math.Max(1, SprintDurationDays);
                 bool drawLine = ZoomLevel switch
                 {
-                    "Dia" => true,
-                    "Semana" => date.DayOfWeek == DayOfWeek.Monday,
-                    "Mês" => date.Day == 1,
-                    "Trimestre" => date.Day == 1 && (date.Month % 3 == 1),
-                    _ => date.DayOfWeek == DayOfWeek.Monday
+                    "Dia"       => date.DayOfWeek == DayOfWeek.Monday,
+                    "Semana"    => date.DayOfWeek == DayOfWeek.Monday,
+                    "Sprint"    => d % sprintDaysG == 0,
+                    "Mês"       => date.Day == 1,
+                    "Trimestre" => date.Day == 1 && date.Month % 3 == 1,
+                    "Semestre"  => date.Day == 1 && date.Month % 6 == 1,
+                    _           => date.DayOfWeek == DayOfWeek.Monday
                 };
 
                 if (!drawLine) continue;
@@ -575,7 +773,7 @@ namespace NXProject.Controls
                     Y1 = 0,
                     X2 = LeftPadding + (d * DayWidth),
                     Y2 = GanttCanvas.Height,
-                    Stroke = Brushes.WhiteSmoke,
+                    Stroke = ZoomLevel == "Dia" ? new SolidColorBrush(Color.FromRgb(220, 220, 220)) : Brushes.WhiteSmoke,
                     StrokeThickness = 1
                 });
             }

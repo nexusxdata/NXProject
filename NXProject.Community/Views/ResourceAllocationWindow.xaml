@@ -5,6 +5,7 @@
         Width="1100"
         Height="820"
         WindowStartupLocation="CenterOwner"
+        WindowState="Maximized"
         Background="White">
     <Grid Margin="16">
         <Grid.RowDefinitions>

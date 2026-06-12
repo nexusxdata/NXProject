@@ -86,6 +86,13 @@ namespace NXProject.Controls
             TaskGrid.LayoutUpdated += OnLayoutUpdated;
         }
 
+        /// <summary>Altera a altura do cabeçalho do DataGrid para sincronizar com o Gantt (ex: modo Dia = 60px).</summary>
+        public void SetColumnHeaderHeight(double height)
+        {
+            TaskGrid.ColumnHeaderHeight = height;
+            _headerMeasured = false; // permite re-publicar após o resize
+        }
+
         private void OnLayoutUpdated(object? sender, EventArgs e)
         {
             var header = FindChild<DataGridColumnHeadersPresenter>(TaskGrid);

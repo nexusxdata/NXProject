@@ -12,6 +12,22 @@
         <!-- Cabeçalho de datas (altura sincronizada com o header do DataGrid) -->
         <Canvas x:Name="HeaderCanvas" Grid.Row="0" Background="#E8E8E8" ClipToBounds="True"/>
 
+        <!-- Overlay de coordenada: flutua no topo do cabeçalho sobre o texto do mês -->
+        <Border x:Name="DateCoordBorder"
+                Grid.Row="0"
+                IsHitTestVisible="False"
+                Visibility="Collapsed"
+                Background="#DD1A2A3A"
+                CornerRadius="3"
+                Padding="6,2"
+                VerticalAlignment="Top"
+                HorizontalAlignment="Left"
+                Margin="0,2,0,0"
+                Panel.ZIndex="10">
+            <TextBlock x:Name="DateCoordLabel"
+                       FontSize="10" Foreground="White" FontWeight="SemiBold"/>
+        </Border>
+
         <!-- Scroll horizontal compartilhado; vertical sincronizado com o DataGrid -->
         <ScrollViewer Grid.Row="1" x:Name="GanttScroll"
                       HorizontalScrollBarVisibility="Auto"
