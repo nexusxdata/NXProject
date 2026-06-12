@@ -168,3 +168,17 @@ O NXProject usa modelo **Open Core / licenciamento dual**:
 | **Comercial / Enterprise** | Sem restrições de revenda ou SaaS, suporte oficial, SLA, módulos exclusivos (impressão/PDF, calendário avançado, integrações com IA). Contate-nos para proposta. |
 
 > Vender, cobrar ou oferecer o NXProject como serviço pago exige licença comercial.
+
+---
+
+## Conte como o NXProject está ajudando o seu projeto
+
+Se o NXProject está sendo usado na sua empresa e está fazendo diferença — seja na visibilidade do cronograma, na gestão de equipe ou na integração com o Azure DevOps — **queremos saber**.
+
+Envie um relato curto para `comercial.nexus.xdata@gmail.com` contando:
+
+- O contexto do projeto (tamanho da equipe, segmento, desafio que tinha)
+- O que melhorou depois que passou a usar o NXProject
+- Se autoriza, divulgamos o caso como referência para a comunidade
+
+Relatos reais ajudam a priorizar melhorias, atraem novos colaboradores e mostram para outras equipes que o produto funciona na prática. **Sua experiência pode ajudar outros projetos.**
