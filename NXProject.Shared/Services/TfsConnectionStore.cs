@@ -39,6 +39,12 @@ namespace NXProject.Services
         /// <summary>Sincroniza links de predecessora no DevOps durante Export → Sincronizar.</summary>
         public bool SyncPredecessorLinks { get; set; } = true;
 
+        /// <summary>
+        /// Janela de dias futuros para incluir sprints no dropdown mesmo sem work items.
+        /// Padrão 90 dias. Use 0 para incluir apenas sprints com itens importados.
+        /// </summary>
+        public int FutureSprintDays { get; set; } = 90;
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&
@@ -63,6 +69,7 @@ namespace NXProject.Services
             public string FinishFieldName { get; set; } = "Data_Fim";
             public string FixedStartTagName { get; set; } = "DT-INI-NEG";
             public bool SyncPredecessorLinks { get; set; } = true;
+            public int FutureSprintDays { get; set; } = 90;
             public bool RememberToken { get; set; }
             public string EncryptedToken { get; set; } = string.Empty;
         }
@@ -100,6 +107,7 @@ namespace NXProject.Services
                 options.FixedStartTagName = string.IsNullOrWhiteSpace(stored.FixedStartTagName)
                     ? options.FixedStartTagName : stored.FixedStartTagName.Trim();
                 options.SyncPredecessorLinks = stored.SyncPredecessorLinks;
+                options.FutureSprintDays = stored.FutureSprintDays >= 0 ? stored.FutureSprintDays : 90;
                 if (stored.RememberToken)
                     options.PersonalAccessToken = WindowsDataProtection.Decrypt(stored.EncryptedToken);
             }
@@ -127,6 +135,7 @@ namespace NXProject.Services
                 FinishFieldName = string.IsNullOrWhiteSpace(options.FinishFieldName) ? "Data_Fim" : options.FinishFieldName.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
                 SyncPredecessorLinks = options.SyncPredecessorLinks,
+                FutureSprintDays = options.FutureSprintDays,
                 RememberToken = rememberToken,
                 EncryptedToken = rememberToken
                     ? WindowsDataProtection.Encrypt(options.PersonalAccessToken ?? string.Empty, "NXProject.Tfs")

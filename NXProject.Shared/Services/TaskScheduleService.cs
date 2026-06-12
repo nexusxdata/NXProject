@@ -35,6 +35,16 @@ namespace NXProject.Services
                 : null;
         }
 
+        /// <summary>
+        /// Fator de disponibilidade geral da pessoa no projeto (0–1).
+        /// Padrão 1,0 quando não definido ou inválido.
+        /// </summary>
+        private static double NormalizeAvailabilityFactor(Resource? resource)
+        {
+            var pct = resource?.AvailabilityPercent ?? 100.0;
+            return (double.IsNaN(pct) || pct <= 0) ? 1.0 : Math.Min(1.0, pct / 100.0);
+        }
+
         public static double GetEffectiveDurationHours(ProjectTask task)
         {
             if (task.IsMilestone)
@@ -47,8 +57,11 @@ namespace NXProject.Services
                 if (!hours.HasValue || hours.Value <= 0)
                     continue;
 
-                var allocationFactor = NormalizeAllocationPercent(assignment.AllocationPercent) / 100.0;
-                durations.Add(hours.Value / allocationFactor);
+                // Fator combinado: % alocação na tarefa × % disponibilidade geral
+                var allocationFactor    = NormalizeAllocationPercent(assignment.AllocationPercent) / 100.0;
+                var availabilityFactor  = NormalizeAvailabilityFactor(assignment.Resource);
+                var combined            = Math.Max(0.01, allocationFactor * availabilityFactor);
+                durations.Add(hours.Value / combined);
             }
 
             if (durations.Count > 0)
@@ -57,14 +70,16 @@ namespace NXProject.Services
             var estimatedHours = task.EstimatedHours;
             if (estimatedHours.HasValue && estimatedHours.Value > 0)
             {
-                var allocationFactor = task.Resources.Count == 0
+                // Sem horas por assignment: distribui pelo somatório de alocação × disponibilidade
+                var combinedFactor = task.Resources.Count == 0
                     ? 1.0
                     : task.Resources
-                        .Select(r => NormalizeAllocationPercent(r.AllocationPercent) / 100.0)
+                        .Select(r => NormalizeAllocationPercent(r.AllocationPercent) / 100.0
+                                     * NormalizeAvailabilityFactor(r.Resource))
                         .DefaultIfEmpty(1.0)
                         .Sum();
 
-                return estimatedHours.Value / Math.Max(0.01, allocationFactor);
+                return estimatedHours.Value / Math.Max(0.01, combinedFactor);
             }
 
             return Math.Max(0.0, task.DurationHours);

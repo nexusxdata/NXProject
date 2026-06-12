@@ -133,9 +133,9 @@ namespace NXProject.Services
             var resourcesByKey = new Dictionary<string, Resource>(StringComparer.OrdinalIgnoreCase);
             AddResourceIfAssigned(project, resourcesByKey, rootItem, options.HoursPerDay);
 
-            // Sprints exibidas/numeradas: so as efetivamente usadas pelos work items,
-            // em ordem cronologica, numeradas de 1 em diante (a 1a vira "Sprint 1").
-            foreach (var s in SelectUsedSprints(items.Values, allSprints))
+            // Sprints exibidas/numeradas: usadas pelos work items + futuras dentro da
+            // janela configurada (FutureSprintDays) para o dropdown de escolha de sprint.
+            foreach (var s in SelectUsedSprints(items.Values, allSprints, options.FutureSprintDays))
                 project.Sprints.Add(s);
 
             var context = new BuildContext
@@ -350,11 +350,14 @@ namespace NXProject.Services
                         changes.Add("título");
                     }
 
-                    if (task.Description != null &&
-                        !string.Equals(task.Description.Trim(), (wi.Description ?? string.Empty).Trim(), StringComparison.Ordinal))
+                    if (task.Description != null || !string.IsNullOrWhiteSpace(task.Justificativa))
                     {
-                        ops.Add(PatchAdd("/fields/System.Description", task.Description));
-                        changes.Add("descrição");
+                        var desiredDesc = MergeJustificativa(task.Description, task.Justificativa);
+                        if (!string.Equals(desiredDesc.Trim(), (wi.Description ?? string.Empty).Trim(), StringComparison.Ordinal))
+                        {
+                            ops.Add(PatchAdd("/fields/System.Description", desiredDesc));
+                            changes.Add("descrição");
+                        }
                     }
 
                     // Tags (ex.: "Block") — sincroniza se o conjunto mudou.
@@ -1021,7 +1024,8 @@ namespace NXProject.Services
                 Tags = item.Tags,
                 BlockedByChild = summaryBlocked,
                 TfsStackRank = item.StackRank,
-                TfsIterationPath = item.IterationPath
+                TfsIterationPath = item.IterationPath,
+                Justificativa = ParseJustificativa(item.Description)
             };
             AssignResource(ctx, task, item);
 
@@ -1123,6 +1127,7 @@ namespace NXProject.Services
                 TfsStackRank = item.StackRank,
                 TfsIterationPath = item.IterationPath,
                 StartFixed = hasFixedTag,
+                Justificativa = ParseJustificativa(item.Description),
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
             };
@@ -1287,20 +1292,36 @@ namespace NXProject.Services
         }
 
         /// <summary>
-        /// Filtra as iterations para as efetivamente referenciadas pelos work items
-        /// e as numera de 1 em diante (ordem cronologica). Assim "quantas sprints o
-        /// projeto tem" reflete so as usadas, comecando da 1.
+        /// Retorna as sprints que devem aparecer no projeto:
+        /// (1) Todas efetivamente usadas pelos work items importados.
+        /// (2) Sprints futuras cujo início está dentro de <paramref name="futureSprintDays"/>
+        ///     dias a partir de hoje — permite ao usuário mover tarefas para sprints
+        ///     que ainda não têm itens associados. 0 = só as usadas.
         /// </summary>
         private static List<Sprint> SelectUsedSprints(
-            IEnumerable<WorkItem> items, List<Sprint> allSprints)
+            IEnumerable<WorkItem> items, List<Sprint> allSprints, int futureSprintDays = 90)
         {
-            // Só Feature/Story têm sprint — Project/Epic não contam para a lista.
+            // Sprints referenciadas por Feature/Story
             var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var it in items)
                 if (IsFeatureOrStoryType(it.WorkItemType) && !string.IsNullOrWhiteSpace(it.IterationPath))
                     used.Add(it.IterationPath.Trim());
 
-            return NumberSprints(allSprints.Where(s => s.Path != null && used.Contains(s.Path!)));
+            // Sprints futuras dentro da janela configurada
+            IEnumerable<Sprint> candidates = allSprints.Where(s => s.Path != null && used.Contains(s.Path!));
+            if (futureSprintDays > 0)
+            {
+                var horizon = DateTime.Today.AddDays(futureSprintDays);
+                var future = allSprints.Where(s =>
+                    s.Path != null &&
+                    !used.Contains(s.Path!) &&
+                    s.Start != default &&
+                    s.Start.Date >= DateTime.Today &&
+                    s.Start.Date <= horizon.Date);
+                candidates = candidates.Concat(future);
+            }
+
+            return NumberSprints(candidates);
         }
 
         private static bool IsFeatureOrStoryType(string? type) =>
@@ -1629,6 +1650,43 @@ namespace NXProject.Services
             !string.IsNullOrWhiteSpace(tags) &&
             tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
+
+        // Extrai o texto do bloco "Justificativa: <texto>." da descrição do DevOps.
+        internal static string? ParseJustificativa(string? description)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+                return null;
+            const string marker = "Justificativa:";
+            var idx = description.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+                return null;
+            var start = idx + marker.Length;
+            var end = description.IndexOf('.', start);
+            var text = end >= 0 ? description[start..end] : description[start..];
+            return text.Trim() is { Length: > 0 } t ? t : null;
+        }
+
+        // Substitui/insere o bloco "Justificativa: <texto>." na descrição.
+        internal static string MergeJustificativa(string? description, string? justificativa)
+        {
+            var baseDesc = description ?? string.Empty;
+            // Remove bloco existente
+            const string marker = "Justificativa:";
+            var idx = baseDesc.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                var end = baseDesc.IndexOf('.', idx + marker.Length);
+                baseDesc = end >= 0
+                    ? (baseDesc[..idx] + baseDesc[(end + 1)..]).Trim()
+                    : baseDesc[..idx].Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(justificativa))
+            {
+                var sep = string.IsNullOrWhiteSpace(baseDesc) ? string.Empty : "\n";
+                baseDesc = baseDesc + sep + $"Justificativa: {justificativa.Trim()}.";
+            }
+            return baseDesc;
+        }
 
         private static bool IsType(WorkItem item, string type) =>
             string.Equals(item.WorkItemType, type, StringComparison.OrdinalIgnoreCase);

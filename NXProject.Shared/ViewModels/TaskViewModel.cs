@@ -643,6 +643,12 @@ namespace NXProject.ViewModels
             set { _task.Notes = value; OnPropertyChanged(); }
         }
 
+        public string? Justificativa
+        {
+            get => _task.Justificativa;
+            set { _task.Justificativa = value; OnPropertyChanged(); }
+        }
+
         public void ShiftSchedule(int dayDelta)
         {
             if (dayDelta == 0)

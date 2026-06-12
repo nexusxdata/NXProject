@@ -62,6 +62,10 @@ namespace NXProject.Models
         // false → limpa Data_Inicio no TFS (se tarefa não estiver Closed).
         public bool StartFixed { get; set; } = false;
 
+        // Justificativa de atraso ou observação relevante. Persiste na description
+        // do DevOps como "Justificativa: <texto>." e é lida de volta no import.
+        public string? Justificativa { get; set; }
+
         // Subtarefas
         public ObservableCollection<ProjectTask> Children { get; set; } = new();
 

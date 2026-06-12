@@ -1,0 +1,149 @@
+<Window x:Class="NXProject.Views.PeopleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pessoas"
+        Width="860" Height="560"
+        MinWidth="640" MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cabeçalho -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="Pessoas" FontSize="18" FontWeight="SemiBold" Foreground="#2B579A"/>
+            <TextBlock FontSize="12" Foreground="#666" Margin="0,4,0,0" TextWrapping="Wrap">
+                <Run Text="% Disponibilidade"/>
+                <Run Text=" = quanto do dia útil a pessoa dedica a este projeto (ex.: 80% → 40 h estimadas levam 50 h no cronograma)."/>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Barra de ferramentas -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="+ Incluir Pessoa" Width="130" Height="28" Click="OnAddClick"/>
+            <Button Content="Excluir Selecionada" Width="140" Height="28" Margin="8,0,0,0"
+                    Click="OnDeleteClick"/>
+            <Button Content="Recalcular Cronograma" Width="160" Height="28" Margin="8,0,0,0"
+                    Click="OnRecalcClick" ToolTip="Recalcula as datas-fim de todas as tarefas com base na disponibilidade atual"/>
+            <TextBlock x:Name="CountLabel" VerticalAlignment="Center" Margin="16,0,0,0"
+                       FontSize="12" Foreground="#666"/>
+        </StackPanel>
+
+        <!-- Grade de pessoas -->
+        <DataGrid x:Name="PeopleGrid" Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserReorderColumns="False"
+                  SelectionMode="Single"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  RowHeight="30"
+                  FontSize="12"
+                  CanUserSortColumns="True"
+                  CellEditEnding="OnCellEditEnding">
+
+
+            <DataGrid.Columns>
+                <!-- Nome -->
+                <DataGridTextColumn Header="Nome" Width="*" MinWidth="120"
+                                    Binding="{Binding Name, UpdateSourceTrigger=LostFocus}"/>
+
+                <!-- Email -->
+                <DataGridTextColumn Header="E-mail" Width="200"
+                                    Binding="{Binding Email, UpdateSourceTrigger=LostFocus}"/>
+
+                <!-- % Disponibilidade — coluna central da tela -->
+                <DataGridTemplateColumn Header="% Disponibilidade" Width="140">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="52"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding AvailabilityText}"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,6,0"
+                                           Foreground="{Binding AvailabilityColor}"/>
+                                <!-- Mini barra visual -->
+                                <Border Grid.Column="1" Height="8" CornerRadius="3"
+                                        Background="#E0E0E0" VerticalAlignment="Center"
+                                        Margin="0,0,8,0">
+                                    <Border CornerRadius="3"
+                                            HorizontalAlignment="Left"
+                                            Height="8"
+                                            Width="{Binding AvailabilityBarWidth}"
+                                            Background="{Binding AvailabilityColor}"/>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <TextBox Text="{Binding AvailabilityPercent, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="4,2" VerticalContentAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- HH/dia -->
+                <DataGridTextColumn Header="HH/dia (cap.)" Width="90"
+                                    Binding="{Binding MaxUnitsPerDay, UpdateSourceTrigger=LostFocus}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+
+                <!-- Tipo -->
+                <DataGridTemplateColumn Header="Tipo" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding TypeLabel}" VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding TypeOptionsSource}"
+                                      SelectedItem="{Binding TypeLabel, UpdateSourceTrigger=PropertyChanged}"
+                                      FontSize="12"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Tarefas -->
+                <DataGridTextColumn Header="Atividades" Width="80"
+                                    Binding="{Binding TaskCount, Mode=OneWay}" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+
+                <!-- Importado TFS -->
+                <DataGridCheckBoxColumn Header="TFS" Width="46"
+                                        Binding="{Binding IsImportedFromTfs, Mode=OneWay}" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Rodapé -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Margin="0,0,16,0"
+                       FontSize="12" Foreground="#2E7D32"/>
+            <Button Content="Fechar" Width="90" Height="30" IsCancel="True" Click="OnCloseClick"/>
+        </StackPanel>
+    </Grid>
+</Window>

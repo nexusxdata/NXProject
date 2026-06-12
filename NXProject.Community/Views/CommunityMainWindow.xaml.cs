@@ -337,21 +337,8 @@ namespace NXProject.Views
             if (DataContext is not MainViewModel vm)
                 return;
 
-            var window = new Window
-            {
-                Title = "Configurações de Sprint",
-                Owner = this,
-                Width = 760,
-                Height = 520,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Background = (System.Windows.Media.Brush)FindResource("BackgroundBrush"),
-                Content = new Controls.SprintSettingsControl
-                {
-                    DataContext = vm
-                }
-            };
-
-            window.ShowDialog();
+            new SprintManagerWindow(vm) { Owner = this }.ShowDialog();
+            GanttCtrl.ForceRender();
         }
 
         private void OnSfpSettingsClick(object sender, RoutedEventArgs e)
@@ -418,6 +405,31 @@ namespace NXProject.Views
             GanttCtrl.ForceRender();
         }
 
+        private void OnDelayedTasksClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            new DelayedTasksWindow(vm) { Owner = this }.ShowDialog();
+        }
+
+        private void OnPeopleClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            try
+            {
+                new PeopleWindow(vm) { Owner = this }.ShowDialog();
+                GanttCtrl.ForceRender();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao abrir Pessoas:\n{ex.Message}", "Pessoas",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void OnToolbarButtonClick(object sender, RoutedEventArgs e)
         {
             TaskGridCtrl.FocusSelectedTask();
@@ -457,7 +469,8 @@ namespace NXProject.Views
             _licenseAccepted = ShowLicenseDialog(requireAcceptance: true);
             if (!_licenseAccepted)
             {
-                Close();
+                _allowClose = true;
+                Application.Current.Shutdown();
                 return;
             }
         }
@@ -466,7 +479,8 @@ namespace NXProject.Views
         {
             var licenseWindow = new CommunityLicenseWindow
             {
-                Owner = this
+                Owner = this,
+                RequireAcceptance = requireAcceptance
             };
 
             var accepted = licenseWindow.ShowDialog() == true;

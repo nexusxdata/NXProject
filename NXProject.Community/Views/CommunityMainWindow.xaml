@@ -63,6 +63,8 @@
                 <MenuItem Header="S_PF..." Click="OnSfpSettingsClick"/>
                 <MenuItem Header="_Calendario..." Click="OnCalendarSettingsClick"/>
                 <MenuItem Header="_Alocacao de Recursos..." Click="OnResourceAllocationClick"/>
+                <MenuItem Header="_Health Check do Projeto..." Click="OnDelayedTasksClick"/>
+                <MenuItem Header="_Pessoas..." Click="OnPeopleClick"/>
             </MenuItem>
             <MenuItem Header="_IA">
                 <MenuItem Header="Assistente de _Tarefas..." Click="OnAiAssistantClick"/>

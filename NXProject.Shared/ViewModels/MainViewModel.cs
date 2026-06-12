@@ -443,10 +443,12 @@ namespace NXProject.ViewModels
         {
             if (project == null) return;
 
-            var existingAllocations = CaptureAllocationPercentByDevOpsTask();
+            var existingAllocations   = CaptureAllocationPercentByDevOpsTask();
+            var existingAvailability  = CaptureAvailabilityByResourceKey();
 
             Project = project;
             RestoreAllocationPercentByDevOpsTask(Project.Tasks, existingAllocations);
+            RestoreAvailabilityByResourceKey(Project.Resources, existingAvailability);
             ApplyProjectSprintSettingsToViewModel(project);
             _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
             RebuildFlatTasks();
@@ -496,6 +498,30 @@ namespace NXProject.ViewModels
 
                 RestoreAllocationPercentByDevOpsTask(task.Children, existingAllocations);
                 task.RecalcSummary();
+            }
+        }
+
+        private Dictionary<string, double> CaptureAvailabilityByResourceKey()
+        {
+            var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in Project.Resources)
+            {
+                var key = GetResourceKey(r);
+                if (!string.IsNullOrWhiteSpace(key))
+                    result[key] = r.AvailabilityPercent;
+            }
+            return result;
+        }
+
+        private static void RestoreAvailabilityByResourceKey(
+            IEnumerable<Models.Resource> resources,
+            Dictionary<string, double> saved)
+        {
+            foreach (var r in resources)
+            {
+                var key = GetResourceKey(r);
+                if (!string.IsNullOrWhiteSpace(key) && saved.TryGetValue(key, out var pct))
+                    r.AvailabilityPercent = pct;
             }
         }
 
@@ -1116,19 +1142,26 @@ namespace NXProject.ViewModels
                     yield return ft;
         }
 
-        partial void OnProjectChanged(Project value)
+        partial void OnProjectChanged(Project value) => RebuildSprintCollections();
+
+        /// <summary>
+        /// Sincroniza Sprints/SprintOptions com Project.Sprints e recalcula números
+        /// das tarefas. Chame após adicionar ou remover sprints em Project.Sprints.
+        /// </summary>
+        public void RebuildSprintCollections()
         {
             Sprints.Clear();
             SprintOptions.Clear();
             SprintOptions.Add(NoSprintOption);
-            if (value?.Sprints != null)
-                foreach (var s in value.Sprints)
+            if (Project?.Sprints != null)
+                foreach (var s in Project.Sprints)
                 {
                     Sprints.Add(s);
                     SprintOptions.Add(s);
                 }
             foreach (var vm in FlatTasks)
                 vm.RefreshSprintOptions(SprintOptions);
+            RecalcSprints();
         }
 
         private void ApplyProjectSprintSettingsToViewModel(Project project)

@@ -5,7 +5,8 @@
         Width="700"
         Height="540"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanMinimize"
+        ResizeMode="NoResize"
+        Closing="OnWindowClosing"
         Background="White">
 
     <Grid Margin="20">

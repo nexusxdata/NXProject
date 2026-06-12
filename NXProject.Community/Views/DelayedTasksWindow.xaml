@@ -1,0 +1,267 @@
+<Window x:Class="NXProject.Views.DelayedTasksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Health Check do Projeto"
+        Width="1100" Height="720"
+        MinWidth="860" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Health Check do Projeto"
+                       FontSize="18" FontWeight="SemiBold" Foreground="#2B579A"/>
+        </StackPanel>
+
+        <TabControl Grid.Row="1" SelectionChanged="OnTabChanged">
+
+            <!-- ══════════════════ ABA 1: ATRASOS POR RECURSO ══════════════════ -->
+            <TabItem Header="Atrasos por Recurso">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" MinHeight="80"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="*" MinHeight="160"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="RefreshButton" Content="Atualizar" Width="90" Height="28"
+                                Click="OnRefreshClick"/>
+                        <TextBlock x:Name="SummaryText" Margin="16,0,0,0"
+                                   VerticalAlignment="Center" FontSize="12" Foreground="#666"/>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="DelayGrid"/>
+                    </ScrollViewer>
+
+                    <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch"
+                                  Background="#DDD" Cursor="SizeNS" ResizeBehavior="PreviousAndNext"/>
+
+                    <Grid Grid.Row="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="DetailsTitle" Grid.Row="0"
+                                   Text="Selecione uma célula da grade"
+                                   FontWeight="SemiBold" Margin="0,4,0,6" Foreground="#2B579A"/>
+                        <DataGrid x:Name="DetailsGrid" Grid.Row="1"
+                                  AutoGenerateColumns="False" CanUserAddRows="False"
+                                  CanUserDeleteRows="False" CanUserReorderColumns="False"
+                                  SelectionMode="Single" GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column" RowHeight="28" FontSize="12">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="ID" Width="70" IsReadOnly="True">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding DisplayId}" Tag="{Binding}"
+                                                    Click="OnIdClick" BorderThickness="0"
+                                                    Background="Transparent" Foreground="#1F4EA1"
+                                                    FontWeight="SemiBold" Cursor="Hand"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Nome" Width="*" Binding="{Binding Name}" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Recurso" Width="130" Binding="{Binding ResourceName}" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="HH Faltante" Width="90" Binding="{Binding RemainingHoursText}" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            <Setter Property="Margin" Value="0,0,8,0"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Início" Width="80" Binding="{Binding StartText}" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Fim" Width="80" Binding="{Binding FinishText}" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Atraso" Width="80" Binding="{Binding DelayText}" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="Foreground" Value="#B23600"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Predecessoras" Width="90" Binding="{Binding Predecessors}" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTemplateColumn Header="Justificativa" Width="240">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Justificativa}" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" Margin="4,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                    <DataGridTemplateColumn.CellEditingTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Justificativa, UpdateSourceTrigger=LostFocus}" Padding="2"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellEditingTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- ══════════════════ ABA 2: TODAS AS ATIVIDADES ATRASADAS ══════════════════ -->
+            <TabItem Header="Atividades Atrasadas">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock x:Name="AllDelayedSummary" VerticalAlignment="Center"
+                                   FontSize="12" Foreground="#666"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="AllDelayedGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              CanUserDeleteRows="False" CanUserReorderColumns="False"
+                              SelectionMode="Single" GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column" RowHeight="28" FontSize="12"
+                              CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="ID" Width="70" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding DisplayId}" Tag="{Binding}"
+                                                Click="OnIdClick" BorderThickness="0"
+                                                Background="Transparent" Foreground="#1F4EA1"
+                                                FontWeight="SemiBold" Cursor="Hand"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Nome" Width="*" Binding="{Binding Name}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Recurso" Width="130" Binding="{Binding ResourceName}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="% Completo" Width="90" Binding="{Binding PercentText}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="HH Faltante" Width="90" Binding="{Binding RemainingHoursText}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Right"/>
+                                        <Setter Property="Margin" Value="0,0,8,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Início" Width="80" Binding="{Binding StartText}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Fim Prev." Width="80" Binding="{Binding FinishText}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Atraso" Width="80"
+                                                Binding="{Binding DelayText}" IsReadOnly="True"
+                                                SortMemberPath="DelayDays">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="#B23600"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Sprint" Width="90" Binding="{Binding SprintLabel}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Predecessoras" Width="90" Binding="{Binding Predecessors}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Center"/></Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Justificativa" Width="240">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Justificativa}" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" Margin="4,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding Justificativa, UpdateSourceTrigger=LostFocus}" Padding="2"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ══════════════════ ABA 3: CURVA S ══════════════════ -->
+            <TabItem Header="Curva S de Progresso">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Legenda -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Rectangle Width="28" Height="4" Fill="#1F4EA1" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Planejado" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <Rectangle Width="16" Height="4" Fill="#2E7D32" VerticalAlignment="Center"/>
+                            <Line X1="0" Y1="2" X2="14" Y2="2" Stroke="#2E7D32" StrokeThickness="2"
+                                  StrokeDashArray="3 2" VerticalAlignment="Center" Margin="2,0,4,0"/>
+                            <TextBlock Text="Realizado / Tendência" VerticalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                        <TextBlock x:Name="CurveSummary" VerticalAlignment="Center"
+                                   FontSize="12" Foreground="#555" FontStyle="Italic"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="1" Background="White">
+                        <Canvas x:Name="CurveCanvas"
+                                SizeChanged="OnCurveCanvasSizeChanged"
+                                MouseMove="OnCurveCanvasMouseMove"
+                                MouseLeave="OnCurveCanvasMouseLeave"
+                                ClipToBounds="True">
+                            <Border x:Name="CurveTooltip"
+                                    Background="#F5F7FA" BorderBrush="#90A4AE" BorderThickness="1"
+                                    CornerRadius="4" Padding="10,7"
+                                    Visibility="Collapsed" Panel.ZIndex="10"
+                                    IsHitTestVisible="False">
+                                <StackPanel>
+                                    <TextBlock x:Name="TooltipSprint" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="TooltipPlanned" FontSize="11" Foreground="#1F4EA1"/>
+                                    <TextBlock x:Name="TooltipActual"  FontSize="11" Foreground="#2E7D32"/>
+                                    <TextBlock x:Name="TooltipGap"     FontSize="11" Foreground="#B23600"/>
+                                </StackPanel>
+                            </Border>
+                        </Canvas>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+</Window>

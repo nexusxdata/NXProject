@@ -29,6 +29,7 @@ namespace NXProject.Views
             FinishFieldBox.Text = saved.FinishFieldName;
             FixedStartTagBox.Text = saved.FixedStartTagName;
             SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
+            FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
             if (saved.RootWorkItemId > 0)
                 RootIdBox.Text = saved.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
             if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
@@ -74,7 +75,8 @@ namespace NXProject.Views
                 StartFieldName = string.IsNullOrWhiteSpace(StartFieldBox.Text) ? "Data_Inicio" : StartFieldBox.Text.Trim(),
                 FinishFieldName = string.IsNullOrWhiteSpace(FinishFieldBox.Text) ? "Data_Fim" : FinishFieldBox.Text.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(FixedStartTagBox.Text) ? "DT-INI-NEG" : FixedStartTagBox.Text.Trim(),
-                SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true
+                SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
+                FutureSprintDays = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90
             };
 
             SetImporting(true);

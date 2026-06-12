@@ -99,6 +99,14 @@
                                   Content="Sincronizar links de predecessora no DevOps"
                                   IsChecked="True"
                                   Margin="0,10,0,0"/>
+                        <StackPanel Margin="0,10,0,0">
+                            <TextBlock Text="Sprints futuras no dropdown (dias)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="FutureSprintDaysBox" Height="26" Padding="6,3" Width="80" Text="90"/>
+                                <TextBlock Text="  dias (0 = só sprints com itens)" FontSize="11"
+                                           Foreground="#888" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Expander>
 
