@@ -1,21 +1,29 @@
 # NXProject Community
 
-**Cronograma de projetos com visibilidade real sobre o seu Azure DevOps.**
+**Visibilidade gerencial sobre o Azure DevOps — sem mudar nada no fluxo da equipe técnica.**
 
-O NXProject conecta o backlog do Azure DevOps a uma visão de planejamento com datas, dependências, alocação de pessoas e Gantt — tudo em um aplicativo desktop gratuito para Windows.
+O NXProject permite que Líderes Técnicos, Scrum Masters, Gerentes de Projeto e Gestores de Negócio enxerguem o cenário real do projeto a partir do Azure DevOps: cronograma, dependências, alocação de pessoas e Gantt — em um aplicativo desktop gratuito para Windows.
+
+A equipe técnica continua trabalhando no Azure DevOps exatamente como antes: rastreabilidade de código, pull requests, pipelines e qualidade de entrega intactos. O NXProject lê esses dados e transforma o backlog em uma visão de planejamento que gestores e líderes conseguem usar para tomar decisões.
 
 ---
 
 ## O problema que o NXProject resolve
 
-Equipes que usam Azure DevOps têm o backlog organizado, sprints definidas e work items atualizados — mas **não têm uma visão de cronograma integrada**. Perguntas simples ficam sem resposta rápida:
+Projetos de TI que usam Azure DevOps têm o backlog organizado, sprints definidas e work items atualizados — mas **a gestão não tem uma visão de cronograma integrada**. Perguntas simples ficam sem resposta rápida:
 
 - Quando essa Feature vai terminar, considerando todas as Stories?
 - Qual recurso está sobrecarregado no próximo mês?
 - Se essa Story atrasar, o que mais é impactado?
 - O projeto vai entregar no prazo?
 
-O NXProject importa a hierarquia do Azure DevOps e transforma esses dados em um cronograma gerenciável, com Gantt, dependências, alocação e alertas de atraso.
+O NXProject importa a hierarquia do Azure DevOps e transforma esses dados em um cronograma gerenciável, com Gantt, dependências, alocação e alertas de atraso — **sem que a equipe técnica precise mudar nada no seu processo**.
+
+---
+
+## Cada perfil vê o que precisa, sem atrito
+
+A equipe de desenvolvimento segue usando o Azure DevOps como fonte da verdade: commits vinculados, code review, automação de pipeline e rastreabilidade completa permanecem inalterados. O NXProject é uma **camada de leitura e planejamento** sobre esses dados, voltada para quem precisa responder perguntas de prazo, capacidade e risco.
 
 ---
 
