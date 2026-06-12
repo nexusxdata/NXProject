@@ -146,6 +146,17 @@
                 <TextBlock x:Name="LayoutToggleText" Text="⤢" FontSize="14" FontWeight="SemiBold"/>
             </Button>
             <Separator/>
+            <Button x:Name="ResourceFilterButton"
+                    Style="{StaticResource ToolbarButtonStyle}"
+                    Click="OnResourceFilterClick"
+                    ToolTip="Filtrar por recurso"
+                    MinWidth="36" Padding="4,2">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#x1F464;" FontSize="13" Margin="0,0,2,0"/>
+                    <TextBlock x:Name="ResourceFilterLabel" FontSize="10" VerticalAlignment="Center" Foreground="#2B579A"/>
+                </StackPanel>
+            </Button>
+            <Separator/>
             <Button x:Name="ZoomMenuButton"
                     Style="{StaticResource ToolbarButtonStyle}"
                     Click="OnZoomMenuClick"

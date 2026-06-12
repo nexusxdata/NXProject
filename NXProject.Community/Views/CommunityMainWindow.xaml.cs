@@ -567,6 +567,28 @@ namespace NXProject.Views
             window.ShowDialog();
         }
 
+        private void OnResourceFilterClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var resources = vm.Project.Resources;
+            if (!resources.Any()) return;
+
+            var dlg = new ResourceFilterWindow(resources, vm.ResourceFilter) { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                vm.SetResourceFilter(dlg.SelectedResourceIds);
+                UpdateResourceFilterLabel(vm);
+            }
+        }
+
+        private void UpdateResourceFilterLabel(MainViewModel vm)
+        {
+            if (vm.ResourceFilter == null)
+                ResourceFilterLabel.Text = string.Empty;
+            else
+                ResourceFilterLabel.Text = $"({vm.ResourceFilter.Count})";
+        }
+
         private void OnZoomMenuClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;

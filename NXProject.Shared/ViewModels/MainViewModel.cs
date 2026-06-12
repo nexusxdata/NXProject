@@ -25,6 +25,18 @@ namespace NXProject.ViewModels
         [ObservableProperty] private int _firstSprintNumber = 1;
         [ObservableProperty] private string _sprintNumberingMode = "Sequencial";
         [ObservableProperty] private double _lowDaysPerSfp = 1.0;
+
+        // null = sem filtro (todos visíveis); conjunto de IDs = apenas esses recursos
+        public HashSet<int>? ResourceFilter { get; private set; }
+
+        public bool HasResourceFilter => ResourceFilter != null;
+
+        public void SetResourceFilter(HashSet<int>? filter)
+        {
+            ResourceFilter = filter;
+            OnPropertyChanged(nameof(HasResourceFilter));
+            RebuildFlatTasks();
+        }
         [ObservableProperty] private double _mediumDaysPerSfp = 1.0;
         [ObservableProperty] private double _highDaysPerSfp = 1.0;
 
@@ -141,10 +153,24 @@ namespace NXProject.ViewModels
                 }
             };
 
+            // Filtro de recurso: verifica se a tarefa ou algum descendente passa
+            if (ResourceFilter != null && !TaskMatchesResourceFilter(task))
+                return;
+
             FlatTasks.Add(vm);
             if (vm.IsExpanded)
                 foreach (var child in task.Children)
                     AddFlatRecursive(child, depth + 1, vm);
+        }
+
+        private bool TaskMatchesResourceFilter(ProjectTask task)
+        {
+            if (ResourceFilter == null) return true;
+            // Tarefa folha: verifica recursos diretos
+            if (!task.Children.Any())
+                return task.Resources.Any(r => ResourceFilter!.Contains(r.Resource.Id));
+            // Tarefa pai: passa se pelo menos um descendente passa
+            return task.Children.Any(TaskMatchesResourceFilter);
         }
 
         private DateTime GetTaskSprintStart(ProjectTask task)
