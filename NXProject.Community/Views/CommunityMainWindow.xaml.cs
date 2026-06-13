@@ -65,7 +65,7 @@ namespace NXProject.Views
             TaskGridCtrl.HeaderHeightMeasured += h =>
             {
                 // Em modo Dia o cabeçalho do Gantt tem 3 tiers (60px); não deixar TaskGrid sobrescrever.
-                if (GanttCtrl.ShowDayHeader)
+                if (GanttCtrl.DayHeaderMode > 0)
                     GanttCtrl.SetHeaderHeight(60.0);
                 else
                     GanttCtrl.SetHeaderHeight(h);
@@ -638,20 +638,26 @@ namespace NXProject.Views
 
             // Dia, Semana, Trimestre e Semestre mostram header por dia; Sprint e Mês usam view por sprint
             bool dayMode = zoom is "Dia" or "Semana" or "Trimestre" or "Semestre";
-            DayHeaderToggle.IsChecked = dayMode;
-            GanttCtrl.ShowDayHeader = dayMode;
-            double h = dayMode ? 60.0 : 40.0;
-            TaskGridCtrl.SetColumnHeaderHeight(h);
-            GanttCtrl.SetHeaderHeight(h);
+            int currentMode = GanttCtrl.DayHeaderMode;
+            int newMode = dayMode ? (currentMode == 0 ? 1 : currentMode) : 0;
+            ApplyDayHeaderMode(newMode);
 
             GanttCtrl.ForceRender();
         }
 
         private void OnDayHeaderToggled(object sender, RoutedEventArgs e)
         {
-            var isDayMode = DayHeaderToggle.IsChecked == true;
-            GanttCtrl.ShowDayHeader = isDayMode;
-            if (isDayMode)
+            // Cicla: 0 (off) → 1 (dia1: seg/qua/sex) → 2 (dia2: dígito compacto) → 0
+            int next = (GanttCtrl.DayHeaderMode + 1) % 3;
+            ApplyDayHeaderMode(next);
+        }
+
+        private void ApplyDayHeaderMode(int mode)
+        {
+            GanttCtrl.DayHeaderMode = mode;
+            DayHeaderToggle.IsChecked = mode > 0;
+
+            if (mode > 0)
             {
                 TaskGridCtrl.SetColumnHeaderHeight(60.0);
                 GanttCtrl.SetHeaderHeight(60.0);
@@ -661,6 +667,15 @@ namespace NXProject.Views
                 TaskGridCtrl.SetColumnHeaderHeight(40.0);
                 GanttCtrl.SetHeaderHeight(40.0);
             }
+
+            DayHeaderToggle.ToolTip = mode switch
+            {
+                0 => "Visão por dia (clique para ativar Dia 1)",
+                1 => "Visão Dia 1 — segunda/quarta/sexta destacadas (clique para Dia 2)",
+                2 => "Visão Dia 2 — dígito compacto por dia (clique para desativar)",
+                _ => "Visão por dia"
+            };
+
             GanttCtrl.ForceRender();
         }
 

@@ -41,7 +41,9 @@
                     MouseDown="OnCanvasMouseDown"
                     MouseMove="OnCanvasMouseMove"
                     MouseUp="OnCanvasMouseUp"
-                    MouseLeave="OnCanvasMouseLeave"/>
+                    MouseLeave="OnCanvasMouseLeave"
+                    MouseRightButtonDown="OnCanvasRightMouseDown"
+                    MouseRightButtonUp="OnCanvasRightMouseUp"/>
         </ScrollViewer>
 
     </Grid>

@@ -56,6 +56,10 @@ namespace NXProject.Controls
             DependencyProperty.Register(nameof(ShowDayHeader), typeof(bool),
                 typeof(GanttControl), new PropertyMetadata(false, OnLayoutChanged));
 
+        public static readonly DependencyProperty DayHeaderModeProperty =
+            DependencyProperty.Register(nameof(DayHeaderMode), typeof(int),
+                typeof(GanttControl), new PropertyMetadata(0, OnLayoutChanged));
+
         private const double RowHeight = 22;
         private const double BarPadding = 4;
         private const double LeftPadding = 16;
@@ -66,6 +70,7 @@ namespace NXProject.Controls
         private bool _suppressScrollNotification;
         private IReadOnlyList<double>? _rowTops;
         private TaskDragState? _dragState;
+        private TaskResizeState? _resizeState;
 
         public event Action<TaskViewModel>? TaskClicked;
         public event Action<double>? VerticalScrollChanged;
@@ -134,6 +139,17 @@ namespace NXProject.Controls
         {
             get => (bool)GetValue(ShowDayHeaderProperty);
             set => SetValue(ShowDayHeaderProperty, value);
+        }
+
+        // 0 = off, 1 = day1 (seg/qua/sex), 2 = day2 (dígito por dia)
+        public int DayHeaderMode
+        {
+            get => (int)GetValue(DayHeaderModeProperty);
+            set
+            {
+                SetValue(DayHeaderModeProperty, value);
+                SetValue(ShowDayHeaderProperty, value > 0);
+            }
         }
 
         // IDs de tarefas destacadas (predecessoras da task selecionada via botão)
@@ -263,7 +279,8 @@ namespace NXProject.Controls
                 if (e.ChangedButton == MouseButton.Left)
                 {
                     var dragTask = FindDragTaskFromVisual(source);
-                    if (dragTask != null && !dragTask.IsSummary)
+                    // Não permite arrastar início de tarefas que já começaram (início antes de hoje)
+                    if (dragTask != null && !dragTask.IsSummary && dragTask.Start.Date >= DateTime.Today)
                     {
                         _dragState = new TaskDragState(
                             dragTask,
@@ -333,6 +350,32 @@ namespace NXProject.Controls
                 DateCoordBorder.Visibility = Visibility.Visible;
             }
 
+            // Resize de data fim (botão direito + arrastar)
+            if (_resizeState != null)
+            {
+                if (e.RightButton != MouseButtonState.Pressed)
+                {
+                    // Botão solto fora do MouseUp — cancela sem fixar
+                    _resizeState = null;
+                    if (Mouse.Captured == GanttCanvas) Mouse.Capture(null);
+                    GanttCanvas.Cursor = null;
+                    return;
+                }
+
+                var rPos = e.GetPosition(GanttCanvas);
+                var scrollOff = GanttScroll.HorizontalOffset;
+                var finishDayIndex = (int)Math.Round((rPos.X + scrollOff - LeftPadding) / DayWidth);
+                var newFinish = ProjectStart.AddDays(Math.Max(finishDayIndex, 0));
+                // Finish deve ser pelo menos o dia seguinte ao Start
+                if (newFinish <= _resizeState.Task.Start)
+                    newFinish = _resizeState.Task.Start.AddDays(1);
+                if (newFinish != _resizeState.Task.Finish)
+                    _resizeState.Task.Finish = newFinish;
+
+                e.Handled = true;
+                return;
+            }
+
             if (_dragState == null)
                 return;
 
@@ -371,6 +414,36 @@ namespace NXProject.Controls
             EndDrag();
         }
 
+        private void OnCanvasRightMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is not DependencyObject source) return;
+
+            // Usa FindTaskFromVisual para encontrar qualquer barra (incl. tarefas com início no passado)
+            var task = FindTaskFromVisual(source) ?? FindDragTaskFromVisual(source);
+            if (task == null || task.IsSummary) return;
+            if (SelectedTask == null || task.Id != SelectedTask.Id) return;
+
+            _resizeState = new TaskResizeState(task, task.Finish);
+            GanttCanvas.CaptureMouse();
+            GanttCanvas.Cursor = System.Windows.Input.Cursors.SizeWE;
+            e.Handled = true;
+        }
+
+        private void OnCanvasRightMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_resizeState == null) return;
+
+            // Marca data fim como fixada
+            _resizeState.Task.FinishFixed = true;
+            _resizeState = null;
+
+            if (Mouse.Captured == GanttCanvas)
+                Mouse.Capture(null);
+
+            GanttCanvas.Cursor = null;
+            e.Handled = true;
+        }
+
         private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             if (!_suppressScrollNotification &&
@@ -407,6 +480,7 @@ namespace NXProject.Controls
         private void RenderHeader(double scrollOffset)
         {
             HeaderCanvas.Children.Clear();
+            if (DayHeaderMode == 2) { RenderCompactDayHeader(scrollOffset); return; }
             if (ShowDayHeader) { RenderDayHeader(scrollOffset); return; }
 
             var totalDays = ZoomLevel is "Semestre" ? 730 : 365;
@@ -724,6 +798,151 @@ namespace NXProject.Controls
             }
 
             // Bottom border
+            HeaderCanvas.Children.Add(new Line { X1 = 0, Y1 = HeaderHeight - 1, X2 = canvasW, Y2 = HeaderHeight - 1, Stroke = Brushes.LightGray, StrokeThickness = 1 });
+        }
+
+        private void RenderCompactDayHeader(double scrollOffset)
+        {
+            var totalDays = ZoomLevel is "Semestre" ? 730 : 365;
+            double tierH = Math.Floor(HeaderHeight / 3.0);
+            double dayTop    = tierH;
+            double sprintTop = tierH * 2;
+            double canvasW = Math.Max(ActualWidth, LeftPadding + totalDays * DayWidth);
+
+            // Background bands
+            HeaderCanvas.Children.Add(new Rectangle { Width = canvasW, Height = tierH, Fill = new SolidColorBrush(Color.FromRgb(232, 232, 232)) });
+            var dayBg = new Rectangle { Width = canvasW, Height = tierH, Fill = new SolidColorBrush(Color.FromRgb(240, 244, 250)) };
+            Canvas.SetTop(dayBg, dayTop); HeaderCanvas.Children.Add(dayBg);
+            var sprintBg = new Rectangle { Width = canvasW, Height = tierH, Fill = new SolidColorBrush(Color.FromRgb(220, 228, 240)) };
+            Canvas.SetTop(sprintBg, sprintTop); HeaderCanvas.Children.Add(sprintBg);
+
+            foreach (var ty in new[] { dayTop, sprintTop })
+                HeaderCanvas.Children.Add(new Line { X1 = 0, Y1 = ty, X2 = canvasW, Y2 = ty, Stroke = new SolidColorBrush(Color.FromRgb(190, 200, 215)), StrokeThickness = 1 });
+
+            // Tier 1: Month spans (igual ao RenderDayHeader)
+            int? curMonthKey = null;
+            double monthStartX = 0;
+            for (int d = 0; d <= totalDays; d++)
+            {
+                var date = ProjectStart.AddDays(d < totalDays ? d : d - 1);
+                int monthKey = date.Year * 100 + date.Month;
+                bool flush = d == totalDays || (curMonthKey.HasValue && monthKey != curMonthKey);
+                if (flush && curMonthKey.HasValue)
+                {
+                    double endX = LeftPadding + (d * DayWidth) - scrollOffset;
+                    double w = endX - monthStartX;
+                    if (w > 2 && monthStartX < canvasW + 80 && endX > -80)
+                    {
+                        var prevDate = ProjectStart.AddDays(d - 1);
+                        var lbl = new TextBlock { Text = prevDate.ToString("MMMM yyyy", CultureInfo.CurrentCulture), FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = Brushes.DimGray, Width = Math.Max(8, w - 6), TextTrimming = TextTrimming.CharacterEllipsis };
+                        Canvas.SetLeft(lbl, monthStartX + 4); Canvas.SetTop(lbl, (tierH - 13) / 2);
+                        HeaderCanvas.Children.Add(lbl);
+                        if (d < totalDays)
+                            HeaderCanvas.Children.Add(new Line { X1 = endX, Y1 = 0, X2 = endX, Y2 = dayTop, Stroke = new SolidColorBrush(Color.FromRgb(180, 190, 210)), StrokeThickness = 1 });
+                    }
+                }
+                if (d < totalDays && (!curMonthKey.HasValue || monthKey != curMonthKey))
+                {
+                    curMonthKey = monthKey;
+                    monthStartX = LeftPadding + (d * DayWidth) - scrollOffset;
+                }
+            }
+
+            // Tier 2: Sprint spans (igual ao RenderDayHeader)
+            var realSprints = Sprints;
+            if (realSprints != null && realSprints.Count > 0)
+            {
+                foreach (var sprint in realSprints)
+                {
+                    var dayOffset = (sprint.Start - ProjectStart).TotalDays;
+                    var spanDays = Math.Max(1, (sprint.End - sprint.Start).TotalDays + 1);
+                    var x = LeftPadding + (dayOffset * DayWidth) - scrollOffset;
+                    var sw = spanDays * DayWidth;
+                    if (x + sw < -80 || x > ActualWidth + 80) continue;
+                    var bg = new Rectangle { Width = sw, Height = tierH, Fill = new SolidColorBrush(sprint.Number % 2 == 0 ? Color.FromRgb(210, 221, 236) : Color.FromRgb(222, 231, 243)), Stroke = new SolidColorBrush(Color.FromRgb(180, 194, 214)), StrokeThickness = 1 };
+                    Canvas.SetLeft(bg, x); Canvas.SetTop(bg, sprintTop); HeaderCanvas.Children.Add(bg);
+                    var lbl = new TextBlock { Text = sprint.Name, FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)), Width = Math.Max(16, sw - 4), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                    Canvas.SetLeft(lbl, x + 2); Canvas.SetTop(lbl, sprintTop + (tierH - 12) / 2); HeaderCanvas.Children.Add(lbl);
+                }
+            }
+            else
+            {
+                var sprintDays = Math.Max(1, SprintDurationDays);
+                var firstSprint = Math.Max(1, FirstSprintNumber);
+                for (int so = 0; so < totalDays; so += sprintDays)
+                {
+                    var sn = GetSprintNumberFromIndex(so / sprintDays, firstSprint);
+                    var x = LeftPadding + (so * DayWidth) - scrollOffset;
+                    var sw = sprintDays * DayWidth;
+                    if (x + sw < -80 || x > ActualWidth + 80) continue;
+                    var bg = new Rectangle { Width = sw, Height = tierH, Fill = new SolidColorBrush(sn % 2 == 0 ? Color.FromRgb(210, 221, 236) : Color.FromRgb(222, 231, 243)), Stroke = new SolidColorBrush(Color.FromRgb(180, 194, 214)), StrokeThickness = 1 };
+                    Canvas.SetLeft(bg, x); Canvas.SetTop(bg, sprintTop); HeaderCanvas.Children.Add(bg);
+                    var lbl = new TextBlock { Text = $"Sprint {sn}", FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)), Width = Math.Max(16, sw - 4), TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                    Canvas.SetLeft(lbl, x + 2); Canvas.SetTop(lbl, sprintTop + (tierH - 12) / 2); HeaderCanvas.Children.Add(lbl);
+                }
+            }
+
+            // Tier 3: dígito compacto por dia
+            // Dias 10, 20, 30: dígito das dezenas (0, 2, 3) com cores especiais
+            // Demais dias: dígito das unidades (1-9)
+            static (string ch, bool isDec) DayChar(int day)
+            {
+                if (day % 10 == 0 && day <= 30) return (day == 10 ? "0" : (day / 10).ToString(), true);
+                return ((day % 10).ToString(), false);
+            }
+
+            // cores dos marcadores de dezena
+            var color10 = Color.FromRgb(43, 87, 154);   // azul — dia 10
+            var color20 = Color.FromRgb(160, 60, 10);   // laranja escuro — dia 20
+            var color30 = Color.FromRgb(20, 120, 60);   // verde escuro — dia 30
+            static Color DecColor(int day) => day == 10 ? Color.FromRgb(43, 87, 154) : day == 20 ? Color.FromRgb(160, 60, 10) : Color.FromRgb(20, 120, 60);
+
+            for (int d = 0; d < totalDays; d++)
+            {
+                var date = ProjectStart.AddDays(d);
+                var x = LeftPadding + (d * DayWidth) - scrollOffset;
+                if (x + DayWidth < -4 || x > ActualWidth + 4) continue;
+
+                var (ch, isDec) = DayChar(date.Day);
+                bool isToday = date.Date == DateTime.Today;
+                bool isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+
+                // fundo da célula
+                Color cellFill = isToday    ? Color.FromRgb(198, 225, 255)
+                    : isDec && date.Day == 10 ? Color.FromRgb(220, 232, 250)
+                    : isDec && date.Day == 20 ? Color.FromRgb(255, 235, 215)
+                    : isDec && date.Day == 30 ? Color.FromRgb(210, 240, 220)
+                    : isWeekend               ? Color.FromRgb(220, 220, 224)
+                    :                           Color.FromRgb(240, 244, 250);
+                var cell = new Rectangle { Width = DayWidth, Height = tierH, Fill = new SolidColorBrush(cellFill) };
+                Canvas.SetLeft(cell, x); Canvas.SetTop(cell, dayTop);
+                HeaderCanvas.Children.Add(cell);
+
+                // separador vertical
+                if (DayWidth >= 6 || isDec)
+                    HeaderCanvas.Children.Add(new Line { X1 = x, Y1 = dayTop, X2 = x, Y2 = HeaderHeight, Stroke = new SolidColorBrush(isDec ? Color.FromRgb(180, 190, 210) : Color.FromRgb(218, 220, 225)), StrokeThickness = isDec ? 0.8 : 0.4 });
+
+                // dígito
+                if (DayWidth >= 5)
+                {
+                    var fg = isToday ? new SolidColorBrush(Color.FromRgb(0, 80, 180))
+                           : isDec   ? new SolidColorBrush(DecColor(date.Day))
+                           :           new SolidColorBrush(Color.FromRgb(80, 90, 110));
+                    var dayLbl = new TextBlock
+                    {
+                        Text = ch,
+                        FontSize = isDec ? 9 : 8,
+                        FontWeight = isDec ? FontWeights.Bold : FontWeights.Normal,
+                        Foreground = fg,
+                        Width = DayWidth,
+                        TextAlignment = TextAlignment.Center
+                    };
+                    Canvas.SetLeft(dayLbl, x); Canvas.SetTop(dayLbl, dayTop + (tierH - (isDec ? 12 : 11)) / 2);
+                    if (isDec) Panel.SetZIndex(dayLbl, 1);
+                    HeaderCanvas.Children.Add(dayLbl);
+                }
+            }
+
             HeaderCanvas.Children.Add(new Line { X1 = 0, Y1 = HeaderHeight - 1, X2 = canvasW, Y2 = HeaderHeight - 1, Stroke = Brushes.LightGray, StrokeThickness = 1 });
         }
 
@@ -1295,5 +1514,6 @@ namespace NXProject.Controls
 
         private sealed record TaskLayout(TaskViewModel Task, double StartX, double EndX, double CenterY);
         private sealed record TaskDragState(TaskViewModel Task, Point StartPoint, DateTime OriginalStart, int OriginalDuration);
+        private sealed record TaskResizeState(TaskViewModel Task, DateTime OriginalFinish);
     }
 }
