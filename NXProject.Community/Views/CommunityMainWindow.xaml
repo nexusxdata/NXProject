@@ -245,17 +245,20 @@
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="TaskPaneColumn" Width="660" MinWidth="500"/>
+                <ColumnDefinition x:Name="TaskPaneColumn" Width="660" MinWidth="80"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition x:Name="GanttPaneColumn" Width="*" MinWidth="420"/>
             </Grid.ColumnDefinitions>
 
-            <controls:TaskGridControl x:Name="TaskGridCtrl"
-                                      Grid.Column="0"
-                                      DataContext="{Binding}"
-                                      Tasks="{Binding FlatTasks}"
-                                      AvailableSprints="{Binding SprintOptions}"
-                                      AvailableResources="{Binding Project.Resources}"/>
+            <!-- ClipToBounds garante que o cronograma é cortado (não espremido) ao arrastar o splitter -->
+            <Border Grid.Column="0" ClipToBounds="True">
+                <controls:TaskGridControl x:Name="TaskGridCtrl"
+                                          HorizontalAlignment="Left"
+                                          DataContext="{Binding}"
+                                          Tasks="{Binding FlatTasks}"
+                                          AvailableSprints="{Binding SprintOptions}"
+                                          AvailableResources="{Binding Project.Resources}"/>
+            </Border>
 
             <GridSplitter Grid.Column="1" Width="5"
                           HorizontalAlignment="Stretch"

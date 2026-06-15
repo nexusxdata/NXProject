@@ -1025,12 +1025,12 @@ namespace NXProject.Views
         {
             _expandedLayout = expanded;
 
-            TaskPaneColumn.Width = expanded
-                ? new GridLength(920)
-                : new GridLength(660);
-            GanttPaneColumn.Width = expanded
-                ? new GridLength(1, GridUnitType.Star)
-                : new GridLength(1, GridUnitType.Star);
+            // Largura fixa do cronograma — o splitter clip o conteúdo, não espreme as colunas
+            double taskW = expanded ? 920 : 660;
+            TaskPaneColumn.Width = new GridLength(taskW);
+            TaskGridCtrl.Width = taskW;
+
+            GanttPaneColumn.Width = new GridLength(1, GridUnitType.Star);
 
             TaskGridCtrl.SetPresentationMode(expanded);
             LayoutToggleText.Text = expanded ? "⤡" : "⤢";
