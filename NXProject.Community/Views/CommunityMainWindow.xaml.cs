@@ -710,9 +710,9 @@ namespace NXProject.Views
 
             var dlg = new SaveFileDialog
             {
-                Title      = "Exportar cronograma para PDF",
-                Filter     = "PDF (*.pdf)|*.pdf",
-                FileName   = $"{SanitizeFileName(projectName)} - Cronograma",
+                Title      = Str("Pdf_SaveTitle"),
+                Filter     = Str("Pdf_Filter"),
+                FileName   = $"{SanitizeFileName(projectName)}{Str("Pdf_FileSuffix")}",
                 DefaultExt = "pdf"
             };
             if (dlg.ShowDialog(this) != true)
@@ -762,16 +762,21 @@ namespace NXProject.Views
             try
             {
                 PdfExportService.Export(captureArea, projectName, nxLogo,
-                    companyName, companyLogo, dlg.FileName);
-                MessageBox.Show($"PDF exportado com sucesso:\n{dlg.FileName}",
-                    "Exportar PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+                    companyName, companyLogo, dlg.FileName,
+                    exportedOnLabel: Str("Pdf_FooterExported"),
+                    scheduleSubject: Str("Pdf_SubjectSchedule"));
+                MessageBox.Show($"{Str("Pdf_SuccessMsg")}\n{dlg.FileName}",
+                    Str("Pdf_SuccessTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Erro ao exportar PDF:\n{ex.Message}",
-                    "Exportar PDF", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{Str("Pdf_ErrorMsg")}\n{ex.Message}",
+                    Str("Pdf_ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        private static string Str(string key)
+            => Application.Current.TryFindResource(key) as string ?? key;
 
         private static string SanitizeFileName(string name)
         {

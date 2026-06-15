@@ -11,7 +11,7 @@ namespace NXProject.Views
 {
     public partial class AppSettingsWindow : Window
     {
-        private const int MaxLogoBytes = 5 * 1024 * 1024; // 5 MB
+        private const int MaxLogoBytes = 5 * 1024 * 1024;
         private const int NormalizedWidth  = 300;
         private const int NormalizedHeight = 80;
 
@@ -25,19 +25,15 @@ namespace NXProject.Views
             LoadCurrentSettings();
         }
 
-        // ── Inicialização ──────────────────────────────────────────────────
-
         private void LoadCurrentSettings()
         {
             var opts = TfsConnectionStore.Load();
-
             CompanyNameBox.Text = opts.CompanyName ?? string.Empty;
             _logoBase64         = opts.CompanyLogoBase64 ?? string.Empty;
 
             if (!string.IsNullOrEmpty(_logoBase64))
                 ShowLogoPreview(_logoBase64);
 
-            // Idioma
             foreach (ComboBoxItem item in LanguageCombo.Items)
             {
                 if (item.Tag?.ToString() == _selectedLanguage)
@@ -56,16 +52,15 @@ namespace NXProject.Views
         {
             var dlg = new OpenFileDialog
             {
-                Title  = "Selecionar logo da empresa",
-                Filter = "Imagens|*.png;*.jpg;*.jpeg;*.bmp;*.gif|PNG|*.png|JPEG|*.jpg;*.jpeg|BMP|*.bmp"
+                Title  = Str("Settings_BrowseTitle"),
+                Filter = Str("Settings_BrowseFilter")
             };
             if (dlg.ShowDialog(this) != true) return;
 
-            var info = new FileInfo(dlg.FileName);
-            if (info.Length > MaxLogoBytes)
+            if (new FileInfo(dlg.FileName).Length > MaxLogoBytes)
             {
-                MessageBox.Show("O arquivo selecionado excede o limite de 5 MB.",
-                    "Logo muito grande", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Str("Settings_LogoTooBig"),
+                    Str("Settings_LogoTooBigTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -77,15 +72,15 @@ namespace NXProject.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Não foi possível processar a imagem:\n{ex.Message}",
-                    "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{Str("Settings_LogoErrorMsg")}\n{ex.Message}",
+                    Str("Settings_LogoErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void OnClearLogoClick(object sender, RoutedEventArgs e)
         {
             _logoBase64 = string.Empty;
-            LogoPreviewImage.Source    = null;
+            LogoPreviewImage.Source     = null;
             LogoPreviewImage.Visibility = Visibility.Collapsed;
             LogoPlaceholder.Visibility  = Visibility.Visible;
             ClearLogoButton.IsEnabled   = false;
@@ -97,17 +92,13 @@ namespace NXProject.Views
             {
                 var bytes  = Convert.FromBase64String(base64);
                 var bitmap = LoadBitmapFromBytes(bytes);
-                LogoPreviewImage.Source    = bitmap;
+                LogoPreviewImage.Source     = bitmap;
                 LogoPreviewImage.Visibility = Visibility.Visible;
                 LogoPlaceholder.Visibility  = Visibility.Collapsed;
                 ClearLogoButton.IsEnabled   = true;
             }
             catch { /* preview opcional */ }
         }
-
-        // ── Normalização da imagem ─────────────────────────────────────────
-        // Redimensiona para caber em NormalizedWidth × NormalizedHeight mantendo proporção.
-        // Sempre converte para PNG (fundo branco se não houver canal alpha).
 
         private static byte[] NormalizeImage(string filePath)
         {
@@ -118,7 +109,6 @@ namespace NXProject.Views
             src.EndInit();
             src.Freeze();
 
-            // Calcula escala para caber no envelope mantendo proporção
             double scaleX = NormalizedWidth  / (double)src.PixelWidth;
             double scaleY = NormalizedHeight / (double)src.PixelHeight;
             double scale  = Math.Min(scaleX, scaleY);
@@ -127,8 +117,7 @@ namespace NXProject.Views
             int dstH = Math.Max(1, (int)(src.PixelHeight * scale));
 
             var tb = new System.Windows.Media.Imaging.TransformedBitmap(
-                src,
-                new System.Windows.Media.ScaleTransform(scale, scale));
+                src, new System.Windows.Media.ScaleTransform(scale, scale));
 
             var rtb = new RenderTargetBitmap(dstW, dstH, 96, 96,
                 System.Windows.Media.PixelFormats.Pbgra32);
@@ -168,13 +157,11 @@ namespace NXProject.Views
 
         private void OnSaveClick(object sender, RoutedEventArgs e)
         {
-            // Aplica idioma em tempo real
             LanguageService.Apply(_selectedLanguage);
 
-            // Persiste tudo
             var opts = TfsConnectionStore.Load();
-            opts.Language         = _selectedLanguage;
-            opts.CompanyName      = CompanyNameBox.Text.Trim();
+            opts.Language          = _selectedLanguage;
+            opts.CompanyName       = CompanyNameBox.Text.Trim();
             opts.CompanyLogoBase64 = _logoBase64;
 
             var rememberToken = !string.IsNullOrEmpty(opts.PersonalAccessToken);
@@ -187,5 +174,10 @@ namespace NXProject.Views
         {
             DialogResult = false;
         }
+
+        // ── Helper ────────────────────────────────────────────────────────
+
+        private static string Str(string key)
+            => Application.Current.TryFindResource(key) as string ?? key;
     }
 }

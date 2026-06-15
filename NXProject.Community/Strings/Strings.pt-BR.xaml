@@ -78,6 +78,10 @@
     <sys:String x:Key="Toolbar_ResourceFilter">Filtrar por recurso</sys:String>
     <sys:String x:Key="Toolbar_Zoom">Alterar nivel de zoom</sys:String>
     <sys:String x:Key="Toolbar_DayView">Visao por dia (mes / sprint / dias uteis)</sys:String>
+    <sys:String x:Key="Toolbar_ExportPdf">Exportar cronograma para PDF (paisagem)</sys:String>
+
+    <!-- Menu Configurações -->
+    <sys:String x:Key="Menu_View_Settings">&#x2699; Configuracoes...</sys:String>
 
     <!-- Janela de seleção de idioma -->
     <sys:String x:Key="Lang_WindowTitle">Idioma / Language</sys:String>
@@ -85,5 +89,39 @@
     <sys:String x:Key="Lang_Note">A alteracao e aplicada imediatamente. Os menus e a interface principal sao atualizados. Alguns dialogos internos serao traduzidos em versoes futuras.</sys:String>
     <sys:String x:Key="Lang_Ok">OK</sys:String>
     <sys:String x:Key="Lang_Cancel">Cancelar</sys:String>
+
+    <!-- Exportar PDF -->
+    <sys:String x:Key="Pdf_SaveTitle">Exportar cronograma para PDF</sys:String>
+    <sys:String x:Key="Pdf_Filter">PDF (*.pdf)|*.pdf</sys:String>
+    <sys:String x:Key="Pdf_FileSuffix"> - Cronograma</sys:String>
+    <sys:String x:Key="Pdf_SuccessMsg">PDF exportado com sucesso:</sys:String>
+    <sys:String x:Key="Pdf_SuccessTitle">Exportar PDF</sys:String>
+    <sys:String x:Key="Pdf_ErrorMsg">Erro ao exportar PDF:</sys:String>
+    <sys:String x:Key="Pdf_ErrorTitle">Exportar PDF</sys:String>
+    <sys:String x:Key="Pdf_FooterExported">Exportado em</sys:String>
+    <sys:String x:Key="Pdf_SubjectSchedule">Cronograma NXProject</sys:String>
+
+    <!-- Tela Configurações (AppSettingsWindow) -->
+    <sys:String x:Key="Settings_Title">Configuracoes</sys:String>
+    <sys:String x:Key="Settings_SectionBranding">Identidade da empresa</sys:String>
+    <sys:String x:Key="Settings_CompanyName">Nome da empresa:</sys:String>
+    <sys:String x:Key="Settings_LogoLabel">Logo da empresa (cabecalho do PDF):</sys:String>
+    <sys:String x:Key="Settings_LogoPlaceholder">Sem logo — clique em "Escolher imagem"</sys:String>
+    <sys:String x:Key="Settings_Browse">Escolher imagem...</sys:String>
+    <sys:String x:Key="Settings_ClearLogo">Remover logo</sys:String>
+    <sys:String x:Key="Settings_LogoHintFormats">Formatos aceitos:</sys:String>
+    <sys:String x:Key="Settings_LogoHintFormatsVal">PNG, JPG, BMP, GIF — max. 5 MB.</sys:String>
+    <sys:String x:Key="Settings_LogoHintSize">Recomendado:</sys:String>
+    <sys:String x:Key="Settings_LogoHintSizeVal">fundo transparente (PNG), proporcao 4:1, ex.: 300 x 80 px. A imagem sera normalizada automaticamente.</sys:String>
+    <sys:String x:Key="Settings_SectionLanguage">Idioma / Language</sys:String>
+    <sys:String x:Key="Settings_LangNote">A alteracao e aplicada imediatamente. Menus e toolbar sao atualizados em tempo real.</sys:String>
+    <sys:String x:Key="Settings_Save">Salvar</sys:String>
+    <sys:String x:Key="Settings_Cancel">Cancelar</sys:String>
+    <sys:String x:Key="Settings_LogoTooBig">O arquivo selecionado excede o limite de 5 MB.</sys:String>
+    <sys:String x:Key="Settings_LogoTooBigTitle">Logo muito grande</sys:String>
+    <sys:String x:Key="Settings_LogoErrorMsg">Nao foi possivel processar a imagem:</sys:String>
+    <sys:String x:Key="Settings_LogoErrorTitle">Erro</sys:String>
+    <sys:String x:Key="Settings_BrowseTitle">Selecionar logo da empresa</sys:String>
+    <sys:String x:Key="Settings_BrowseFilter">Imagens|*.png;*.jpg;*.jpeg;*.bmp;*.gif|PNG|*.png|JPEG|*.jpg;*.jpeg|BMP|*.bmp</sys:String>
 
 </ResourceDictionary>

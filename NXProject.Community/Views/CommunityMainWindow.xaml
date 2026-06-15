@@ -69,7 +69,7 @@
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_Language}" Click="OnLanguageClick"/>
-                <MenuItem Header="⚙ Configurações..." Click="OnAppSettingsClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_Settings}" Click="OnAppSettingsClick"/>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Ai}">
                 <MenuItem Header="{DynamicResource Menu_Ai_Assistant}" Click="OnAiAssistantClick"/>
@@ -146,7 +146,7 @@
                 <TextBlock Text="&#x1F504;" FontSize="13"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnExportPdfClick"
-                    ToolTip="Exportar cronograma para PDF (paisagem)">
+                    ToolTip="{DynamicResource Toolbar_ExportPdf}">
                 <Grid Width="22" Height="18">
                     <!-- folha -->
                     <Rectangle RadiusX="1" RadiusY="1"

@@ -27,13 +27,15 @@ namespace NXProject.Community.Services
             BitmapImage? nxLogo,
             string companyName,
             BitmapImage? companyLogo,
-            string filePath)
+            string filePath,
+            string exportedOnLabel = "Exportado em",
+            string scheduleSubject = "Cronograma NXProject")
         {
             var pngBytes = RenderToPng(visual, dpi: 150);
 
             var doc = new PdfDocument();
             doc.Info.Title   = projectName;
-            doc.Info.Subject = "Cronograma NXProject";
+            doc.Info.Subject = scheduleSubject;
             doc.Info.Creator = "NXProject Community";
 
             var page = doc.AddPage();
@@ -66,7 +68,7 @@ namespace NXProject.Community.Services
             gfx.DrawImage(xImg, Margin, imgY, imgW, imgH);
 
             // ── Rodapé NXProject ──────────────────────────────────────────
-            DrawFooter(gfx, pageW, pageH, projectName, nxLogo);
+            DrawFooter(gfx, pageW, pageH, projectName, nxLogo, exportedOnLabel);
 
             doc.Save(filePath);
         }
@@ -124,7 +126,8 @@ namespace NXProject.Community.Services
         // ── Rodapé ────────────────────────────────────────────────────────
 
         private static void DrawFooter(XGraphics gfx, double pageW, double pageH,
-                                       string projectName, BitmapImage? nxLogo)
+                                       string projectName, BitmapImage? nxLogo,
+                                       string exportedOnLabel)
         {
             double lineY = pageH - Margin - FooterH;
             double midY  = lineY + SepLine + 6;
@@ -143,7 +146,7 @@ namespace NXProject.Community.Services
             // Data (centro)
             {
                 var f     = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
-                var label = $"Exportado em {DateTime.Now:dd/MM/yyyy HH:mm}";
+                var label = $"{exportedOnLabel} {DateTime.Now:dd/MM/yyyy HH:mm}";
                 gfx.DrawString(label, f, new XSolidBrush(XColor.FromArgb(140, 140, 140)),
                     new XRect(0, midY, pageW, 14), XStringFormats.Center);
             }

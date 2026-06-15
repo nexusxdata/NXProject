@@ -78,6 +78,10 @@
     <sys:String x:Key="Toolbar_ResourceFilter">Filter by resource</sys:String>
     <sys:String x:Key="Toolbar_Zoom">Change zoom level</sys:String>
     <sys:String x:Key="Toolbar_DayView">Day view (month / sprint / working days)</sys:String>
+    <sys:String x:Key="Toolbar_ExportPdf">Export schedule to PDF (landscape)</sys:String>
+
+    <!-- Settings menu -->
+    <sys:String x:Key="Menu_View_Settings">&#x2699; Settings...</sys:String>
 
     <!-- Language selection window -->
     <sys:String x:Key="Lang_WindowTitle">Language / Idioma</sys:String>
@@ -85,5 +89,39 @@
     <sys:String x:Key="Lang_Note">The change is applied immediately. Menus and the main interface update right away. Some internal dialogs will be translated in future versions.</sys:String>
     <sys:String x:Key="Lang_Ok">OK</sys:String>
     <sys:String x:Key="Lang_Cancel">Cancel</sys:String>
+
+    <!-- PDF Export -->
+    <sys:String x:Key="Pdf_SaveTitle">Export schedule to PDF</sys:String>
+    <sys:String x:Key="Pdf_Filter">PDF (*.pdf)|*.pdf</sys:String>
+    <sys:String x:Key="Pdf_FileSuffix"> - Schedule</sys:String>
+    <sys:String x:Key="Pdf_SuccessMsg">PDF exported successfully:</sys:String>
+    <sys:String x:Key="Pdf_SuccessTitle">Export PDF</sys:String>
+    <sys:String x:Key="Pdf_ErrorMsg">Error exporting PDF:</sys:String>
+    <sys:String x:Key="Pdf_ErrorTitle">Export PDF</sys:String>
+    <sys:String x:Key="Pdf_FooterExported">Exported on</sys:String>
+    <sys:String x:Key="Pdf_SubjectSchedule">NXProject Schedule</sys:String>
+
+    <!-- Settings Window (AppSettingsWindow) -->
+    <sys:String x:Key="Settings_Title">Settings</sys:String>
+    <sys:String x:Key="Settings_SectionBranding">Company identity</sys:String>
+    <sys:String x:Key="Settings_CompanyName">Company name:</sys:String>
+    <sys:String x:Key="Settings_LogoLabel">Company logo (PDF header):</sys:String>
+    <sys:String x:Key="Settings_LogoPlaceholder">No logo — click "Choose image"</sys:String>
+    <sys:String x:Key="Settings_Browse">Choose image...</sys:String>
+    <sys:String x:Key="Settings_ClearLogo">Remove logo</sys:String>
+    <sys:String x:Key="Settings_LogoHintFormats">Accepted formats:</sys:String>
+    <sys:String x:Key="Settings_LogoHintFormatsVal">PNG, JPG, BMP, GIF — max 5 MB.</sys:String>
+    <sys:String x:Key="Settings_LogoHintSize">Recommended:</sys:String>
+    <sys:String x:Key="Settings_LogoHintSizeVal">transparent background (PNG), 4:1 ratio, e.g. 300 x 80 px. The image is normalized automatically.</sys:String>
+    <sys:String x:Key="Settings_SectionLanguage">Language / Idioma</sys:String>
+    <sys:String x:Key="Settings_LangNote">The change is applied immediately. Menus and toolbar update in real time.</sys:String>
+    <sys:String x:Key="Settings_Save">Save</sys:String>
+    <sys:String x:Key="Settings_Cancel">Cancel</sys:String>
+    <sys:String x:Key="Settings_LogoTooBig">The selected file exceeds the 5 MB limit.</sys:String>
+    <sys:String x:Key="Settings_LogoTooBigTitle">Logo too large</sys:String>
+    <sys:String x:Key="Settings_LogoErrorMsg">Could not process the image:</sys:String>
+    <sys:String x:Key="Settings_LogoErrorTitle">Error</sys:String>
+    <sys:String x:Key="Settings_BrowseTitle">Select company logo</sys:String>
+    <sys:String x:Key="Settings_BrowseFilter">Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|PNG|*.png|JPEG|*.jpg;*.jpeg|BMP|*.bmp</sys:String>
 
 </ResourceDictionary>
