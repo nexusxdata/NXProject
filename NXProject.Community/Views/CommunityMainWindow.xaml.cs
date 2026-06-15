@@ -1025,10 +1025,10 @@ namespace NXProject.Views
         {
             _expandedLayout = expanded;
 
-            // Largura fixa do cronograma — o splitter clip o conteúdo, não espreme as colunas
             double taskW = expanded ? 920 : 660;
             TaskPaneColumn.Width = new GridLength(taskW);
-            TaskGridCtrl.Width = taskW;
+            // MinWidth impede que o splitter esprema as colunas; o Border ClipToBounds corta o excesso
+            TaskGridCtrl.MinWidth = taskW;
 
             GanttPaneColumn.Width = new GridLength(1, GridUnitType.Star);
 

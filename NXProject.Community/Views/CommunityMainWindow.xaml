@@ -253,7 +253,6 @@
             <!-- ClipToBounds garante que o cronograma é cortado (não espremido) ao arrastar o splitter -->
             <Border Grid.Column="0" ClipToBounds="True">
                 <controls:TaskGridControl x:Name="TaskGridCtrl"
-                                          HorizontalAlignment="Left"
                                           DataContext="{Binding}"
                                           Tasks="{Binding FlatTasks}"
                                           AvailableSprints="{Binding SprintOptions}"
