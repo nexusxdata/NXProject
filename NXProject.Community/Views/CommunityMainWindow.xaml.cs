@@ -191,6 +191,11 @@ namespace NXProject.Views
             new LanguageWindow { Owner = this }.ShowDialog();
         }
 
+        private void OnAppSettingsClick(object sender, RoutedEventArgs e)
+        {
+            new AppSettingsWindow { Owner = this }.ShowDialog();
+        }
+
         private void OnScheduleUsageHelpClick(object sender, RoutedEventArgs e)
         {
             new ScheduleUsageHelpWindow
@@ -732,11 +737,32 @@ namespace NXProject.Views
                 }
             }
 
-            var logo = ProtectedLogoProvider.GetLogoImage();
+            var nxLogo = ProtectedLogoProvider.GetLogoImage();
+
+            // Carrega logo e nome da empresa das configurações
+            var appOpts    = TfsConnectionStore.Load();
+            var companyName = appOpts.CompanyName ?? string.Empty;
+            System.Windows.Media.Imaging.BitmapImage? companyLogo = null;
+            if (!string.IsNullOrWhiteSpace(appOpts.CompanyLogoBase64))
+            {
+                try
+                {
+                    var bytes = Convert.FromBase64String(appOpts.CompanyLogoBase64);
+                    var bmp   = new System.Windows.Media.Imaging.BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption  = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = new System.IO.MemoryStream(bytes);
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    companyLogo = bmp;
+                }
+                catch { /* logo inválido — ignora */ }
+            }
 
             try
             {
-                PdfExportService.Export(captureArea, projectName, logo, dlg.FileName);
+                PdfExportService.Export(captureArea, projectName, nxLogo,
+                    companyName, companyLogo, dlg.FileName);
                 MessageBox.Show($"PDF exportado com sucesso:\n{dlg.FileName}",
                     "Exportar PDF", MessageBoxButton.OK, MessageBoxImage.Information);
             }

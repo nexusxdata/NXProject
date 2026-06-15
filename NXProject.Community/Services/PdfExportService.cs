@@ -10,24 +10,28 @@ namespace NXProject.Community.Services
 {
     internal static class PdfExportService
     {
-        // Margens em pontos (1 pt = 1/72 polegada)
-        private const double MarginPt   = 20;
-        private const double FooterH    = 28; // altura da faixa do rodapé
-        private const double FooterLine = 1;
+        // Margens e dimensões em pontos PDF (1 pt = 1/72 pol)
+        private const double Margin     = 20;
+        private const double HeaderH    = 44; // altura da faixa de cabeçalho
+        private const double FooterH    = 28;
+        private const double SepLine    = 0.8;
+        private const double SepGap     = 4;
 
         /// <summary>
-        /// Renderiza <paramref name="visual"/> em um PDF paisagem A4 e salva em <paramref name="filePath"/>.
+        /// Gera PDF paisagem A4 com cabeçalho (logo da empresa + título do projeto)
+        /// e rodapé (nome do projeto | data | logo NXProject).
         /// </summary>
-        /// <param name="visual">O elemento WPF que será capturado (deve estar visível e medido).</param>
-        /// <param name="projectName">Nome do projeto — aparece no rodapé esquerdo.</param>
-        /// <param name="logoBitmap">Logo da empresa para o rodapé direito (pode ser null).</param>
-        public static void Export(FrameworkElement visual, string projectName, BitmapImage? logoBitmap, string filePath)
+        public static void Export(
+            FrameworkElement visual,
+            string projectName,
+            BitmapImage? nxLogo,
+            string companyName,
+            BitmapImage? companyLogo,
+            string filePath)
         {
-            // 1. Captura o visual como PNG em alta resolução
             var pngBytes = RenderToPng(visual, dpi: 150);
 
-            // 2. Cria documento PDF A4 paisagem
-            var doc  = new PdfDocument();
+            var doc = new PdfDocument();
             doc.Info.Title   = projectName;
             doc.Info.Subject = "Cronograma NXProject";
             doc.Info.Creator = "NXProject Community";
@@ -41,116 +45,165 @@ namespace NXProject.Community.Services
             double pageW = page.Width.Point;
             double pageH = page.Height.Point;
 
-            // 3. Desenha a imagem do cronograma
-            double imgX = MarginPt;
-            double imgY = MarginPt;
-            double imgW = pageW - MarginPt * 2;
-            double imgH = pageH - MarginPt - FooterH - FooterLine - 6 - MarginPt * 0.5;
+            bool hasHeader = companyLogo != null || !string.IsNullOrWhiteSpace(companyName);
+
+            // ── Cabeçalho da empresa ───────────────────────────────────────
+            double contentTop = Margin;
+            if (hasHeader)
+            {
+                DrawHeader(gfx, pageW, companyName, companyLogo, projectName);
+                contentTop = Margin + HeaderH + SepLine + SepGap;
+            }
+
+            // ── Imagem do cronograma ───────────────────────────────────────
+            double footerTop = pageH - Margin - FooterH;
+            double imgY = contentTop;
+            double imgH = footerTop - SepGap - SepLine - imgY;
+            double imgW = pageW - Margin * 2;
 
             using var imgStream = new MemoryStream(pngBytes);
             using var xImg = XImage.FromStream(imgStream);
-            gfx.DrawImage(xImg, imgX, imgY, imgW, imgH);
+            gfx.DrawImage(xImg, Margin, imgY, imgW, imgH);
 
-            // 4. Rodapé
-            DrawFooter(gfx, pageW, pageH, projectName, logoBitmap);
+            // ── Rodapé NXProject ──────────────────────────────────────────
+            DrawFooter(gfx, pageW, pageH, projectName, nxLogo);
 
             doc.Save(filePath);
         }
 
-        // ------------------------------------------------------------------ helpers
+        // ── Cabeçalho ─────────────────────────────────────────────────────
 
-        private static byte[] RenderToPng(FrameworkElement element, double dpi)
+        private static void DrawHeader(XGraphics gfx, double pageW,
+                                       string companyName, BitmapImage? companyLogo,
+                                       string projectName)
         {
-            var scale  = dpi / 96.0;
-            int pixelW = (int)Math.Round(element.ActualWidth  * scale);
-            int pixelH = (int)Math.Round(element.ActualHeight * scale);
+            double logoH = HeaderH - 8;
+            double curX  = Margin;
+            double midY  = Margin + HeaderH / 2.0;
 
-            if (pixelW <= 0 || pixelH <= 0)
-                throw new InvalidOperationException("O elemento a ser exportado não tem tamanho renderizável.");
-
-            var rtb = new RenderTargetBitmap(pixelW, pixelH, dpi, dpi, PixelFormats.Pbgra32);
-
-            var drawingVisual = new DrawingVisual();
-            using (var ctx = drawingVisual.RenderOpen())
+            // Logo da empresa (esquerda)
+            if (companyLogo != null)
             {
-                var brush = new VisualBrush(element);
-                ctx.DrawRectangle(brush, null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+                try
+                {
+                    var bytes = BitmapToPng(companyLogo);
+                    using var ms  = new MemoryStream(bytes);
+                    using var img = XImage.FromStream(ms);
+                    double logoW = logoH * img.PixelWidth / (double)img.PixelHeight;
+                    gfx.DrawImage(img, curX, Margin + 4, logoW, logoH);
+                    curX += logoW + 12;
+                }
+                catch { /* logo opcional */ }
             }
-            rtb.Render(drawingVisual);
 
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(rtb));
-            using var ms = new MemoryStream();
-            encoder.Save(ms);
-            return ms.ToArray();
+            // Nome da empresa (se houver)
+            if (!string.IsNullOrWhiteSpace(companyName))
+            {
+                var fComp = new XFont("Segoe UI", 10, XFontStyleEx.Bold);
+                gfx.DrawString(companyName, fComp, new XSolidBrush(XColor.FromArgb(30, 30, 30)),
+                    new XRect(curX, midY - 14, 200, 16), XStringFormats.CenterLeft);
+                curX += 210;
+            }
+
+            // Título do projeto (centro-esquerda após logo/empresa)
+            if (!string.IsNullOrWhiteSpace(projectName))
+            {
+                var fTitle = new XFont("Segoe UI", 14, XFontStyleEx.Bold);
+                double titleX = curX + 10;
+                double titleW = pageW - titleX - Margin;
+                gfx.DrawString(projectName, fTitle, new XSolidBrush(XColor.FromArgb(30, 67, 132)),
+                    new XRect(titleX, midY - 9, titleW, 20), XStringFormats.CenterLeft);
+            }
+
+            // Linha separadora abaixo do cabeçalho
+            double lineY = Margin + HeaderH;
+            var pen = new XPen(XColor.FromArgb(43, 87, 154), SepLine);
+            gfx.DrawLine(pen, Margin, lineY, pageW - Margin, lineY);
         }
 
-        private static void DrawFooter(XGraphics gfx, double pageW, double pageH,
-                                       string projectName, BitmapImage? logoBitmap)
-        {
-            double lineY  = pageH - FooterH - FooterLine;
-            double textY  = lineY + FooterLine + 6;
-            double midY   = textY + (FooterH - FooterLine) / 2.0 - 5;
+        // ── Rodapé ────────────────────────────────────────────────────────
 
-            // Linha separadora
-            var linePen = new XPen(XColor.FromArgb(180, 180, 180), FooterLine);
-            gfx.DrawLine(linePen, MarginPt, lineY, pageW - MarginPt, lineY);
+        private static void DrawFooter(XGraphics gfx, double pageW, double pageH,
+                                       string projectName, BitmapImage? nxLogo)
+        {
+            double lineY = pageH - Margin - FooterH;
+            double midY  = lineY + SepLine + 6;
+
+            var linePen = new XPen(XColor.FromArgb(200, 200, 200), SepLine);
+            gfx.DrawLine(linePen, Margin, lineY, pageW - Margin, lineY);
 
             // Nome do projeto (esquerda)
             if (!string.IsNullOrWhiteSpace(projectName))
             {
-                var font = new XFont("Segoe UI", 9, XFontStyleEx.Bold);
-                gfx.DrawString(projectName, font, XBrushes.DarkSlateGray,
-                    new XRect(MarginPt, midY, pageW / 2.0, 14), XStringFormats.CenterLeft);
+                var f = new XFont("Segoe UI", 9, XFontStyleEx.Bold);
+                gfx.DrawString(projectName, f, XBrushes.DarkSlateGray,
+                    new XRect(Margin, midY, pageW / 2.0, 14), XStringFormats.CenterLeft);
             }
 
-            // Data de exportação (centro)
+            // Data (centro)
             {
-                var font  = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
+                var f     = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
                 var label = $"Exportado em {DateTime.Now:dd/MM/yyyy HH:mm}";
-                gfx.DrawString(label, font, new XSolidBrush(XColor.FromArgb(130, 130, 130)),
+                gfx.DrawString(label, f, new XSolidBrush(XColor.FromArgb(140, 140, 140)),
                     new XRect(0, midY, pageW, 14), XStringFormats.Center);
             }
 
-            // Lado direito: logo + "NXProject Community"
-            double rightX = pageW - MarginPt;
+            // Logo NXProject + texto (direita)
+            double rightX = pageW - Margin;
+            var fRight = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
+            const string brand = "NXProject Community";
+            double txtW = 120;
+            gfx.DrawString(brand, fRight, new XSolidBrush(XColor.FromArgb(100, 100, 100)),
+                new XRect(rightX - txtW, midY, txtW, 14), XStringFormats.CenterRight);
+            rightX -= txtW + 4;
 
-            // Texto "NXProject Community"
-            {
-                var font  = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
-                var label = "NXProject Community";
-                double txtW = 120;
-                gfx.DrawString(label, font, new XSolidBrush(XColor.FromArgb(80, 80, 80)),
-                    new XRect(rightX - txtW, midY, txtW, 14), XStringFormats.CenterRight);
-
-                rightX -= txtW + 4;
-            }
-
-            // Logo (pequeno, à esquerda do texto)
-            if (logoBitmap != null)
+            if (nxLogo != null)
             {
                 try
                 {
-                    var pngBytes = BitmapImageToPng(logoBitmap);
-                    using var logoStream = new MemoryStream(pngBytes);
-                    using var logoImg = XImage.FromStream(logoStream);
-                    double logoH = 14;
-                    double logoW = logoH * (logoBitmap.PixelWidth / (double)logoBitmap.PixelHeight);
-                    gfx.DrawImage(logoImg, rightX - logoW, midY, logoW, logoH);
+                    var bytes = BitmapToPng(nxLogo);
+                    using var ms  = new MemoryStream(bytes);
+                    using var img = XImage.FromStream(ms);
+                    double lh = 14;
+                    double lw = lh * img.PixelWidth / (double)img.PixelHeight;
+                    gfx.DrawImage(img, rightX - lw, midY, lw, lh);
                 }
-                catch
-                {
-                    // logo é opcional — falha silenciosa
-                }
+                catch { /* opcional */ }
             }
         }
 
-        private static byte[] BitmapImageToPng(BitmapImage src)
+        // ── Utilitários ───────────────────────────────────────────────────
+
+        private static byte[] RenderToPng(FrameworkElement element, double dpi)
         {
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(src));
+            double scale = dpi / 96.0;
+            int pixW = (int)Math.Round(element.ActualWidth  * scale);
+            int pixH = (int)Math.Round(element.ActualHeight * scale);
+
+            if (pixW <= 0 || pixH <= 0)
+                throw new InvalidOperationException("O elemento não tem tamanho renderizável.");
+
+            var rtb = new RenderTargetBitmap(pixW, pixH, dpi, dpi, PixelFormats.Pbgra32);
+            var dv  = new DrawingVisual();
+            using (var ctx = dv.RenderOpen())
+                ctx.DrawRectangle(new VisualBrush(element), null,
+                    new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            rtb.Render(dv);
+
+            return EncodePng(rtb);
+        }
+
+        private static byte[] BitmapToPng(BitmapImage src)
+        {
+            return EncodePng(src);
+        }
+
+        private static byte[] EncodePng(BitmapSource src)
+        {
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(src));
             using var ms = new MemoryStream();
-            encoder.Save(ms);
+            enc.Save(ms);
             return ms.ToArray();
         }
     }

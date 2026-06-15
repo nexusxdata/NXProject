@@ -69,6 +69,7 @@
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_Language}" Click="OnLanguageClick"/>
+                <MenuItem Header="⚙ Configurações..." Click="OnAppSettingsClick"/>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Ai}">
                 <MenuItem Header="{DynamicResource Menu_Ai_Assistant}" Click="OnAiAssistantClick"/>
