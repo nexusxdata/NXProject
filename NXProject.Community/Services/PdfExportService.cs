@@ -190,11 +190,27 @@ namespace NXProject.Community.Services
             double contentH  = footerTop - SepGap - SepLine - contentTop;
             double availW    = pageW - Margin * 2;
 
-            // Proporção: tabela 45%, separador 4pt, Gantt o restante
-            const double TableRatio = 0.45;
-            double tableW = Math.Round(availW * TableRatio);
-            double sepW   = 4;
-            double ganttW = availW - tableW - sepW;
+            double sepW = 4;
+            // Gantt width: proportional to visible days (natural scale capped at 55% of page).
+            // Avoids over-stretching when only a short date range is visible.
+            double ganttW;
+            if (ganttData != null)
+            {
+                var naturalGanttSourceW = 16.0 + Math.Max(1, ganttData.VisibleDays) * ganttData.DayWidth;
+                // The natural gantt width in page-points: scale so that ganttData.DayWidth px = a reasonable pt width.
+                // We use the "fit to 55%" scale as the ceiling and the natural proportion as the floor.
+                double maxGanttW = Math.Round(availW * 0.55);
+                double minGanttW = Math.Round(availW * 0.30);
+                // Proportion of content vs a reference of 90 visible days (full-project typical)
+                const double ReferenceDays = 90.0;
+                double naturalRatio = Math.Min(1.0, ganttData.VisibleDays / ReferenceDays);
+                ganttW = Math.Max(minGanttW, Math.Min(maxGanttW, Math.Round(availW * 0.55 * naturalRatio)));
+            }
+            else
+            {
+                ganttW = Math.Round(availW * 0.55);
+            }
+            double tableW = availW - ganttW - sepW;
 
             if (ganttData != null)
             {
@@ -403,7 +419,8 @@ namespace NXProject.Community.Services
         {
             var sourceW = 16.0 + Math.Max(1, data.VisibleDays) * data.DayWidth;
             var sourceH = data.HeaderHeight + Math.Max(1, data.Tasks.Count) * data.RowHeight + 4;
-            var scaleX = rect.Width / sourceW;
+            // Scale down if content is wider than rect, but never stretch (cap at 1.0)
+            var scaleX = Math.Min(1.0, rect.Width / sourceW);
             var scaleY = rect.Height / sourceH;
             var leftPad = 16.0 * scaleX;
             var dayW = data.DayWidth * scaleX;

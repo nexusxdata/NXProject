@@ -13,7 +13,7 @@
         <TextBlock Text="Layout do PDF" FontSize="13" FontWeight="Bold"
                    Foreground="#2B579A" Margin="0,0,0,12"/>
 
-        <RadioButton x:Name="RadioTogether" GroupName="Layout"
+        <RadioButton x:Name="RadioTogether" GroupName="Layout" IsChecked="True"
                      Margin="0,0,0,8" FontSize="12"
                      Checked="OnLayoutChanged" Unchecked="OnLayoutChanged">
             <StackPanel>
@@ -25,7 +25,7 @@
 
         <!-- Tamanho de página (só visível quando "tudo junto") -->
         <Border x:Name="SizePanel" Margin="20,0,0,12" Padding="12,10"
-                Visibility="Collapsed"
+                Visibility="Visible"
                 Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1" CornerRadius="4">
             <StackPanel>
                 <TextBlock Text="Tamanho da página:" FontSize="11" FontWeight="SemiBold"
@@ -43,7 +43,7 @@
             </StackPanel>
         </Border>
 
-        <RadioButton x:Name="RadioTwoPages" GroupName="Layout" IsChecked="True"
+        <RadioButton x:Name="RadioTwoPages" GroupName="Layout"
                      Margin="0,0,0,4" FontSize="12"
                      Checked="OnLayoutChanged" Unchecked="OnLayoutChanged">
             <StackPanel>
