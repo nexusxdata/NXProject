@@ -51,6 +51,9 @@ namespace NXProject.Services
         /// <summary>Caminho do arquivo JSON da lista de projetos DevOps (compartilhável entre usuários).</summary>
         public string DevOpsProjectListPath { get; set; } = string.Empty;
 
+        /// <summary>Código do idioma selecionado pelo usuário (ex: "pt-BR", "en-US"). Vazio = detectar do Windows.</summary>
+        public string Language { get; set; } = string.Empty;
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&
@@ -80,6 +83,7 @@ namespace NXProject.Services
             public bool RememberToken { get; set; }
             public string EncryptedToken { get; set; } = string.Empty;
             public string DevOpsProjectListPath { get; set; } = string.Empty;
+            public string Language { get; set; } = string.Empty;
         }
 
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
@@ -121,6 +125,7 @@ namespace NXProject.Services
                 if (stored.RememberToken)
                     options.PersonalAccessToken = WindowsDataProtection.Decrypt(stored.EncryptedToken);
                 options.DevOpsProjectListPath = stored.DevOpsProjectListPath ?? string.Empty;
+                options.Language = stored.Language ?? string.Empty;
             }
             catch
             {
@@ -152,7 +157,8 @@ namespace NXProject.Services
                 EncryptedToken = rememberToken
                     ? WindowsDataProtection.Encrypt(options.PersonalAccessToken ?? string.Empty, "NXProject.Tfs")
                     : string.Empty,
-                DevOpsProjectListPath = options.DevOpsProjectListPath ?? string.Empty
+                DevOpsProjectListPath = options.DevOpsProjectListPath ?? string.Empty,
+                Language = options.Language ?? string.Empty
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });

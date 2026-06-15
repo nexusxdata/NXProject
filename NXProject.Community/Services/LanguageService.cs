@@ -1,0 +1,41 @@
+using System;
+using System.Globalization;
+using System.Windows;
+
+namespace NXProject.Community.Services
+{
+    public static class LanguageService
+    {
+        private const string PtBR = "pt-BR";
+        private const string EnUS = "en-US";
+
+        public static string CurrentLanguage { get; private set; } = PtBR;
+
+        public static string DetectFromWindows()
+        {
+            var culture = CultureInfo.CurrentUICulture;
+            return culture.TwoLetterISOLanguageName.Equals("pt", StringComparison.OrdinalIgnoreCase)
+                ? PtBR
+                : EnUS;
+        }
+
+        public static void Apply(string languageCode)
+        {
+            var code = languageCode == EnUS ? EnUS : PtBR;
+            CurrentLanguage = code;
+
+            var uri = new Uri($"Strings/Strings.{code}.xaml", UriKind.Relative);
+            var dict = new ResourceDictionary { Source = uri };
+
+            var app = Application.Current;
+            // Remove qualquer dicionário de strings anterior
+            for (int i = app.Resources.MergedDictionaries.Count - 1; i >= 0; i--)
+            {
+                var src = app.Resources.MergedDictionaries[i].Source?.OriginalString ?? "";
+                if (src.Contains("Strings/Strings."))
+                    app.Resources.MergedDictionaries.RemoveAt(i);
+            }
+            app.Resources.MergedDictionaries.Add(dict);
+        }
+    }
+}

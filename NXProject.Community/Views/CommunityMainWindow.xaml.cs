@@ -179,6 +179,16 @@ namespace NXProject.Views
             }.ShowDialog();
         }
 
+        private void OnFeaturesHelpClick(object sender, RoutedEventArgs e)
+        {
+            new FeaturesHelpWindow { Owner = this }.ShowDialog();
+        }
+
+        private void OnLanguageClick(object sender, RoutedEventArgs e)
+        {
+            new LanguageWindow { Owner = this }.ShowDialog();
+        }
+
         private void OnScheduleUsageHelpClick(object sender, RoutedEventArgs e)
         {
             new ScheduleUsageHelpWindow

@@ -14,144 +14,148 @@
 
     <DockPanel>
         <Menu DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}">
-            <MenuItem Header="_Arquivo">
-                <MenuItem Header="_Novo Projeto" Command="{Binding NewProjectCommand}" InputGestureText="Ctrl+N"/>
-                <MenuItem Header="_Limpar Projeto" Command="{Binding ClearProjectCommand}"/>
-                <MenuItem Header="_Abrir..." Command="{Binding OpenProjectCommand}" InputGestureText="Ctrl+O"/>
+            <MenuItem Header="{DynamicResource Menu_File}">
+                <MenuItem Header="{DynamicResource Menu_File_New}" Command="{Binding NewProjectCommand}" InputGestureText="Ctrl+N"/>
+                <MenuItem Header="{DynamicResource Menu_File_Clear}" Command="{Binding ClearProjectCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_File_Open}" Command="{Binding OpenProjectCommand}" InputGestureText="Ctrl+O"/>
                 <Separator/>
-                <MenuItem Header="_Salvar" Command="{Binding SaveProjectCommand}" InputGestureText="Ctrl+S"/>
-                <MenuItem Header="Salvar _Como..." Command="{Binding SaveAsProjectCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_File_Save}" Command="{Binding SaveProjectCommand}" InputGestureText="Ctrl+S"/>
+                <MenuItem Header="{DynamicResource Menu_File_SaveAs}" Command="{Binding SaveAsProjectCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Importar">
-                    <MenuItem Header="OpenProj (.pod)..." Command="{Binding ImportOpenProjCommand}"/>
-                    <MenuItem Header="MS Project XML..." Command="{Binding ImportMspdiCommand}"/>
-                    <MenuItem Header="Excel XML..." Command="{Binding ImportExcelCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_File_Import}">
+                    <MenuItem Header="{DynamicResource Menu_File_Import_OpenProj}" Command="{Binding ImportOpenProjCommand}"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Import_MsProject}" Command="{Binding ImportMspdiCommand}"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Import_Excel}" Command="{Binding ImportExcelCommand}"/>
                     <Separator/>
-                    <MenuItem Header="TFS / Azure DevOps..." Click="OnImportTfsClick"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Import_Tfs}" Click="OnImportTfsClick"/>
                 </MenuItem>
-                <MenuItem Header="_Exportar">
-                    <MenuItem Header="OpenProj (.pod)..." Command="{Binding ExportOpenProjCommand}"/>
-                    <MenuItem Header="MS Project XML..." Command="{Binding ExportMspdiCommand}"/>
-                    <MenuItem Header="Excel XML..." Command="{Binding ExportExcelCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_File_Export}">
+                    <MenuItem Header="{DynamicResource Menu_File_Export_OpenProj}" Command="{Binding ExportOpenProjCommand}"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Export_MsProject}" Command="{Binding ExportMspdiCommand}"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Export_Excel}" Command="{Binding ExportExcelCommand}"/>
                     <Separator/>
-                    <MenuItem Header="CSV..." Command="{Binding ExportCsvCommand}"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Export_Csv}" Command="{Binding ExportCsvCommand}"/>
                     <Separator/>
-                    <MenuItem Header="Sincronizar TFS / Azure DevOps..." Click="OnSyncTfsClick"/>
+                    <MenuItem Header="{DynamicResource Menu_File_Export_SyncTfs}" Click="OnSyncTfsClick"/>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="Sa_ir" Click="OnExitClick"/>
+                <MenuItem Header="{DynamicResource Menu_File_Exit}" Click="OnExitClick"/>
             </MenuItem>
-            <MenuItem Header="_Editar">
-                <MenuItem Header="Adicionar _Tarefa" Command="{Binding AddTaskCommand}"/>
-                <MenuItem Header="Adicionar _Subtarefa" Command="{Binding AddSubtaskCommand}"/>
-                <MenuItem Header="E_xcluir Tarefa" Command="{Binding DeleteTaskCommand}"/>
-                <MenuItem Header="Encadear _Atividades" Command="{Binding LinkTasksSequentiallyCommand}"/>
+            <MenuItem Header="{DynamicResource Menu_Edit}">
+                <MenuItem Header="{DynamicResource Menu_Edit_AddTask}" Command="{Binding AddTaskCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_Edit_AddSubtask}" Command="{Binding AddSubtaskCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_Edit_DeleteTask}" Command="{Binding DeleteTaskCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_Edit_Link}" Command="{Binding LinkTasksSequentiallyCommand}"/>
                 <Separator/>
-                <MenuItem Header="Mover Tarefa para _Cima"
+                <MenuItem Header="{DynamicResource Menu_Edit_MoveUp}"
                           Command="{Binding MoveTaskUpCommand}"
                           CommandParameter="{Binding SelectedTask}"/>
-                <MenuItem Header="Mover Tarefa para _Baixo"
+                <MenuItem Header="{DynamicResource Menu_Edit_MoveDown}"
                           Command="{Binding MoveTaskDownCommand}"
                           CommandParameter="{Binding SelectedTask}"/>
                 <Separator/>
-                <MenuItem Header="Criar _Subtarefa" Command="{Binding IndentTaskCommand}"/>
-                <MenuItem Header="_Promover Tarefa" Command="{Binding OutdentTaskCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_Edit_Indent}" Command="{Binding IndentTaskCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_Edit_Outdent}" Command="{Binding OutdentTaskCommand}"/>
             </MenuItem>
-            <MenuItem Header="_Exibir">
-                <MenuItem Header="G_antt" Command="{Binding ShowGanttCommand}"/>
-                <MenuItem Header="_Sprint..." Click="OnSprintSettingsClick"/>
-                <MenuItem Header="S_PF..." Click="OnSfpSettingsClick"/>
-                <MenuItem Header="_Calendario..." Click="OnCalendarSettingsClick"/>
-                <MenuItem Header="_Alocacao de Recursos..." Click="OnResourceAllocationClick"/>
+            <MenuItem Header="{DynamicResource Menu_View}">
+                <MenuItem Header="{DynamicResource Menu_View_Gantt}" Command="{Binding ShowGanttCommand}"/>
+                <MenuItem Header="{DynamicResource Menu_View_Sprint}" Click="OnSprintSettingsClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_Sfp}" Click="OnSfpSettingsClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_Calendar}" Click="OnCalendarSettingsClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_Resources}" Click="OnResourceAllocationClick"/>
                 <Separator/>
-                <MenuItem Header="Projetos _DevOps (lista)..." Click="OnDevOpsProjectListClick"/>
-                <MenuItem Header="_Health Check do Projeto..." Click="OnDelayedTasksClick"/>
-                <MenuItem Header="_Pessoas..." Click="OnPeopleClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_DevOpsList}" Click="OnDevOpsProjectListClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_HealthCheck}" Click="OnDelayedTasksClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu_View_Language}" Click="OnLanguageClick"/>
             </MenuItem>
-            <MenuItem Header="_IA">
-                <MenuItem Header="Assistente de _Tarefas..." Click="OnAiAssistantClick"/>
+            <MenuItem Header="{DynamicResource Menu_Ai}">
+                <MenuItem Header="{DynamicResource Menu_Ai_Assistant}" Click="OnAiAssistantClick"/>
             </MenuItem>
-            <MenuItem Header="A_juda">
-                <MenuItem Header="_Como usar o cronograma..." Click="OnScheduleUsageHelpClick"/>
-                <MenuItem Header="_Integracao Azure DevOps Backlog..." Click="OnAzureDevOpsBacklogHelpClick"/>
+            <MenuItem Header="{DynamicResource Menu_Help}">
+                <MenuItem Header="{DynamicResource Menu_Help_Features}" Click="OnFeaturesHelpClick"/>
                 <Separator/>
-                <MenuItem Header="_NXStore" Click="OnCheckUpdateClick"/>
+                <MenuItem Header="{DynamicResource Menu_Help_Schedule}" Click="OnScheduleUsageHelpClick"/>
+                <MenuItem Header="{DynamicResource Menu_Help_AzureDevOps}" Click="OnAzureDevOpsBacklogHelpClick"/>
                 <Separator/>
-                <MenuItem Header="_Licen&#231;a Community..." Click="OnLicenseClick"/>
-                <MenuItem Header="_Sobre..." Click="OnAboutClick"/>
+                <MenuItem Header="{DynamicResource Menu_Help_Store}" Click="OnCheckUpdateClick"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu_Help_License}" Click="OnLicenseClick"/>
+                <MenuItem Header="{DynamicResource Menu_Help_About}" Click="OnAboutClick"/>
             </MenuItem>
         </Menu>
 
         <ToolBar DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}" Padding="4,2"
                  FocusManager.IsFocusScope="False"
                  Button.Click="OnToolbarButtonClick">
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding NewProjectCommand}" ToolTip="Novo Projeto">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding NewProjectCommand}" ToolTip="{DynamicResource Toolbar_NewProject}">
                 <TextBlock Text="&#x1F4C4;" FontSize="14"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding ClearProjectCommand}" ToolTip="Limpar Projeto">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding ClearProjectCommand}" ToolTip="{DynamicResource Toolbar_ClearProject}">
                 <TextBlock Text="Limpar" FontSize="11" FontWeight="SemiBold"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding OpenProjectCommand}" ToolTip="Abrir">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding OpenProjectCommand}" ToolTip="{DynamicResource Toolbar_Open}">
                 <TextBlock Text="&#x1F4C2;" FontSize="14"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding SaveProjectCommand}" ToolTip="Salvar">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding SaveProjectCommand}" ToolTip="{DynamicResource Toolbar_Save}">
                 <TextBlock Text="&#x1F4BE;" FontSize="14"/>
             </Button>
             <Separator/>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddTaskCommand}" ToolTip="Adicionar Tarefa">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddTaskCommand}" ToolTip="{DynamicResource Toolbar_AddTask}">
                 <TextBlock Text="+" FontSize="16" FontWeight="Bold"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddSubtaskCommand}" ToolTip="Adicionar subtarefa">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding AddSubtaskCommand}" ToolTip="{DynamicResource Toolbar_AddSubtask}">
                 <TextBlock Text="+&gt;" FontSize="12" FontWeight="Bold"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding DeleteTaskCommand}" ToolTip="Excluir Tarefa">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding DeleteTaskCommand}" ToolTip="{DynamicResource Toolbar_DeleteTask}">
                 <TextBlock Text="&#x1F5D1;" FontSize="14"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding LinkTasksSequentiallyCommand}" ToolTip="Encadear atividades">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding LinkTasksSequentiallyCommand}" ToolTip="{DynamicResource Toolbar_LinkTasks}">
                 <TextBlock Text="&#x26D3;" FontSize="14"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding IndentTaskCommand}" ToolTip="Criar subtarefa da tarefa selecionada">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding IndentTaskCommand}" ToolTip="{DynamicResource Toolbar_Indent}">
                 <TextBlock Text="&gt;" FontSize="16" FontWeight="Bold"/>
             </Button>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding OutdentTaskCommand}" ToolTip="Promover tarefa para o n&#237;vel superior">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding OutdentTaskCommand}" ToolTip="{DynamicResource Toolbar_Outdent}">
                 <TextBlock Text="&lt;" FontSize="16" FontWeight="Bold"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}"
                     Command="{Binding MoveTaskUpCommand}"
                     CommandParameter="{Binding SelectedTask}"
-                    ToolTip="Mover tarefa para cima">
+                    ToolTip="{DynamicResource Toolbar_MoveUp}">
                 <TextBlock Text="&#x2191;" FontSize="14" FontWeight="Bold"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}"
                     Command="{Binding MoveTaskDownCommand}"
                     CommandParameter="{Binding SelectedTask}"
-                    ToolTip="Mover tarefa para baixo">
+                    ToolTip="{DynamicResource Toolbar_MoveDown}">
                 <TextBlock Text="&#x2193;" FontSize="14" FontWeight="Bold"/>
             </Button>
             <Separator/>
-            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnAiAssistantClick" ToolTip="Assistente IA">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnAiAssistantClick" ToolTip="{DynamicResource Toolbar_Ai}">
                 <TextBlock Text="IA" FontSize="12" FontWeight="SemiBold"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnRecalcDatesClick"
-                    ToolTip="Recalcular datas-fim de todas as tarefas (&#250;til ap&#243;s importar do TFS)">
+                    ToolTip="{DynamicResource Toolbar_RecalcDates}">
                 <TextBlock Text="&#x21BB;" FontSize="14"/>
             </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnRefreshViewClick"
-                    ToolTip="Atualizar exibi&#231;&#227;o">
+                    ToolTip="{DynamicResource Toolbar_Refresh}">
                 <TextBlock Text="&#x1F504;" FontSize="13"/>
             </Button>
             <Separator/>
             <Button x:Name="LayoutToggleButton"
                     Style="{StaticResource ToolbarButtonStyle}"
                     Click="OnLayoutToggleClick"
-                    ToolTip="Expandir ou encolher a área da tabela e do gráfico">
+                    ToolTip="{DynamicResource Toolbar_Layout}">
                 <TextBlock x:Name="LayoutToggleText" Text="⤢" FontSize="14" FontWeight="SemiBold"/>
             </Button>
             <Separator/>
             <Button x:Name="ResourceFilterButton"
                     Style="{StaticResource ToolbarButtonStyle}"
                     Click="OnResourceFilterClick"
-                    ToolTip="Filtrar por recurso"
+                    ToolTip="{DynamicResource Toolbar_ResourceFilter}"
                     MinWidth="36" Padding="4,2">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="&#x1F464;" FontSize="13" Margin="0,0,2,0"/>
@@ -162,7 +166,7 @@
             <Button x:Name="ZoomMenuButton"
                     Style="{StaticResource ToolbarButtonStyle}"
                     Click="OnZoomMenuClick"
-                    ToolTip="Alterar nível de zoom"
+                    ToolTip="{DynamicResource Toolbar_Zoom}"
                     MinWidth="52" Padding="4,2">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="&#x1F50D;" FontSize="12" Margin="0,0,3,0"/>
@@ -171,7 +175,7 @@
             </Button>
             <Separator/>
             <ToggleButton x:Name="DayHeaderToggle"
-                          ToolTip="Visão por dia (mês / sprint / dias úteis)"
+                          ToolTip="{DynamicResource Toolbar_DayView}"
                           Width="28"
                           Height="24"
                           Padding="3"

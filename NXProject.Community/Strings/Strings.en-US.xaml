@@ -1,0 +1,89 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- File Menu -->
+    <sys:String x:Key="Menu_File">_File</sys:String>
+    <sys:String x:Key="Menu_File_New">_New Project</sys:String>
+    <sys:String x:Key="Menu_File_Clear">_Clear Project</sys:String>
+    <sys:String x:Key="Menu_File_Open">_Open...</sys:String>
+    <sys:String x:Key="Menu_File_Save">_Save</sys:String>
+    <sys:String x:Key="Menu_File_SaveAs">Save _As...</sys:String>
+    <sys:String x:Key="Menu_File_Import">_Import</sys:String>
+    <sys:String x:Key="Menu_File_Import_OpenProj">OpenProj (.pod)...</sys:String>
+    <sys:String x:Key="Menu_File_Import_MsProject">MS Project XML...</sys:String>
+    <sys:String x:Key="Menu_File_Import_Excel">Excel XML...</sys:String>
+    <sys:String x:Key="Menu_File_Import_Tfs">TFS / Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Export">_Export</sys:String>
+    <sys:String x:Key="Menu_File_Export_OpenProj">OpenProj (.pod)...</sys:String>
+    <sys:String x:Key="Menu_File_Export_MsProject">MS Project XML...</sys:String>
+    <sys:String x:Key="Menu_File_Export_Excel">Excel XML...</sys:String>
+    <sys:String x:Key="Menu_File_Export_Csv">CSV...</sys:String>
+    <sys:String x:Key="Menu_File_Export_SyncTfs">Sync TFS / Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Exit">E_xit</sys:String>
+
+    <!-- Edit Menu -->
+    <sys:String x:Key="Menu_Edit">_Edit</sys:String>
+    <sys:String x:Key="Menu_Edit_AddTask">Add _Task</sys:String>
+    <sys:String x:Key="Menu_Edit_AddSubtask">Add _Subtask</sys:String>
+    <sys:String x:Key="Menu_Edit_DeleteTask">_Delete Task</sys:String>
+    <sys:String x:Key="Menu_Edit_Link">_Link Tasks Sequentially</sys:String>
+    <sys:String x:Key="Menu_Edit_MoveUp">Move Task _Up</sys:String>
+    <sys:String x:Key="Menu_Edit_MoveDown">Move Task _Down</sys:String>
+    <sys:String x:Key="Menu_Edit_Indent">_Create Subtask</sys:String>
+    <sys:String x:Key="Menu_Edit_Outdent">_Promote Task</sys:String>
+
+    <!-- View Menu -->
+    <sys:String x:Key="Menu_View">_View</sys:String>
+    <sys:String x:Key="Menu_View_Gantt">G_antt</sys:String>
+    <sys:String x:Key="Menu_View_Sprint">_Sprint...</sys:String>
+    <sys:String x:Key="Menu_View_Sfp">S_PF...</sys:String>
+    <sys:String x:Key="Menu_View_Calendar">_Calendar...</sys:String>
+    <sys:String x:Key="Menu_View_Resources">_Resource Allocation...</sys:String>
+    <sys:String x:Key="Menu_View_DevOpsList">_DevOps Projects (list)...</sys:String>
+    <sys:String x:Key="Menu_View_HealthCheck">Project _Health Check...</sys:String>
+    <sys:String x:Key="Menu_View_People">_People...</sys:String>
+    <sys:String x:Key="Menu_View_Language">_Language / Idioma...</sys:String>
+
+    <!-- AI Menu -->
+    <sys:String x:Key="Menu_Ai">_AI</sys:String>
+    <sys:String x:Key="Menu_Ai_Assistant">_Task Assistant...</sys:String>
+
+    <!-- Help Menu -->
+    <sys:String x:Key="Menu_Help">_Help</sys:String>
+    <sys:String x:Key="Menu_Help_Features">_Features Guide...</sys:String>
+    <sys:String x:Key="Menu_Help_Schedule">_How to use the schedule...</sys:String>
+    <sys:String x:Key="Menu_Help_AzureDevOps">_Azure DevOps Backlog Integration...</sys:String>
+    <sys:String x:Key="Menu_Help_Store">_NXStore</sys:String>
+    <sys:String x:Key="Menu_Help_License">_Community License...</sys:String>
+    <sys:String x:Key="Menu_Help_About">_About...</sys:String>
+
+    <!-- Toolbar tooltips -->
+    <sys:String x:Key="Toolbar_NewProject">New Project</sys:String>
+    <sys:String x:Key="Toolbar_ClearProject">Clear Project</sys:String>
+    <sys:String x:Key="Toolbar_Open">Open</sys:String>
+    <sys:String x:Key="Toolbar_Save">Save</sys:String>
+    <sys:String x:Key="Toolbar_AddTask">Add Task</sys:String>
+    <sys:String x:Key="Toolbar_AddSubtask">Add subtask</sys:String>
+    <sys:String x:Key="Toolbar_DeleteTask">Delete Task</sys:String>
+    <sys:String x:Key="Toolbar_LinkTasks">Link tasks sequentially</sys:String>
+    <sys:String x:Key="Toolbar_Indent">Create subtask from selected task</sys:String>
+    <sys:String x:Key="Toolbar_Outdent">Promote task to upper level</sys:String>
+    <sys:String x:Key="Toolbar_MoveUp">Move task up</sys:String>
+    <sys:String x:Key="Toolbar_MoveDown">Move task down</sys:String>
+    <sys:String x:Key="Toolbar_Ai">AI Assistant</sys:String>
+    <sys:String x:Key="Toolbar_RecalcDates">Recalculate end dates for all tasks</sys:String>
+    <sys:String x:Key="Toolbar_Refresh">Refresh view</sys:String>
+    <sys:String x:Key="Toolbar_Layout">Expand or collapse table and chart areas</sys:String>
+    <sys:String x:Key="Toolbar_ResourceFilter">Filter by resource</sys:String>
+    <sys:String x:Key="Toolbar_Zoom">Change zoom level</sys:String>
+    <sys:String x:Key="Toolbar_DayView">Day view (month / sprint / working days)</sys:String>
+
+    <!-- Language selection window -->
+    <sys:String x:Key="Lang_WindowTitle">Language / Idioma</sys:String>
+    <sys:String x:Key="Lang_Label">Select the application language:</sys:String>
+    <sys:String x:Key="Lang_Note">The change is applied immediately. Menus and the main interface update right away. Some internal dialogs will be translated in future versions.</sys:String>
+    <sys:String x:Key="Lang_Ok">OK</sys:String>
+    <sys:String x:Key="Lang_Cancel">Cancel</sys:String>
+
+</ResourceDictionary>

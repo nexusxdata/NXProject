@@ -1,0 +1,89 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Menu Arquivo -->
+    <sys:String x:Key="Menu_File">_Arquivo</sys:String>
+    <sys:String x:Key="Menu_File_New">_Novo Projeto</sys:String>
+    <sys:String x:Key="Menu_File_Clear">_Limpar Projeto</sys:String>
+    <sys:String x:Key="Menu_File_Open">_Abrir...</sys:String>
+    <sys:String x:Key="Menu_File_Save">_Salvar</sys:String>
+    <sys:String x:Key="Menu_File_SaveAs">Salvar _Como...</sys:String>
+    <sys:String x:Key="Menu_File_Import">_Importar</sys:String>
+    <sys:String x:Key="Menu_File_Import_OpenProj">OpenProj (.pod)...</sys:String>
+    <sys:String x:Key="Menu_File_Import_MsProject">MS Project XML...</sys:String>
+    <sys:String x:Key="Menu_File_Import_Excel">Excel XML...</sys:String>
+    <sys:String x:Key="Menu_File_Import_Tfs">TFS / Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Export">_Exportar</sys:String>
+    <sys:String x:Key="Menu_File_Export_OpenProj">OpenProj (.pod)...</sys:String>
+    <sys:String x:Key="Menu_File_Export_MsProject">MS Project XML...</sys:String>
+    <sys:String x:Key="Menu_File_Export_Excel">Excel XML...</sys:String>
+    <sys:String x:Key="Menu_File_Export_Csv">CSV...</sys:String>
+    <sys:String x:Key="Menu_File_Export_SyncTfs">Sincronizar TFS / Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Exit">Sa_ir</sys:String>
+
+    <!-- Menu Editar -->
+    <sys:String x:Key="Menu_Edit">_Editar</sys:String>
+    <sys:String x:Key="Menu_Edit_AddTask">Adicionar _Tarefa</sys:String>
+    <sys:String x:Key="Menu_Edit_AddSubtask">Adicionar _Subtarefa</sys:String>
+    <sys:String x:Key="Menu_Edit_DeleteTask">E_xcluir Tarefa</sys:String>
+    <sys:String x:Key="Menu_Edit_Link">Encadear _Atividades</sys:String>
+    <sys:String x:Key="Menu_Edit_MoveUp">Mover Tarefa para _Cima</sys:String>
+    <sys:String x:Key="Menu_Edit_MoveDown">Mover Tarefa para _Baixo</sys:String>
+    <sys:String x:Key="Menu_Edit_Indent">Criar _Subtarefa</sys:String>
+    <sys:String x:Key="Menu_Edit_Outdent">_Promover Tarefa</sys:String>
+
+    <!-- Menu Exibir -->
+    <sys:String x:Key="Menu_View">_Exibir</sys:String>
+    <sys:String x:Key="Menu_View_Gantt">G_antt</sys:String>
+    <sys:String x:Key="Menu_View_Sprint">_Sprint...</sys:String>
+    <sys:String x:Key="Menu_View_Sfp">S_PF...</sys:String>
+    <sys:String x:Key="Menu_View_Calendar">_Calendario...</sys:String>
+    <sys:String x:Key="Menu_View_Resources">_Alocacao de Recursos...</sys:String>
+    <sys:String x:Key="Menu_View_DevOpsList">Projetos _DevOps (lista)...</sys:String>
+    <sys:String x:Key="Menu_View_HealthCheck">_Health Check do Projeto...</sys:String>
+    <sys:String x:Key="Menu_View_People">_Pessoas...</sys:String>
+    <sys:String x:Key="Menu_View_Language">_Idioma / Language...</sys:String>
+
+    <!-- Menu IA -->
+    <sys:String x:Key="Menu_Ai">_IA</sys:String>
+    <sys:String x:Key="Menu_Ai_Assistant">Assistente de _Tarefas...</sys:String>
+
+    <!-- Menu Ajuda -->
+    <sys:String x:Key="Menu_Help">A_juda</sys:String>
+    <sys:String x:Key="Menu_Help_Features">_Guia de Funcionalidades...</sys:String>
+    <sys:String x:Key="Menu_Help_Schedule">_Como usar o cronograma...</sys:String>
+    <sys:String x:Key="Menu_Help_AzureDevOps">_Integracao Azure DevOps Backlog...</sys:String>
+    <sys:String x:Key="Menu_Help_Store">_NXStore</sys:String>
+    <sys:String x:Key="Menu_Help_License">_Licenca Community...</sys:String>
+    <sys:String x:Key="Menu_Help_About">_Sobre...</sys:String>
+
+    <!-- Toolbar tooltips -->
+    <sys:String x:Key="Toolbar_NewProject">Novo Projeto</sys:String>
+    <sys:String x:Key="Toolbar_ClearProject">Limpar Projeto</sys:String>
+    <sys:String x:Key="Toolbar_Open">Abrir</sys:String>
+    <sys:String x:Key="Toolbar_Save">Salvar</sys:String>
+    <sys:String x:Key="Toolbar_AddTask">Adicionar Tarefa</sys:String>
+    <sys:String x:Key="Toolbar_AddSubtask">Adicionar subtarefa</sys:String>
+    <sys:String x:Key="Toolbar_DeleteTask">Excluir Tarefa</sys:String>
+    <sys:String x:Key="Toolbar_LinkTasks">Encadear atividades</sys:String>
+    <sys:String x:Key="Toolbar_Indent">Criar subtarefa da tarefa selecionada</sys:String>
+    <sys:String x:Key="Toolbar_Outdent">Promover tarefa para o nivel superior</sys:String>
+    <sys:String x:Key="Toolbar_MoveUp">Mover tarefa para cima</sys:String>
+    <sys:String x:Key="Toolbar_MoveDown">Mover tarefa para baixo</sys:String>
+    <sys:String x:Key="Toolbar_Ai">Assistente IA</sys:String>
+    <sys:String x:Key="Toolbar_RecalcDates">Recalcular datas-fim de todas as tarefas</sys:String>
+    <sys:String x:Key="Toolbar_Refresh">Atualizar exibicao</sys:String>
+    <sys:String x:Key="Toolbar_Layout">Expandir ou encolher a area da tabela e do grafico</sys:String>
+    <sys:String x:Key="Toolbar_ResourceFilter">Filtrar por recurso</sys:String>
+    <sys:String x:Key="Toolbar_Zoom">Alterar nivel de zoom</sys:String>
+    <sys:String x:Key="Toolbar_DayView">Visao por dia (mes / sprint / dias uteis)</sys:String>
+
+    <!-- Janela de seleção de idioma -->
+    <sys:String x:Key="Lang_WindowTitle">Idioma / Language</sys:String>
+    <sys:String x:Key="Lang_Label">Selecione o idioma do aplicativo:</sys:String>
+    <sys:String x:Key="Lang_Note">A alteracao e aplicada imediatamente. Os menus e a interface principal sao atualizados. Alguns dialogos internos serao traduzidos em versoes futuras.</sys:String>
+    <sys:String x:Key="Lang_Ok">OK</sys:String>
+    <sys:String x:Key="Lang_Cancel">Cancelar</sys:String>
+
+</ResourceDictionary>
