@@ -54,7 +54,7 @@
     <sys:String x:Key="Menu_Help_Features">_Features Guide...</sys:String>
     <sys:String x:Key="Menu_Help_Schedule">_How to use the schedule...</sys:String>
     <sys:String x:Key="Menu_Help_AzureDevOps">_Azure DevOps Backlog Integration...</sys:String>
-    <sys:String x:Key="Menu_Help_Store">_NXStore</sys:String>
+    <sys:String x:Key="Menu_Help_Store">Check for updates on _NXStore/GitHub</sys:String>
     <sys:String x:Key="Menu_Help_License">_Community License...</sys:String>
     <sys:String x:Key="Menu_Help_About">_About...</sys:String>
 
