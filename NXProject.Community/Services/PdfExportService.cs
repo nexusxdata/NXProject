@@ -66,6 +66,8 @@ namespace NXProject.Community.Services
         private const double FooterH    = 28;
         private const double SepLine    = 0.8;
         private const double SepGap     = 4;
+        private const double PdfRenderDpi = 300;
+        private const int MaxRenderedPixels = 80_000_000;
 
         /// <summary>
         /// Exporta o cronograma para PDF.
@@ -93,11 +95,11 @@ namespace NXProject.Community.Services
 
             if (layoutMode == Views.PdfLayoutMode.TwoPages)
             {
-                AddContentPage(doc, RenderToPng(tableVisual, 200),
+                AddContentPage(doc, tableVisual,
                     PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
                     companyName, companyLogo, projectName, exportedOnLabel, pageNum: 1);
 
-                AddContentPage(doc, RenderToPng(ganttVisual, 200),
+                AddContentPage(doc, ganttVisual,
                     PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
                     companyName, companyLogo, projectName, exportedOnLabel, pageNum: 2);
             }
@@ -105,7 +107,7 @@ namespace NXProject.Community.Services
             {
                 // Renderiza tabela e Gantt separadamente e os posiciona lado a lado
                 AddSideBySidePage(doc,
-                    RenderToPng(tableVisual, 200), RenderToPng(ganttVisual, 200),
+                    tableVisual, ganttVisual,
                     pageSize, companyName, companyLogo, projectName, exportedOnLabel);
             }
 
@@ -114,7 +116,7 @@ namespace NXProject.Community.Services
 
         private static void AddSideBySidePage(
             PdfDocument doc,
-            byte[] tablePng, byte[] ganttPng,
+            FrameworkElement tableVisual, FrameworkElement ganttVisual,
             PdfSharp.PageSize size,
             string companyName, BitmapImage? companyLogo,
             string projectName, string exportedOnLabel)
@@ -145,6 +147,7 @@ namespace NXProject.Community.Services
             double sepW   = 4;
             double ganttW = availW - tableW - sepW;
 
+            var tablePng = RenderToPng(tableVisual, tableW, contentH, PdfRenderDpi);
             using (var ms = new MemoryStream(tablePng))
             using (var img = XImage.FromStream(ms))
                 gfx.DrawImage(img, Margin, contentTop, tableW, contentH);
@@ -154,6 +157,7 @@ namespace NXProject.Community.Services
             gfx.DrawLine(vpen, Margin + tableW + sepW / 2, contentTop,
                                Margin + tableW + sepW / 2, contentTop + contentH);
 
+            var ganttPng = RenderToPng(ganttVisual, ganttW, contentH, PdfRenderDpi);
             using (var ms = new MemoryStream(ganttPng))
             using (var img = XImage.FromStream(ms))
                 gfx.DrawImage(img, Margin + tableW + sepW, contentTop, ganttW, contentH);
@@ -163,7 +167,7 @@ namespace NXProject.Community.Services
 
         private static void AddContentPage(
             PdfDocument doc,
-            byte[] pngBytes,
+            FrameworkElement visual,
             PdfSharp.PageSize size,
             PdfSharp.PageOrientation orientation,
             string companyName, BitmapImage? companyLogo,
@@ -191,6 +195,7 @@ namespace NXProject.Community.Services
             double imgH = footerTop - SepGap - SepLine - contentTop;
             double imgW = pageW - Margin * 2;
 
+            var pngBytes = RenderToPng(visual, imgW, imgH, PdfRenderDpi);
             using var ms   = new MemoryStream(pngBytes);
             using var xImg = XImage.FromStream(ms);
             gfx.DrawImage(xImg, Margin, contentTop, imgW, imgH);
@@ -310,20 +315,47 @@ namespace NXProject.Community.Services
 
         // ── Utilitários ───────────────────────────────────────────────────
 
-        private static byte[] RenderToPng(FrameworkElement element, double dpi)
+        private static byte[] RenderToPng(
+            FrameworkElement element,
+            double targetWidthPoints,
+            double targetHeightPoints,
+            double dpi)
         {
-            double scale = dpi / 96.0;
-            int pixW = (int)Math.Round(element.ActualWidth  * scale);
-            int pixH = (int)Math.Round(element.ActualHeight * scale);
+            double targetWidthInches = targetWidthPoints / 72.0;
+            double targetHeightInches = targetHeightPoints / 72.0;
+            int pixW = (int)Math.Round(targetWidthInches * dpi);
+            int pixH = (int)Math.Round(targetHeightInches * dpi);
 
             if (pixW <= 0 || pixH <= 0)
                 throw new InvalidOperationException("O elemento não tem tamanho renderizável.");
 
+            var pixelCount = (long)pixW * pixH;
+            if (pixelCount > MaxRenderedPixels)
+            {
+                var reduce = Math.Sqrt(MaxRenderedPixels / (double)pixelCount);
+                pixW = Math.Max(1, (int)Math.Floor(pixW * reduce));
+                pixH = Math.Max(1, (int)Math.Floor(pixH * reduce));
+                dpi *= reduce;
+            }
+
+            double renderWidth = pixW * 96.0 / dpi;
+            double renderHeight = pixH * 96.0 / dpi;
+            var brush = new VisualBrush(element)
+            {
+                Stretch = Stretch.Fill,
+                AlignmentX = AlignmentX.Left,
+                AlignmentY = AlignmentY.Top
+            };
+
+            RenderOptions.SetBitmapScalingMode(element, BitmapScalingMode.HighQuality);
+            RenderOptions.SetEdgeMode(element, EdgeMode.Unspecified);
+            TextOptions.SetTextFormattingMode(element, TextFormattingMode.Display);
+            TextOptions.SetTextRenderingMode(element, TextRenderingMode.Auto);
+
             var rtb = new RenderTargetBitmap(pixW, pixH, dpi, dpi, PixelFormats.Pbgra32);
             var dv  = new DrawingVisual();
             using (var ctx = dv.RenderOpen())
-                ctx.DrawRectangle(new VisualBrush(element), null,
-                    new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+                ctx.DrawRectangle(brush, null, new Rect(0, 0, renderWidth, renderHeight));
             rtb.Render(dv);
 
             return EncodePng(rtb);
