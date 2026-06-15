@@ -746,18 +746,13 @@ namespace NXProject.Views
             bool wasExpanded = _expandedLayout;
             if (!wasExpanded) ApplyLayoutMode(expanded: true);
 
-            // Expande a largura do cronograma para capturar TODAS as colunas (inclusive Recursos e Sprint)
-            // A soma das colunas fixas em modo expandido é ~1260px; 1450 dá folga para a coluna Nome (star)
+            // Força o DataGrid interno a medir-se em largura total para capturar TODAS as colunas
             const double PdfTableRenderWidth = 1450;
-            double savedTableWidth  = TaskGridCtrl.Width;
-            double savedTableMinWidth = TaskGridCtrl.MinWidth;
-            TaskGridCtrl.Width    = PdfTableRenderWidth;
-            TaskGridCtrl.MinWidth = PdfTableRenderWidth;
-            UpdateLayout();
+            double savedDataGridWidth = TaskGridCtrl.PrepareForPdfCapture(PdfTableRenderWidth);
             try
             {
                 PdfExportService.Export(
-                    tableVisual:     TaskGridCtrl,
+                    tableVisual:     TaskGridCtrl.InnerGrid,
                     ganttVisual:     GanttCtrl,
                     projectName:     projectName,
                     companyName:     companyName,
@@ -784,8 +779,7 @@ namespace NXProject.Views
             }
             finally
             {
-                TaskGridCtrl.Width    = savedTableWidth;
-                TaskGridCtrl.MinWidth = savedTableMinWidth;
+                TaskGridCtrl.RestoreFromPdfCapture(savedDataGridWidth);
                 if (!wasExpanded) ApplyLayoutMode(expanded: false);
             }
         }
