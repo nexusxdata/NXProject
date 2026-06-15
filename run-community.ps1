@@ -3,6 +3,14 @@ param(
     [string]$Configuration
 )
 
+# Remove arquivos temporários _wpftmp.csproj gerados pelo C# Dev Kit do VS Code.
+# Esses arquivos obsoletos causam o erro "Duplicate Compile items" no log do Dev Kit.
+$wpftmp = Get-ChildItem -Path $PSScriptRoot -Filter "*_wpftmp.csproj" -Recurse -ErrorAction SilentlyContinue
+if ($wpftmp) {
+    $wpftmp | Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host "Arquivos temporarios _wpftmp removidos ($($wpftmp.Count))." -ForegroundColor DarkGray
+}
+
 function Get-ExePath($configuration) {
     $path = Join-Path $PSScriptRoot "NXProject.Community\bin\$configuration\net10.0-windows\NXProject.Community.exe"
     if (Test-Path $path) { return $path }
