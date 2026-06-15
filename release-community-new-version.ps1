@@ -153,7 +153,7 @@ if ($wpftmp) {
 
 Write-Step "Restaurando pacotes..."
 Invoke-DotnetCommandWithRetry -ActionLabel "O restore" -Command {
-    dotnet restore $ProjectFile --nologo -v q
+    dotnet restore $ProjectFile -r $Runtime --nologo -v q
 }
 
 Write-Step "Publicando NXProject Community self-contained ($Runtime)..."

@@ -30,6 +30,8 @@ namespace NXProject.Controls
             }
         }
 
+        public void RefreshRows() => TaskGrid.Items.Refresh();
+
         public static readonly DependencyProperty AvailableSprintsProperty =
             DependencyProperty.Register(nameof(AvailableSprints), typeof(ObservableCollection<Sprint>),
                 typeof(TaskGridControl), new PropertyMetadata(null));
@@ -74,6 +76,9 @@ namespace NXProject.Controls
 
         /// <summary>Disparado quando o usuário quer destacar as predecessoras de uma tarefa no Gantt.</summary>
         public event Action<TaskViewModel>? HighlightPredecessorsRequested;
+
+        /// <summary>Disparado quando o usuário quer editar o % de alocação de uma tarefa via menu de contexto.</summary>
+        public event Action<TaskViewModel>? EditPercAlocRequested;
 
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
@@ -595,6 +600,20 @@ namespace NXProject.Controls
             }
 
             return null;
+        }
+
+        private void OnEditPercAlocClick(object sender, RoutedEventArgs e)
+        {
+            TaskViewModel? task = null;
+            if (sender is FrameworkElement fe)
+            {
+                task = fe.DataContext as TaskViewModel;
+                if (task == null && fe.ContextMenu?.PlacementTarget is FrameworkElement pt)
+                    task = pt.DataContext as TaskViewModel;
+            }
+            if (task == null || task.Model.Resources.Count == 0) return;
+
+            EditPercAlocRequested?.Invoke(task);
         }
     }
 }

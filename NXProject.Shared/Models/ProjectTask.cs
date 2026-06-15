@@ -65,6 +65,12 @@ namespace NXProject.Models
         // Data de fim fixada (prazo comprometido). true → envia Data_Fim + tag DT_FIM_NEG ao TFS.
         public bool FinishFixed { get; set; } = false;
 
+        // Controle de concorrência de sincronização TFS.
+        // SyncVersion: valor lido no último import (null = nunca importado).
+        // HasSyncConflict: true quando outro usuário gravou após o nosso último import.
+        public int? SyncVersion { get; set; }
+        public bool HasSyncConflict { get; set; }
+
         // Justificativa de atraso ou observação relevante. Persiste na description
         // do DevOps como "Justificativa: <texto>." e é lida de volta no import.
         public string? Justificativa { get; set; }

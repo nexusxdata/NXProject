@@ -14,6 +14,8 @@ namespace NXProject.Views
         private readonly TaskViewModel _task;
         private string? _devOpsItemUrl;
 
+        public bool ShouldImport { get; private set; }
+
         public TfsWorkItemEditWindow(TaskViewModel task)
         {
             InitializeComponent();
@@ -28,6 +30,9 @@ namespace NXProject.Views
             _suppressBlockToggle = true;
             BlockCheck.IsChecked = HasTag(TagsBox.Text, "Block");
             _suppressBlockToggle = false;
+
+            if (task.HasSyncConflict)
+                ConflictBanner.Visibility = Visibility.Visible;
 
             LoadDevOpsExtras(task);
         }
@@ -68,6 +73,13 @@ namespace NXProject.Views
             if (_devOpsItemUrl is null) return;
             try { Process.Start(new ProcessStartInfo(_devOpsItemUrl) { UseShellExecute = true }); }
             catch { }
+        }
+
+        private void OnImportClick(object sender, RoutedEventArgs e)
+        {
+            ShouldImport = true;
+            DialogResult = false;
+            Close();
         }
 
         private async void OnLoadOnlineTasksClick(object sender, RoutedEventArgs e)

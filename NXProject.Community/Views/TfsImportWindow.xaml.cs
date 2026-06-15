@@ -27,10 +27,11 @@ namespace NXProject.Views
             var saved = TfsConnectionStore.Load(_storageKey);
             OrgUrlBox.Text = saved.OrganizationUrl;
             ProjectBox.Text = saved.TeamProject;
-            HoursPerDayBox.Text = saved.HoursPerDay.ToString(CultureInfo.CurrentCulture);
+            // HoursPerDay vem do calendário de trabalho — não exibido aqui
             EffortFieldBox.Text = saved.EffortFieldName;
             StartFieldBox.Text = saved.StartFieldName;
             FinishFieldBox.Text = saved.FinishFieldName;
+            PercAlocFieldBox.Text = saved.PercAlocFieldName;
             FixedStartTagBox.Text = saved.FixedStartTagName;
             SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
             FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
@@ -113,10 +114,6 @@ namespace NXProject.Views
             }
 
             double hoursPerDay = ProjectCalendarService.WorkingHoursPerDay;
-            if (!string.IsNullOrWhiteSpace(HoursPerDayBox.Text) &&
-                double.TryParse(HoursPerDayBox.Text.Trim(), NumberStyles.Any, CultureInfo.CurrentCulture, out var hpd) &&
-                hpd > 0)
-                hoursPerDay = hpd;
 
             var options = new TfsConnectionOptions
             {
@@ -128,6 +125,7 @@ namespace NXProject.Views
                 EffortFieldName = string.IsNullOrWhiteSpace(EffortFieldBox.Text) ? "HH Estimado" : EffortFieldBox.Text.Trim(),
                 StartFieldName = string.IsNullOrWhiteSpace(StartFieldBox.Text) ? "Data_Inicio" : StartFieldBox.Text.Trim(),
                 FinishFieldName = string.IsNullOrWhiteSpace(FinishFieldBox.Text) ? "Data_Fim" : FinishFieldBox.Text.Trim(),
+                PercAlocFieldName = string.IsNullOrWhiteSpace(PercAlocFieldBox.Text) ? "Perc_Alocação" : PercAlocFieldBox.Text.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(FixedStartTagBox.Text) ? "DT-INI-NEG" : FixedStartTagBox.Text.Trim(),
                 SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
                 FutureSprintDays = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90,
@@ -170,6 +168,22 @@ namespace NXProject.Views
             {
                 SetImporting(false);
             }
+        }
+
+        private void OnOpenCalendarClick(object sender, RoutedEventArgs e)
+        {
+            var control = new NXProject.Controls.CalendarSettingsControl("NXProject.Community");
+            var window = new Window
+            {
+                Title = "Calendário de trabalho",
+                Owner = this,
+                Width = 720,
+                Height = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = control
+            };
+            control.Saved += (_, _) => { window.Close(); };
+            window.ShowDialog();
         }
 
         private void SetImporting(bool importing)

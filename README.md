@@ -104,8 +104,39 @@ Manage multiple DevOps projects in a shared file across your team. Each project 
 - **Backlog order**: `Microsoft.VSTS.Common.StackRank`
 - **Blockers**: child Tasks with the `Block` tag mark the Story as blocked
 - **State**: `Closed`/`Resolved` Stories with open child Tasks are flagged and auto-corrected
+- **Allocation %**: `Perc_Alocação` — how much of the person's day is dedicated to this Story (affects finish date)
+- **Sync version**: `Sync_version` and `Sync_Name` — concurrency control (see below)
 
-> Field names (`HH Estimado`, `Data_Inicio`, `Data_Fim`) can be changed in the **Advanced fields** section of the import dialog if your process uses different names.
+> Field names can be changed in the **Advanced fields** section of the import dialog if your process uses different names.
+
+---
+
+### Required custom fields on the Story work item type
+
+NXProject reads and writes six custom fields on Stories in Azure DevOps. You must create them in your process template under **Organization Settings → Process → [Your Process] → Story → Fields**.
+
+| Field name (display) | Reference name | Type | Default in NXProject | Purpose |
+|---|---|---|---|---|
+| `HH Estimado` | `Custom.HHEstimado` *(example)* | Integer or Decimal | `HH Estimado` | Estimated effort in hours |
+| `Data_Inicio` | `Custom.DataInicio` *(example)* | Date/Time | `Data_Inicio` | Planned start date |
+| `Data_Fim` | `Custom.DataFim` *(example)* | Date/Time | `Data_Fim` | Planned finish date |
+| `Perc_Alocação` | `Custom.PercAlocacao` *(example)* | Integer (1–100) | `Perc_Alocação` | % of person's day dedicated to this Story |
+| `Sync_version` | `Custom.Syncversion` *(example)* | Integer | `Sync_version` | Concurrency version counter (auto-managed) |
+| `Sync_Name` | `Custom.SyncName` *(example)* | Text *(plain text, not Identity)* | `Sync_Name` | Who last synced (auto-managed) |
+
+> The reference names above are examples — Azure DevOps generates them automatically from the display name and your organization prefix.  
+> If your fields have different display names, update them in NXProject under **File → Import TFS / Azure DevOps → Advanced fields** expander.
+
+#### Concurrency control (`Sync_version` / `Sync_Name`)
+
+When two users sync changes simultaneously, the last write could overwrite the first. NXProject prevents this:
+
+- On every sync that writes at least one change, `Sync_version` is incremented by 1 and `Sync_Name` is set to the current Windows user.
+- When you sync, NXProject compares the version it read during import with the current version in DevOps. If the DevOps version is higher, someone else saved more recently — the item is **skipped** and marked in **red** in the schedule.
+- Red items remain highlighted until you re-import the project. The sync log shows which items had conflicts.
+- The version counter resets to 1 after reaching the integer limit.
+
+> **`Sync_Name` must be plain text, not Identity type.** If you created it as an Identity (person picker) field, delete it and recreate it as **Text (single line)**.
 
 ### Import log
 
@@ -153,8 +184,18 @@ Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/
 ```
 
 The development executable will be generated in `NXProject.Community\bin\Release\net10.0-windows\`.
-For the official GitHub Releases `.exe`, use `dotnet publish --self-contained true` or the project's release script, which already creates the self-contained package.
-Without that, launching the `.exe` may fail with a corrupted .NET or incompatible runtime message, even when the DLL opens with `dotnet NXProject.Community.dll`.
+
+> **Important — generating the official release `.exe`**
+>
+> Always use `dotnet publish --self-contained true -r win-x64` (or the project's release script, which already does this).
+> If you use only `dotnet build`, the resulting `.exe` may fail on machines with a broken .NET registry entry, showing a misleading error such as:
+>
+> ```
+> To run this application, you must install .NET.
+> ```
+>
+> …even when `dotnet --list-runtimes` shows .NET installed correctly.
+> The self-contained package bundles the .NET runtime inside the ZIP and avoids this issue entirely.
 
 ---
 

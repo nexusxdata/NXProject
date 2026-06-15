@@ -49,7 +49,12 @@ namespace NXProject.Models
         // Horas estimadas para esta tarefa (calculado ou manual)
         public double? EstimatedHours { get; set; }
 
-        public override string ToString() =>
-            $"{Resource?.DisplayName ?? Resource?.Name} ({AllocationPercent}%)";
+        public override string ToString()
+        {
+            var name = Resource?.DisplayName ?? Resource?.Name ?? string.Empty;
+            return Math.Abs(AllocationPercent - 100.0) < 0.01
+                ? name
+                : $"({AllocationPercent:0}%) {name}";
+        }
     }
 }

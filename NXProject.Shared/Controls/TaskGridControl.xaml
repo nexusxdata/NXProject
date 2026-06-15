@@ -32,6 +32,10 @@
                     <DataTrigger Binding="{Binding IsHighlightedPredecessor}" Value="True">
                         <Setter Property="Background" Value="#FFEEDD"/>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding HasSyncConflict}" Value="True">
+                        <Setter Property="Background" Value="#FFDDDD"/>
+                        <Setter Property="Foreground" Value="#A4262C"/>
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>
@@ -408,7 +412,14 @@
                     <DataTemplate>
                         <TextBlock Text="{Binding ResourcesText, Mode=OneWay}"
                                    VerticalAlignment="Center"
-                                   Margin="3,0"/>
+                                   Margin="3,0">
+                            <TextBlock.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Editar % de alocação..."
+                                              Click="OnEditPercAlocClick"/>
+                                </ContextMenu>
+                            </TextBlock.ContextMenu>
+                        </TextBlock>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>

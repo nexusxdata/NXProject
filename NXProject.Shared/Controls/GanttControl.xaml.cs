@@ -1102,9 +1102,10 @@ namespace NXProject.Controls
                 return;
             }
 
-            var bgColor = isSelected    ? Color.FromRgb(220, 124, 0)
-                        : isPredecessor ? Color.FromRgb(200, 100, 20)
-                        :                 Color.FromRgb(68, 114, 196);
+            var bgColor = isSelected           ? Color.FromRgb(220, 124, 0)
+                        : isPredecessor        ? Color.FromRgb(200, 100, 20)
+                        : task.HasSyncConflict ? Color.FromRgb(196, 43, 43)
+                        :                        Color.FromRgb(68, 114, 196);
             var bg = new Rectangle
             {
                 Width = width,
@@ -1197,9 +1198,10 @@ namespace NXProject.Controls
 
         private void RenderSummaryBar(TaskViewModel task, double x, double y, double width, bool isSelected, bool isPredecessor = false)
         {
-            var barColor = isSelected    ? Color.FromRgb(220, 124, 0)
-                         : isPredecessor ? Color.FromRgb(200, 100, 20)
-                         :                 Color.FromRgb(43, 87, 154);
+            var barColor = isSelected           ? Color.FromRgb(220, 124, 0)
+                         : isPredecessor        ? Color.FromRgb(200, 100, 20)
+                         : task.HasSyncConflict ? Color.FromRgb(180, 30, 30)
+                         :                        Color.FromRgb(43, 87, 154);
             var bar = new Rectangle
             {
                 Width = width,

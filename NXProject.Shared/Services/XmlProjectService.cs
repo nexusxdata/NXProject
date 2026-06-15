@@ -125,7 +125,9 @@ namespace NXProject.Services
                 new XElement(EXT + "BlockedByChild", task.BlockedByChild),
                 new XElement(EXT + "TfsStackRank", task.TfsStackRank?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? ""),
                 new XElement(EXT + "TfsIterationPath", task.TfsIterationPath ?? ""),
-                new XElement(EXT + "Description", task.Description ?? "")
+                new XElement(EXT + "Description", task.Description ?? ""),
+                new XElement(EXT + "SyncVersion", task.SyncVersion?.ToString() ?? ""),
+                new XElement(EXT + "HasSyncConflict", task.HasSyncConflict)
             );
 
             // Predecessoras
@@ -275,6 +277,8 @@ namespace NXProject.Services
                 TfsStackRank = double.TryParse(el.Element(EXT + "TfsStackRank")?.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tsr) ? tsr : null,
                 TfsIterationPath = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsIterationPath")?.Value) ? null : el.Element(EXT + "TfsIterationPath")?.Value,
                 Description = string.IsNullOrWhiteSpace(el.Element(EXT + "Description")?.Value) ? null : el.Element(EXT + "Description")?.Value,
+                SyncVersion = int.TryParse(el.Element(EXT + "SyncVersion")?.Value, out var sv) ? sv : null,
+                HasSyncConflict = bool.TryParse(el.Element(EXT + "HasSyncConflict")?.Value, out var hsc) && hsc,
                 Parent = parent
             };
 

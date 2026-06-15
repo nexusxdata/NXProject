@@ -199,6 +199,8 @@ namespace NXProject.ViewModels
                 .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Any(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
 
+        public bool HasSyncConflict => _task.HasSyncConflict;
+
         public string Name
         {
             get => _task.Name;
@@ -739,6 +741,52 @@ namespace NXProject.ViewModels
                     names.Add(r.ToString());
                 return string.Join(", ", names);
             }
+        }
+
+        public string PercAlocText
+        {
+            get
+            {
+                if (_task.Resources.Count == 0) return string.Empty;
+                if (_task.Resources.Count == 1)
+                    return $"{_task.Resources[0].AllocationPercent:0}%";
+                return string.Join(" / ", _task.Resources.Select(r => $"{r.AllocationPercent:0}%"));
+            }
+        }
+
+        public void NotifyResourcesChanged()
+        {
+            OnPropertyChanged(nameof(ResourcesText));
+            OnPropertyChanged(nameof(PercAlocText));
+        }
+
+        public void RecalcFinishFromPercAloc()
+        {
+            if (_task.FinishFixed || _task.IsSummary || _task.IsMilestone) return;
+
+            // Garante que EstimatedHours está definido para que o fator de alocação
+            // seja aplicado corretamente. Se a tarefa não tem HH explícito, usa o
+            // span calendário atual como base de horas de trabalho (a 100% de alocação
+            // esse valor é equivalente a horas de trabalho).
+            if (!_task.EstimatedHours.HasValue || _task.EstimatedHours.Value <= 0)
+                _task.EstimatedHours = _task.DurationHours > 0 ? _task.DurationHours : null;
+
+            // Propaga para os assignments que também não têm EstimatedHours explícito.
+            foreach (var r in _task.Resources)
+                if (!r.EstimatedHours.HasValue || r.EstimatedHours.Value <= 0)
+                    r.EstimatedHours = _task.EstimatedHours;
+
+            // Não pula por PercentComplete — alteração de alocação deve sempre recalcular o fim.
+            var effectiveHours = Services.TaskScheduleService.GetEffectiveDurationHours(_task);
+            if (effectiveHours > 0)
+                _task.Finish = Services.ProjectCalendarService.AddWorkingHours(_task.Start, effectiveHours);
+
+            OnPropertyChanged(nameof(Finish));
+            OnPropertyChanged(nameof(FinishDisplay));
+            OnPropertyChanged(nameof(DurationDays));
+            OnPropertyChanged(nameof(DurationHours));
+            RecalcAncestorSummaries();
+            ScheduleSuccessors?.Invoke(this);
         }
 
         // Conveniência: recurso principal (primeiro da lista). Usado pela grade para

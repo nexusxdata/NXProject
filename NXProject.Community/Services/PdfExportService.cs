@@ -95,7 +95,7 @@ namespace NXProject.Community.Services
         }
         // Margens e dimensões em pontos PDF (1 pt = 1/72 pol)
         private const double Margin     = 20;
-        private const double HeaderH    = 44; // altura da faixa de cabeçalho
+        private const double HeaderH    = 58; // altura da faixa de cabeçalho
         private const double FooterH    = 28;
         private const double SepLine    = 0.8;
         private const double SepGap     = 4;
@@ -370,8 +370,8 @@ namespace NXProject.Community.Services
                 ("Fim", 0.050, t => t.FinishText),
                 ("% Compl.", 0.040, t => string.Empty),
                 ("Pred.", 0.036, t => t.Predecessors),
-                ("Recursos", 0.146, t => t.Resources),
-                ("Sprint", 0.106, t => t.Sprint)
+                ("Recursos", 0.160, t => t.Resources),
+                ("Sprint", 0.092, t => t.Sprint)
             };
         }
 
@@ -388,8 +388,8 @@ namespace NXProject.Community.Services
                 ("Fim", 0.044, t => t.FinishText),
                 ("% Compl.", 0.034, t => string.Empty),
                 ("Pred.", 0.032, t => t.Predecessors),
-                ("Recursos", 0.158, t => t.Resources),
-                ("Sprint", 0.095, t => t.Sprint)
+                ("Recursos", 0.168, t => t.Resources),
+                ("Sprint", 0.085, t => t.Sprint)
             };
         }
 
@@ -640,7 +640,7 @@ namespace NXProject.Community.Services
                                        string companyName, BitmapImage? companyLogo,
                                        string projectName)
         {
-            double logoH = HeaderH - 8;
+            double logoH = HeaderH - 6;
             double curX  = Margin;
             double midY  = Margin + HeaderH / 2.0;
 

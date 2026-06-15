@@ -51,6 +51,8 @@ namespace NXProject.Services
             { "Data_Inicio", "Data Inicio", "DataInicio" };
         private static readonly string[] FinishFieldNames =
             { "Data_Fim", "Data Fim", "DataFim" };
+        private static readonly string[] PercAlocFieldNames =
+            { "Perc_Alocação", "Perc_Aloc", "PercAloc", "Perc Aloc", "Percentual Alocacao", "Percentual_Alocacao" };
 
         public static async Task<ImportResult> ImportAsync(
             TfsConnectionOptions options,
@@ -72,6 +74,7 @@ namespace NXProject.Services
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
+            var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
 
             // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
             // (ancora das Stories sem data); as numeradas/exibidas serao so as
@@ -100,9 +103,15 @@ namespace NXProject.Services
                 "System.AssignedTo", "System.IterationPath", "System.Description", "System.Tags",
                 "Microsoft.VSTS.Common.StackRank"
             };
+            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
+            var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
+
             if (hoursRef != null) requestedFields.Add(hoursRef);
             if (startRef != null) requestedFields.Add(startRef);
             if (finishRef != null) requestedFields.Add(finishRef);
+            if (percAlocRef != null) requestedFields.Add(percAlocRef);
+            if (syncVersionRef != null) requestedFields.Add(syncVersionRef);
+            if (syncNameRef != null) requestedFields.Add(syncNameRef);
 
             var items = await LoadWorkItemsAsync(
                 orgBase, authHeader, allIds, requestedFields, cancellationToken, expandRelations: true);
@@ -157,6 +166,8 @@ namespace NXProject.Services
                 HoursRef = hoursRef,
                 StartRef = startRef,
                 FinishRef = finishRef,
+                PercAlocRef = percAlocRef,
+                SyncVersionRef = syncVersionRef,
                 HoursPerDay = options.HoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : options.HoursPerDay,
                 ProjectStart = project.StartDate,
                 SprintStartByPath = sprintStarts,
@@ -260,6 +271,7 @@ namespace NXProject.Services
             public int Reparented;
             public int Skipped;
             public int NotFound;
+            public int Conflicts;
             // Detalhes por item (sucesso, aviso, erro).
             public List<SyncLogEntry> Log = new();
             // Features/Stories que ficaram sem sprint (IterationPath vazio).
@@ -283,6 +295,7 @@ namespace NXProject.Services
                 if (Reparented > 0) sb.AppendLine($"Reparentados (parent atualizado): {Reparented}");
                 sb.AppendLine($"Sem alteracao: {Skipped}");
                 if (NotFound > 0) sb.AppendLine($"Nao encontrados no DevOps: {NotFound}");
+                if (Conflicts > 0) sb.AppendLine($"⚠ CONFLITOS DE CONCORRÊNCIA: {Conflicts} item(ns) descartados — verifique o log (vermelho) e reimporte se necessário.");
                 foreach (var e in Log.Where(e => e.Level != SyncLogLevel.Success))
                     sb.AppendLine(e.Message);
                 if (WithoutSprint.Count > 0)
@@ -322,6 +335,9 @@ namespace NXProject.Services
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
+            var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
+            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
+            var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
 
             // Recalcula a ordem (StackRank) conforme a árvore do NXProject.
             ApplyDesiredStackRanks(project.Tasks);
@@ -334,7 +350,7 @@ namespace NXProject.Services
                 .ToDictionary(g => g.Key, g => g.First());
 
             var report = new SyncReport();
-            report.LogSuccess($"[config] hoursRef={hoursRef ?? "(não resolvido)"} | startRef={startRef ?? "(não resolvido)"} | finishRef={finishRef ?? "(não resolvido)"}");
+            report.LogSuccess($"[config] hoursRef={hoursRef ?? "(não resolvido)"} | startRef={startRef ?? "(não resolvido)"} | finishRef={finishRef ?? "(não resolvido)"} | percAlocRef={percAlocRef ?? "(não resolvido)"}");
 
             if (tasks.Count == 0)
             {
@@ -348,6 +364,9 @@ namespace NXProject.Services
             if (hoursRef != null) requested.Add(hoursRef);
             if (startRef != null) requested.Add(startRef);
             if (finishRef != null) requested.Add(finishRef);
+            if (percAlocRef != null) requested.Add(percAlocRef);
+            if (syncVersionRef != null) requested.Add(syncVersionRef);
+            if (syncNameRef != null) requested.Add(syncNameRef);
 
             var current = existingIds.Count > 0
                 ? await LoadWorkItemsAsync(orgBase, auth, existingIds, requested, cancellationToken, expandRelations: true)
@@ -382,7 +401,7 @@ namespace NXProject.Services
                             task.TfsType = createType;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -397,6 +416,24 @@ namespace NXProject.Services
                         report.NotFound++;
                         report.LogError($"#{task.TfsId} ({task.Name}): não encontrado no DevOps.");
                         continue;
+                    }
+
+                    // ── Controle de concorrência ────────────────────────────────────────
+                    // Compara a versão que temos (importada) com a versão atual no TFS.
+                    // Se o TFS tem versão maior, outro usuário gravou depois de nós → conflito.
+                    if (syncVersionRef != null && task.SyncVersion.HasValue)
+                    {
+                        var tfsVersion = (int)(ReadDouble(wi, syncVersionRef) ?? 0);
+                        if (tfsVersion > task.SyncVersion.Value)
+                        {
+                            task.HasSyncConflict = true;
+                            report.Conflicts++;
+                            var whoSaved = ReadString(wi, syncNameRef);
+                            var by = string.IsNullOrWhiteSpace(whoSaved) ? "" : $" (por {whoSaved})";
+                            report.LogError($"⚠ CONFLITO #{task.TfsId} — {task.Name}: versão TFS={tfsVersion} > local={task.SyncVersion.Value}{by}. Alterações descartadas — reimporte para atualizar.");
+                            report.Skipped++;
+                            continue;
+                        }
                     }
 
                     var ops = new List<object>();
@@ -455,6 +492,19 @@ namespace NXProject.Services
                         changes.Add($"responsável: {desiredAssignee}");
                     }
 
+                    if (percAlocRef != null)
+                    {
+                        var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
+                        var primaryAlocInt = (int)Math.Round(primaryAloc);
+                        var currentAloc = ReadDouble(wi, percAlocRef);
+                        if (currentAloc == null || Math.Abs(currentAloc.Value - primaryAloc) > 0.5)
+                        {
+                            ops.Add(PatchAdd($"/fields/{percAlocRef}", primaryAlocInt));
+                            var oldA = currentAloc.HasValue ? $"{currentAloc.Value:0}%→" : "";
+                            changes.Add($"% aloc.: {oldA}{primaryAlocInt}%");
+                        }
+                    }
+
                     if (startRef != null)
                     {
                         var currentStart = ReadDate(wi, startRef);
@@ -510,7 +560,11 @@ namespace NXProject.Services
                         }
                     }
 
-                    // Data fim e tag DT_FIM_NEG: sincroniza quando FinishFixed.
+                    // Data fim: prioridade → fixado > fechado/100% > limpar.
+                    // O bloco de fechados (abaixo) também escreve finishRef; para evitar
+                    // duplicata no mesmo PATCH, só limpamos quando o item NÃO está fechado.
+                    var effectiveStateForFinish = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
+                    bool isClosedForFinish = IsClosedState(effectiveStateForFinish) || task.PercentComplete >= 100;
                     if (finishRef != null && task.FinishFixed)
                     {
                         var inclusiveFinish = ProjectCalendarService.GetInclusiveFinishDate(task.Start, task.Finish);
@@ -521,7 +575,7 @@ namespace NXProject.Services
                             changes.Add($"fim: {inclusiveFinish:dd/MM} (fixado)");
                         }
                     }
-                    else if (finishRef != null && !task.FinishFixed)
+                    else if (finishRef != null && !task.FinishFixed && !isClosedForFinish)
                     {
                         var currentFinish = ReadDate(wi, finishRef);
                         if (currentFinish != null)
@@ -570,8 +624,7 @@ namespace NXProject.Services
                         changes.Add($"estado: {task.TfsState.Trim()}");
                     }
 
-                    var effectiveState = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
-                    if (finishRef != null && (IsClosedState(effectiveState) || task.PercentComplete >= 100))
+                    if (finishRef != null && isClosedForFinish && !task.FinishFixed)
                     {
                         var currentFinish = ReadDate(wi, finishRef);
                         if (currentFinish == null || currentFinish.Value.Date != task.Finish.Date)
@@ -639,13 +692,29 @@ namespace NXProject.Services
                         changes.Add($"pai→#{desiredParent}");
                     }
 
+                    // Sem mudanças reais → pula sem incrementar versão.
                     if (ops.Count == 0)
                     {
                         report.Skipped++;
                         continue;
                     }
 
-                    await PatchWorkItemAsync(orgBase, auth, task.TfsId.Value, ops, cancellationToken);
+                    // Há mudanças reais → incrementa versão de concorrência.
+                    if (syncVersionRef != null)
+                    {
+                        var tfsVersion = (int)(ReadDouble(wi, syncVersionRef) ?? 0);
+                        var newVersion = tfsVersion >= int.MaxValue ? 1 : tfsVersion + 1;
+                        ops.Add(PatchAdd($"/fields/{syncVersionRef}", newVersion));
+                        task.SyncVersion = newVersion;
+                        task.HasSyncConflict = false;
+                        changes.Add($"syncVer:{newVersion}");
+                    }
+                    if (syncNameRef != null)
+                        ops.Add(PatchAdd($"/fields/{syncNameRef}", Environment.UserName));
+
+                    // bypassRules=true garante que campos customizados (Perc_Aloc, Sync_version,
+                    // Sync_Name identity) e itens fechados sejam gravados sem bloqueio de regras.
+                    await PatchWorkItemAsync(orgBase, auth, task.TfsId.Value, ops, cancellationToken, bypassRules: true);
                     report.Updated++;
                     report.LogSuccess($"#{task.TfsId} — {task.Name ?? "(sem nome)"} [{string.Join(", ", changes)}]");
                     if (reparent)
@@ -981,7 +1050,8 @@ namespace NXProject.Services
             ProjectTask task, int parentId, string orgBase,
             string? hoursRef, string? startRef, string? finishRef,
             Dictionary<int, ProjectTask> tasksById,
-            bool syncPredecessorLinks = true)
+            bool syncPredecessorLinks = true,
+            string? percAlocRef = null)
         {
             var ops = new List<object>
             {
@@ -1007,6 +1077,12 @@ namespace NXProject.Services
             var desiredAssignee = GetDesiredAssigneeEmail(task);
             if (!string.IsNullOrWhiteSpace(desiredAssignee))
                 ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
+
+            if (percAlocRef != null)
+            {
+                var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
+                ops.Add(PatchAdd($"/fields/{percAlocRef}", (int)Math.Round(primaryAloc)));
+            }
 
             if (startRef != null)
                 ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
@@ -1094,9 +1170,12 @@ namespace NXProject.Services
         }
 
         private static async Task PatchWorkItemAsync(
-            string orgBase, AuthenticationHeaderValue auth, int id, List<object> ops, CancellationToken ct)
+            string orgBase, AuthenticationHeaderValue auth, int id, List<object> ops, CancellationToken ct,
+            bool bypassRules = false)
         {
-            var url = $"{orgBase}/_apis/wit/workitems/{id}?{ApiVersion}";
+            var url = bypassRules
+                ? $"{orgBase}/_apis/wit/workitems/{id}?{ApiVersion}&bypassRules=true"
+                : $"{orgBase}/_apis/wit/workitems/{id}?{ApiVersion}";
             var body = JsonSerializer.Serialize(ops);
 
             using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url)
@@ -1118,6 +1197,8 @@ namespace NXProject.Services
             public string? HoursRef;
             public string? StartRef;
             public string? FinishRef;
+            public string? PercAlocRef;
+            public string? SyncVersionRef;
             public double HoursPerDay = 8.0;
             public DateTime ProjectStart;
 
@@ -1314,10 +1395,28 @@ namespace NXProject.Services
                 StartFixed = hasFixedTag,
                 FinishFixed = explicitFinish.HasValue || HasTag(item.Tags, ctx.FixedFinishTagName),
                 Justificativa = ParseJustificativa(item.Description),
+                SyncVersion = ctx.SyncVersionRef != null ? (int?)ReadDouble(item, ctx.SyncVersionRef).GetValueOrDefault(0) : null,
+                HasSyncConflict = false,
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
             };
             AssignResource(ctx, task, item, hours);
+
+            // Recalcula o fim considerando o % de alocação do recurso (apenas quando não fixado).
+            // AssignResource é chamado depois do cálculo inicial do finish, então precisamos corrigir.
+            if (!task.FinishFixed && !task.IsMilestone &&
+                task.Resources.Count > 0 &&
+                task.Resources.Any(r => Math.Abs(r.AllocationPercent - 100.0) > 0.01))
+            {
+                var effectiveDuration = TaskScheduleService.GetEffectiveDurationHours(task);
+                if (effectiveDuration > 0)
+                {
+                    task.Finish = ProjectCalendarService.AddWorkingHours(task.Start, effectiveDuration);
+                    // Atualiza também o cursor da fila para este responsável/sprint.
+                    ctx.CursorByLane[laneKey] = task.Finish > baseStart ? task.Finish : baseStart;
+                }
+            }
+
             return task;
         }
 
@@ -1327,11 +1426,13 @@ namespace NXProject.Services
             if (resource == null)
                 return;
 
+            var percAloc = ctx.PercAlocRef != null ? ReadDouble(item, ctx.PercAlocRef) : null;
+
             task.Resources.Add(new TaskResource
             {
                 ResourceId = resource.Id,
                 Resource = resource,
-                AllocationPercent = 100,
+                AllocationPercent = (percAloc.HasValue && percAloc.Value > 0 && percAloc.Value <= 100) ? percAloc.Value : 100,
                 EstimatedHours = estimatedHours
             });
         }
@@ -2117,6 +2218,14 @@ namespace NXProject.Services
                 default:
                     return null;
             }
+        }
+
+        private static string? ReadString(WorkItem item, string? refName)
+        {
+            if (refName == null) return null;
+            if (item.Fields.ValueKind != JsonValueKind.Object) return null;
+            if (!item.Fields.TryGetProperty(refName, out var el)) return null;
+            return el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
         }
 
         private static DateTime? ReadDate(WorkItem item, string? refName)

@@ -33,6 +33,15 @@ namespace NXProject.Services
         /// <summary>Nome do campo de data de fim da Story.</summary>
         public string FinishFieldName { get; set; } = "Data_Fim";
 
+        /// <summary>Nome do campo de percentual de alocação do recurso na Story (ex.: "Perc_Alocação").</summary>
+        public string PercAlocFieldName { get; set; } = "Perc_Alocação";
+
+        /// <summary>Campo inteiro que armazena a versão de sincronização (controle de concorrência).</summary>
+        public string SyncVersionFieldName { get; set; } = "Sync_version";
+
+        /// <summary>Campo texto que armazena o nome de quem realizou a última sincronização.</summary>
+        public string SyncNameFieldName { get; set; } = "Sync_Name";
+
         /// <summary>Tag DevOps que marca data de início fixada/negociada (ex.: "DT-INI-NEG").</summary>
         public string FixedStartTagName { get; set; } = "DT-INI-NEG";
 
@@ -82,6 +91,9 @@ namespace NXProject.Services
             public string EffortFieldName { get; set; } = "HH Estimado";
             public string StartFieldName { get; set; } = "Data_Inicio";
             public string FinishFieldName { get; set; } = "Data_Fim";
+            public string PercAlocFieldName { get; set; } = "Perc_Alocação";
+            public string SyncVersionFieldName { get; set; } = "Sync_version";
+            public string SyncNameFieldName { get; set; } = "Sync_Name";
             public string FixedStartTagName { get; set; } = "DT-INI-NEG";
             public string FixedFinishTagName { get; set; } = "DT_FIM_NEG";
             public bool SyncPredecessorLinks { get; set; } = true;
@@ -124,6 +136,12 @@ namespace NXProject.Services
                     ? options.StartFieldName : stored.StartFieldName.Trim();
                 options.FinishFieldName = string.IsNullOrWhiteSpace(stored.FinishFieldName)
                     ? options.FinishFieldName : stored.FinishFieldName.Trim();
+                options.PercAlocFieldName = string.IsNullOrWhiteSpace(stored.PercAlocFieldName)
+                    ? options.PercAlocFieldName : stored.PercAlocFieldName.Trim();
+                options.SyncVersionFieldName = string.IsNullOrWhiteSpace(stored.SyncVersionFieldName)
+                    ? options.SyncVersionFieldName : stored.SyncVersionFieldName.Trim();
+                options.SyncNameFieldName = string.IsNullOrWhiteSpace(stored.SyncNameFieldName)
+                    ? options.SyncNameFieldName : stored.SyncNameFieldName.Trim();
                 options.FixedStartTagName = string.IsNullOrWhiteSpace(stored.FixedStartTagName)
                     ? options.FixedStartTagName : stored.FixedStartTagName.Trim();
                 options.FixedFinishTagName = string.IsNullOrWhiteSpace(stored.FixedFinishTagName)
@@ -159,6 +177,9 @@ namespace NXProject.Services
                 EffortFieldName = string.IsNullOrWhiteSpace(options.EffortFieldName) ? "HH Estimado" : options.EffortFieldName.Trim(),
                 StartFieldName = string.IsNullOrWhiteSpace(options.StartFieldName) ? "Data_Inicio" : options.StartFieldName.Trim(),
                 FinishFieldName = string.IsNullOrWhiteSpace(options.FinishFieldName) ? "Data_Fim" : options.FinishFieldName.Trim(),
+                PercAlocFieldName = string.IsNullOrWhiteSpace(options.PercAlocFieldName) ? "Perc_Alocação" : options.PercAlocFieldName.Trim(),
+                SyncVersionFieldName = string.IsNullOrWhiteSpace(options.SyncVersionFieldName) ? "Sync_version" : options.SyncVersionFieldName.Trim(),
+                SyncNameFieldName = string.IsNullOrWhiteSpace(options.SyncNameFieldName) ? "Sync_Name" : options.SyncNameFieldName.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
                 FixedFinishTagName = string.IsNullOrWhiteSpace(options.FixedFinishTagName) ? "DT_FIM_NEG" : options.FixedFinishTagName.Trim(),
                 SyncPredecessorLinks = options.SyncPredecessorLinks,

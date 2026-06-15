@@ -46,6 +46,31 @@
                 </Grid>
                 <TextBlock x:Name="TaskNameText" Foreground="#666" FontSize="12"
                            Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+                <!-- Banner de conflito de concorrência -->
+                <Border x:Name="ConflictBanner"
+                        Visibility="Collapsed"
+                        Background="#FCE4EC" BorderBrush="#C62828" BorderThickness="1"
+                        CornerRadius="4" Padding="10,8" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextWrapping="Wrap" Foreground="#880E4F" FontSize="12" VerticalAlignment="Center">
+                            <Run FontWeight="Bold">⚠ Conflito de concorrência.</Run>
+                            <Run> Outro usuário gravou uma versão mais recente. Reimporte para atualizar antes de sincronizar.</Run>
+                        </TextBlock>
+                        <Button Grid.Column="1"
+                                x:Name="ImportButton"
+                                Content="↓ Reimportar"
+                                Padding="10,4" Margin="10,0,0,0"
+                                FontSize="12" FontWeight="SemiBold"
+                                Background="#C62828" Foreground="White"
+                                BorderThickness="0" Cursor="Hand"
+                                Click="OnImportClick"/>
+                    </Grid>
+                </Border>
             </StackPanel>
 
             <StackPanel Grid.Row="1">

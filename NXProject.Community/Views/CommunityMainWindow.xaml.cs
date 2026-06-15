@@ -89,6 +89,7 @@ namespace NXProject.Views
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
+            TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {
@@ -391,6 +392,28 @@ namespace NXProject.Views
             var dialog = new TfsWorkItemEditWindow(task) { Owner = this };
             if (dialog.ShowDialog() == true)
                 vm.Project.IsDirty = true;
+            else if (dialog.ShouldImport)
+                OpenTfsImport();
+        }
+
+        private void OnEditPercAloc(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm) return;
+
+            var dialog = new PercAlocEditWindow(task.Name, task.Model.Resources[0].AllocationPercent)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                foreach (var r in task.Model.Resources)
+                    r.AllocationPercent = dialog.ResultPercent;
+
+                task.NotifyResourcesChanged();
+                task.RecalcFinishFromPercAloc();
+                vm.Project.IsDirty = true;
+            }
         }
 
         private async void OnSyncTfsClick(object sender, RoutedEventArgs e)
@@ -442,6 +465,8 @@ namespace NXProject.Views
 
             vm.Project.IsDirty = true;
             vm.RefreshTasks();
+            GanttCtrl.ForceRender();
+            TaskGridCtrl.RefreshRows();
             try
             {
                 new SyncResultWindow(report) { Owner = this }.ShowDialog();
@@ -452,6 +477,9 @@ namespace NXProject.Views
                     $"Erro ao abrir resultado:\n{ex.Message}\n\nTipo: {ex.GetType().Name}\n\n{ex.StackTrace}",
                     "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            // Garante que grid e Gantt reflitam conflitos após fechar o log.
+            GanttCtrl.ForceRender();
+            TaskGridCtrl.RefreshRows();
         }
 
         private static bool ConfirmKnownTfsResources(MainViewModel vm)
@@ -544,7 +572,9 @@ namespace NXProject.Views
             return true;
         }
 
-        private void OnImportTfsClick(object sender, RoutedEventArgs e)
+        private void OnImportTfsClick(object sender, RoutedEventArgs e) => OpenTfsImport();
+
+        private void OpenTfsImport()
         {
             if (DataContext is not MainViewModel vm)
                 return;

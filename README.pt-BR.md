@@ -104,6 +104,40 @@ Gerencie múltiplos projetos DevOps em um arquivo compartilhado entre toda a equ
 - **Ordem do backlog**: `Microsoft.VSTS.Common.StackRank`
 - **Bloqueios**: Tasks filhas com tag `Block` marcam a Story como bloqueada
 - **Estado**: Stories `Closed`/`Resolved` com Tasks filhas ainda em aberto são sinalizadas e corrigidas automaticamente
+- **% de Alocação**: `Perc_Alocação` — percentual do dia da pessoa dedicado a esta Story (afeta a data fim calculada)
+- **Controle de versão**: `Sync_version` e `Sync_Name` — controle de concorrência entre múltiplos usuários (veja abaixo)
+
+> Os nomes dos campos podem ser alterados no expansor **Campos (avançado)** da tela de importação, caso o seu processo use nomes diferentes.
+
+---
+
+### Campos customizados obrigatórios no tipo Story
+
+O NXProject lê e grava seis campos customizados nas Stories do Azure DevOps. É necessário criá-los no template de processo em **Configurações da Organização → Processo → [Seu Processo] → Story → Campos**.
+
+| Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Finalidade |
+|---|---|---|---|---|
+| `HH Estimado` | `Custom.HHEstimado` *(exemplo)* | Inteiro ou Decimal | `HH Estimado` | Esforço estimado em horas |
+| `Data_Inicio` | `Custom.DataInicio` *(exemplo)* | Data/Hora | `Data_Inicio` | Data de início planejada |
+| `Data_Fim` | `Custom.DataFim` *(exemplo)* | Data/Hora | `Data_Fim` | Data de fim planejada |
+| `Perc_Alocação` | `Custom.PercAlocacao` *(exemplo)* | Inteiro (1–100) | `Perc_Alocação` | % do dia da pessoa dedicado a esta Story |
+| `Sync_version` | `Custom.Syncversion` *(exemplo)* | Inteiro | `Sync_version` | Contador de versão de concorrência (gerenciado automaticamente) |
+| `Sync_Name` | `Custom.SyncName` *(exemplo)* | Texto *(texto simples, não Identity)* | `Sync_Name` | Quem realizou a última sincronização (gerenciado automaticamente) |
+
+> Os nomes de referência acima são exemplos — o Azure DevOps os gera automaticamente a partir do nome de exibição e do prefixo da sua organização.  
+> Se os seus campos tiverem nomes de exibição diferentes, ajuste-os no NXProject em **Arquivo → Importar TFS / Azure DevOps → expansor "Campos (avançado)"**.
+
+#### Controle de concorrência (`Sync_version` / `Sync_Name`)
+
+Quando dois usuários sincronizam alterações simultaneamente, a última gravação poderia sobrescrever a primeira. O NXProject evita isso:
+
+- A cada sincronização que grava ao menos uma alteração real, `Sync_version` é incrementado em 1 e `Sync_Name` recebe o usuário Windows atual.
+- Ao sincronizar, o NXProject compara a versão que leu no import com a versão atual no DevOps. Se a versão do DevOps for maior, outro usuário gravou mais recentemente — o item é **ignorado** e marcado em **vermelho** no cronograma.
+- Itens vermelhos permanecem destacados até que você reimporte o projeto. O log de sincronização mostra quais itens tiveram conflito.
+- Ao clicar em um item vermelho na coluna de estado, a janela de vínculo DevOps exibe um aviso de conflito com o botão **↓ Reimportar** para iniciar o import diretamente.
+- O contador de versão reinicia em 1 ao atingir o limite inteiro.
+
+> **`Sync_Name` deve ser do tipo texto simples, não Identity.** Se foi criado como campo Identity (seletor de pessoa), exclua e recrie como **Texto (linha única)**.
 
 ### Log de importação
 
@@ -152,8 +186,18 @@ Pré-requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotne
 ```
 
 O executável de desenvolvimento será gerado em `NXProject.Community\bin\Release\net10.0-windows\`.
-Para publicar o `.exe` oficial do GitHub Releases, use `dotnet publish --self-contained true` ou o script de release do projeto, que já gera o pacote self-contained.
-Sem isso, a abertura pelo `.exe` pode falhar com mensagem de .NET corrompido ou runtime incompatível, mesmo quando a DLL abre com `dotnet NXProject.Community.dll`.
+
+> **Importante — gerar o `.exe` oficial de release**
+>
+> Use sempre `dotnet publish --self-contained true -r win-x64` (ou o script de release do projeto, que já faz isso automaticamente).
+> Se usar apenas `dotnet build`, o `.exe` gerado pode falhar em máquinas com o registro do .NET corrompido ou incompleto, exibindo uma mensagem enganosa como:
+>
+> ```
+> To run this application, you must install .NET.
+> ```
+>
+> …mesmo que `dotnet --list-runtimes` mostre o .NET instalado corretamente.
+> O pacote self-contained inclui o runtime do .NET dentro do ZIP e elimina esse problema.
 
 ---
 

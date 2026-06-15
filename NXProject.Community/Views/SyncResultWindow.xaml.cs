@@ -17,11 +17,14 @@ namespace NXProject.Views
 
             // Conta excluindo a linha [config] de diagnóstico
             var ops = report.Log.Where(e => !e.Message.StartsWith("[config]")).ToList();
-            UpdatedNum.Text = report.Updated.ToString();
-            CreatedNum.Text = report.Created.ToString();
-            SkippedNum.Text = report.Skipped.ToString();
-            WarningNum.Text = ops.Count(e => e.Level == TfsImportService.SyncLogLevel.Warning).ToString();
-            ErrorNum.Text   = ops.Count(e => e.Level == TfsImportService.SyncLogLevel.Error).ToString();
+            UpdatedNum.Text  = report.Updated.ToString();
+            CreatedNum.Text  = report.Created.ToString();
+            SkippedNum.Text  = report.Skipped.ToString();
+            WarningNum.Text  = ops.Count(e => e.Level == TfsImportService.SyncLogLevel.Warning).ToString();
+            ErrorNum.Text    = ops.Count(e => e.Level == TfsImportService.SyncLogLevel.Error).ToString();
+            ConflictNum.Text = report.Conflicts.ToString();
+            if (report.Conflicts > 0)
+                ConflictBanner.Visibility = System.Windows.Visibility.Visible;
 
             _allEntries = new List<TfsImportService.SyncLogEntry>(report.Log);
 

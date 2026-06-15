@@ -36,6 +36,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -47,7 +48,7 @@
                        Margin="0,0,0,14"/>
 
             <!-- Cards de resumo -->
-            <UniformGrid Grid.Row="1" Rows="1" Columns="5" Margin="0,0,0,12">
+            <UniformGrid Grid.Row="1" Rows="1" Columns="6" Margin="0,0,0,12">
                 <Border Style="{StaticResource CardBorder}" Background="#E8F5E9">
                     <StackPanel>
                         <TextBlock x:Name="UpdatedNum" Style="{StaticResource CardNum}" Foreground="#2E7D32"/>
@@ -72,16 +73,33 @@
                         <TextBlock Text="Avisos" Style="{StaticResource CardLbl}"/>
                     </StackPanel>
                 </Border>
-                <Border Style="{StaticResource CardBorder}" Background="#FFEBEE" Margin="0">
+                <Border Style="{StaticResource CardBorder}" Background="#FFEBEE">
                     <StackPanel>
                         <TextBlock x:Name="ErrorNum" Style="{StaticResource CardNum}" Foreground="#C62828"/>
                         <TextBlock Text="Erros" Style="{StaticResource CardLbl}"/>
                     </StackPanel>
                 </Border>
+                <Border Style="{StaticResource CardBorder}" Background="#FCE4EC" Margin="0">
+                    <StackPanel>
+                        <TextBlock x:Name="ConflictNum" Style="{StaticResource CardNum}" Foreground="#880E4F"/>
+                        <TextBlock Text="Conflitos" Style="{StaticResource CardLbl}"/>
+                    </StackPanel>
+                </Border>
             </UniformGrid>
 
+            <!-- Banner de conflito -->
+            <Border x:Name="ConflictBanner" Grid.Row="2"
+                    Background="#FCE4EC" BorderBrush="#C62828" BorderThickness="1"
+                    CornerRadius="4" Padding="10,6" Margin="0,0,0,8"
+                    Visibility="Collapsed">
+                <TextBlock TextWrapping="Wrap" Foreground="#880E4F" FontSize="12">
+                    <Run FontWeight="Bold">⚠ Conflito de concorrência detectado.</Run>
+                    <Run> As alterações marcadas em vermelho foram descartadas porque outro usuário gravou uma versão mais recente no DevOps. Reimporte o projeto para obter a versão atual antes de sincronizar novamente.</Run>
+                </TextBlock>
+            </Border>
+
             <!-- Filtros + botão copiar -->
-            <Grid Grid.Row="2" Margin="0,0,0,6">
+            <Grid Grid.Row="3" Margin="0,0,0,6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -103,7 +121,7 @@
             </Grid>
 
             <!-- Log textual -->
-            <TextBox Grid.Row="3"
+            <TextBox Grid.Row="4"
                      x:Name="LogBox"
                      IsReadOnly="True"
                      VerticalScrollBarVisibility="Auto"
@@ -118,7 +136,7 @@
                      AcceptsReturn="True"/>
 
             <!-- Botão fechar -->
-            <StackPanel Grid.Row="4" Orientation="Horizontal"
+            <StackPanel Grid.Row="5" Orientation="Horizontal"
                         HorizontalAlignment="Right" Margin="0,12,0,0">
                 <Button Content="Fechar" Width="100" Height="28"
                         IsDefault="True" IsCancel="True"
