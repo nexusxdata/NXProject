@@ -55,6 +55,43 @@
 
         <Separator Margin="0,16,0,16"/>
 
+        <TextBlock Text="Recorte da linha do tempo" FontSize="13" FontWeight="Bold"
+                   Foreground="#2B579A" Margin="0,0,0,8"/>
+        <TextBlock Text="Use 0 e 0 para imprimir o Gantt completo. Para focar um periodo, informe quantos dias antes e depois de hoje devem aparecer."
+                   FontSize="10" Foreground="#666" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Dias antes" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="DaysBeforeBox"
+                         Text="0"
+                         Height="28"
+                         Padding="8,3"
+                         VerticalContentAlignment="Center"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Dias apos" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="DaysAfterBox"
+                         Text="0"
+                         Height="28"
+                         Padding="8,3"
+                         VerticalContentAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock x:Name="ErrorText"
+                   FontSize="10"
+                   Foreground="#B00020"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,12"/>
+
         <!-- Botões -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Exportar" Width="90" Height="30" Margin="0,0,8,0"

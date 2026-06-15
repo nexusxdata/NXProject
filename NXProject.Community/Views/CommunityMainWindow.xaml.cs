@@ -782,7 +782,10 @@ namespace NXProject.Views
 
             // 4. Cria cópias off-screen em modo impressão: hierarquia toda expandida,
             //    todas as linhas visíveis e Gantt com largura total do cronograma.
-            var printVisuals = CreateOffscreenPdfVisuals(pdfOpts.LayoutMode);
+            var printVisuals = CreateOffscreenPdfVisuals(
+                pdfOpts.LayoutMode,
+                pdfOpts.TimelineDaysBefore,
+                pdfOpts.TimelineDaysAfter);
             try
             {
                 PdfExportService.Export(
@@ -824,7 +827,10 @@ namespace NXProject.Views
         /// com largura suficiente para exibir todas as colunas sem scroll.
         /// A janela principal não é afetada.
         /// </summary>
-        private PdfPrintVisuals CreateOffscreenPdfVisuals(PdfLayoutMode layoutMode)
+        private PdfPrintVisuals CreateOffscreenPdfVisuals(
+            PdfLayoutMode layoutMode,
+            int timelineDaysBefore,
+            int timelineDaysAfter)
         {
             var vm = (NXProject.ViewModels.MainViewModel)DataContext;
             var printTasks = CreateExpandedPrintTasks(vm);
@@ -833,7 +839,7 @@ namespace NXProject.Views
             double headerHeight = GanttCtrl.DayHeaderMode > 0 ? 60.0 : 40.0;
             double printHeight = headerHeight + Math.Max(1, printTasks.Count) * rowHeight + 4;
             double tableWidth = layoutMode == PdfLayoutMode.Together ? 1450 : 1700;
-            var ganttWindow = GetPrintGanttWindow(printTasks, vm);
+            var ganttWindow = GetPrintGanttWindow(printTasks, vm, timelineDaysBefore, timelineDaysAfter);
             double dayWidth = GetGanttDayWidth(vm.SelectedZoom);
             double ganttWidth = layoutMode == PdfLayoutMode.Together
                 ? GetPrintGanttWidth(ganttWindow.Days, vm.SelectedZoom)
@@ -1306,8 +1312,18 @@ namespace NXProject.Views
 
         private static (DateTime Start, int Days) GetPrintGanttWindow(
             ObservableCollection<TaskViewModel> tasks,
-            MainViewModel vm)
+            MainViewModel vm,
+            int timelineDaysBefore,
+            int timelineDaysAfter)
         {
+            if (timelineDaysBefore > 0 || timelineDaysAfter > 0)
+            {
+                var focusedStart = DateTime.Today.AddDays(-timelineDaysBefore);
+                var focusedEnd = DateTime.Today.AddDays(timelineDaysAfter);
+                var focusedVisibleDays = Math.Max(1, (int)Math.Ceiling((focusedEnd - focusedStart).TotalDays) + 1);
+                return (focusedStart, focusedVisibleDays);
+            }
+
             var firstTaskStart = tasks
                 .Select(t => t.Model.Start.Date)
                 .DefaultIfEmpty(vm.Project?.StartDate.Date ?? DateTime.Today)
