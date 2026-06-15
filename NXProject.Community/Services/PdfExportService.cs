@@ -1,15 +1,65 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using PdfSharp.Drawing;
+using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 
 namespace NXProject.Community.Services
 {
+    // Resolve fontes do Windows para o PDFsharp 6.x (que não usa GDI+ por padrão)
+    internal sealed class WindowsFontResolver : IFontResolver
+    {
+        private static readonly string FontsFolder =
+            Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+
+        // Mapeamento família → arquivo(s) de fonte no Windows
+        private static readonly Dictionary<string, (string regular, string bold)> Map =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Segoe UI"]  = ("segoeui",  "segoeuib"),
+                ["Arial"]     = ("arial",    "arialbd"),
+                ["Helvetica"] = ("arial",    "arialbd"),
+                ["Calibri"]   = ("calibri",  "calibrib"),
+            };
+
+        public FontResolverInfo? ResolveTypeface(string familyName, bool isBold, bool isItalic)
+        {
+            if (!Map.TryGetValue(familyName, out var files))
+                files = ("arial", "arialbd"); // fallback seguro
+
+            var face = isBold ? files.bold : files.regular;
+            return new FontResolverInfo(face);
+        }
+
+        public byte[]? GetFont(string faceName)
+        {
+            var path = Path.Combine(FontsFolder, faceName + ".ttf");
+            if (File.Exists(path)) return File.ReadAllBytes(path);
+
+            // Tenta variantes comuns
+            path = Path.Combine(FontsFolder, faceName + ".otf");
+            if (File.Exists(path)) return File.ReadAllBytes(path);
+
+            // Fallback final: Arial regular
+            path = Path.Combine(FontsFolder, "arial.ttf");
+            return File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }
+    }
+
     internal static class PdfExportService
     {
+        private static bool _fontResolverRegistered;
+
+        private static void EnsureFontResolver()
+        {
+            if (_fontResolverRegistered) return;
+            GlobalFontSettings.FontResolver = new WindowsFontResolver();
+            _fontResolverRegistered = true;
+        }
         // Margens e dimensões em pontos PDF (1 pt = 1/72 pol)
         private const double Margin     = 20;
         private const double HeaderH    = 44; // altura da faixa de cabeçalho
@@ -31,6 +81,7 @@ namespace NXProject.Community.Services
             string exportedOnLabel = "Exportado em",
             string scheduleSubject = "Cronograma NXProject")
         {
+            EnsureFontResolver();
             var pngBytes = RenderToPng(visual, dpi: 150);
 
             var doc = new PdfDocument();
