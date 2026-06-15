@@ -20,6 +20,17 @@ function Write-Step($msg) {
     Write-Host ">> $msg" -ForegroundColor Cyan
 }
 
+function Remove-UnusedSatelliteResourceFolders([string]$PublishDir) {
+    $keepCultures = @("pt-BR")
+    $cultureFolders = Get-ChildItem -Path $PublishDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^[a-z]{2}(-[A-Z][A-Za-z]+)?$' -and $_.Name -notin $keepCultures }
+
+    if ($cultureFolders) {
+        $cultureFolders | Remove-Item -Recurse -Force
+        Write-Host "  Pastas de recursos removidas: $($cultureFolders.Name -join ', ')" -ForegroundColor DarkGray
+    }
+}
+
 # Encerra instancia aberta (evita lock de arquivos)
 $procs = Get-Process -Name "NXProject.Community" -ErrorAction SilentlyContinue
 if ($procs) {
@@ -53,6 +64,7 @@ Write-Step "Montando pasta de distribuicao portatil..."
 if (Test-Path $StageDir) { Remove-Item -LiteralPath $StageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 Copy-Item -Path (Join-Path $PublishDir "*") -Destination $StageDir -Recurse -Force
+Remove-UnusedSatelliteResourceFolders $StageDir
 
 @"
 NXProject Community — Pacote Portatil ($Runtime)

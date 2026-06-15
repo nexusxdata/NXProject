@@ -68,6 +68,17 @@ function Write-Step($msg) {
     Write-Host ">> $msg" -ForegroundColor Cyan
 }
 
+function Remove-UnusedSatelliteResourceFolders([string]$PublishDir) {
+    $keepCultures = @("pt-BR")
+    $cultureFolders = Get-ChildItem -Path $PublishDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^[a-z]{2}(-[A-Z][A-Za-z]+)?$' -and $_.Name -notin $keepCultures }
+
+    if ($cultureFolders) {
+        $cultureFolders | Remove-Item -Recurse -Force
+        Write-Host "  Pastas de recursos removidas: $($cultureFolders.Name -join ', ')" -ForegroundColor DarkGray
+    }
+}
+
 function Stop-NXProjectCommunityProcess {
     $processes = Get-Process -Name "NXProject.Community" -ErrorAction SilentlyContinue
     if ($null -eq $processes) { return }
@@ -157,6 +168,7 @@ if (Test-Path $StageDir) {
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
 Copy-Item -Path (Join-Path $OutputDir "*") -Destination $StageDir -Recurse -Force
+Remove-UnusedSatelliteResourceFolders $StageDir
 
 @"
 NXProject Community
