@@ -48,6 +48,8 @@ That's how NXProject was born — a new way to manage IT projects, where the tec
 - [Download NXProject Community ZIP with `.exe` and DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
 - [View release notes and source code downloads](../../releases/latest)
 
+**No installation required.** Extract the ZIP and run `NXProject.Community.exe` — the .NET runtime is bundled inside.
+
 > The binary was built in an environment with McAfee antivirus. If you prefer to build from source, see the instructions below.
 
 ---

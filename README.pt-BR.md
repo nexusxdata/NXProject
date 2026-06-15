@@ -48,6 +48,8 @@ Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o 
 - [Baixar ZIP do NXProject Community com `.exe` e DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
 - [Ver notas da versão e downloads do código-fonte](../../releases/latest)
 
+**Não precisa instalar nada.** Extraia o ZIP e execute o `NXProject.Community.exe` — o runtime do .NET já vem embutido.
+
 > O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
 
 ---
