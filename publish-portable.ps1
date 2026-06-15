@@ -130,6 +130,12 @@ Contato: Nexus XData Tecnologia Ltda — comercial.nexus.xdata@gmail.com
 $licenseSrc = Join-Path $SolutionDir "LICENSE.txt"
 if (Test-Path $licenseSrc) { Copy-Item $licenseSrc -Destination (Join-Path $StageDir "LICENSE.txt") -Force }
 
+# Inclui script de diagnostico/tracelog no pacote
+$traceScriptSrc = Join-Path $SolutionDir "NXProject-Tracelog.ps1"
+if (Test-Path $traceScriptSrc) {
+    Copy-Item $traceScriptSrc -Destination (Join-Path $StageDir "NXProject-Tracelog.ps1") -Force
+}
+
 Write-Step "Gerando ZIP portatil..."
 if (Test-Path $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
 Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $ZipPath -Force

@@ -9,6 +9,8 @@ $SolutionDir = $PSScriptRoot
 $ProjectFile = Join-Path $SolutionDir "NXProject.Community\NXProject.Community.csproj"
 $OutputDir = Join-Path $SolutionDir "NXProject.Community\bin\$Configuration\net10.0-windows"
 $DistDir = Join-Path $SolutionDir "dist\community"
+$Runtime = "win-x64"
+$PublishDir = Join-Path $DistDir "publish-$Runtime"
 $StageDir = Join-Path $DistDir "NXProject.Community"
 $ReadmePath = Join-Path $StageDir "README-INSTALACAO.txt"
 $SharedDllLockPattern = "because it is being used by another process"
@@ -154,9 +156,12 @@ Invoke-DotnetCommandWithRetry -ActionLabel "O restore" -Command {
     dotnet restore $ProjectFile --nologo -v q
 }
 
-Write-Step "Compilando NXProject Community ($Configuration)..."
+Write-Step "Publicando NXProject Community self-contained ($Runtime)..."
+if (Test-Path $PublishDir) {
+    Remove-Item -LiteralPath $PublishDir -Recurse -Force
+}
 Invoke-DotnetCommandWithRetry -ActionLabel "A compilacao" -Command {
-    dotnet build $ProjectFile -c $Configuration --nologo --no-restore
+    dotnet publish $ProjectFile -c $Configuration -r $Runtime --self-contained true -o $PublishDir --nologo --no-restore
 }
 
 Write-Step "Preparando pasta de distribuicao..."
@@ -165,7 +170,7 @@ if (Test-Path $StageDir) {
 }
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
-Copy-Item -Path (Join-Path $OutputDir "*") -Destination $StageDir -Recurse -Force
+Copy-Item -Path (Join-Path $PublishDir "*") -Destination $StageDir -Recurse -Force
 Remove-UnusedSatelliteResourceFolders $StageDir
 
 @"
@@ -175,9 +180,9 @@ Como executar:
 1. Extraia todo o conteudo deste .zip para uma pasta local.
 2. Execute o arquivo NXProject.Community.exe.
 
-Requisito:
-- Microsoft .NET Desktop Runtime 10.0 para Windows
-- Download: https://dotnet.microsoft.com/en-us/download/dotnet/10.0
+Este pacote ja inclui o runtime do .NET para Windows x64.
+Se precisar diagnosticar abertura do aplicativo, execute:
+.\NXProject-Tracelog.ps1
 
 Contato:
 - Nexus XData Tecnologia Ltda
@@ -187,6 +192,11 @@ Contato:
 $LicenseSrc = Join-Path $SolutionDir "LICENSE.txt"
 if (Test-Path $LicenseSrc) {
     Copy-Item -Path $LicenseSrc -Destination (Join-Path $StageDir "LICENSE.txt") -Force
+}
+
+$TraceScriptSrc = Join-Path $SolutionDir "NXProject-Tracelog.ps1"
+if (Test-Path $TraceScriptSrc) {
+    Copy-Item -Path $TraceScriptSrc -Destination (Join-Path $StageDir "NXProject-Tracelog.ps1") -Force
 }
 
 @"
