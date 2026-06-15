@@ -1,8 +1,8 @@
 param(
     [ValidateSet("Release", "Debug")]
     [string]$Configuration = "Release",
-    [ValidateSet("patch", "minor", "major")]
-    [string]$Bump = "patch"
+    [ValidateSet("build", "patch", "minor", "major")]
+    [string]$Bump = "build"
 )
 
 $SolutionDir = $PSScriptRoot
@@ -20,11 +20,21 @@ function Get-ProjectVersion([string]$CsprojPath) {
     return "1.0.0"
 }
 
+function Convert-ToAssemblyVersion([string]$Version) {
+    $parts = $Version.Split('.')
+    $major = [int]$parts[0]
+    $minor = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
+    $patch = if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }
+    $build = if ($parts.Count -gt 3) { [int]$parts[3] } else { 0 }
+    return "$major.$minor.$patch.$build"
+}
+
 function Set-ProjectVersion([string]$CsprojPath, [string]$NewVersion) {
+    $assemblyVersion = Convert-ToAssemblyVersion $NewVersion
     $content = Get-Content $CsprojPath -Raw
     $content = $content -replace '<Version>[^<]+</Version>',           "<Version>$NewVersion</Version>"
-    $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$NewVersion.0</AssemblyVersion>"
-    $content = $content -replace '<FileVersion>[^<]+</FileVersion>',   "<FileVersion>$NewVersion.0</FileVersion>"
+    $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$assemblyVersion</AssemblyVersion>"
+    $content = $content -replace '<FileVersion>[^<]+</FileVersion>',   "<FileVersion>$assemblyVersion</FileVersion>"
     $content = $content -replace '<InformationalVersion>[^<]+</InformationalVersion>', "<InformationalVersion>$NewVersion</InformationalVersion>"
     Set-Content -Path $CsprojPath -Value $content -Encoding UTF8 -NoNewline
 }
@@ -34,18 +44,14 @@ function Step-Version([string]$Version, [string]$BumpType) {
     $major = [int]$parts[0]
     $minor = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
     $patch = if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }
+    $build = if ($parts.Count -gt 3) { [int]$parts[3] } else { 0 }
     switch ($BumpType) {
-        "major" { $major++; $minor = 0; $patch = 0 }
-        "minor" { $minor++; $patch = 0 }
-        "patch" {
-            $patch++
-            if ($patch -gt 99) {
-                $minor++
-                $patch = 1
-            }
-        }
+        "major" { $major++; $minor = 0; $patch = 0; $build = 1 }
+        "minor" { $minor++; $patch = 0; $build = 1 }
+        "patch" { $patch++; $build = 1 }
+        "build" { $build++ }
     }
-    return "$major.$minor.$patch"
+    return "{0}.{1}.{2}.{3:000}" -f $major, $minor, $patch, $build
 }
 
 $CurrentVersion = Get-ProjectVersion $ProjectFile
@@ -55,7 +61,7 @@ Write-Host ""
 Write-Host ">> Versao: $CurrentVersion → $NewVersion" -ForegroundColor Yellow
 Set-ProjectVersion $ProjectFile $NewVersion
 
-$ZipPath = Join-Path $DistDir "NXProject.Community-$Configuration.zip"
+$ZipPath = Join-Path $DistDir "NXProject.Community-Release.zip"
 
 function Write-Step($msg) {
     Write-Host ""
