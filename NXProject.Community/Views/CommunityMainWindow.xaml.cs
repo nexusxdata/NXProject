@@ -746,13 +746,19 @@ namespace NXProject.Views
             bool wasExpanded = _expandedLayout;
             if (!wasExpanded) ApplyLayoutMode(expanded: true);
 
-            // Força o DataGrid interno a medir-se em largura total para capturar TODAS as colunas
+            // Expande temporariamente o TaskGridCtrl para capturar todas as colunas no PDF
             const double PdfTableRenderWidth = 1450;
-            double savedDataGridWidth = TaskGridCtrl.PrepareForPdfCapture(PdfTableRenderWidth);
+            double savedMinWidth = TaskGridCtrl.MinWidth;
+            double savedWidth    = TaskGridCtrl.Width;
+            TaskGridCtrl.MinWidth = PdfTableRenderWidth;
+            TaskGridCtrl.Width    = PdfTableRenderWidth;
+            TaskGridCtrl.UpdateLayout();
+            // Flush do pipeline de render para garantir que o ScrollViewer interno se ajustou
+            Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() => { }));
             try
             {
                 PdfExportService.Export(
-                    tableVisual:     TaskGridCtrl.InnerGrid,
+                    tableVisual:     TaskGridCtrl,
                     ganttVisual:     GanttCtrl,
                     projectName:     projectName,
                     companyName:     companyName,
@@ -779,7 +785,9 @@ namespace NXProject.Views
             }
             finally
             {
-                TaskGridCtrl.RestoreFromPdfCapture(savedDataGridWidth);
+                TaskGridCtrl.Width    = savedWidth;
+                TaskGridCtrl.MinWidth = savedMinWidth;
+                TaskGridCtrl.UpdateLayout();
                 if (!wasExpanded) ApplyLayoutMode(expanded: false);
             }
         }

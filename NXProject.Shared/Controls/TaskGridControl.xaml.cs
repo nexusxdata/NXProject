@@ -153,32 +153,6 @@ namespace NXProject.Controls
             SprintColumn.Width = new DataGridLength(expanded ? 150 : 118);
         }
 
-        /// <summary>Expõe o DataGrid interno para captura direta no PDF.</summary>
-        public DataGrid InnerGrid => TaskGrid;
-
-        /// <summary>
-        /// Força o DataGrid a se medir e renderizar com largura suficiente para mostrar
-        /// todas as colunas sem scroll. Retorna a largura anterior para restauração.
-        /// </summary>
-        public double PrepareForPdfCapture(double targetWidth)
-        {
-            double previous = TaskGrid.Width;
-            // Muda a coluna Nome de Star para Auto para não colapsar com largura fixa
-            NameColumn.Width = new DataGridLength(1, DataGridLengthUnitType.Auto);
-            TaskGrid.Width = targetWidth;
-            TaskGrid.Measure(new System.Windows.Size(targetWidth, double.PositiveInfinity));
-            TaskGrid.Arrange(new System.Windows.Rect(0, 0, targetWidth, TaskGrid.DesiredSize.Height));
-            TaskGrid.UpdateLayout();
-            return previous;
-        }
-
-        public void RestoreFromPdfCapture(double previousWidth)
-        {
-            TaskGrid.Width = previousWidth;
-            NameColumn.Width = new DataGridLength(2.2, DataGridLengthUnitType.Star);
-            TaskGrid.UpdateLayout();
-        }
-
         public void FocusSelectedTask()
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
