@@ -15,6 +15,8 @@ namespace NXProject.Views
 
             MinBox.Text = FormatPercent(minPercent);
             MaxBox.Text = FormatPercent(maxPercent);
+            ActiveOnlyCheck.IsChecked = !minPercent.HasValue && maxPercent == 99;
+            ApplyActiveOnlyState();
         }
 
         private static string FormatPercent(double? value) =>
@@ -56,16 +58,17 @@ namespace NXProject.Views
             DialogResult = true;
         }
 
-        private void OnUpTo99Click(object sender, RoutedEventArgs e)
-        {
-            MinPercent = null;
-            MaxPercent = 99;
-            DialogResult = true;
-        }
-
         private void OnApplyClick(object sender, RoutedEventArgs e)
         {
             ErrorText.Text = string.Empty;
+
+            if (ActiveOnlyCheck.IsChecked == true)
+            {
+                MinPercent = null;
+                MaxPercent = 99;
+                DialogResult = true;
+                return;
+            }
 
             if (!TryReadPercent(MinBox, "Minimo", out var min) ||
                 !TryReadPercent(MaxBox, "Maximo", out var max))
@@ -82,6 +85,25 @@ namespace NXProject.Views
             MinPercent = min;
             MaxPercent = max;
             DialogResult = true;
+        }
+
+        private void OnActiveOnlyChanged(object sender, RoutedEventArgs e) => ApplyActiveOnlyState();
+
+        private void ApplyActiveOnlyState()
+        {
+            if (ActiveOnlyCheck.IsChecked == true)
+            {
+                MinBox.Text = string.Empty;
+                MaxBox.Text = "99";
+                MinBox.IsEnabled = false;
+                MaxBox.IsEnabled = false;
+                ErrorText.Text = string.Empty;
+            }
+            else
+            {
+                MinBox.IsEnabled = true;
+                MaxBox.IsEnabled = true;
+            }
         }
     }
 }
