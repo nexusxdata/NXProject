@@ -178,6 +178,16 @@
                     <TextBlock x:Name="ResourceFilterLabel" FontSize="10" VerticalAlignment="Center" Foreground="#2B579A"/>
                 </StackPanel>
             </Button>
+            <Button x:Name="PercentFilterButton"
+                    Style="{StaticResource ToolbarButtonStyle}"
+                    Click="OnPercentFilterClick"
+                    ToolTip="{DynamicResource Toolbar_PercentFilter}"
+                    MinWidth="44" Padding="4,2">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="%" FontSize="12" FontWeight="SemiBold" Margin="0,0,2,0"/>
+                    <TextBlock x:Name="PercentFilterLabel" FontSize="10" VerticalAlignment="Center" Foreground="#2B579A"/>
+                </StackPanel>
+            </Button>
             <Separator/>
             <Button x:Name="ZoomMenuButton"
                     Style="{StaticResource ToolbarButtonStyle}"

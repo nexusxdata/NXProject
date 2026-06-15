@@ -76,6 +76,7 @@
     <sys:String x:Key="Toolbar_Refresh">Atualizar exibicao</sys:String>
     <sys:String x:Key="Toolbar_Layout">Expandir ou encolher a area da tabela e do grafico</sys:String>
     <sys:String x:Key="Toolbar_ResourceFilter">Filtrar por recurso</sys:String>
+    <sys:String x:Key="Toolbar_PercentFilter">Filtrar por faixa de % concluido</sys:String>
     <sys:String x:Key="Toolbar_Zoom">Alterar nivel de zoom</sys:String>
     <sys:String x:Key="Toolbar_DayView">Visao por dia (mes / sprint / dias uteis)</sys:String>
     <sys:String x:Key="Toolbar_ExportPdf">Exportar cronograma para PDF (paisagem)</sys:String>

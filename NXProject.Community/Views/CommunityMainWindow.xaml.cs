@@ -644,6 +644,37 @@ namespace NXProject.Views
                 ResourceFilterLabel.Text = $"({vm.ResourceFilter.Count})";
         }
 
+        private void OnPercentFilterClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+
+            var dlg = new PercentCompleteFilterWindow(
+                vm.PercentCompleteFilterMin,
+                vm.PercentCompleteFilterMax)
+            {
+                Owner = this
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                vm.SetPercentCompleteFilter(dlg.MinPercent, dlg.MaxPercent);
+                UpdatePercentFilterLabel(vm);
+            }
+        }
+
+        private void UpdatePercentFilterLabel(MainViewModel vm)
+        {
+            if (!vm.HasPercentCompleteFilter)
+            {
+                PercentFilterLabel.Text = string.Empty;
+                return;
+            }
+
+            var min = vm.PercentCompleteFilterMin?.ToString("0") ?? "0";
+            var max = vm.PercentCompleteFilterMax?.ToString("0") ?? "100";
+            PercentFilterLabel.Text = $"({min}-{max})";
+        }
+
         private void OnZoomMenuClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;

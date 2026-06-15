@@ -28,14 +28,43 @@ namespace NXProject.ViewModels
 
         // null = sem filtro (todos visíveis); conjunto de IDs = apenas esses recursos
         public HashSet<int>? ResourceFilter { get; private set; }
+        public double? PercentCompleteFilterMin { get; private set; }
+        public double? PercentCompleteFilterMax { get; private set; }
 
         public bool HasResourceFilter => ResourceFilter != null;
+        public bool HasPercentCompleteFilter =>
+            PercentCompleteFilterMin.HasValue || PercentCompleteFilterMax.HasValue;
 
         public void SetResourceFilter(HashSet<int>? filter)
         {
             ResourceFilter = filter;
             OnPropertyChanged(nameof(HasResourceFilter));
             RebuildFlatTasks();
+        }
+
+        public void SetPercentCompleteFilter(double? min, double? max)
+        {
+            PercentCompleteFilterMin = NormalizePercentFilterValue(min);
+            PercentCompleteFilterMax = NormalizePercentFilterValue(max);
+
+            if (PercentCompleteFilterMin.HasValue &&
+                PercentCompleteFilterMax.HasValue &&
+                PercentCompleteFilterMin.Value > PercentCompleteFilterMax.Value)
+            {
+                (PercentCompleteFilterMin, PercentCompleteFilterMax) =
+                    (PercentCompleteFilterMax, PercentCompleteFilterMin);
+            }
+
+            OnPropertyChanged(nameof(HasPercentCompleteFilter));
+            RebuildFlatTasks();
+        }
+
+        private static double? NormalizePercentFilterValue(double? value)
+        {
+            if (!value.HasValue || double.IsNaN(value.Value))
+                return null;
+
+            return Math.Clamp(Math.Round(value.Value), 0.0, 100.0);
         }
         [ObservableProperty] private double _mediumDaysPerSfp = 1.0;
         [ObservableProperty] private double _highDaysPerSfp = 1.0;
@@ -153,8 +182,8 @@ namespace NXProject.ViewModels
                 }
             };
 
-            // Filtro de recurso: verifica se a tarefa ou algum descendente passa
-            if (ResourceFilter != null && !TaskMatchesResourceFilter(task))
+            // Filtros: a tarefa entra se ela ou algum descendente passar nos filtros ativos.
+            if (!TaskMatchesActiveFilters(task))
                 return;
 
             FlatTasks.Add(vm);
@@ -163,14 +192,37 @@ namespace NXProject.ViewModels
                     AddFlatRecursive(child, depth + 1, vm);
         }
 
-        private bool TaskMatchesResourceFilter(ProjectTask task)
+        private bool TaskMatchesActiveFilters(ProjectTask task)
+        {
+            if (TaskSelfMatchesActiveFilters(task))
+                return true;
+
+            return task.Children.Any(TaskMatchesActiveFilters);
+        }
+
+        private bool TaskSelfMatchesActiveFilters(ProjectTask task)
+        {
+            return TaskSelfMatchesResourceFilter(task) &&
+                   TaskSelfMatchesPercentCompleteFilter(task);
+        }
+
+        private bool TaskSelfMatchesResourceFilter(ProjectTask task)
         {
             if (ResourceFilter == null) return true;
-            // Tarefa folha: verifica recursos diretos
-            if (!task.Children.Any())
-                return task.Resources.Any(r => r.Resource != null && ResourceFilter!.Contains(r.Resource.Id));
-            // Tarefa pai: passa se pelo menos um descendente passa
-            return task.Children.Any(TaskMatchesResourceFilter);
+            return task.Resources.Any(r => r.Resource != null && ResourceFilter.Contains(r.Resource.Id));
+        }
+
+        private bool TaskSelfMatchesPercentCompleteFilter(ProjectTask task)
+        {
+            if (!HasPercentCompleteFilter) return true;
+
+            var percent = Math.Clamp(task.PercentComplete, 0.0, 100.0);
+            if (PercentCompleteFilterMin.HasValue && percent < PercentCompleteFilterMin.Value)
+                return false;
+            if (PercentCompleteFilterMax.HasValue && percent > PercentCompleteFilterMax.Value)
+                return false;
+
+            return true;
         }
 
         private DateTime GetTaskSprintStart(ProjectTask task)

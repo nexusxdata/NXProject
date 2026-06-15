@@ -76,6 +76,7 @@
     <sys:String x:Key="Toolbar_Refresh">Refresh view</sys:String>
     <sys:String x:Key="Toolbar_Layout">Expand or collapse table and chart areas</sys:String>
     <sys:String x:Key="Toolbar_ResourceFilter">Filter by resource</sys:String>
+    <sys:String x:Key="Toolbar_PercentFilter">Filter by % complete range</sys:String>
     <sys:String x:Key="Toolbar_Zoom">Change zoom level</sys:String>
     <sys:String x:Key="Toolbar_DayView">Day view (month / sprint / working days)</sys:String>
     <sys:String x:Key="Toolbar_ExportPdf">Export schedule to PDF (landscape)</sys:String>
