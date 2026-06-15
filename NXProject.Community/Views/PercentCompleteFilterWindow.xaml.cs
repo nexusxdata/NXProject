@@ -56,6 +56,13 @@ namespace NXProject.Views
             DialogResult = true;
         }
 
+        private void OnUpTo99Click(object sender, RoutedEventArgs e)
+        {
+            MinPercent = null;
+            MaxPercent = 99;
+            DialogResult = true;
+        }
+
         private void OnApplyClick(object sender, RoutedEventArgs e)
         {
             ErrorText.Text = string.Empty;
