@@ -103,37 +103,62 @@ namespace NXProject.Community.Services
             }
             else
             {
-                var combined = RenderToPng(GetCombinedParent(tableVisual, ganttVisual), 150);
-                AddContentPage(doc, combined,
-                    pageSize, PdfSharp.PageOrientation.Landscape,
-                    companyName, companyLogo, projectName, exportedOnLabel, pageNum: 0);
+                // Renderiza tabela e Gantt separadamente e os posiciona lado a lado (40% / 60%)
+                AddSideBySidePage(doc,
+                    RenderToPng(tableVisual, 150), RenderToPng(ganttVisual, 150),
+                    pageSize, companyName, companyLogo, projectName, exportedOnLabel);
             }
 
             doc.Save(filePath);
         }
 
-        private static FrameworkElement GetCombinedParent(FrameworkElement a, FrameworkElement b)
+        private static void AddSideBySidePage(
+            PdfDocument doc,
+            byte[] tablePng, byte[] ganttPng,
+            PdfSharp.PageSize size,
+            string companyName, BitmapImage? companyLogo,
+            string projectName, string exportedOnLabel)
         {
-            // Sobe na árvore visual a partir de 'a' até encontrar um ancestral que também contenha 'b'
-            var parent = System.Windows.Media.VisualTreeHelper.GetParent(a);
-            while (parent != null)
-            {
-                if (parent is FrameworkElement fe && fe.ActualWidth > 0 && IsAncestorOf(fe, b))
-                    return fe;
-                parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
-            }
-            return a;
-        }
+            var page = doc.AddPage();
+            page.Size        = size;
+            page.Orientation = PdfSharp.PageOrientation.Landscape;
 
-        private static bool IsAncestorOf(DependencyObject ancestor, DependencyObject child)
-        {
-            var current = System.Windows.Media.VisualTreeHelper.GetParent(child);
-            while (current != null)
+            using var gfx = XGraphics.FromPdfPage(page);
+            double pageW = page.Width.Point;
+            double pageH = page.Height.Point;
+
+            bool hasHeader = companyLogo != null || !string.IsNullOrWhiteSpace(companyName);
+            double contentTop = Margin;
+            if (hasHeader)
             {
-                if (current == ancestor) return true;
-                current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+                DrawHeader(gfx, pageW, companyName, companyLogo, projectName);
+                contentTop = Margin + HeaderH + SepLine + SepGap;
             }
-            return false;
+
+            double footerTop = pageH - Margin - FooterH;
+            double contentH  = footerTop - SepGap - SepLine - contentTop;
+            double availW    = pageW - Margin * 2;
+
+            // Proporção: tabela 38%, separador 4pt, Gantt o restante
+            const double TableRatio = 0.38;
+            double tableW = Math.Round(availW * TableRatio);
+            double sepW   = 4;
+            double ganttW = availW - tableW - sepW;
+
+            using (var ms = new MemoryStream(tablePng))
+            using (var img = XImage.FromStream(ms))
+                gfx.DrawImage(img, Margin, contentTop, tableW, contentH);
+
+            // Linha separadora vertical
+            var vpen = new XPen(XColor.FromArgb(200, 200, 200), 0.5);
+            gfx.DrawLine(vpen, Margin + tableW + sepW / 2, contentTop,
+                               Margin + tableW + sepW / 2, contentTop + contentH);
+
+            using (var ms = new MemoryStream(ganttPng))
+            using (var img = XImage.FromStream(ms))
+                gfx.DrawImage(img, Margin + tableW + sepW, contentTop, ganttW, contentH);
+
+            DrawFooter(gfx, pageW, pageH, projectName, exportedOnLabel, companyName, companyLogo);
         }
 
         private static void AddContentPage(
