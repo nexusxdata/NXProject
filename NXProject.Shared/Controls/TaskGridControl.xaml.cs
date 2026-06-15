@@ -137,7 +137,7 @@ namespace NXProject.Controls
             SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             PredecessorColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
 
-            IdColumn.Width = new DataGridLength(expanded ? 62 : 42);
+            IdColumn.Width = new DataGridLength(expanded ? 72 : 42);
             DevOpsColumn.Width = new DataGridLength(expanded ? 62 : 46);
             NameColumn.MinWidth = expanded ? 280 : 210;
             NameColumn.Width = expanded
@@ -150,7 +150,7 @@ namespace NXProject.Controls
             PercentColumn.Width = new DataGridLength(expanded ? 82 : 62);
             PredecessorColumn.Width = new DataGridLength(expanded ? 60 : 54);
             ResourcesColumn.Width = new DataGridLength(expanded ? 190 : 88);
-            SprintColumn.Width = new DataGridLength(expanded ? 190 : 118);
+            SprintColumn.Width = new DataGridLength(expanded ? 150 : 118);
         }
 
         public void FocusSelectedTask()

@@ -52,13 +52,14 @@
                                 Foreground="#2B579A"
                                 FontSize="11"
                                 Padding="0"
-                                HorizontalContentAlignment="Center"
+                                HorizontalContentAlignment="Left"
                                 VerticalContentAlignment="Center">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <TextBlock Text="{TemplateBinding Content}"
                                                Foreground="{TemplateBinding Foreground}"
-                                               TextAlignment="Center"
+                                               Margin="3,0"
+                                               TextAlignment="Left"
                                                VerticalAlignment="Center"
                                                TextDecorations="Underline"/>
                                 </ControlTemplate>
@@ -432,7 +433,8 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding SprintDisplay}"
-                                   TextAlignment="Center"
+                                   TextAlignment="Left"
+                                   Margin="3,0"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"/>
                     </DataTemplate>
