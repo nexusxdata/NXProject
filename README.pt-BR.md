@@ -53,6 +53,7 @@ Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o 
 > O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
 >
 > Nota para publicação: o `.exe` oficial do NXProject Community deve ser gerado com `dotnet publish --self-contained true`, para que o pacote de release inclua o runtime do .NET e execute direto pelo `NXProject.Community.exe`.
+> Se o pacote for gerado apenas com `dotnet build`, o Windows pode exibir uma mensagem enganosa de .NET corrompido, instalação quebrada ou runtime ausente.
 
 ---
 
@@ -152,6 +153,7 @@ Pré-requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotne
 
 O executável de desenvolvimento será gerado em `NXProject.Community\bin\Release\net10.0-windows\`.
 Para publicar o `.exe` oficial do GitHub Releases, use `dotnet publish --self-contained true` ou o script de release do projeto, que já gera o pacote self-contained.
+Sem isso, a abertura pelo `.exe` pode falhar com mensagem de .NET corrompido ou runtime incompatível, mesmo quando a DLL abre com `dotnet NXProject.Community.dll`.
 
 ---
 
