@@ -244,8 +244,11 @@ namespace NXProject.Views
             catch (Exception ex)
             {
                 IsEnabled = true;
+                var hint = ex.Message.Contains("502") || ex.Message.Contains("gateway", StringComparison.OrdinalIgnoreCase)
+                    ? "\n\nDica: verifique se ha proxy ou firewall bloqueando acesso a api.github.com."
+                    : string.Empty;
                 MessageBox.Show(
-                    $"Nao foi possivel verificar atualizacoes.\n\n{ex.Message}",
+                    $"Nao foi possivel verificar atualizacoes.\n\n{ex.Message}{hint}",
                     "Verificar Atualizacao",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);

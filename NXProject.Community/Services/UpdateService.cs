@@ -152,8 +152,15 @@ public static class UpdateService
 
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient();
+        var handler = new HttpClientHandler
+        {
+            UseProxy = true,
+            Proxy = System.Net.WebRequest.GetSystemWebProxy(),
+            UseDefaultCredentials = true,
+        };
+        var client = new HttpClient(handler);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("NXProject-Updater/1.0");
+        client.Timeout = TimeSpan.FromSeconds(20);
         return client;
     }
 
