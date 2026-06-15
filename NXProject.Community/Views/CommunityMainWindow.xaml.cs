@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Microsoft.Win32;
+using NXProject.Community.Services;
 using NXProject.Services;
 using NXProject.ViewModels;
 
@@ -694,6 +696,64 @@ namespace NXProject.Views
             if (DataContext is MainViewModel vm)
                 vm.RefreshTasks();
             GanttCtrl.ForceRender();
+        }
+
+        private void OnExportPdfClick(object sender, RoutedEventArgs e)
+        {
+            var vm = DataContext as MainViewModel;
+            var projectName = vm?.Project?.Name ?? "Cronograma";
+
+            var dlg = new SaveFileDialog
+            {
+                Title      = "Exportar cronograma para PDF",
+                Filter     = "PDF (*.pdf)|*.pdf",
+                FileName   = $"{SanitizeFileName(projectName)} - Cronograma",
+                DefaultExt = "pdf"
+            };
+            if (dlg.ShowDialog(this) != true)
+                return;
+
+            // Captura a área principal: tabela + Gantt juntos
+            var target = (System.Windows.FrameworkElement)this.Content;
+
+            // Usa só a área de conteúdo (exclui menu, toolbar, status bar)
+            // O elemento raiz é o DockPanel; o Grid interno é o último filho
+            System.Windows.FrameworkElement captureArea = target;
+            if (target is System.Windows.Controls.DockPanel dp && dp.Children.Count > 0)
+            {
+                // O Grid com TaskGrid + Gantt é o último filho do DockPanel
+                for (int i = dp.Children.Count - 1; i >= 0; i--)
+                {
+                    if (dp.Children[i] is System.Windows.Controls.Grid g)
+                    {
+                        captureArea = g;
+                        break;
+                    }
+                }
+            }
+
+            var logo = ProtectedLogoProvider.GetLogoImage();
+
+            try
+            {
+                PdfExportService.Export(captureArea, projectName, logo, dlg.FileName);
+                MessageBox.Show($"PDF exportado com sucesso:\n{dlg.FileName}",
+                    "Exportar PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao exportar PDF:\n{ex.Message}",
+                    "Exportar PDF", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            var result  = new System.Text.StringBuilder();
+            foreach (var c in name)
+                result.Append(Array.IndexOf(invalid, c) >= 0 ? '_' : c);
+            return result.ToString();
         }
 
         private void OnRecalcDatesClick(object sender, RoutedEventArgs e)
