@@ -88,13 +88,25 @@ function Invoke-DotnetCommandWithRetry {
         $combinedOutput = ($output | Out-String)
 
         # Erros exclusivamente do _wpftmp (gerado pelo VS Code / MSBuild WPF) nao
-        # indicam falha real — o projeto principal compilou corretamente.
+        # indicam falha real — mas verificamos se o DLL principal foi de fato gerado
+        # nesta rodada (timestamp recente) antes de aceitar como sucesso.
         $realErrors = $output | Where-Object {
             $_ -match '\] ?error' -and $_ -notmatch '_wpftmp\.csproj'
         }
         if (-not $realErrors) {
-            Write-Host "  (avisos de _wpftmp ignorados — build principal ok)" -ForegroundColor DarkGray
-            return
+            $dllPath = Join-Path $OutputDir "NXProject.Community.dll"
+            $dllAge  = if (Test-Path $dllPath) {
+                (Get-Date) - (Get-Item $dllPath).LastWriteTime
+            } else { [TimeSpan]::MaxValue }
+
+            if ($dllAge.TotalSeconds -le 60) {
+                Write-Host "  (erros de _wpftmp ignorados — DLL atualizado ha $([int]$dllAge.TotalSeconds)s)" -ForegroundColor DarkGray
+                return
+            } else {
+                Write-Host ""
+                Write-Host "Falha: apenas erros de _wpftmp, mas o DLL nao foi atualizado (age=$([int]$dllAge.TotalSeconds)s). Verifique o build." -ForegroundColor Red
+                exit 1
+            }
         }
 
         $hasDllLock = $combinedOutput -match [regex]::Escape($SharedDllLockPattern)
