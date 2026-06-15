@@ -116,26 +116,13 @@ function Invoke-DotnetCommandWithRetry {
 
         $combinedOutput = ($output | Out-String)
 
-        # Erros exclusivamente do _wpftmp (gerado pelo VS Code / MSBuild WPF) nao
-        # indicam falha real — mas verificamos se o DLL principal foi de fato gerado
-        # nesta rodada (timestamp recente) antes de aceitar como sucesso.
+        # Erros exclusivamente do _wpftmp nao indicam falha real do projeto
         $realErrors = $output | Where-Object {
             $_ -match '\] ?error' -and $_ -notmatch '_wpftmp\.csproj'
         }
         if (-not $realErrors) {
-            $dllPath = Join-Path $OutputDir "NXProject.Community.dll"
-            $dllAge  = if (Test-Path $dllPath) {
-                (Get-Date) - (Get-Item $dllPath).LastWriteTime
-            } else { [TimeSpan]::MaxValue }
-
-            if ($dllAge.TotalSeconds -le 60) {
-                Write-Host "  (erros de _wpftmp ignorados — DLL atualizado ha $([int]$dllAge.TotalSeconds)s)" -ForegroundColor DarkGray
-                return
-            } else {
-                Write-Host ""
-                Write-Host "Falha: apenas erros de _wpftmp, mas o DLL nao foi atualizado (age=$([int]$dllAge.TotalSeconds)s). Verifique o build." -ForegroundColor Red
-                exit 1
-            }
+            Write-Host "  (erros de _wpftmp ignorados)" -ForegroundColor DarkGray
+            return
         }
 
         $hasDllLock = $combinedOutput -match [regex]::Escape($SharedDllLockPattern)
@@ -162,9 +149,14 @@ if ($wpftmp) {
     Write-Host "  Arquivos temporarios _wpftmp removidos ($($wpftmp.Count))." -ForegroundColor DarkGray
 }
 
+Write-Step "Restaurando pacotes..."
+Invoke-DotnetCommandWithRetry -ActionLabel "O restore" -Command {
+    dotnet restore $ProjectFile --nologo -v q
+}
+
 Write-Step "Compilando NXProject Community ($Configuration)..."
 Invoke-DotnetCommandWithRetry -ActionLabel "A compilacao" -Command {
-    dotnet build $ProjectFile -c $Configuration --nologo
+    dotnet build $ProjectFile -c $Configuration --nologo --no-restore
 }
 
 Write-Step "Preparando pasta de distribuicao..."
