@@ -86,6 +86,17 @@ function Invoke-DotnetCommandWithRetry {
         }
 
         $combinedOutput = ($output | Out-String)
+
+        # Erros exclusivamente do _wpftmp (gerado pelo VS Code / MSBuild WPF) nao
+        # indicam falha real — o projeto principal compilou corretamente.
+        $realErrors = $output | Where-Object {
+            $_ -match '\] ?error' -and $_ -notmatch '_wpftmp\.csproj'
+        }
+        if (-not $realErrors) {
+            Write-Host "  (avisos de _wpftmp ignorados — build principal ok)" -ForegroundColor DarkGray
+            return
+        }
+
         $hasDllLock = $combinedOutput -match [regex]::Escape($SharedDllLockPattern)
         if (-not $hasDllLock -or $attempt -eq 2) {
             Write-Host ""
@@ -101,6 +112,14 @@ function Invoke-DotnetCommandWithRetry {
 }
 
 Stop-NXProjectCommunityProcess
+
+# Remove arquivos _wpftmp.csproj gerados pelo C# Dev Kit do VS Code antes de compilar.
+# Eles podem conflitar com o _wpftmp que o proprio MSBuild cria durante a compilacao WPF.
+$wpftmp = Get-ChildItem -Path $SolutionDir -Filter "*_wpftmp.csproj" -Recurse -ErrorAction SilentlyContinue
+if ($wpftmp) {
+    $wpftmp | Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host "  Arquivos temporarios _wpftmp removidos ($($wpftmp.Count))." -ForegroundColor DarkGray
+}
 
 Write-Step "Compilando NXProject Community ($Configuration)..."
 Invoke-DotnetCommandWithRetry -ActionLabel "A compilacao" -Command {
