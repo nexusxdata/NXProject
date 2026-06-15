@@ -28,12 +28,12 @@
             <StackPanel>
                 <TextBlock Text="Tamanho da página:" FontSize="11" FontWeight="SemiBold"
                            Foreground="#2B579A" Margin="0,0,0,8"/>
-                <RadioButton x:Name="SizeA3" GroupName="PageSize" IsChecked="True"
+                <RadioButton x:Name="SizeA3" GroupName="PageSize"
                              FontSize="11" Margin="0,0,0,4">
                     <TextBlock><Run FontWeight="SemiBold">A3 paisagem</Run>
                     <Run Foreground="#666"> — 420 × 297 mm  (dobro do A4, impressora comum)</Run></TextBlock>
                 </RadioButton>
-                <RadioButton x:Name="SizeA2" GroupName="PageSize"
+                <RadioButton x:Name="SizeA2" GroupName="PageSize" IsChecked="True"
                              FontSize="11" Margin="0,0,0,4">
                     <TextBlock><Run FontWeight="SemiBold">A2 paisagem</Run>
                     <Run Foreground="#666"> — 594 × 420 mm  (boa para projetos médios)</Run></TextBlock>

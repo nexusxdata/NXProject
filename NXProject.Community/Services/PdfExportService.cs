@@ -93,19 +93,19 @@ namespace NXProject.Community.Services
 
             if (layoutMode == Views.PdfLayoutMode.TwoPages)
             {
-                AddContentPage(doc, RenderToPng(tableVisual, 150),
+                AddContentPage(doc, RenderToPng(tableVisual, 200),
                     PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
                     companyName, companyLogo, projectName, exportedOnLabel, pageNum: 1);
 
-                AddContentPage(doc, RenderToPng(ganttVisual, 150),
+                AddContentPage(doc, RenderToPng(ganttVisual, 200),
                     PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
                     companyName, companyLogo, projectName, exportedOnLabel, pageNum: 2);
             }
             else
             {
-                // Renderiza tabela e Gantt separadamente e os posiciona lado a lado (40% / 60%)
+                // Renderiza tabela e Gantt separadamente e os posiciona lado a lado
                 AddSideBySidePage(doc,
-                    RenderToPng(tableVisual, 150), RenderToPng(ganttVisual, 150),
+                    RenderToPng(tableVisual, 200), RenderToPng(ganttVisual, 200),
                     pageSize, companyName, companyLogo, projectName, exportedOnLabel);
             }
 
@@ -139,8 +139,8 @@ namespace NXProject.Community.Services
             double contentH  = footerTop - SepGap - SepLine - contentTop;
             double availW    = pageW - Margin * 2;
 
-            // Proporção: tabela 38%, separador 4pt, Gantt o restante
-            const double TableRatio = 0.38;
+            // Proporção: tabela 45%, separador 4pt, Gantt o restante
+            const double TableRatio = 0.45;
             double tableW = Math.Round(availW * TableRatio);
             double sepW   = 4;
             double ganttW = availW - tableW - sepW;

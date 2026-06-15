@@ -745,7 +745,14 @@ namespace NXProject.Views
             // 4. Exporta em modo expandido para melhor legibilidade
             bool wasExpanded = _expandedLayout;
             if (!wasExpanded) ApplyLayoutMode(expanded: true);
-            // Força o layout a ser aplicado antes da captura
+
+            // Expande a largura do cronograma para capturar TODAS as colunas (inclusive Recursos e Sprint)
+            // A soma das colunas fixas em modo expandido é ~1260px; 1450 dá folga para a coluna Nome (star)
+            const double PdfTableRenderWidth = 1450;
+            double savedTableWidth  = TaskGridCtrl.Width;
+            double savedTableMinWidth = TaskGridCtrl.MinWidth;
+            TaskGridCtrl.Width    = PdfTableRenderWidth;
+            TaskGridCtrl.MinWidth = PdfTableRenderWidth;
             UpdateLayout();
             try
             {
@@ -777,6 +784,8 @@ namespace NXProject.Views
             }
             finally
             {
+                TaskGridCtrl.Width    = savedTableWidth;
+                TaskGridCtrl.MinWidth = savedTableMinWidth;
                 if (!wasExpanded) ApplyLayoutMode(expanded: false);
             }
         }
