@@ -705,9 +705,14 @@ namespace NXProject.Views
 
         private void OnExportPdfClick(object sender, RoutedEventArgs e)
         {
+            // 1. Opções de layout
+            var pdfOpts = new PdfExportOptionsWindow { Owner = this };
+            if (pdfOpts.ShowDialog() != true) return;
+
             var vm = DataContext as MainViewModel;
             var projectName = vm?.Project?.Name ?? "Cronograma";
 
+            // 2. Destino do arquivo
             var dlg = new SaveFileDialog
             {
                 Title      = Str("Pdf_SaveTitle"),
@@ -715,32 +720,11 @@ namespace NXProject.Views
                 FileName   = $"{SanitizeFileName(projectName)}{Str("Pdf_FileSuffix")}",
                 DefaultExt = "pdf"
             };
-            if (dlg.ShowDialog(this) != true)
-                return;
+            if (dlg.ShowDialog(this) != true) return;
 
-            // Captura a área principal: tabela + Gantt juntos
-            var target = (System.Windows.FrameworkElement)this.Content;
-
-            // Usa só a área de conteúdo (exclui menu, toolbar, status bar)
-            // O elemento raiz é o DockPanel; o Grid interno é o último filho
-            System.Windows.FrameworkElement captureArea = target;
-            if (target is System.Windows.Controls.DockPanel dp && dp.Children.Count > 0)
-            {
-                // O Grid com TaskGrid + Gantt é o último filho do DockPanel
-                for (int i = dp.Children.Count - 1; i >= 0; i--)
-                {
-                    if (dp.Children[i] is System.Windows.Controls.Grid g)
-                    {
-                        captureArea = g;
-                        break;
-                    }
-                }
-            }
-
-            var nxLogo = ProtectedLogoProvider.GetLogoImage();
-
-            // Carrega logo e nome da empresa das configurações
-            var appOpts    = TfsConnectionStore.Load();
+            // 3. Branding
+            var nxLogo      = ProtectedLogoProvider.GetLogoImage();
+            var appOpts     = TfsConnectionStore.Load();
             var companyName = appOpts.CompanyName ?? string.Empty;
             System.Windows.Media.Imaging.BitmapImage? companyLogo = null;
             if (!string.IsNullOrWhiteSpace(appOpts.CompanyLogoBase64))
@@ -756,17 +740,33 @@ namespace NXProject.Views
                     bmp.Freeze();
                     companyLogo = bmp;
                 }
-                catch { /* logo inválido — ignora */ }
+                catch { }
             }
 
+            // 4. Exporta
             try
             {
-                PdfExportService.Export(captureArea, projectName, nxLogo,
-                    companyName, companyLogo, dlg.FileName,
+                PdfExportService.Export(
+                    tableVisual:     TaskGridCtrl,
+                    ganttVisual:     GanttCtrl,
+                    projectName:     projectName,
+                    nxLogo:          nxLogo,
+                    companyName:     companyName,
+                    companyLogo:     companyLogo,
+                    filePath:        dlg.FileName,
+                    layoutMode:      pdfOpts.LayoutMode,
+                    pageSize:        pdfOpts.PageSize,
                     exportedOnLabel: Str("Pdf_FooterExported"),
                     scheduleSubject: Str("Pdf_SubjectSchedule"));
-                MessageBox.Show($"{Str("Pdf_SuccessMsg")}\n{dlg.FileName}",
-                    Str("Pdf_SuccessTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // 5. Oferecer abrir o PDF imediatamente
+                var result = MessageBox.Show(
+                    $"{Str("Pdf_SuccessMsg")}\n{dlg.FileName}\n\n{Str("Pdf_OpenNow")}",
+                    Str("Pdf_SuccessTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+                if (result == MessageBoxResult.Yes)
+                    System.Diagnostics.Process.Start(
+                        new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
             }
             catch (Exception ex)
             {

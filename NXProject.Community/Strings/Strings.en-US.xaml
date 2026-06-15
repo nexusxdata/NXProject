@@ -99,6 +99,7 @@
     <sys:String x:Key="Pdf_ErrorMsg">Error exporting PDF:</sys:String>
     <sys:String x:Key="Pdf_ErrorTitle">Export PDF</sys:String>
     <sys:String x:Key="Pdf_FooterExported">Exported on</sys:String>
+    <sys:String x:Key="Pdf_OpenNow">Would you like to open the PDF now?</sys:String>
     <sys:String x:Key="Pdf_SubjectSchedule">NXProject Schedule</sys:String>
 
     <!-- Settings Window (AppSettingsWindow) -->

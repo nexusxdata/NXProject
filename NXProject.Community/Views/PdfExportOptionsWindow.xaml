@@ -1,0 +1,79 @@
+<Window x:Class="NXProject.Views.PdfExportOptionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Exportar PDF — Opções"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F5F7FA">
+
+    <StackPanel Margin="24,20,24,20">
+
+        <!-- Layout -->
+        <TextBlock Text="Layout do PDF" FontSize="13" FontWeight="Bold"
+                   Foreground="#2B579A" Margin="0,0,0,12"/>
+
+        <RadioButton x:Name="RadioTogether" GroupName="Layout" IsChecked="True"
+                     Margin="0,0,0,8" FontSize="12">
+            <StackPanel>
+                <TextBlock Text="Tudo junto (tabela + Gantt na mesma página)" FontWeight="SemiBold"/>
+                <TextBlock Text="Escolha um formato maior para melhor legibilidade."
+                           FontSize="10" Foreground="#666" Margin="0,2,0,0"/>
+            </StackPanel>
+        </RadioButton>
+
+        <!-- Tamanho de página (só visível quando "tudo junto") -->
+        <Border x:Name="SizePanel" Margin="20,0,0,12" Padding="12,10"
+                Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1" CornerRadius="4">
+            <StackPanel>
+                <TextBlock Text="Tamanho da página:" FontSize="11" FontWeight="SemiBold"
+                           Foreground="#2B579A" Margin="0,0,0,8"/>
+                <RadioButton x:Name="SizeA3" GroupName="PageSize" IsChecked="True"
+                             FontSize="11" Margin="0,0,0,4">
+                    <TextBlock><Run FontWeight="SemiBold">A3 paisagem</Run>
+                    <Run Foreground="#666"> — 420 × 297 mm  (dobro do A4, impressora comum)</Run></TextBlock>
+                </RadioButton>
+                <RadioButton x:Name="SizeA2" GroupName="PageSize"
+                             FontSize="11" Margin="0,0,0,4">
+                    <TextBlock><Run FontWeight="SemiBold">A2 paisagem</Run>
+                    <Run Foreground="#666"> — 594 × 420 mm  (boa para projetos médios)</Run></TextBlock>
+                </RadioButton>
+                <RadioButton x:Name="SizeA1" GroupName="PageSize"
+                             FontSize="11" Margin="0,0,0,4">
+                    <TextBlock><Run FontWeight="SemiBold">A1 paisagem</Run>
+                    <Run Foreground="#666"> — 841 × 594 mm  (plotter / projetos grandes)</Run></TextBlock>
+                </RadioButton>
+                <RadioButton x:Name="SizeA0" GroupName="PageSize"
+                             FontSize="11">
+                    <TextBlock><Run FontWeight="SemiBold">A0 paisagem</Run>
+                    <Run Foreground="#666"> — 1189 × 841 mm  (visão panorâmica completa)</Run></TextBlock>
+                </RadioButton>
+            </StackPanel>
+        </Border>
+
+        <RadioButton x:Name="RadioTwoPages" GroupName="Layout"
+                     Margin="0,0,0,4" FontSize="12"
+                     Checked="OnLayoutChanged" Unchecked="OnLayoutChanged">
+            <StackPanel>
+                <TextBlock Text="Duas páginas separadas" FontWeight="SemiBold"/>
+                <TextBlock Text="Página 1: tabela de tarefas completa  |  Página 2: Gantt completo."
+                           FontSize="10" Foreground="#666" Margin="0,2,0,0"/>
+            </StackPanel>
+        </RadioButton>
+
+        <Separator Margin="0,16,0,16"/>
+
+        <!-- Botões -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Exportar" Width="90" Height="30" Margin="0,0,8,0"
+                    IsDefault="True" Click="OnExportClick"
+                    Background="#2B579A" Foreground="White" FontWeight="SemiBold"
+                    BorderThickness="0"/>
+            <Button Content="Cancelar" Width="90" Height="30"
+                    IsCancel="True" Click="OnCancelClick"
+                    Background="#E5E8ED" Foreground="#333"
+                    BorderThickness="0"/>
+        </StackPanel>
+
+    </StackPanel>
+</Window>

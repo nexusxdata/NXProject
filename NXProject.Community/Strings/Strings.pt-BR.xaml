@@ -99,6 +99,7 @@
     <sys:String x:Key="Pdf_ErrorMsg">Erro ao exportar PDF:</sys:String>
     <sys:String x:Key="Pdf_ErrorTitle">Exportar PDF</sys:String>
     <sys:String x:Key="Pdf_FooterExported">Exportado em</sys:String>
+    <sys:String x:Key="Pdf_OpenNow">Deseja abrir o PDF agora?</sys:String>
     <sys:String x:Key="Pdf_SubjectSchedule">Cronograma NXProject</sys:String>
 
     <!-- Tela Configurações (AppSettingsWindow) -->

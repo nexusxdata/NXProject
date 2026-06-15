@@ -68,39 +68,86 @@ namespace NXProject.Community.Services
         private const double SepGap     = 4;
 
         /// <summary>
-        /// Gera PDF paisagem A4 com cabeçalho (logo da empresa + título do projeto)
-        /// e rodapé (nome do projeto | data | logo NXProject).
+        /// Exporta o cronograma para PDF.
+        /// Modo "Together": tabela + Gantt juntos no tamanho indicado por <paramref name="pageSize"/>.
+        /// Modo "TwoPages": página 1 = tableVisual, página 2 = ganttVisual.
         /// </summary>
         public static void Export(
-            FrameworkElement visual,
+            FrameworkElement tableVisual,
+            FrameworkElement ganttVisual,
             string projectName,
             BitmapImage? nxLogo,
             string companyName,
             BitmapImage? companyLogo,
             string filePath,
+            Views.PdfLayoutMode layoutMode     = Views.PdfLayoutMode.Together,
+            PdfSharp.PageSize   pageSize       = PdfSharp.PageSize.A3,
             string exportedOnLabel = "Exportado em",
             string scheduleSubject = "Cronograma NXProject")
         {
             EnsureFontResolver();
-            var pngBytes = RenderToPng(visual, dpi: 150);
 
             var doc = new PdfDocument();
             doc.Info.Title   = projectName;
             doc.Info.Subject = scheduleSubject;
             doc.Info.Creator = "NXProject Community";
 
+            if (layoutMode == Views.PdfLayoutMode.TwoPages)
+            {
+                // Página 1 — tabela completa (A3 portrait para aproveitar altura)
+                AddContentPage(doc, RenderToPng(tableVisual, 150),
+                    PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Portrait,
+                    companyName, companyLogo, projectName, nxLogo, exportedOnLabel, pageNum: 1);
+
+                // Página 2 — Gantt completo (A3 landscape)
+                AddContentPage(doc, RenderToPng(ganttVisual, 150),
+                    PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
+                    companyName, companyLogo, projectName, nxLogo, exportedOnLabel, pageNum: 2);
+            }
+            else
+            {
+                // Página única — ambos juntos no tamanho escolhido
+                var combined = RenderToPng(GetCombinedParent(tableVisual, ganttVisual), 150);
+                AddContentPage(doc, combined,
+                    pageSize, PdfSharp.PageOrientation.Landscape,
+                    companyName, companyLogo, projectName, nxLogo, exportedOnLabel, pageNum: 0);
+            }
+
+            doc.Save(filePath);
+        }
+
+        private static FrameworkElement GetCombinedParent(FrameworkElement a, FrameworkElement b)
+        {
+            // Sobe na árvore visual até encontrar o pai comum (o Grid raiz)
+            var parent = System.Windows.Media.VisualTreeHelper.GetParent(a);
+            while (parent != null)
+            {
+                if (parent is FrameworkElement fe && fe.ActualWidth > 0)
+                    return fe;
+                parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
+            }
+            return a; // fallback
+        }
+
+        private static void AddContentPage(
+            PdfDocument doc,
+            byte[] pngBytes,
+            PdfSharp.PageSize size,
+            PdfSharp.PageOrientation orientation,
+            string companyName, BitmapImage? companyLogo,
+            string projectName, BitmapImage? nxLogo,
+            string exportedOnLabel, int pageNum)
+        {
             var page = doc.AddPage();
-            page.Orientation = PdfSharp.PageOrientation.Landscape;
-            page.Size        = PdfSharp.PageSize.A4;
+            page.Size        = size;
+            page.Orientation = orientation;
 
             using var gfx = XGraphics.FromPdfPage(page);
-
             double pageW = page.Width.Point;
             double pageH = page.Height.Point;
 
             bool hasHeader = companyLogo != null || !string.IsNullOrWhiteSpace(companyName);
 
-            // ── Cabeçalho da empresa ───────────────────────────────────────
             double contentTop = Margin;
             if (hasHeader)
             {
@@ -108,20 +155,15 @@ namespace NXProject.Community.Services
                 contentTop = Margin + HeaderH + SepLine + SepGap;
             }
 
-            // ── Imagem do cronograma ───────────────────────────────────────
             double footerTop = pageH - Margin - FooterH;
-            double imgY = contentTop;
-            double imgH = footerTop - SepGap - SepLine - imgY;
+            double imgH = footerTop - SepGap - SepLine - contentTop;
             double imgW = pageW - Margin * 2;
 
-            using var imgStream = new MemoryStream(pngBytes);
-            using var xImg = XImage.FromStream(imgStream);
-            gfx.DrawImage(xImg, Margin, imgY, imgW, imgH);
+            using var ms   = new MemoryStream(pngBytes);
+            using var xImg = XImage.FromStream(ms);
+            gfx.DrawImage(xImg, Margin, contentTop, imgW, imgH);
 
-            // ── Rodapé NXProject ──────────────────────────────────────────
             DrawFooter(gfx, pageW, pageH, projectName, nxLogo, exportedOnLabel);
-
-            doc.Save(filePath);
         }
 
         // ── Cabeçalho ─────────────────────────────────────────────────────
