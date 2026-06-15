@@ -51,6 +51,8 @@ Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o 
 **Não precisa instalar nada.** Extraia o ZIP e execute o `NXProject.Community.exe` — o runtime do .NET já vem embutido.
 
 > O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
+>
+> Nota para publicação: o `.exe` oficial do NXProject Community deve ser gerado com `dotnet publish --self-contained true`, para que o pacote de release inclua o runtime do .NET e execute direto pelo `NXProject.Community.exe`.
 
 ---
 
@@ -144,11 +146,12 @@ Pré-requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotne
 # Compilar
 .\build-community.ps1 -Configuration Release
 
-# Ou gerar o zip de distribuição
-.\release-community.ps1 -Configuration Release
+# Ou gerar o zip de distribuição self-contained
+.\release-community-new-version.ps1 -Configuration Release
 ```
 
-O executável será gerado em `NXProject.Community\bin\Release\net10.0-windows\`.
+O executável de desenvolvimento será gerado em `NXProject.Community\bin\Release\net10.0-windows\`.
+Para publicar o `.exe` oficial do GitHub Releases, use `dotnet publish --self-contained true` ou o script de release do projeto, que já gera o pacote self-contained.
 
 ---
 

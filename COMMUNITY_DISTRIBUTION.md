@@ -14,9 +14,10 @@
 ## Como gerar o pacote para usuario final
 
 1. Execute:
-   `.\release-community.ps1`
+   `.\release-community-new-version.ps1`
 2. O pacote sera gerado em:
    `dist\community\NXProject.Community-Release.zip`
+3. O `.exe` oficial deve ser gerado via `dotnet publish --self-contained true` para incluir o runtime do .NET no pacote.
 
 ## O que vai dentro do ZIP
 
@@ -30,8 +31,8 @@ O `.zip` de distribuicao foi gerado em ambiente com antivirus McAfee. Se houver 
 
 ## Requisito para o usuario final
 
-O usuario deve instalar o `Microsoft .NET Desktop Runtime 10.0 (x64)` antes de abrir o aplicativo, caso a maquina ainda nao tenha esse runtime.
+O pacote oficial e self-contained para Windows x64. O usuario nao precisa instalar o `Microsoft .NET Desktop Runtime 10.0` para abrir o aplicativo pelo `NXProject.Community.exe`.
 
 ## Observacao
 
-Se no futuro voce quiser remover a dependencia de instalacao do .NET, o proximo passo e publicar a Community como `self-contained`.
+Se o pacote for gerado manualmente, use `dotnet publish --self-contained true`. Nao use apenas `dotnet build` para o ZIP oficial, porque essa saida depende do runtime instalado na maquina do usuario.
