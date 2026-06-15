@@ -2,6 +2,7 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
 
+    [switch]$Build,
     [switch]$Run,
     [switch]$Clean
 )
@@ -15,6 +16,40 @@ $SharedDllLockPattern = "because it is being used by another process"
 function Write-Step($msg) {
     Write-Host ""
     Write-Host ">> $msg" -ForegroundColor Cyan
+}
+
+function Get-ProjectVersion([string]$CsprojPath) {
+    $content = Get-Content $CsprojPath -Raw
+    if ($content -match '<Version>([^<]+)</Version>') { return $Matches[1] }
+    return "1.0.0.000"
+}
+
+function Convert-ToAssemblyVersion([string]$Version) {
+    $parts = $Version.Split('.')
+    $major = [int]$parts[0]
+    $minor = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
+    $patch = if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }
+    $build = if ($parts.Count -gt 3) { [int]$parts[3] } else { 0 }
+    return "$major.$minor.$patch.$build"
+}
+
+function Step-BuildVersion([string]$Version) {
+    $parts = $Version.Split('.')
+    $major = [int]$parts[0]
+    $minor = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
+    $patch = if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }
+    $build = if ($parts.Count -gt 3) { [int]$parts[3] } else { 0 }
+    return "{0}.{1}.{2}.{3:000}" -f $major, $minor, $patch, ($build + 1)
+}
+
+function Set-ProjectVersion([string]$CsprojPath, [string]$NewVersion) {
+    $assemblyVersion = Convert-ToAssemblyVersion $NewVersion
+    $content = Get-Content $CsprojPath -Raw
+    $content = $content -replace '<Version>[^<]+</Version>', "<Version>$NewVersion</Version>"
+    $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$assemblyVersion</AssemblyVersion>"
+    $content = $content -replace '<FileVersion>[^<]+</FileVersion>', "<FileVersion>$assemblyVersion</FileVersion>"
+    $content = $content -replace '<InformationalVersion>[^<]+</InformationalVersion>', "<InformationalVersion>$NewVersion</InformationalVersion>"
+    Set-Content -Path $CsprojPath -Value $content -Encoding UTF8 -NoNewline
 }
 
 function Stop-NXProjectCommunityProcess {
@@ -61,6 +96,13 @@ function Invoke-DotnetCommandWithRetry {
 }
 
 Stop-NXProjectCommunityProcess
+
+if ($Build) {
+    $currentVersion = Get-ProjectVersion $ProjectFile
+    $newVersion = Step-BuildVersion $currentVersion
+    Write-Step "Versionando build Community ($currentVersion -> $newVersion)..."
+    Set-ProjectVersion $ProjectFile $newVersion
+}
 
 # Remove arquivos temporarios _wpftmp.csproj gerados pelo C# Dev Kit do VS Code.
 $wpftmp = Get-ChildItem -Path $SolutionDir -Filter "*_wpftmp.csproj" -Recurse -ErrorAction SilentlyContinue
