@@ -192,9 +192,8 @@ if (Test-Path $LicenseSrc) {
 @"
 @echo off
 :: Use este .bat se ao abrir o NXProject.Community.exe aparecer mensagem pedindo instalar o .NET.
-:: Ele define o caminho do runtime manualmente e inicia o aplicativo.
-set "DOTNET_ROOT=C:\Program Files\dotnet"
-start "" "%~dp0NXProject.Community.exe"
+cd /d "%~dp0"
+dotnet NXProject.Community.dll
 "@ | Set-Content -Path (Join-Path $StageDir "NXProject-FallbackLauncher.bat") -Encoding ASCII
 
 Write-Step "Gerando arquivo ZIP..."
