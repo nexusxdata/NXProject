@@ -122,7 +122,8 @@ Em qualquer tarefa vinculada, o botão **"Abrir no DevOps ↗"** abre o work ite
 
 ## Download
 
-- [Baixar NXProject Community (última versão)](../../releases/latest)
+- [Baixar ZIP do NXProject Community com `.exe` e DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
+- [Ver notas da versão e downloads do código-fonte](../../releases/latest)
 
 O `.exe` é autocontido — não exige instalação do .NET na máquina.
 

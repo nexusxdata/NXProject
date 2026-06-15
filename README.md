@@ -125,7 +125,8 @@ On any linked task, the **"Open in DevOps ↗"** button opens the work item in t
 
 ## Download
 
-- [Download NXProject Community (latest release)](../../releases/latest)
+- [Download NXProject Community ZIP with `.exe` and DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
+- [View release notes and source code downloads](../../releases/latest)
 
 The `.exe` is self-contained — no .NET installation required on the target machine.
 
