@@ -15,9 +15,6 @@ create_test_pod.ps1
 objetivo.md
 
 dist/
-!dist/community/
-dist/community/*
-!dist/community/NXProject.Community-Release.zip
 
 teste.pdf
 teste_openproj.pod

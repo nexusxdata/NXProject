@@ -200,3 +200,28 @@ Write-Host ""
 Write-Host "Pacote Community gerado com sucesso!" -ForegroundColor Green
 Write-Host "  Pasta: $StageDir" -ForegroundColor DarkGray
 Write-Host "  Zip:   $ZipPath" -ForegroundColor DarkGray
+
+# ── GitHub Release ────────────────────────────────────────────────────────────
+Write-Step "Publicando GitHub Release v$NewVersion..."
+
+$tag = "v$NewVersion"
+$releaseNotes = "NXProject Community $tag"
+
+$ghAvailable = Get-Command gh -ErrorAction SilentlyContinue
+if (-not $ghAvailable) {
+    Write-Host "  gh CLI nao encontrado. Instale em https://cli.github.com e faca 'gh auth login'." -ForegroundColor Yellow
+    Write-Host "  Para publicar manualmente: gh release create $tag '$ZipPath' --title '$tag' --notes '$releaseNotes'" -ForegroundColor DarkGray
+} else {
+    gh release create $tag $ZipPath `
+        --title "NXProject Community $tag" `
+        --notes $releaseNotes `
+        --repo nexusxdata/NXProject
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host ""
+        Write-Host "Release $tag publicada com sucesso no GitHub!" -ForegroundColor Green
+        Write-Host "  https://github.com/nexusxdata/NXProject/releases/tag/$tag" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  Falha ao criar a release. Verifique se esta autenticado: gh auth login" -ForegroundColor Red
+    }
+}
