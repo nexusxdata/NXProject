@@ -1,0 +1,53 @@
+<Window x:Class="NXProject.Views.TfsOnlineChildTasksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Tasks online da Story"
+        Width="980" Height="560"
+        MinWidth="760" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="TitleText"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#2B579A"/>
+            <TextBlock x:Name="CountText"
+                       FontSize="11"
+                       Foreground="#666"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <DataGrid Grid.Row="1"
+                  x:Name="TasksGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  RowHeaderWidth="0"
+                  SelectionMode="Single"
+                  TextElement.FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID" Width="70" Binding="{Binding IdText}"/>
+                <DataGridTextColumn Header="Nome" Width="220" Binding="{Binding Name}"/>
+                <DataGridTextColumn Header="Status" Width="100" Binding="{Binding State}"/>
+                <DataGridTextColumn Header="Tags" Width="160" Binding="{Binding Tags}"/>
+                <DataGridTextColumn Header="Descricao" Width="240" Binding="{Binding Description}"/>
+                <DataGridTextColumn Header="Ultimo tramite" Width="*" Binding="{Binding LastHistory}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Fechar" Width="90" Height="30" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

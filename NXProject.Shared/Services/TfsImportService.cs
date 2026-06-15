@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NXProject.Models;
@@ -26,6 +27,17 @@ namespace NXProject.Services
     {
         private const string ApiVersion = "api-version=6.0";
         private static readonly HttpClient Http = new();
+
+        public sealed record OnlineChildTaskInfo(
+            int Id,
+            string Name,
+            string State,
+            string Tags,
+            string Description,
+            string LastHistory)
+        {
+            public string IdText => $"#{Id}";
+        }
 
         // Nomes de exibicao dos campos customizados procurados, na ordem de
         // preferencia. O rotulo "HH Estimado" no formulario corresponde ao campo
@@ -1384,6 +1396,165 @@ namespace NXProject.Services
 
         // ── Chamadas REST ────────────────────────────────────────────────────
 
+        public static async Task<List<OnlineChildTaskInfo>> LoadOnlineChildTasksAsync(
+            TfsConnectionOptions options,
+            int parentWorkItemId,
+            CancellationToken cancellationToken = default)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (string.IsNullOrWhiteSpace(options.OrganizationUrl) ||
+                string.IsNullOrWhiteSpace(options.TeamProject) ||
+                string.IsNullOrWhiteSpace(options.PersonalAccessToken))
+                throw new InvalidOperationException("Conexão TFS incompleta: configure organização, projeto, PAT e lembre o token.");
+            if (parentWorkItemId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(parentWorkItemId));
+
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var authHeader = new AuthenticationHeaderValue(
+                "Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            var edges = await LoadDirectHierarchyEdgesAsync(
+                orgBase,
+                options.TeamProject,
+                authHeader,
+                parentWorkItemId,
+                cancellationToken);
+
+            var childIds = edges
+                .Where(e => e.parent == parentWorkItemId)
+                .Select(e => e.child)
+                .Distinct()
+                .ToList();
+
+            if (childIds.Count == 0)
+                return new List<OnlineChildTaskInfo>();
+
+            var fields = new List<string>
+            {
+                "System.Id",
+                "System.Title",
+                "System.WorkItemType",
+                "System.State",
+                "System.Tags",
+                "System.Description"
+            };
+
+            var items = await LoadWorkItemsAsync(
+                orgBase,
+                authHeader,
+                childIds,
+                fields,
+                cancellationToken,
+                expandRelations: false);
+
+            var rows = new List<OnlineChildTaskInfo>();
+            foreach (var id in childIds)
+            {
+                if (!items.TryGetValue(id, out var item))
+                    continue;
+                if (!IsType(item, "Task"))
+                    continue;
+
+                rows.Add(new OnlineChildTaskInfo(
+                    item.Id,
+                    item.Title,
+                    item.State,
+                    item.Tags,
+                    ToPlainText(item.Description),
+                    await LoadLatestHistoryAsync(orgBase, options.TeamProject, authHeader, item.Id, cancellationToken)));
+            }
+
+            return rows.OrderBy(r => r.Id).ToList();
+        }
+
+        private static async Task<List<(int parent, int child)>> LoadDirectHierarchyEdgesAsync(
+            string orgBase, string project, AuthenticationHeaderValue auth, int parentId, CancellationToken ct)
+        {
+            var wiql =
+                "SELECT [System.Id] FROM WorkItemLinks " +
+                $"WHERE [Source].[System.Id] = {parentId} " +
+                "AND [System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward' " +
+                "MODE(MayContain)";
+
+            var url = $"{orgBase}/{Uri.EscapeDataString(project)}/_apis/wit/wiql?{ApiVersion}";
+            var body = JsonSerializer.Serialize(new { query = wiql });
+
+            using var doc = await PostJsonAsync(url, body, auth, ct);
+            var edges = new List<(int, int)>();
+            if (doc.RootElement.TryGetProperty("workItemRelations", out var rels))
+            {
+                foreach (var rel in rels.EnumerateArray())
+                {
+                    if (!rel.TryGetProperty("source", out var source) ||
+                        source.ValueKind != JsonValueKind.Object ||
+                        !source.TryGetProperty("id", out var sid))
+                        continue;
+                    if (!rel.TryGetProperty("target", out var target) ||
+                        target.ValueKind != JsonValueKind.Object ||
+                        !target.TryGetProperty("id", out var tid))
+                        continue;
+
+                    edges.Add((sid.GetInt32(), tid.GetInt32()));
+                }
+            }
+            return edges;
+        }
+
+        private static async Task<string> LoadLatestHistoryAsync(
+            string orgBase,
+            string project,
+            AuthenticationHeaderValue auth,
+            int workItemId,
+            CancellationToken ct)
+        {
+            var url = $"{orgBase}/{Uri.EscapeDataString(project)}/_apis/wit/workItems/{workItemId}/updates?{ApiVersion}";
+            using var doc = await GetJsonAsync(url, auth, ct);
+            if (!doc.RootElement.TryGetProperty("value", out var arr) ||
+                arr.ValueKind != JsonValueKind.Array)
+                return string.Empty;
+
+            string fallback = string.Empty;
+            foreach (var update in arr.EnumerateArray())
+            {
+                fallback = BuildUpdateSummary(update);
+                if (update.TryGetProperty("fields", out var fields) &&
+                    fields.ValueKind == JsonValueKind.Object &&
+                    fields.TryGetProperty("System.History", out var history) &&
+                    history.ValueKind == JsonValueKind.Object &&
+                    history.TryGetProperty("newValue", out var newValue))
+                {
+                    var text = ToPlainText(newValue.GetString());
+                    if (!string.IsNullOrWhiteSpace(text))
+                        fallback = text;
+                }
+            }
+
+            return fallback;
+        }
+
+        private static string BuildUpdateSummary(JsonElement update)
+        {
+            var changedBy = "";
+            if (update.TryGetProperty("revisedBy", out var revisedBy) &&
+                revisedBy.ValueKind == JsonValueKind.Object)
+            {
+                changedBy = revisedBy.TryGetProperty("displayName", out var dn)
+                    ? dn.GetString() ?? ""
+                    : "";
+            }
+
+            var changedAt = update.TryGetProperty("revisedDate", out var revisedDate)
+                ? revisedDate.GetString() ?? ""
+                : "";
+
+            if (!string.IsNullOrWhiteSpace(changedBy) && !string.IsNullOrWhiteSpace(changedAt))
+                return $"{changedBy} em {changedAt}";
+            if (!string.IsNullOrWhiteSpace(changedBy))
+                return changedBy;
+            return changedAt;
+        }
+
         private static async Task<Dictionary<string, string>> LoadFieldMapAsync(
             string orgBase, AuthenticationHeaderValue auth, CancellationToken ct)
         {
@@ -1765,6 +1936,18 @@ namespace NXProject.Services
             if (string.IsNullOrEmpty(url)) return null;
             var slash = url.LastIndexOf('/');
             return slash >= 0 && int.TryParse(url[(slash + 1)..], out var id) ? id : null;
+        }
+
+        private static string ToPlainText(string? html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+                return string.Empty;
+
+            var text = Regex.Replace(html, "<br\\s*/?>", "\n", RegexOptions.IgnoreCase);
+            text = Regex.Replace(text, "</p\\s*>", "\n", RegexOptions.IgnoreCase);
+            text = Regex.Replace(text, "<.*?>", string.Empty);
+            text = System.Net.WebUtility.HtmlDecode(text);
+            return Regex.Replace(text, "[ \\t\\r\\f\\v]+", " ").Trim();
         }
 
         private static async Task<JsonDocument> GetJsonAsync(

@@ -45,6 +45,7 @@ namespace NXProject.Views
                         var proj = Uri.EscapeDataString(conn.TeamProject.Trim());
                         _devOpsItemUrl = $"{org}/{proj}/_workitems/edit/{task.TfsId}";
                         OpenInDevOpsButton.Visibility = Visibility.Visible;
+                        LoadOnlineTasksButton.Visibility = Visibility.Visible;
                     }
                 }
                 catch { }
@@ -67,6 +68,46 @@ namespace NXProject.Views
             if (_devOpsItemUrl is null) return;
             try { Process.Start(new ProcessStartInfo(_devOpsItemUrl) { UseShellExecute = true }); }
             catch { }
+        }
+
+        private async void OnLoadOnlineTasksClick(object sender, RoutedEventArgs e)
+        {
+            if (_task.TfsId is not > 0)
+                return;
+
+            try
+            {
+                SetOnlineTaskLoading(true, "Buscando Tasks online...");
+                var options = TfsConnectionStore.Load("NXProject.Community");
+                var rows = await TfsImportService.LoadOnlineChildTasksAsync(options, _task.TfsId.Value);
+                SetOnlineTaskLoading(false);
+
+                new TfsOnlineChildTasksWindow(_task.TfsId.Value, _task.Name, rows)
+                {
+                    Owner = this
+                }.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                SetOnlineTaskLoading(false);
+                StatusText.Text = $"Nao foi possivel ler Tasks online.\n{ex.Message}";
+                StatusText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void SetOnlineTaskLoading(bool isLoading, string? message = null)
+        {
+            LoadOnlineTasksButton.IsEnabled = !isLoading;
+            OpenInDevOpsButton.IsEnabled = !isLoading;
+            if (message != null)
+            {
+                StatusText.Text = message;
+                StatusText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                StatusText.Visibility = Visibility.Collapsed;
+            }
         }
 
         private sealed record ChildTaskRow(int TfsId, string Name, string State)
