@@ -49,9 +49,15 @@ function Step-Version([string]$Version, [string]$BumpType) {
         "major" { $major++; $minor = 0; $patch = 0; $build = 1 }
         "minor" { $minor++; $patch = 0; $build = 1 }
         "patch" { $patch++; $build = 1 }
-        "build" { $build++ }
+        "build" {
+            $build++
+            if ($build -gt 99) {
+                $patch++
+                $build = 1
+            }
+        }
     }
-    return "{0}.{1}.{2}.{3:000}" -f $major, $minor, $patch, $build
+    return "{0}.{1}.{2}.{3:00}" -f $major, $minor, $patch, $build
 }
 
 $CurrentVersion = Get-ProjectVersion $ProjectFile

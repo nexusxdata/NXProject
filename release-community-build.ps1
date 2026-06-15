@@ -39,7 +39,12 @@ function Step-BuildVersion([string]$Version) {
     $minor = if ($parts.Count -gt 1) { [int]$parts[1] } else { 0 }
     $patch = if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }
     $build = if ($parts.Count -gt 3) { [int]$parts[3] } else { 0 }
-    return "{0}.{1}.{2}.{3:000}" -f $major, $minor, $patch, ($build + 1)
+    $build++
+    if ($build -gt 99) {
+        $patch++
+        $build = 1
+    }
+    return "{0}.{1}.{2}.{3:00}" -f $major, $minor, $patch, $build
 }
 
 function Set-ProjectVersion([string]$CsprojPath, [string]$NewVersion) {
