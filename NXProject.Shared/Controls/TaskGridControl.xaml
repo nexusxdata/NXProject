@@ -1,7 +1,6 @@
 ﻿<UserControl x:Class="NXProject.Controls.TaskGridControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:NXProject.ViewModels">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -42,7 +41,7 @@
             <!-- ID (clicável: abre edição do vínculo DevOps) -->
             <DataGridTemplateColumn x:Name="IdColumn" Header="ID" Width="35" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <Button Content="{Binding DisplayId}"
                                 Click="OnIdCellClick"
                                 ToolTip="Clique para editar o vínculo DevOps (ID, tipo, estado)"
@@ -72,7 +71,7 @@
             <!-- Tipo + Estado DevOps (compacto: ex. "FEA·A") -->
             <DataGridTemplateColumn x:Name="DevOpsColumn" Header="T·E" Width="50" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <TextBlock Text="{Binding DevOpsTag}"
                                    Foreground="{Binding DevOpsBrush}"
                                    ToolTip="{Binding DevOpsTooltip}"
@@ -87,7 +86,7 @@
             <!-- Nome (com indentação) -->
             <DataGridTemplateColumn x:Name="NameColumn" Header="Nome da Tarefa" Width="*" MinWidth="120">
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="{Binding Indent}"/>
@@ -177,7 +176,7 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="{Binding Indent}"/>
@@ -193,7 +192,7 @@
             <!-- Duração -->
             <DataGridTemplateColumn x:Name="DurationColumn" Header="Dur.(h)" Width="55">
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <Border Padding="2,0"
                                 CornerRadius="2"
                                 Background="Transparent">
@@ -225,7 +224,7 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <TextBox Text="{Binding DurationHours, StringFormat={}{0:0}, Mode=OneTime}"
                                  BorderThickness="0"
                                  TextAlignment="Center"
@@ -320,7 +319,7 @@
             <!-- % Completo -->
             <DataGridTemplateColumn x:Name="PercentColumn" Header="% Compl." Width="70">
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <Grid Margin="2,1">
                             <ProgressBar Value="{Binding PercentComplete}" Maximum="100" Height="12"
                                          Background="#E0E0E0" Foreground="#217346"/>
@@ -331,7 +330,7 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
-                    <DataTemplate DataType="{x:Type vm:TaskViewModel}">
+                    <DataTemplate>
                         <TextBox Text="{Binding PercentComplete, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}}"
                                  BorderThickness="0"
                                  VerticalContentAlignment="Center"

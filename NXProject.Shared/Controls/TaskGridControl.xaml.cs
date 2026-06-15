@@ -153,6 +153,15 @@ namespace NXProject.Controls
             SprintColumn.Width = new DataGridLength(expanded ? 150 : 118);
         }
 
+        public void SetPrintMode()
+        {
+            TaskGrid.EnableRowVirtualization = false;
+            TaskGrid.EnableColumnVirtualization = false;
+            VirtualizingPanel.SetIsVirtualizing(TaskGrid, false);
+            ScrollViewer.SetVerticalScrollBarVisibility(TaskGrid, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetHorizontalScrollBarVisibility(TaskGrid, ScrollBarVisibility.Disabled);
+        }
+
         public void FocusSelectedTask()
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>

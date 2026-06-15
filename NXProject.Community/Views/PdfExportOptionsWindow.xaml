@@ -13,17 +13,19 @@
         <TextBlock Text="Layout do PDF" FontSize="13" FontWeight="Bold"
                    Foreground="#2B579A" Margin="0,0,0,12"/>
 
-        <RadioButton x:Name="RadioTogether" GroupName="Layout" IsChecked="True"
-                     Margin="0,0,0,8" FontSize="12">
+        <RadioButton x:Name="RadioTogether" GroupName="Layout"
+                     Margin="0,0,0,8" FontSize="12"
+                     Checked="OnLayoutChanged" Unchecked="OnLayoutChanged">
             <StackPanel>
                 <TextBlock Text="Tudo junto (tabela + Gantt na mesma página)" FontWeight="SemiBold"/>
-                <TextBlock Text="Escolha um formato maior para melhor legibilidade."
+                <TextBlock Text="Disponível em A3 ou A2 para melhor legibilidade."
                            FontSize="10" Foreground="#666" Margin="0,2,0,0"/>
             </StackPanel>
         </RadioButton>
 
         <!-- Tamanho de página (só visível quando "tudo junto") -->
         <Border x:Name="SizePanel" Margin="20,0,0,12" Padding="12,10"
+                Visibility="Collapsed"
                 Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1" CornerRadius="4">
             <StackPanel>
                 <TextBlock Text="Tamanho da página:" FontSize="11" FontWeight="SemiBold"
@@ -31,32 +33,22 @@
                 <RadioButton x:Name="SizeA3" GroupName="PageSize"
                              FontSize="11" Margin="0,0,0,4">
                     <TextBlock><Run FontWeight="SemiBold">A3 paisagem</Run>
-                    <Run Foreground="#666"> — 420 × 297 mm  (dobro do A4, impressora comum)</Run></TextBlock>
+                    <Run Foreground="#666"> — 420 × 297 mm  (impressora A3)</Run></TextBlock>
                 </RadioButton>
                 <RadioButton x:Name="SizeA2" GroupName="PageSize" IsChecked="True"
-                             FontSize="11" Margin="0,0,0,4">
-                    <TextBlock><Run FontWeight="SemiBold">A2 paisagem</Run>
-                    <Run Foreground="#666"> — 594 × 420 mm  (boa para projetos médios)</Run></TextBlock>
-                </RadioButton>
-                <RadioButton x:Name="SizeA1" GroupName="PageSize"
-                             FontSize="11" Margin="0,0,0,4">
-                    <TextBlock><Run FontWeight="SemiBold">A1 paisagem</Run>
-                    <Run Foreground="#666"> — 841 × 594 mm  (plotter / projetos grandes)</Run></TextBlock>
-                </RadioButton>
-                <RadioButton x:Name="SizeA0" GroupName="PageSize"
                              FontSize="11">
-                    <TextBlock><Run FontWeight="SemiBold">A0 paisagem</Run>
-                    <Run Foreground="#666"> — 1189 × 841 mm  (visão panorâmica completa)</Run></TextBlock>
+                    <TextBlock><Run FontWeight="SemiBold">A2 paisagem</Run>
+                    <Run Foreground="#666"> — 594 × 420 mm  (plotter / gráfica)</Run></TextBlock>
                 </RadioButton>
             </StackPanel>
         </Border>
 
-        <RadioButton x:Name="RadioTwoPages" GroupName="Layout"
+        <RadioButton x:Name="RadioTwoPages" GroupName="Layout" IsChecked="True"
                      Margin="0,0,0,4" FontSize="12"
                      Checked="OnLayoutChanged" Unchecked="OnLayoutChanged">
             <StackPanel>
-                <TextBlock Text="Duas páginas separadas" FontWeight="SemiBold"/>
-                <TextBlock Text="Página 1: tabela de tarefas completa  |  Página 2: Gantt completo."
+                <TextBlock Text="Duas páginas separadas (A4 paisagem)" FontWeight="SemiBold"/>
+                <TextBlock Text="Padrão para impressora de escritório: página 1 tabela, página 2 Gantt."
                            FontSize="10" Foreground="#666" Margin="0,2,0,0"/>
             </StackPanel>
         </RadioButton>

@@ -1,14 +1,21 @@
 using System.Collections.Specialized;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using NXProject.Community.Services;
+using NXProject.Models;
 using NXProject.Services;
 using NXProject.ViewModels;
+using Ellipse = System.Windows.Shapes.Ellipse;
+using Line = System.Windows.Shapes.Line;
+using Polygon = System.Windows.Shapes.Polygon;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace NXProject.Views
 {
@@ -742,14 +749,15 @@ namespace NXProject.Views
                 catch { }
             }
 
-            // 4. Cria uma cópia off-screen do TaskGridControl para capturar todas as colunas
-            //    sem tocar no grid visível na tela
-            var offscreenTable = CreateOffscreenTable();
+            // 4. Cria cópias off-screen em modo impressão: hierarquia toda expandida,
+            //    todas as linhas visíveis e Gantt com largura total do cronograma.
+            var printVisuals = CreateOffscreenPdfVisuals(pdfOpts.LayoutMode);
             try
             {
                 PdfExportService.Export(
-                    tableVisual:     offscreenTable,
-                    ganttVisual:     GanttCtrl,
+                    tableVisual:     printVisuals.Table,
+                    ganttVisual:     printVisuals.Gantt,
+                    ganttData:       printVisuals.GanttData,
                     projectName:     projectName,
                     companyName:     companyName,
                     companyLogo:     companyLogo,
@@ -776,7 +784,7 @@ namespace NXProject.Views
             finally
             {
                 // Fecha a janela off-screen; a tela principal não foi tocada
-                if (offscreenTable.Parent is Window w) w.Close();
+                printVisuals.Dispose();
             }
         }
 
@@ -785,39 +793,562 @@ namespace NXProject.Views
         /// com largura suficiente para exibir todas as colunas sem scroll.
         /// A janela principal não é afetada.
         /// </summary>
-        private NXProject.Controls.TaskGridControl CreateOffscreenTable()
+        private PdfPrintVisuals CreateOffscreenPdfVisuals(PdfLayoutMode layoutMode)
         {
             var vm = (NXProject.ViewModels.MainViewModel)DataContext;
+            var printTasks = CreateExpandedPrintTasks(vm);
+
+            const double rowHeight = 22.0;
+            double headerHeight = GanttCtrl.DayHeaderMode > 0 ? 60.0 : 40.0;
+            double printHeight = headerHeight + Math.Max(1, printTasks.Count) * rowHeight + 4;
+            double tableWidth = layoutMode == PdfLayoutMode.Together ? 1450 : 1700;
+            var ganttWindow = GetPrintGanttWindow(printTasks, vm);
+            double dayWidth = GetGanttDayWidth(vm.SelectedZoom);
+            double ganttWidth = layoutMode == PdfLayoutMode.Together
+                ? GetPrintGanttWidth(ganttWindow.Days, vm.SelectedZoom)
+                : Math.Max(GetPrintGanttWidth(ganttWindow.Days, vm.SelectedZoom), 2400);
 
             var ctrl = new NXProject.Controls.TaskGridControl
             {
-                Width              = 1450,
-                Height             = TaskGridCtrl.ActualHeight,
-                Tasks              = vm.FlatTasks,
+                Width              = tableWidth,
+                Height             = printHeight,
+                Tasks              = printTasks,
                 AvailableSprints   = vm.SprintOptions,
                 AvailableResources = vm.Project?.Resources,
             };
             ctrl.SetPresentationMode(expanded: true);
+            ctrl.SetPrintMode();
+            ctrl.SetColumnHeaderHeight(headerHeight);
+
+            var gantt = CreatePrintGanttVisual(printTasks, vm, ganttWindow.Start, ganttWindow.Days, ganttWidth, printHeight, headerHeight);
+            var ganttData = CreatePdfGanttData(printTasks, vm, ganttWindow.Start, ganttWindow.Days, dayWidth, headerHeight, rowHeight);
 
             // Janela off-screen: opacidade 0, fora da área visível, sem barra de tarefas
             var win = new Window
             {
-                Width          = 1450,
-                Height         = TaskGridCtrl.ActualHeight,
+                Width          = tableWidth + ganttWidth + 20,
+                Height         = printHeight,
                 Left           = -10000,
                 Top            = -10000,
                 ShowInTaskbar  = false,
                 WindowStyle    = WindowStyle.None,
                 AllowsTransparency = true,
                 Opacity        = 0,
-                Content        = ctrl,
+                Content        = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                    {
+                        ctrl,
+                        gantt
+                    }
+                },
             };
             win.Show();
 
             ctrl.UpdateLayout();
+            gantt.UpdateLayout();
             Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() => { }));
 
-            return ctrl;
+            return new PdfPrintVisuals(win, ctrl, gantt, ganttData);
+        }
+
+        private static PdfExportService.PdfGanttData CreatePdfGanttData(
+            ObservableCollection<TaskViewModel> tasks,
+            MainViewModel vm,
+            DateTime start,
+            int visibleDays,
+            double dayWidth,
+            double headerHeight,
+            double rowHeight)
+        {
+            var pdfTasks = tasks
+                .Select(t => new PdfExportService.PdfGanttTask(
+                    t.DisplayId,
+                    t.DevOpsTooltip,
+                    t.Name,
+                    t.Depth,
+                    t.DurationHours,
+                    t.SfpPoints ?? 0,
+                    t.Model.Start,
+                    t.Model.Finish,
+                    t.FinishDisplay,
+                    t.IsSummary,
+                    t.DisplayAsMilestone,
+                    t.PercentComplete,
+                    t.PredecessorsText,
+                    t.ResourcesText,
+                    t.SprintDisplay))
+                .ToList();
+
+            var pdfSprints = (vm.Sprints ?? new ObservableCollection<Sprint>())
+                .Select(s => new PdfExportService.PdfGanttSprint(
+                    s.Name,
+                    s.Number,
+                    s.Start,
+                    s.End))
+                .ToList();
+
+            return new PdfExportService.PdfGanttData(
+                pdfTasks,
+                pdfSprints,
+                start,
+                visibleDays,
+                dayWidth,
+                headerHeight,
+                rowHeight);
+        }
+
+        private static ObservableCollection<TaskViewModel> CreateExpandedPrintTasks(MainViewModel vm)
+        {
+            var printTasks = new ObservableCollection<TaskViewModel>();
+            var byId = new Dictionary<int, TaskViewModel>();
+
+            void Add(ProjectTask task, int depth, TaskViewModel? parent)
+            {
+                var item = new TaskViewModel(
+                    task,
+                    depth,
+                    vm.LowDaysPerSfp,
+                    vm.MediumDaysPerSfp,
+                    vm.HighDaysPerSfp)
+                {
+                    IsExpanded = true,
+                    ParentViewModel = parent,
+                    FindByInternalId = id => byId.TryGetValue(id, out var found) ? found : null,
+                    FindByDisplayId = displayId =>
+                    {
+                        if (!int.TryParse(displayId, out var value))
+                            return null;
+
+                        var byTfs = byId.Values.FirstOrDefault(t => t.Model.TfsId == value);
+                        if (byTfs != null) return byTfs.Model.Id;
+
+                        return byId.TryGetValue(value, out var byInternal)
+                            ? byInternal.Model.Id
+                            : null;
+                    }
+                };
+
+                parent?.ChildrenViewModels.Add(item);
+                printTasks.Add(item);
+                byId[task.Id] = item;
+
+                foreach (var child in task.Children)
+                    Add(child, depth + 1, item);
+            }
+
+            foreach (var task in vm.Project.Tasks)
+                Add(task, 0, null);
+
+            foreach (var task in printTasks)
+                task.RefreshSprintOptions(vm.SprintOptions);
+
+            return printTasks;
+        }
+
+        private static FrameworkElement CreatePrintGanttVisual(
+            ObservableCollection<TaskViewModel> tasks,
+            MainViewModel vm,
+            DateTime printStart,
+            int visibleDays,
+            double width,
+            double height,
+            double headerHeight)
+        {
+            const double leftPadding = 16.0;
+            const double rowHeight = 22.0;
+
+            double dayWidth = GetGanttDayWidth(vm.SelectedZoom);
+            double bodyHeight = Math.Max(rowHeight, height - headerHeight);
+            var root = new Grid
+            {
+                Width = width,
+                Height = height,
+                Background = Brushes.White,
+                ClipToBounds = true
+            };
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(headerHeight) });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            var header = new Canvas
+            {
+                Width = width,
+                Height = headerHeight,
+                Background = new SolidColorBrush(Color.FromRgb(232, 232, 232)),
+                ClipToBounds = true
+            };
+            var body = new Canvas
+            {
+                Width = width,
+                Height = bodyHeight,
+                Background = Brushes.White,
+                ClipToBounds = true
+            };
+            Grid.SetRow(header, 0);
+            Grid.SetRow(body, 1);
+            root.Children.Add(header);
+            root.Children.Add(body);
+
+            DrawPrintGanttHeader(header, vm, printStart, visibleDays, width, headerHeight, leftPadding, dayWidth);
+            DrawPrintGanttBody(body, tasks, vm, printStart, visibleDays, width, bodyHeight, leftPadding, dayWidth, rowHeight);
+
+            return root;
+        }
+
+        private static void DrawPrintGanttHeader(
+            Canvas header,
+            MainViewModel vm,
+            DateTime printStart,
+            int visibleDays,
+            double width,
+            double headerHeight,
+            double leftPadding,
+            double dayWidth)
+        {
+            double monthHeight = Math.Max(18, headerHeight * 0.48);
+            double sprintTop = monthHeight;
+            double sprintHeight = Math.Max(14, headerHeight - monthHeight);
+            var lineBrush = new SolidColorBrush(Color.FromRgb(190, 200, 215));
+
+            header.Children.Add(new Rectangle
+            {
+                Width = width,
+                Height = monthHeight,
+                Fill = new SolidColorBrush(Color.FromRgb(232, 232, 232))
+            });
+            header.Children.Add(new Rectangle
+            {
+                Width = width,
+                Height = sprintHeight,
+                Fill = new SolidColorBrush(Color.FromRgb(220, 228, 240))
+            });
+            Canvas.SetTop(header.Children[^1], sprintTop);
+
+            var cursor = new DateTime(printStart.Year, printStart.Month, 1);
+            if (cursor > printStart)
+                cursor = cursor.AddMonths(-1);
+
+            while (cursor < printStart.AddDays(visibleDays))
+            {
+                var next = cursor.AddMonths(1);
+                double x1 = leftPadding + Math.Max(0, (cursor - printStart).TotalDays) * dayWidth;
+                double x2 = leftPadding + Math.Min(visibleDays, (next - printStart).TotalDays) * dayWidth;
+                if (x2 > 0 && x1 < width)
+                {
+                    header.Children.Add(new Line
+                    {
+                        X1 = x1,
+                        X2 = x1,
+                        Y1 = 0,
+                        Y2 = headerHeight,
+                        Stroke = lineBrush,
+                        StrokeThickness = 0.6
+                    });
+
+                    var label = new TextBlock
+                    {
+                        Text = cursor.ToString("MMM/yy"),
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(95, 105, 120)),
+                        TextAlignment = TextAlignment.Center,
+                        Width = Math.Max(40, x2 - x1)
+                    };
+                    Canvas.SetLeft(label, x1);
+                    Canvas.SetTop(label, Math.Max(0, (monthHeight - 14) / 2));
+                    header.Children.Add(label);
+                }
+                cursor = next;
+            }
+
+            if (vm.Sprints != null && vm.Sprints.Count > 0)
+            {
+                foreach (var sprint in vm.Sprints)
+                {
+                    var startOffset = (sprint.Start.Date - printStart).TotalDays;
+                    var endOffset = (sprint.End.Date - printStart).TotalDays + 1;
+                    if (endOffset < 0 || startOffset > visibleDays)
+                        continue;
+
+                    double x = leftPadding + Math.Max(0, startOffset) * dayWidth;
+                    double w = Math.Max(12, (Math.Min(visibleDays, endOffset) - Math.Max(0, startOffset)) * dayWidth);
+                    var rect = new Rectangle
+                    {
+                        Width = w,
+                        Height = sprintHeight,
+                        Fill = new SolidColorBrush(sprint.Number % 2 == 0
+                            ? Color.FromRgb(210, 221, 236)
+                            : Color.FromRgb(222, 231, 243)),
+                        Stroke = new SolidColorBrush(Color.FromRgb(180, 194, 214)),
+                        StrokeThickness = 1
+                    };
+                    Canvas.SetLeft(rect, x);
+                    Canvas.SetTop(rect, sprintTop);
+                    header.Children.Add(rect);
+
+                    var label = new TextBlock
+                    {
+                        Text = sprint.Name,
+                        FontSize = 9,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                        TextAlignment = TextAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Width = Math.Max(12, w - 4)
+                    };
+                    Canvas.SetLeft(label, x + 2);
+                    Canvas.SetTop(label, sprintTop + Math.Max(0, (sprintHeight - 13) / 2));
+                    header.Children.Add(label);
+                }
+            }
+
+            header.Children.Add(new Line
+            {
+                X1 = 0,
+                X2 = width,
+                Y1 = headerHeight - 1,
+                Y2 = headerHeight - 1,
+                Stroke = Brushes.LightGray,
+                StrokeThickness = 1
+            });
+        }
+
+        private static void DrawPrintGanttBody(
+            Canvas body,
+            ObservableCollection<TaskViewModel> tasks,
+            MainViewModel vm,
+            DateTime printStart,
+            int visibleDays,
+            double width,
+            double bodyHeight,
+            double leftPadding,
+            double dayWidth,
+            double rowHeight)
+        {
+            var gridBrush = new SolidColorBrush(Color.FromRgb(235, 235, 235));
+            var majorGridBrush = new SolidColorBrush(Color.FromRgb(220, 225, 232));
+            var printEnd = printStart.AddDays(visibleDays);
+
+            for (int i = 0; i <= tasks.Count; i++)
+            {
+                double y = i * rowHeight;
+                body.Children.Add(new Line
+                {
+                    X1 = 0,
+                    X2 = width,
+                    Y1 = y,
+                    Y2 = y,
+                    Stroke = gridBrush,
+                    StrokeThickness = 0.7
+                });
+            }
+
+            var cursor = new DateTime(printStart.Year, printStart.Month, 1);
+            if (cursor > printStart)
+                cursor = cursor.AddMonths(-1);
+            while (cursor <= printEnd)
+            {
+                double x = leftPadding + (cursor - printStart).TotalDays * dayWidth;
+                if (x >= 0 && x <= width)
+                {
+                    body.Children.Add(new Line
+                    {
+                        X1 = x,
+                        X2 = x,
+                        Y1 = 0,
+                        Y2 = bodyHeight,
+                        Stroke = majorGridBrush,
+                        StrokeThickness = 0.8
+                    });
+                }
+                cursor = cursor.AddMonths(1);
+            }
+
+            var todayOffset = (DateTime.Today.Date - printStart).TotalDays;
+            if (todayOffset >= 0 && todayOffset <= visibleDays)
+            {
+                double todayX = leftPadding + todayOffset * dayWidth;
+                body.Children.Add(new Line
+                {
+                    X1 = todayX,
+                    X2 = todayX,
+                    Y1 = 0,
+                    Y2 = bodyHeight,
+                    Stroke = new SolidColorBrush(Color.FromRgb(255, 69, 0)),
+                    StrokeThickness = 1.3,
+                    StrokeDashArray = new DoubleCollection { 4, 2 }
+                });
+            }
+
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                var task = tasks[i];
+                double y = i * rowHeight;
+                double startOffset = (task.Model.Start.Date - printStart).TotalDays;
+                double endOffset = (task.Model.Finish.Date - printStart).TotalDays;
+                double x = leftPadding + startOffset * dayWidth;
+                double barWidth = Math.Max(1, (endOffset - startOffset) * dayWidth);
+
+                if (x + barWidth < 0 || x > width)
+                    continue;
+
+                x = Math.Max(0, x);
+                barWidth = Math.Min(width - x, barWidth);
+
+                if (task.DisplayAsMilestone)
+                {
+                    DrawPrintMilestone(body, x, y, rowHeight);
+                }
+                else if (task.IsSummary)
+                {
+                    DrawPrintBar(body, x, y, barWidth, rowHeight, Color.FromRgb(43, 87, 154), 0, true);
+                }
+                else
+                {
+                    DrawPrintBar(body, x, y, barWidth, rowHeight, Color.FromRgb(68, 114, 196), task.PercentComplete, false);
+                }
+            }
+        }
+
+        private static void DrawPrintBar(Canvas canvas, double x, double y, double width, double rowHeight, Color color, double percent, bool summary)
+        {
+            const double padding = 4.0;
+            var rect = new Rectangle
+            {
+                Width = Math.Max(1, width),
+                Height = Math.Max(4, rowHeight - padding * 2 - (summary ? 2 : 0)),
+                Fill = new SolidColorBrush(color),
+                RadiusX = summary ? 1 : 2,
+                RadiusY = summary ? 1 : 2
+            };
+            Canvas.SetLeft(rect, x);
+            Canvas.SetTop(rect, y + padding);
+            canvas.Children.Add(rect);
+
+            if (percent > 0)
+            {
+                var progress = new Rectangle
+                {
+                    Width = Math.Max(1, width * Math.Min(100, percent) / 100.0),
+                    Height = rect.Height,
+                    Fill = new SolidColorBrush(Color.FromRgb(33, 115, 70)),
+                    RadiusX = 2,
+                    RadiusY = 2
+                };
+                Canvas.SetLeft(progress, x);
+                Canvas.SetTop(progress, y + padding);
+                canvas.Children.Add(progress);
+            }
+
+            var dot = new Ellipse
+            {
+                Width = 5,
+                Height = 5,
+                Fill = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
+                Stroke = Brushes.White,
+                StrokeThickness = 1
+            };
+            Canvas.SetLeft(dot, x - 2.5);
+            Canvas.SetTop(dot, y + rowHeight / 2 - 2.5);
+            canvas.Children.Add(dot);
+        }
+
+        private static void DrawPrintMilestone(Canvas canvas, double x, double y, double rowHeight)
+        {
+            const double padding = 4.0;
+            var size = Math.Max(8, rowHeight - padding * 2);
+            var diamond = new Polygon
+            {
+                Points = new PointCollection
+                {
+                    new Point(x, y + rowHeight / 2),
+                    new Point(x + size / 2, y + padding),
+                    new Point(x + size, y + rowHeight / 2),
+                    new Point(x + size / 2, y + rowHeight - padding)
+                },
+                Fill = Brushes.Goldenrod,
+                Stroke = Brushes.DarkGoldenrod,
+                StrokeThickness = 1
+            };
+            canvas.Children.Add(diamond);
+        }
+
+        private static (DateTime Start, int Days) GetPrintGanttWindow(
+            ObservableCollection<TaskViewModel> tasks,
+            MainViewModel vm)
+        {
+            var firstTaskStart = tasks
+                .Select(t => t.Model.Start.Date)
+                .DefaultIfEmpty(vm.Project?.StartDate.Date ?? DateTime.Today)
+                .Min();
+
+            var firstSprintStart = vm.Sprints?
+                .Where(s => s.End.Date >= firstTaskStart)
+                .Select(s => s.Start.Date)
+                .DefaultIfEmpty(firstTaskStart)
+                .Min() ?? firstTaskStart;
+
+            var start = firstSprintStart < firstTaskStart ? firstSprintStart : firstTaskStart;
+            start = start.AddDays(-2);
+
+            var lastTaskFinish = tasks
+                .Select(t => t.Model.Finish.Date)
+                .DefaultIfEmpty(start.AddDays(30))
+                .Max();
+
+            var lastSprintEnd = vm.Sprints?
+                .Where(s => s.Start.Date <= lastTaskFinish)
+                .Select(s => s.End.Date)
+                .DefaultIfEmpty(lastTaskFinish)
+                .Max() ?? lastTaskFinish;
+
+            var printEnd = lastSprintEnd > lastTaskFinish ? lastSprintEnd : lastTaskFinish;
+            var visibleDays = Math.Max(30, (int)Math.Ceiling((printEnd - start).TotalDays) + 5);
+            var maxDays = vm.SelectedZoom is "Semestre" ? 730 : 365;
+            visibleDays = Math.Min(maxDays, visibleDays);
+
+            return (start, visibleDays);
+        }
+
+        private static double GetPrintGanttWidth(int visibleDays, string zoomLevel)
+        {
+            return 16 + visibleDays * GetGanttDayWidth(zoomLevel);
+        }
+
+        private static double GetGanttDayWidth(string zoomLevel)
+        {
+            return zoomLevel switch
+            {
+                "Dia"       => 22.0,
+                "Semana"    => 14.0,
+                "Sprint"    => 10.0,
+                "Mês"       => 7.0,
+                "Trimestre" => 3.5,
+                "Semestre"  => 1.8,
+                _           => 14.0
+            };
+        }
+
+        private sealed class PdfPrintVisuals : IDisposable
+        {
+            public PdfPrintVisuals(
+                Window window,
+                NXProject.Controls.TaskGridControl table,
+                FrameworkElement gantt,
+                PdfExportService.PdfGanttData ganttData)
+            {
+                Window = window;
+                Table = table;
+                Gantt = gantt;
+                GanttData = ganttData;
+            }
+
+            private Window Window { get; }
+            public NXProject.Controls.TaskGridControl Table { get; }
+            public FrameworkElement Gantt { get; }
+            public PdfExportService.PdfGanttData GanttData { get; }
+
+            public void Dispose() => Window.Close();
         }
 
         private static string Str(string key)

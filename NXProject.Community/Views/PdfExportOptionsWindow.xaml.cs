@@ -13,6 +13,7 @@ namespace NXProject.Views
         public PdfExportOptionsWindow()
         {
             InitializeComponent();
+            OnLayoutChanged(this, new RoutedEventArgs());
         }
 
         private void OnLayoutChanged(object sender, RoutedEventArgs e)
@@ -29,9 +30,7 @@ namespace NXProject.Views
                 ? PdfLayoutMode.TwoPages
                 : PdfLayoutMode.Together;
 
-            PageSize = SizeA0.IsChecked == true ? PageSize.A0
-                     : SizeA1.IsChecked == true ? PageSize.A1
-                     : SizeA2.IsChecked == true ? PageSize.A2
+            PageSize = SizeA2.IsChecked == true ? PageSize.A2
                      : PageSize.A3; // default
 
             DialogResult = true;
