@@ -1,196 +1,199 @@
+🌐 [Leia em Português](README.pt-BR.md) | **English**
+
+---
+
 # NXProject Community
 
-**Visibilidade gerencial sobre o Azure DevOps — sem mudar nada no fluxo da equipe técnica.**
+**Management visibility over Azure DevOps — without changing anything in the technical team's workflow.**
 
-O NXProject permite que Líderes Técnicos, Scrum Masters, Gerentes de Projeto e Gestores de Negócio enxerguem o cenário real do projeto a partir do Azure DevOps: cronograma, dependências, alocação de pessoas e Gantt — em um aplicativo desktop gratuito para Windows.
+NXProject lets Tech Leads, Scrum Masters, Project Managers, and Business Stakeholders see the real project picture straight from Azure DevOps: schedule, dependencies, resource allocation, and Gantt chart — in a free Windows desktop application.
 
-A equipe técnica continua trabalhando no Azure DevOps exatamente como antes: rastreabilidade de código, pull requests, pipelines e qualidade de entrega intactos. O NXProject lê esses dados e transforma o backlog em uma visão de planejamento que gestores e líderes conseguem usar para tomar decisões.
-
----
-
-## O problema que o NXProject resolve
-
-Projetos de TI que usam Azure DevOps têm o backlog organizado, sprints definidas e work items atualizados — mas **a gestão não tem uma visão de cronograma integrada**. Perguntas simples ficam sem resposta rápida:
-
-- Quando essa Feature vai terminar, considerando todas as Stories?
-- Qual recurso está sobrecarregado no próximo mês?
-- Se essa Story atrasar, o que mais é impactado?
-- O projeto vai entregar no prazo?
-
-O NXProject importa a hierarquia do Azure DevOps e transforma esses dados em um cronograma gerenciável, com Gantt, dependências, alocação e alertas de atraso — **sem que a equipe técnica precise mudar nada no seu processo**.
+The development team keeps working in Azure DevOps exactly as before: code traceability, pull requests, pipelines, and delivery quality remain untouched. NXProject reads that data and turns the backlog into a planning view that managers and leads can actually use to make decisions.
 
 ---
 
-## Cada perfil vê o que precisa, sem atrito
+## The problem NXProject solves
 
-A equipe de desenvolvimento segue usando o Azure DevOps como fonte da verdade: commits vinculados, code review, automação de pipeline e rastreabilidade completa permanecem inalterados. O NXProject é uma **camada de leitura e planejamento** sobre esses dados, voltada para quem precisa responder perguntas de prazo, capacidade e risco.
+IT projects using Azure DevOps have an organized backlog, defined sprints, and updated work items — but **management has no integrated schedule view**. Simple questions go unanswered:
 
----
+- When will this Feature be done, considering all its Stories?
+- Which resource is overloaded next month?
+- If this Story slips, what else gets impacted?
+- Is the project going to deliver on time?
 
-## A motivação por trás do NXProject
-
-Depois de mais de 20 anos gerenciando projetos de TI, percebi que sempre existia um conflito silencioso: as ferramentas técnicas eram ótimas para a equipe de desenvolvimento, mas não entregavam a visibilidade que a gestão precisava. As ferramentas de gestão, por sua vez, davam os relatórios e o Gantt que os executivos pediam, mas penalizavam a equipe técnica com processos paralelos, retrabalho e perda de rastreabilidade.
-
-A solução que eu encontrava era sempre um meio-termo insatisfatório — ou a equipe sofria, ou a gestão ficava no escuro.
-
-Depois de muito tempo buscando uma saída, decidi criar algo diferente: uma ferramenta que não obriga ninguém a escolher entre rigor técnico e visibilidade gerencial. Que respeite o fluxo da equipe no Azure DevOps e, ao mesmo tempo, entregue ao gestor o cronograma, as dependências e os alertas que ele precisa para tomar decisões com confiança.
-
-Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o técnico e o gerencial caminham juntos, sem atrito e sem concessões.
+NXProject imports the Azure DevOps hierarchy and turns that data into a manageable schedule, with Gantt, dependencies, allocation, and delay alerts — **without requiring the technical team to change anything in their process**.
 
 ---
 
-## Capturas de tela
+## Every role sees what they need, without friction
 
-![Tela principal do NXProject Community](ScreenShot/Tela01.png)
-![Tela com hierarquia e Gantt](ScreenShot/Tela02.png)
-![Tela de configuração e acompanhamento](ScreenShot/Tela03.png)
-![Tela de importação do TFS / Azure DevOps](ScreenShot/Tela04.png)
-![Tela conceitual Azure DevOps Backlog](ScreenShot/Tela05-Azure-DevOps-Backlog.svg)
+The development team keeps using Azure DevOps as the single source of truth: linked commits, code review, pipeline automation, and full traceability remain intact. NXProject is a **read-and-planning layer** on top of that data, aimed at those who need to answer questions about deadlines, capacity, and risk.
 
 ---
 
-## Para quem é o NXProject
+## The story behind NXProject
 
-| Perfil | O que o NXProject entrega |
+After more than 20 years managing IT projects, I kept running into the same silent conflict: technical tools were great for the development team but didn't deliver the visibility management needed. Management tools gave executives the reports and Gantt charts they asked for, but penalized the technical team with parallel processes, rework, and lost traceability.
+
+The solution was always an unsatisfying compromise — either the team suffered, or management stayed in the dark.
+
+After a long time searching for a way out, I decided to build something different: a tool that doesn't force anyone to choose between technical rigor and management visibility. One that respects the team's Azure DevOps workflow while giving the manager the schedule, dependencies, and alerts needed to make decisions with confidence.
+
+That's how NXProject was born — a new way to manage IT projects, where the technical and the managerial work together, without friction and without trade-offs.
+
+---
+
+## Screenshots
+
+![NXProject Community main screen](ScreenShot/Tela01.png)
+![Hierarchy and Gantt view](ScreenShot/Tela02.png)
+![Configuration and tracking](ScreenShot/Tela03.png)
+![TFS / Azure DevOps import](ScreenShot/Tela04.png)
+![Azure DevOps Backlog concept](ScreenShot/Tela05-Azure-DevOps-Backlog.svg)
+
+---
+
+## Who is NXProject for
+
+| Role | What NXProject delivers |
 |---|---|
-| **Gerente de Projeto** | Cronograma integrado ao backlog, alertas de atraso, visão de dependências |
-| **Scrum Master / RTE** | Capacidade por sprint, conflito de alocação, impacto de mudanças de data |
-| **Tech Lead** | Visão de Features e Stories com predecessoras e estimativas em horas |
-| **PMO** | Consolidação de múltiplos projetos, exportação para MS Project / Excel |
+| **Project Manager** | Schedule integrated with the backlog, delay alerts, dependency view |
+| **Scrum Master / RTE** | Capacity per sprint, allocation conflicts, impact of date changes |
+| **Tech Lead** | Features and Stories with predecessors and hour-based estimates |
+| **PMO** | Multi-project consolidation, export to MS Project / Excel |
 
 ---
 
-## Integração com Azure DevOps
+## Azure DevOps Integration
 
-### Do backlog ao cronograma em minutos
+### From backlog to schedule in minutes
 
-O NXProject importa a hierarquia completa do seu projeto diretamente do Azure DevOps:
+NXProject imports the full hierarchy of your project directly from Azure DevOps:
 
 ```
 Project → Epic → Feature → Story
 ```
 
-Cada Story vira uma linha do cronograma com data de início, duração calculada em dias úteis, responsável e sprint — tudo extraído dos campos que seu time já preenche no DevOps.
+Each Story becomes a schedule row with start date, working-day duration, assignee, and sprint — all extracted from the fields your team already fills in DevOps.
 
-### Lista de Projetos DevOps
+### DevOps Project List
 
-Gerencie múltiplos projetos DevOps em um arquivo compartilhado entre toda a equipe. Cada projeto tem nome e ID raiz; ao importar, basta selecionar o projeto da lista, sem precisar lembrar o ID manualmente.
+Manage multiple DevOps projects in a shared file across your team. Each project has a name and root ID; to import, just pick the project from the list — no need to remember the ID manually.
 
-### O que é lido automaticamente
+### What is read automatically
 
-- **Hierarquia**: `Project → Epic → Feature → Story` via links `Child`
-- **Estimativas**: campo `HH Estimado` → duração em dias úteis no calendário do projeto
-- **Datas**: `Data_Inicio` e `Data_Fim` quando já definidas no DevOps
-- **Responsável**: `System.AssignedTo` → recurso do projeto
-- **Sprint**: `System.IterationPath` → associação com sprints do NXProject
-- **Ordem do backlog**: `Microsoft.VSTS.Common.StackRank`
-- **Bloqueios**: Tasks filhas com tag `Block` marcam a Story como bloqueada
-- **Estado**: Stories `Closed`/`Resolved` com Tasks filhas ainda em aberto são sinalizadas e corrigidas automaticamente
+- **Hierarchy**: `Project → Epic → Feature → Story` via `Child` links
+- **Estimates**: custom `HH Estimado` field → duration in working days on the project calendar
+- **Dates**: `Data_Inicio` and `Data_Fim` when already set in DevOps
+- **Assignee**: `System.AssignedTo` → project resource
+- **Sprint**: `System.IterationPath` → sprint association in NXProject
+- **Backlog order**: `Microsoft.VSTS.Common.StackRank`
+- **Blockers**: child Tasks with the `Block` tag mark the Story as blocked
+- **State**: `Closed`/`Resolved` Stories with open child Tasks are flagged and auto-corrected
 
-### Log de importação
+> Field names (`HH Estimado`, `Data_Inicio`, `Data_Fim`) can be changed in the **Advanced fields** section of the import dialog if your process uses different names.
 
-Ao importar, o NXProject gera um relatório com:
-- Stories cujo estado foi corrigido automaticamente (ex: Story fechada com Task em aberto)
-- Predecessoras que apontam para itens fora do escopo importado
-- Avisos e inconsistências para revisão antes de publicar o cronograma
+### Import log
 
-### Sincronização de volta ao DevOps
+When importing, NXProject generates a report with:
+- Stories whose state was auto-corrected (e.g., closed Story with open Task)
+- Predecessors pointing to items outside the imported scope
+- Warnings and inconsistencies to review before publishing the schedule
 
-Após ajustar datas, dependências e estimativas no cronograma, o NXProject sincroniza as alterações de volta para o Azure DevOps: título, descrição, horas, datas, estado, tags, sprint e links de predecessora.
+### Sync back to DevOps
 
-### Abrir work item direto no DevOps
+After adjusting dates, dependencies, and estimates in the schedule, NXProject syncs the changes back to Azure DevOps: title, description, hours, dates, state, tags, sprint, and predecessor links.
 
-Em qualquer tarefa vinculada, o botão **"Abrir no DevOps ↗"** abre o work item no browser. A janela de vínculo também exibe a lista de Tasks filhas com ID, nome e estado — para referência rápida sem sair do NXProject.
+### Open work items directly in DevOps
+
+On any linked task, the **"Open in DevOps ↗"** button opens the work item in the browser. The link window also shows the list of child Tasks with ID, name, and state — for quick reference without leaving NXProject.
 
 ---
 
-## Outras funcionalidades
+## Other features
 
-- **Gráfico de Gantt** interativo com zoom por dia, sprint ou período
-- **Dependências entre tarefas** (predecessoras), inclusive entre Stories de Epics diferentes
-- **Alocação de recursos**: visão de carga por pessoa e período
-- **Health Check do Projeto**: lista tarefas atrasadas e sem responsável
-- **Calendário configurável**: feriados, dias úteis, horas por dia
-- **Exportação**: MS Project XML, OpenProj, Excel XML, CSV
-- **Assistente IA** para sugestão de estrutura de tarefas
+- **Interactive Gantt chart** with zoom by day, sprint, or custom period
+- **Task dependencies** (predecessors), including across Stories from different Epics
+- **Resource allocation**: workload view per person and period
+- **Project Health Check**: lists delayed tasks and tasks with no assignee
+- **Configurable calendar**: holidays, working hours per day, weekdays
+- **Export**: MS Project XML, OpenProj, Excel XML, CSV, **PDF (landscape)**
+- **AI Assistant** for task structure suggestions
+- **Multilingual**: Portuguese (Brazil) and English, auto-detected from Windows, switchable in Settings
 
 ---
 
 ## Download
 
-- [Baixar NXProject Community (última versão)](../../releases/latest)
+- [Download NXProject Community (latest release)](../../releases/latest)
 
-O `.exe` é autocontido — não exige instalação do .NET na máquina.
+The `.exe` is self-contained — no .NET installation required on the target machine.
 
-> O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
+> The binary was built in an environment with McAfee antivirus. If you prefer to build from source, see the instructions below.
 
 ---
 
-## Compilar a partir do código-fonte
+## Build from source
 
-Pré-requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) e [VS Code](https://code.visualstudio.com/download).
+Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) and [VS Code](https://code.visualstudio.com/download).
 
 ```powershell
-# Preparar ambiente
+# Set up environment
 .\setup-community-vscode.ps1
 
-# Compilar
+# Build
 .\build-community.ps1 -Configuration Release
 
-# Ou gerar o zip de distribuição
+# Or generate the distribution zip
 .\release-community.ps1 -Configuration Release
 ```
 
-O executável será gerado em `NXProject.Community\bin\Release\net10.0-windows\`.
+The executable will be generated in `NXProject.Community\bin\Release\net10.0-windows\`.
 
 ---
 
-## Configurar o Azure DevOps
+## Configure Azure DevOps
 
 ### Personal Access Token
 
-1. No Azure DevOps, clique no ícone de usuário → **Personal access tokens**
-2. Clique em **New Token**
-3. Em **Scopes**, selecione **Work Items → Read** (adicione **Write** se quiser sincronizar de volta)
-4. Copie o token e cole no campo correspondente na tela de importação do NXProject
+1. In Azure DevOps, click the user icon → **Personal access tokens**
+2. Click **New Token**
+3. Under **Scopes**, select **Work Items → Read** (add **Write** if you want to sync back)
+4. Copy the token and paste it in the import screen in NXProject
 
-O token pode ser salvo localmente cifrado com as credenciais do Windows (DPAPI).
+The token can be saved locally encrypted with Windows credentials (DPAPI).
 
-### Campos personalizados
+### Working calendar
 
-Se o seu processo usa nomes de campo diferentes de `HH Estimado`, `Data_Inicio` ou `Data_Fim`, esses nomes podem ser ajustados na área **Campos (avançado)** da janela de importação.
-
-### Calendário de trabalho
-
-Configure feriados, horas úteis por dia e dias da semana em **Exibir → Calendário...**  
-O padrão é 8 horas por dia, segunda a sexta.
+Configure holidays, working hours per day, and weekdays under **View → Calendar...**  
+Default is 8 hours per day, Monday through Friday.
 
 ---
 
-## Licença e contato
+## License and contact
 
-- **Empresa**: Nexus XData Tecnologia Ltda
-- **Contato comercial**: `comercial.nexus.xdata@gmail.com`
+- **Company**: Nexus XData Tecnologia Ltda
+- **Commercial contact**: `comercial.nexus.xdata@gmail.com`
 
-O NXProject usa modelo **Open Core / licenciamento dual**:
+NXProject uses an **Open Core / dual licensing** model:
 
-| Edição | Uso |
+| Edition | Use |
 |---|---|
-| **Community (gratuita)** | Uso livre para pessoas físicas e empresas, inclusive uso comercial interno, sem limite de usuários. Redistribuição gratuita permitida mantendo o crédito à Nexus XData. |
-| **Comercial / Enterprise** | Sem restrições de revenda ou SaaS, suporte oficial, SLA, módulos exclusivos (impressão/PDF, calendário avançado, integrações com IA). Contate-nos para proposta. |
+| **Community (free)** | Free for individuals and companies, including internal commercial use, unlimited users. Free redistribution allowed with credit to Nexus XData. |
+| **Commercial / Enterprise** | No restrictions on resale or SaaS, official support, SLA, exclusive modules. Contact us for a proposal. |
 
-> Vender, cobrar ou oferecer o NXProject como serviço pago exige licença comercial.
+> Selling, charging for, or offering NXProject as a paid service requires a commercial license.
 
 ---
 
-## Conte como o NXProject está ajudando o seu projeto
+## Tell us how NXProject is helping your project
 
-Se o NXProject está sendo usado na sua empresa e está fazendo diferença — seja na visibilidade do cronograma, na gestão de equipe ou na integração com o Azure DevOps — **queremos saber**.
+If NXProject is being used at your company and making a difference — whether in schedule visibility, team management, or Azure DevOps integration — **we want to hear about it**.
 
-Envie um relato curto para `comercial.nexus.xdata@gmail.com` contando:
+Send a short message to `comercial.nexus.xdata@gmail.com` with:
 
-- O contexto do projeto (tamanho da equipe, segmento, desafio que tinha)
-- O que melhorou depois que passou a usar o NXProject
-- Se autoriza, divulgamos o caso como referência para a comunidade
+- Project context (team size, industry, the challenge you had)
+- What improved after you started using NXProject
+- If you authorize it, we'll share the case as a reference for the community
 
-Relatos reais ajudam a priorizar melhorias, atraem novos colaboradores e mostram para outras equipes que o produto funciona na prática. **Sua experiência pode ajudar outros projetos.**
+Real testimonials help prioritize improvements, attract contributors, and show other teams that the product works in practice. **Your experience can help other projects.**
