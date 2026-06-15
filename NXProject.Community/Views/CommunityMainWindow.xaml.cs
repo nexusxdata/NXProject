@@ -742,23 +742,13 @@ namespace NXProject.Views
                 catch { }
             }
 
-            // 4. Exporta em modo expandido para melhor legibilidade
-            bool wasExpanded = _expandedLayout;
-            if (!wasExpanded) ApplyLayoutMode(expanded: true);
-
-            // Expande temporariamente o TaskGridCtrl para capturar todas as colunas no PDF
-            const double PdfTableRenderWidth = 1450;
-            double savedMinWidth = TaskGridCtrl.MinWidth;
-            double savedWidth    = TaskGridCtrl.Width;
-            TaskGridCtrl.MinWidth = PdfTableRenderWidth;
-            TaskGridCtrl.Width    = PdfTableRenderWidth;
-            TaskGridCtrl.UpdateLayout();
-            // Flush do pipeline de render para garantir que o ScrollViewer interno se ajustou
-            Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() => { }));
+            // 4. Cria uma cópia off-screen do TaskGridControl para capturar todas as colunas
+            //    sem tocar no grid visível na tela
+            var offscreenTable = CreateOffscreenTable();
             try
             {
                 PdfExportService.Export(
-                    tableVisual:     TaskGridCtrl,
+                    tableVisual:     offscreenTable,
                     ganttVisual:     GanttCtrl,
                     projectName:     projectName,
                     companyName:     companyName,
@@ -785,11 +775,49 @@ namespace NXProject.Views
             }
             finally
             {
-                TaskGridCtrl.Width    = savedWidth;
-                TaskGridCtrl.MinWidth = savedMinWidth;
-                TaskGridCtrl.UpdateLayout();
-                if (!wasExpanded) ApplyLayoutMode(expanded: false);
+                // Fecha a janela off-screen; a tela principal não foi tocada
+                if (offscreenTable.Parent is Window w) w.Close();
             }
+        }
+
+        /// <summary>
+        /// Cria um TaskGridControl em modo expandido dentro de uma janela invisível,
+        /// com largura suficiente para exibir todas as colunas sem scroll.
+        /// A janela principal não é afetada.
+        /// </summary>
+        private NXProject.Controls.TaskGridControl CreateOffscreenTable()
+        {
+            var vm = (NXProject.ViewModels.MainViewModel)DataContext;
+
+            var ctrl = new NXProject.Controls.TaskGridControl
+            {
+                Width              = 1450,
+                Height             = TaskGridCtrl.ActualHeight,
+                Tasks              = vm.FlatTasks,
+                AvailableSprints   = vm.SprintOptions,
+                AvailableResources = vm.Project?.Resources,
+            };
+            ctrl.SetPresentationMode(expanded: true);
+
+            // Janela off-screen: opacidade 0, fora da área visível, sem barra de tarefas
+            var win = new Window
+            {
+                Width          = 1450,
+                Height         = TaskGridCtrl.ActualHeight,
+                Left           = -10000,
+                Top            = -10000,
+                ShowInTaskbar  = false,
+                WindowStyle    = WindowStyle.None,
+                AllowsTransparency = true,
+                Opacity        = 0,
+                Content        = ctrl,
+            };
+            win.Show();
+
+            ctrl.UpdateLayout();
+            Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() => { }));
+
+            return ctrl;
         }
 
         private static string Str(string key)
