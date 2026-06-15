@@ -723,7 +723,6 @@ namespace NXProject.Views
             if (dlg.ShowDialog(this) != true) return;
 
             // 3. Branding
-            var nxLogo      = ProtectedLogoProvider.GetLogoImage();
             var appOpts     = TfsConnectionStore.Load();
             var companyName = appOpts.CompanyName ?? string.Empty;
             System.Windows.Media.Imaging.BitmapImage? companyLogo = null;
@@ -754,7 +753,6 @@ namespace NXProject.Views
                     tableVisual:     TaskGridCtrl,
                     ganttVisual:     GanttCtrl,
                     projectName:     projectName,
-                    nxLogo:          nxLogo,
                     companyName:     companyName,
                     companyLogo:     companyLogo,
                     filePath:        dlg.FileName,

@@ -76,7 +76,6 @@ namespace NXProject.Community.Services
             FrameworkElement tableVisual,
             FrameworkElement ganttVisual,
             string projectName,
-            BitmapImage? nxLogo,
             string companyName,
             BitmapImage? companyLogo,
             string filePath,
@@ -94,23 +93,20 @@ namespace NXProject.Community.Services
 
             if (layoutMode == Views.PdfLayoutMode.TwoPages)
             {
-                // Página 1 — tabela completa (A3 portrait para aproveitar altura)
                 AddContentPage(doc, RenderToPng(tableVisual, 150),
                     PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Portrait,
-                    companyName, companyLogo, projectName, nxLogo, exportedOnLabel, pageNum: 1);
+                    companyName, companyLogo, projectName, exportedOnLabel, pageNum: 1);
 
-                // Página 2 — Gantt completo (A3 landscape)
                 AddContentPage(doc, RenderToPng(ganttVisual, 150),
                     PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
-                    companyName, companyLogo, projectName, nxLogo, exportedOnLabel, pageNum: 2);
+                    companyName, companyLogo, projectName, exportedOnLabel, pageNum: 2);
             }
             else
             {
-                // Página única — ambos juntos no tamanho escolhido
                 var combined = RenderToPng(GetCombinedParent(tableVisual, ganttVisual), 150);
                 AddContentPage(doc, combined,
                     pageSize, PdfSharp.PageOrientation.Landscape,
-                    companyName, companyLogo, projectName, nxLogo, exportedOnLabel, pageNum: 0);
+                    companyName, companyLogo, projectName, exportedOnLabel, pageNum: 0);
             }
 
             doc.Save(filePath);
@@ -135,7 +131,7 @@ namespace NXProject.Community.Services
             PdfSharp.PageSize size,
             PdfSharp.PageOrientation orientation,
             string companyName, BitmapImage? companyLogo,
-            string projectName, BitmapImage? nxLogo,
+            string projectName,
             string exportedOnLabel, int pageNum = 0)
         {
             var page = doc.AddPage();
@@ -163,7 +159,7 @@ namespace NXProject.Community.Services
             using var xImg = XImage.FromStream(ms);
             gfx.DrawImage(xImg, Margin, contentTop, imgW, imgH);
 
-            DrawFooter(gfx, pageW, pageH, projectName, nxLogo, exportedOnLabel, companyName, companyLogo);
+            DrawFooter(gfx, pageW, pageH, projectName, exportedOnLabel, companyName, companyLogo);
         }
 
         // ── Cabeçalho ─────────────────────────────────────────────────────
@@ -219,8 +215,7 @@ namespace NXProject.Community.Services
         // ── Rodapé ────────────────────────────────────────────────────────
 
         private static void DrawFooter(XGraphics gfx, double pageW, double pageH,
-                                       string projectName, BitmapImage? nxLogo,
-                                       string exportedOnLabel,
+                                       string projectName, string exportedOnLabel,
                                        string companyName = "", BitmapImage? companyLogo = null)
         {
             double lineY = pageH - Margin - FooterH;
@@ -245,31 +240,16 @@ namespace NXProject.Community.Services
                     new XRect(0, midY, pageW, 14), XStringFormats.Center);
             }
 
-            // Lado direito: logo empresa | logo NXProject + "NXProject Community"
+            // Lado direito: "NXProject Community" (texto discreto)
             double rightX = pageW - Margin;
             var fRight = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
             const string brand = "NXProject Community";
             double txtW = 120;
             gfx.DrawString(brand, fRight, new XSolidBrush(XColor.FromArgb(100, 100, 100)),
                 new XRect(rightX - txtW, midY, txtW, 14), XStringFormats.CenterRight);
-            rightX -= txtW + 4;
+            rightX -= txtW + 8;
 
-            if (nxLogo != null)
-            {
-                try
-                {
-                    var bytes = BitmapToPng(nxLogo);
-                    using var ms  = new MemoryStream(bytes);
-                    using var img = XImage.FromStream(ms);
-                    double lh = 14;
-                    double lw = lh * img.PixelWidth / (double)img.PixelHeight;
-                    gfx.DrawImage(img, rightX - lw, midY, lw, lh);
-                    rightX -= lw + 8;
-                }
-                catch { /* opcional */ }
-            }
-
-            // Logo da empresa (antes do logo NXProject, lado direito)
+            // Logo da empresa (antes do texto NXProject, lado direito)
             if (companyLogo != null)
             {
                 try
@@ -280,7 +260,6 @@ namespace NXProject.Community.Services
                     double lh = 14;
                     double lw = lh * img.PixelWidth / (double)img.PixelHeight;
                     gfx.DrawImage(img, rightX - lw, midY, lw, lh);
-                    rightX -= lw + 4;
                 }
                 catch { /* opcional */ }
             }
