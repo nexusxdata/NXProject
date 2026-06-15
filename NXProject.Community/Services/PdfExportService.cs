@@ -94,7 +94,7 @@ namespace NXProject.Community.Services
             if (layoutMode == Views.PdfLayoutMode.TwoPages)
             {
                 AddContentPage(doc, RenderToPng(tableVisual, 150),
-                    PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Portrait,
+                    PdfSharp.PageSize.A3, PdfSharp.PageOrientation.Landscape,
                     companyName, companyLogo, projectName, exportedOnLabel, pageNum: 1);
 
                 AddContentPage(doc, RenderToPng(ganttVisual, 150),
@@ -114,15 +114,26 @@ namespace NXProject.Community.Services
 
         private static FrameworkElement GetCombinedParent(FrameworkElement a, FrameworkElement b)
         {
-            // Sobe na árvore visual até encontrar o pai comum (o Grid raiz)
+            // Sobe na árvore visual a partir de 'a' até encontrar um ancestral que também contenha 'b'
             var parent = System.Windows.Media.VisualTreeHelper.GetParent(a);
             while (parent != null)
             {
-                if (parent is FrameworkElement fe && fe.ActualWidth > 0)
+                if (parent is FrameworkElement fe && fe.ActualWidth > 0 && IsAncestorOf(fe, b))
                     return fe;
                 parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
             }
-            return a; // fallback
+            return a;
+        }
+
+        private static bool IsAncestorOf(DependencyObject ancestor, DependencyObject child)
+        {
+            var current = System.Windows.Media.VisualTreeHelper.GetParent(child);
+            while (current != null)
+            {
+                if (current == ancestor) return true;
+                current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+            }
+            return false;
         }
 
         private static void AddContentPage(
