@@ -43,6 +43,15 @@ That's how NXProject was born — a new way to manage IT projects, where the tec
 
 ---
 
+## Download
+
+- [Download NXProject Community ZIP with `.exe` and DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
+- [View release notes and source code downloads](../../releases/latest)
+
+> The binary was built in an environment with McAfee antivirus. If you prefer to build from source, see the instructions below.
+
+---
+
 ## Screenshots
 
 ![NXProject Community main screen](ScreenShot/Tela01.png)
@@ -120,17 +129,6 @@ On any linked task, the **"Open in DevOps ↗"** button opens the work item in t
 - **Export**: MS Project XML, OpenProj, Excel XML, CSV, **PDF (landscape)**
 - **AI Assistant** for task structure suggestions
 - **Multilingual**: Portuguese (Brazil) and English, auto-detected from Windows, switchable in Settings
-
----
-
-## Download
-
-- [Download NXProject Community ZIP with `.exe` and DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
-- [View release notes and source code downloads](../../releases/latest)
-
-The `.exe` is self-contained — no .NET installation required on the target machine.
-
-> The binary was built in an environment with McAfee antivirus. If you prefer to build from source, see the instructions below.
 
 ---
 

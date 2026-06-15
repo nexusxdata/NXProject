@@ -43,6 +43,15 @@ Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o 
 
 ---
 
+## Download
+
+- [Baixar ZIP do NXProject Community com `.exe` e DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
+- [Ver notas da versão e downloads do código-fonte](../../releases/latest)
+
+> O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
+
+---
+
 ## Capturas de tela
 
 ![Tela principal do NXProject Community](ScreenShot/Tela01.png)
@@ -119,15 +128,6 @@ Em qualquer tarefa vinculada, o botão **"Abrir no DevOps ↗"** abre o work ite
 - **Assistente IA** para sugestão de estrutura de tarefas
 
 ---
-
-## Download
-
-- [Baixar ZIP do NXProject Community com `.exe` e DLLs](../../releases/latest/download/NXProject.Community-Release.zip)
-- [Ver notas da versão e downloads do código-fonte](../../releases/latest)
-
-O `.exe` é autocontido — não exige instalação do .NET na máquina.
-
-> O binário foi gerado em ambiente com antivírus McAfee. Se preferir compilar você mesmo, veja as instruções abaixo.
 
 ---
 
