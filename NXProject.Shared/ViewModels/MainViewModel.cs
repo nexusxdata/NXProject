@@ -168,7 +168,7 @@ namespace NXProject.ViewModels
             if (ResourceFilter == null) return true;
             // Tarefa folha: verifica recursos diretos
             if (!task.Children.Any())
-                return task.Resources.Any(r => ResourceFilter!.Contains(r.Resource.Id));
+                return task.Resources.Any(r => r.Resource != null && ResourceFilter!.Contains(r.Resource.Id));
             // Tarefa pai: passa se pelo menos um descendente passa
             return task.Children.Any(TaskMatchesResourceFilter);
         }
