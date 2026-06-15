@@ -136,7 +136,7 @@ namespace NXProject.Community.Services
             PdfSharp.PageOrientation orientation,
             string companyName, BitmapImage? companyLogo,
             string projectName, BitmapImage? nxLogo,
-            string exportedOnLabel, int pageNum)
+            string exportedOnLabel, int pageNum = 0)
         {
             var page = doc.AddPage();
             page.Size        = size;
@@ -163,7 +163,7 @@ namespace NXProject.Community.Services
             using var xImg = XImage.FromStream(ms);
             gfx.DrawImage(xImg, Margin, contentTop, imgW, imgH);
 
-            DrawFooter(gfx, pageW, pageH, projectName, nxLogo, exportedOnLabel);
+            DrawFooter(gfx, pageW, pageH, projectName, nxLogo, exportedOnLabel, companyName, companyLogo);
         }
 
         // ── Cabeçalho ─────────────────────────────────────────────────────
@@ -220,7 +220,8 @@ namespace NXProject.Community.Services
 
         private static void DrawFooter(XGraphics gfx, double pageW, double pageH,
                                        string projectName, BitmapImage? nxLogo,
-                                       string exportedOnLabel)
+                                       string exportedOnLabel,
+                                       string companyName = "", BitmapImage? companyLogo = null)
         {
             double lineY = pageH - Margin - FooterH;
             double midY  = lineY + SepLine + 6;
@@ -244,7 +245,7 @@ namespace NXProject.Community.Services
                     new XRect(0, midY, pageW, 14), XStringFormats.Center);
             }
 
-            // Logo NXProject + texto (direita)
+            // Lado direito: logo empresa | logo NXProject + "NXProject Community"
             double rightX = pageW - Margin;
             var fRight = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
             const string brand = "NXProject Community";
@@ -263,8 +264,32 @@ namespace NXProject.Community.Services
                     double lh = 14;
                     double lw = lh * img.PixelWidth / (double)img.PixelHeight;
                     gfx.DrawImage(img, rightX - lw, midY, lw, lh);
+                    rightX -= lw + 8;
                 }
                 catch { /* opcional */ }
+            }
+
+            // Logo da empresa (antes do logo NXProject, lado direito)
+            if (companyLogo != null)
+            {
+                try
+                {
+                    var bytes = BitmapToPng(companyLogo);
+                    using var ms  = new MemoryStream(bytes);
+                    using var img = XImage.FromStream(ms);
+                    double lh = 14;
+                    double lw = lh * img.PixelWidth / (double)img.PixelHeight;
+                    gfx.DrawImage(img, rightX - lw, midY, lw, lh);
+                    rightX -= lw + 4;
+                }
+                catch { /* opcional */ }
+            }
+            else if (!string.IsNullOrWhiteSpace(companyName))
+            {
+                var fComp = new XFont("Segoe UI", 8, XFontStyleEx.Bold);
+                double compW = 100;
+                gfx.DrawString(companyName, fComp, new XSolidBrush(XColor.FromArgb(80, 80, 80)),
+                    new XRect(rightX - compW, midY, compW, 14), XStringFormats.CenterRight);
             }
         }
 

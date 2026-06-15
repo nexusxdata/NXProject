@@ -743,7 +743,11 @@ namespace NXProject.Views
                 catch { }
             }
 
-            // 4. Exporta
+            // 4. Exporta em modo expandido para melhor legibilidade
+            bool wasExpanded = _expandedLayout;
+            if (!wasExpanded) ApplyLayoutMode(expanded: true);
+            // Força o layout a ser aplicado antes da captura
+            UpdateLayout();
             try
             {
                 PdfExportService.Export(
@@ -772,6 +776,10 @@ namespace NXProject.Views
             {
                 MessageBox.Show($"{Str("Pdf_ErrorMsg")}\n{ex.Message}",
                     Str("Pdf_ErrorTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (!wasExpanded) ApplyLayoutMode(expanded: false);
             }
         }
 
