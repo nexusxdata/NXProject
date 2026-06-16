@@ -1155,12 +1155,22 @@ namespace NXProject.Views
             _scrolling = false;
         }
 
+        private void OnSrLeftScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scrolling) return;
+            _scrolling = true;
+            SrMainScroll.ScrollToVerticalOffset(e.VerticalOffset);
+            _scrolling = false;
+        }
+
         // ── Aba 3: Stories por Recurso ────────────────────────────────────────
         private const double SrResW   = 160;
         private const double SrProjW  = 160;
         private const double SrStoryW = 260;
         private const double SrMonthW = 72;
         private const double SrTotalW = 72;
+        private const double SrCapexW = 72;
+        private const double SrOpexW  = 72;
         private const double SrRowH   = 22;
 
         private void BuildStoriesGrid()
@@ -1231,10 +1241,13 @@ namespace NXProject.Views
                     }
                 });
             }
-            SrHeaderPanel.Items.Add(SrMakeMonthHeader("TOTAL", SrTotalW, Color.FromRgb(25, 60, 120)));
+            SrHeaderPanel.Items.Add(SrMakeMonthHeader("TOTAL",  SrTotalW, Color.FromRgb(25,  60, 120)));
+            SrHeaderPanel.Items.Add(SrMakeMonthHeader("CAPEX",  SrCapexW, Color.FromRgb(140, 70,  20)));
+            SrHeaderPanel.Items.Add(SrMakeMonthHeader("OPEX",   SrOpexW,  Color.FromRgb(43, 100,  43)));
 
             // ── Linhas ──
             var grandByMonth = new double[months.Count];
+            double grandCapex = 0, grandOpex = 0;
 
             foreach (var (resName, entries) in byRes)
             {
@@ -1337,6 +1350,14 @@ namespace NXProject.Views
                         }
                         dataRow.Children.Add(SrMakeCell(rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
                             SrTotalW, Color.FromRgb(20, 50, 110), Color.FromRgb(230, 238, 252), bold: true));
+                        // CAPEX / OPEX por story
+                        bool storyIsOpex = proj.IsOpex;
+                        dataRow.Children.Add(SrMakeCell(!storyIsOpex && rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
+                            SrCapexW, !storyIsOpex && rowTotal > 0.01 ? Color.FromRgb(120, 60, 10) : Color.FromRgb(200, 200, 200),
+                            Color.FromRgb(255, 248, 240), bold: false));
+                        dataRow.Children.Add(SrMakeCell(storyIsOpex && rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
+                            SrOpexW, storyIsOpex && rowTotal > 0.01 ? Color.FromRgb(20, 90, 20) : Color.FromRgb(200, 200, 200),
+                            Color.FromRgb(240, 250, 240), bold: false));
                         SrDataPanel.Items.Add(dataRow);
 
                         projFirst = false;
@@ -1371,6 +1392,7 @@ namespace NXProject.Views
                     });
                     SrLeftPanel.Items.Add(leftProjTotal);
 
+                    bool projIsOpex = projEntries[0].Proj.IsOpex;
                     var projDataTotal = new StackPanel { Orientation = Orientation.Horizontal };
                     double ptotal = 0;
                     foreach (var mi in visMi)
@@ -1382,6 +1404,12 @@ namespace NXProject.Views
                     }
                     projDataTotal.Children.Add(SrMakeCell(ptotal > 0.01 ? $"{ptotal:0.#}h" : "–",
                         SrTotalW, Color.FromRgb(20, 40, 100), Color.FromRgb(205, 218, 245), bold: true));
+                    projDataTotal.Children.Add(SrMakeCell(!projIsOpex && ptotal > 0.01 ? $"{ptotal:0.#}h" : "–",
+                        SrCapexW, !projIsOpex && ptotal > 0.01 ? Color.FromRgb(120, 60, 10) : Color.FromRgb(180, 180, 180),
+                        Color.FromRgb(252, 242, 230), bold: true));
+                    projDataTotal.Children.Add(SrMakeCell(projIsOpex && ptotal > 0.01 ? $"{ptotal:0.#}h" : "–",
+                        SrOpexW, projIsOpex && ptotal > 0.01 ? Color.FromRgb(20, 90, 20) : Color.FromRgb(180, 180, 180),
+                        Color.FromRgb(232, 248, 232), bold: true));
                     SrDataPanel.Items.Add(projDataTotal);
                 }
 
@@ -1412,6 +1440,11 @@ namespace NXProject.Views
                 });
                 SrLeftPanel.Items.Add(leftResTotal);
 
+                double resCapex = entries.Where(e => !e.Proj.IsOpex).Sum(e => e.MonthHours.Sum());
+                double resOpex  = entries.Where(e =>  e.Proj.IsOpex).Sum(e => e.MonthHours.Sum());
+                grandCapex += resCapex;
+                grandOpex  += resOpex;
+
                 var resDataTotal = new StackPanel { Orientation = Orientation.Horizontal };
                 double rtotal = 0;
                 foreach (var mi in visMi)
@@ -1420,10 +1453,14 @@ namespace NXProject.Views
                     rtotal += h;
                     grandByMonth[mi] += h;
                     resDataTotal.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
-                        SrMonthW, Colors.White, resTotalBg, bold: true));
+                        SrMonthW, Colors.White, resTotalBg, bold: true, height: SrRowH + 2));
                 }
                 resDataTotal.Children.Add(SrMakeCell(rtotal > 0.01 ? $"{rtotal:0.#}h" : "–",
-                    SrTotalW, Colors.White, Color.FromRgb(25, 60, 120), bold: true));
+                    SrTotalW, Colors.White, Color.FromRgb(25, 60, 120), bold: true, height: SrRowH + 2));
+                resDataTotal.Children.Add(SrMakeCell(resCapex > 0.01 ? $"{resCapex:0.#}h" : "–",
+                    SrCapexW, Colors.White, Color.FromRgb(140, 70, 20), bold: true, height: SrRowH + 2));
+                resDataTotal.Children.Add(SrMakeCell(resOpex > 0.01 ? $"{resOpex:0.#}h" : "–",
+                    SrOpexW, Colors.White, Color.FromRgb(43, 100, 43), bold: true, height: SrRowH + 2));
                 SrDataPanel.Items.Add(resDataTotal);
 
                 // Separador
@@ -1454,10 +1491,14 @@ namespace NXProject.Views
                 double h = grandByMonth[mi];
                 gtotal += h;
                 gtData.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
-                    SrMonthW, Colors.White, gtBg, bold: true));
+                    SrMonthW, Colors.White, gtBg, bold: true, height: SrRowH + 2));
             }
             gtData.Children.Add(SrMakeCell(gtotal > 0.01 ? $"{gtotal:0.#}h" : "–",
-                SrTotalW, Colors.White, Color.FromRgb(15, 40, 90), bold: true));
+                SrTotalW, Colors.White, Color.FromRgb(15, 40, 90), bold: true, height: SrRowH + 2));
+            gtData.Children.Add(SrMakeCell(grandCapex > 0.01 ? $"{grandCapex:0.#}h" : "–",
+                SrCapexW, Colors.White, Color.FromRgb(100, 50, 10), bold: true, height: SrRowH + 2));
+            gtData.Children.Add(SrMakeCell(grandOpex > 0.01 ? $"{grandOpex:0.#}h" : "–",
+                SrOpexW, Colors.White, Color.FromRgb(30, 80, 30), bold: true, height: SrRowH + 2));
             SrDataPanel.Items.Add(gtData);
         }
 
@@ -1480,10 +1521,10 @@ namespace NXProject.Views
             return hours * (overlapDays / totalDays);
         }
 
-        private static Border SrMakeCell(string text, double width, Color fg, Color bg, bool bold)
+        private static Border SrMakeCell(string text, double width, Color fg, Color bg, bool bold, double height = SrRowH)
             => new Border
             {
-                Width = width, Height = SrRowH,
+                Width = width, Height = height,
                 Background = new SolidColorBrush(bg),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
                 BorderThickness = new Thickness(0, 0, 1, 1),

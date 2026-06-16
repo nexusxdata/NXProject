@@ -253,7 +253,8 @@
 
                     <!-- Coluna fixa (rola vertical) -->
                     <ScrollViewer x:Name="SrLeftScroll" Grid.Row="1" Grid.Column="0"
-                                  VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                                  VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                                  ScrollChanged="OnSrLeftScrollChanged">
                         <ItemsControl x:Name="SrLeftPanel">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
