@@ -28,6 +28,9 @@ namespace NXProject.Services
     /// </summary>
     public sealed class PortfolioProjectConfig
     {
+        /// <summary>Nome do projeto DevOps (chave de associação).</summary>
+        public string ProjectName { get; set; } = string.Empty;
+        /// <summary>Caminho do arquivo .nxproject local correspondente.</summary>
         public string FilePath    { get; set; } = string.Empty;
         public bool   IsOpex      { get; set; } = true;
         public string CostCenter  { get; set; } = string.Empty;

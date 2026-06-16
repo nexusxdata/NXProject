@@ -22,9 +22,8 @@ namespace NXProject.Views
         }
 
         // ── Estado ────────────────────────────────────────────────────────────
-        private List<LoadedProject> _projects      = [];
-        private List<DateTime>      _months        = [];
-        private List<string>        _selectedPaths = [];
+        private List<LoadedProject> _projects = [];
+        private List<DateTime>      _months   = [];
 
         private const double RowHeight   = 26;
         private const double ColWidth    = 72;
@@ -41,7 +40,6 @@ namespace NXProject.Views
             PopulateMonthCombos();
 
             var opts = TfsConnectionStore.Load();
-            _selectedPaths = opts.PortfolioProjectPaths.ToList();
             LoadProjects(opts);
 
             Loaded += (_, _) => BuildGrid();
@@ -88,22 +86,23 @@ namespace NXProject.Views
         private void LoadProjects(TfsConnectionOptions opts)
         {
             _projects = [];
-            foreach (var path in _selectedPaths)
+            foreach (var cfg in opts.PortfolioProjectConfigs)
             {
-                if (!System.IO.File.Exists(path)) continue;
+                if (string.IsNullOrWhiteSpace(cfg.FilePath) || !System.IO.File.Exists(cfg.FilePath))
+                    continue;
                 try
                 {
-                    var project = XmlProjectService.Load(path);
-                    var cfg     = opts.PortfolioProjectConfigs
-                                      .FirstOrDefault(c => string.Equals(c.FilePath, path, StringComparison.OrdinalIgnoreCase));
+                    var project = XmlProjectService.Load(cfg.FilePath);
                     _projects.Add(new LoadedProject
                     {
-                        FilePath   = path,
-                        Name       = string.IsNullOrWhiteSpace(project.Name)
-                                     ? System.IO.Path.GetFileNameWithoutExtension(path)
-                                     : project.Name,
-                        IsOpex     = cfg?.IsOpex ?? true,
-                        CostCenter = cfg?.CostCenter ?? string.Empty,
+                        FilePath   = cfg.FilePath,
+                        Name       = !string.IsNullOrWhiteSpace(cfg.ProjectName)
+                                     ? cfg.ProjectName
+                                     : (!string.IsNullOrWhiteSpace(project.Name)
+                                         ? project.Name
+                                         : System.IO.Path.GetFileNameWithoutExtension(cfg.FilePath)),
+                        IsOpex     = cfg.IsOpex,
+                        CostCenter = cfg.CostCenter,
                         Data       = project
                     });
                 }
@@ -578,18 +577,43 @@ namespace NXProject.Views
         // ── Handlers ──────────────────────────────────────────────────────────
         private void OnSelectProjectsClick(object sender, RoutedEventArgs e)
         {
-            var opts = TfsConnectionStore.Load();
-            var win  = new ProjectPickerWindow(opts.PortfolioProjectPaths, _selectedPaths) { Owner = this };
+            var opts        = TfsConnectionStore.Load();
+            var devOpsList  = DevOpsProjectListService.Load(opts.DevOpsProjectListPath);
+
+            if (devOpsList.Count == 0)
+            {
+                MessageBox.Show(
+                    "Nenhum projeto DevOps cadastrado.\n\n" +
+                    "Acesse Visualizar → Projetos DevOps (lista) para configurar a lista de projetos.",
+                    "Lista vazia", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var win = new ProjectPickerWindow(devOpsList, opts.PortfolioProjectConfigs) { Owner = this };
             if (win.ShowDialog() != true) return;
 
-            _selectedPaths = win.SelectedPaths;
-
-            foreach (var path in _selectedPaths)
+            // Substitui configs pelos selecionados; preserva OPEX/CC dos não selecionados
+            foreach (var newCfg in win.SelectedConfigs)
             {
-                if (!opts.PortfolioProjectConfigs.Any(c =>
-                        string.Equals(c.FilePath, path, StringComparison.OrdinalIgnoreCase)))
-                    opts.PortfolioProjectConfigs.Add(new PortfolioProjectConfig { FilePath = path });
+                var existing = opts.PortfolioProjectConfigs.FirstOrDefault(c =>
+                    string.Equals(c.ProjectName, newCfg.ProjectName, StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    existing.FilePath = newCfg.FilePath;
+                }
+                else
+                {
+                    opts.PortfolioProjectConfigs.Add(newCfg);
+                }
             }
+
+            // Remove projetos desmarcados (não presentes em SelectedConfigs)
+            var selectedNames = win.SelectedConfigs
+                .Select(c => c.ProjectName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            opts.PortfolioProjectConfigs.RemoveAll(c =>
+                devOpsList.Any(d => string.Equals(d.Name, c.ProjectName, StringComparison.OrdinalIgnoreCase))
+                && !selectedNames.Contains(c.ProjectName));
 
             TfsConnectionStore.Save(opts, !string.IsNullOrEmpty(opts.PersonalAccessToken));
             LoadProjects(opts);
