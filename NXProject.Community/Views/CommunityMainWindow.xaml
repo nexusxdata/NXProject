@@ -164,6 +164,14 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,3,3,0"/>
                 </Grid>
             </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnHierarchyColorPaletteClick"
+                    ToolTip="Paleta de cores por nível de hierarquia (Epic / Feature / Story)">
+                <Grid Width="22" Height="20">
+                    <Rectangle RadiusX="2" RadiusY="2" Fill="#D8D8D8" Margin="0,0,0,10"/>
+                    <Rectangle RadiusX="2" RadiusY="2" Fill="#EEEEEE" Margin="0,5,0,5"/>
+                    <Rectangle RadiusX="2" RadiusY="2" Fill="#F5F5F5" Margin="0,10,0,0"/>
+                </Grid>
+            </Button>
             <Separator/>
             <Button x:Name="LayoutToggleButton"
                     Style="{StaticResource ToolbarButtonStyle}"

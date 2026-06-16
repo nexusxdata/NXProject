@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using NXProject.Community.Services;
+using NXProject.Community.Views;
 using NXProject.Models;
 using NXProject.Services;
 using NXProject.ViewModels;
@@ -1508,6 +1509,17 @@ namespace NXProject.Views
                 return;
 
             new StoryStatusChartWindow(vm) { Owner = this }.ShowDialog();
+        }
+
+        private void OnHierarchyColorPaletteClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var win = new HierarchyColorPaletteWindow(vm.Project) { Owner = this };
+            if (win.ShowDialog() == true)
+            {
+                vm.ApplyHierarchyColors();
+                GanttCtrl.ForceRender();
+            }
         }
 
         private void OnAllocationMapClick(object sender, RoutedEventArgs e)

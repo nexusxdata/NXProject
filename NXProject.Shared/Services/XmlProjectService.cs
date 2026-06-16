@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Xml.Linq;
 using NXProject.Models;
 
@@ -33,6 +34,10 @@ namespace NXProject.Services
                     new XElement(NS + "HighDaysPerSfp", project.HighDaysPerSfp),
                     new XElement(EXT + "DevOpsProjectName", project.DevOpsProjectName ?? ""),
                     new XElement(EXT + "DevOpsRootWorkItemId", project.DevOpsRootWorkItemId),
+                    new XElement(EXT + "UseHierarchyColors", project.UseHierarchyColors),
+                    new XElement(EXT + "HierarchyLevelColors",
+                        project.HierarchyLevelColors.Select((c, i) =>
+                            new XElement(EXT + "Color", new XAttribute("depth", i), c))),
                     SaveSprintSettingsMetadata(sprintProfile),
                     SaveSprints(project.Sprints),
                     SaveResources(project.Resources),
@@ -176,8 +181,21 @@ namespace NXProject.Services
                 DevOpsProjectName = string.IsNullOrWhiteSpace(root.Element(EXT + "DevOpsProjectName")?.Value)
                     ? null : root.Element(EXT + "DevOpsProjectName")!.Value,
                 DevOpsRootWorkItemId = int.TryParse(root.Element(EXT + "DevOpsRootWorkItemId")?.Value, out var devOpsId) ? devOpsId : 0,
+                UseHierarchyColors = bool.TryParse(root.Element(EXT + "UseHierarchyColors")?.Value, out var uhc) && uhc,
                 FilePath = filePath
             };
+
+            var colorsEl = root.Element(EXT + "HierarchyLevelColors");
+            if (colorsEl != null)
+            {
+                var loaded = colorsEl.Elements(EXT + "Color")
+                    .OrderBy(e => int.TryParse(e.Attribute("depth")?.Value, out var d) ? d : 0)
+                    .Select(e => e.Value?.Trim())
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .ToList();
+                if (loaded.Count > 0)
+                    project.HierarchyLevelColors = loaded!;
+            }
 
             var extendedSprintSettings = LoadSprintSettingsMetadata(root);
             if (extendedSprintSettings != null)

@@ -68,6 +68,7 @@ namespace NXProject.ViewModels
         [ObservableProperty] private bool _isSelected;
         [ObservableProperty] private bool _isHighlightedPredecessor;
         [ObservableProperty] private bool _isHighlightSource;
+        [ObservableProperty] private Brush? _hierarchyBackground;
 
         public int Id
         {

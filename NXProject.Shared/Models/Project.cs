@@ -64,6 +64,18 @@ namespace NXProject.Models
         // Justificativas de gaps no cronograma de recursos
         public List<GapJustification> GapJustifications { get; set; } = new();
 
+        // Paleta de cores por nível de hierarquia (degradê)
+        public bool UseHierarchyColors { get; set; } = false;
+        // Cores em hex por profundidade: [0]=raiz, [1]=Epic, [2]=Feature, [3]=Story, [4+]=Task
+        public List<string> HierarchyLevelColors { get; set; } =
+        [
+            "#D8D8D8",  // depth 0 — raiz/projeto
+            "#E3E3E3",  // depth 1 — Epic
+            "#EEEEEE",  // depth 2 — Feature
+            "#F5F5F5",  // depth 3 — Story
+            "#FAFAFA",  // depth 4+ — Task
+        ];
+
         // Caminho do arquivo salvo
         public string? FilePath { get; set; }
 

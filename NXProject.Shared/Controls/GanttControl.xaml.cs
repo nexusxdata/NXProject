@@ -967,6 +967,20 @@ namespace NXProject.Controls
                 }
             }
 
+            // Row hierarchy background
+            if (Tasks != null)
+            {
+                for (int i = 0; i < Tasks.Count; i++)
+                {
+                    var bg = Tasks[i].HierarchyBackground;
+                    if (bg == null) continue;
+                    var rowBg = new Rectangle { Width = canvasWidth, Height = RowHeight, Fill = bg };
+                    Canvas.SetLeft(rowBg, 0);
+                    Canvas.SetTop(rowBg, GetRowTop(i));
+                    GanttCanvas.Children.Add(rowBg);
+                }
+            }
+
             var rowCount = Tasks?.Count ?? 0;
             for (int i = 0; i <= rowCount; i++)
             {

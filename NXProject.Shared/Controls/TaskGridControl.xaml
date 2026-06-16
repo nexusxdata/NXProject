@@ -28,6 +28,7 @@
 
         <DataGrid.RowStyle>
             <Style TargetType="DataGridRow">
+                <Setter Property="Background" Value="{Binding HierarchyBackground}"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsHighlightedPredecessor}" Value="True">
                         <Setter Property="Background" Value="#FFEEDD"/>

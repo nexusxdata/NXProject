@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NXProject.Models;
@@ -121,10 +122,39 @@ namespace NXProject.ViewModels
             RecalcSprints();
             RebuildSprintGroups();
             RebuildResourceGroups();
+            ApplyHierarchyColors();
 
             SelectedTask = selectedModel == null
                 ? null
                 : FlatTasks.FirstOrDefault(vm => vm.Model == selectedModel);
+        }
+
+        public void ApplyHierarchyColors()
+        {
+            var colors = Project.HierarchyLevelColors;
+            bool enabled = Project.UseHierarchyColors;
+            foreach (var vm in FlatTasks)
+            {
+                if (!enabled)
+                {
+                    vm.HierarchyBackground = null;
+                    continue;
+                }
+                int idx = Math.Min(vm.Depth, colors.Count - 1);
+                vm.HierarchyBackground = ParseHexBrush(colors[idx]);
+            }
+        }
+
+        private static SolidColorBrush? ParseHexBrush(string? hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return null;
+            hex = hex.Trim().TrimStart('#');
+            if (hex.Length == 6 &&
+                byte.TryParse(hex[0..2], System.Globalization.NumberStyles.HexNumber, null, out var r) &&
+                byte.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) &&
+                byte.TryParse(hex[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
+                return new SolidColorBrush(Color.FromRgb(r, g, b));
+            return null;
         }
 
         private bool _rebuildPending = false;
