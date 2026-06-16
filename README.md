@@ -113,7 +113,7 @@ Manage multiple DevOps projects in a shared file across your team. Each project 
 
 ### Required custom fields on the Story work item type
 
-NXProject reads and writes six custom fields on Stories in Azure DevOps. You must create them in your process template under **Organization Settings → Process → [Your Process] → Story → Fields**.
+NXProject reads and writes seven custom fields on Stories in Azure DevOps. You must create them in your process template under **Organization Settings → Process → [Your Process] → Story → Fields**.
 
 | Field name (display) | Reference name | Type | Default in NXProject | Purpose |
 |---|---|---|---|---|
@@ -121,6 +121,7 @@ NXProject reads and writes six custom fields on Stories in Azure DevOps. You mus
 | `Data_Inicio` | `Custom.DataInicio` *(example)* | Date/Time | `Data_Inicio` | Planned start date |
 | `Data_Fim` | `Custom.DataFim` *(example)* | Date/Time | `Data_Fim` | Planned finish date |
 | `Perc_Alocação` | `Custom.PercAlocacao` *(example)* | Integer (1–100) | `Perc_Alocação` | % of person's day dedicated to this Story |
+| `Perc_Conclusao` | `Custom.PercConclusao` *(example)* | Integer (0–100) | `Perc_Conclusao` | % completion of the Story (read on import, written on sync) |
 | `Sync_version` | `Custom.Syncversion` *(example)* | Integer | `Sync_version` | Concurrency version counter (auto-managed) |
 | `Sync_Name` | `Custom.SyncName` *(example)* | Text *(plain text, not Identity)* | `Sync_Name` | Who last synced (auto-managed) |
 

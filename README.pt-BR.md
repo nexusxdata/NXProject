@@ -113,7 +113,7 @@ Gerencie múltiplos projetos DevOps em um arquivo compartilhado entre toda a equ
 
 ### Campos customizados obrigatórios no tipo Story
 
-O NXProject lê e grava seis campos customizados nas Stories do Azure DevOps. É necessário criá-los no template de processo em **Configurações da Organização → Processo → [Seu Processo] → Story → Campos**.
+O NXProject lê e grava sete campos customizados nas Stories do Azure DevOps. É necessário criá-los no template de processo em **Configurações da Organização → Processo → [Seu Processo] → Story → Campos**.
 
 | Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Finalidade |
 |---|---|---|---|---|
@@ -121,6 +121,7 @@ O NXProject lê e grava seis campos customizados nas Stories do Azure DevOps. É
 | `Data_Inicio` | `Custom.DataInicio` *(exemplo)* | Data/Hora | `Data_Inicio` | Data de início planejada |
 | `Data_Fim` | `Custom.DataFim` *(exemplo)* | Data/Hora | `Data_Fim` | Data de fim planejada |
 | `Perc_Alocação` | `Custom.PercAlocacao` *(exemplo)* | Inteiro (1–100) | `Perc_Alocação` | % do dia da pessoa dedicado a esta Story |
+| `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | % de conclusão da Story (lido no import, gravado no sync) |
 | `Sync_version` | `Custom.Syncversion` *(exemplo)* | Inteiro | `Sync_version` | Contador de versão de concorrência (gerenciado automaticamente) |
 | `Sync_Name` | `Custom.SyncName` *(exemplo)* | Texto *(texto simples, não Identity)* | `Sync_Name` | Quem realizou a última sincronização (gerenciado automaticamente) |
 
