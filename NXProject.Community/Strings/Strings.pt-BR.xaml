@@ -33,6 +33,13 @@
     <sys:String x:Key="Menu_Edit_Indent">Criar _Subtarefa</sys:String>
     <sys:String x:Key="Menu_Edit_Outdent">_Promover Tarefa</sys:String>
 
+    <!-- Menu Gestão -->
+    <sys:String x:Key="Menu_Manage">_Gestão</sys:String>
+    <sys:String x:Key="Menu_Manage_Resources">_Alocação de Recursos...</sys:String>
+    <sys:String x:Key="Menu_Manage_HealthCheck">_Health Check do Projeto...</sys:String>
+    <sys:String x:Key="Menu_Manage_StoryStatusChart">_Status das Stories...</sys:String>
+    <sys:String x:Key="Menu_Manage_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
+
     <!-- Menu Exibir -->
     <sys:String x:Key="Menu_View">_Exibir</sys:String>
     <sys:String x:Key="Menu_View_Gantt">G_antt</sys:String>

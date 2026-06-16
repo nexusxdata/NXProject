@@ -62,16 +62,18 @@
                 <MenuItem Header="{DynamicResource Menu_View_Sprint}" Click="OnSprintSettingsClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_Sfp}" Click="OnSfpSettingsClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_Calendar}" Click="OnCalendarSettingsClick"/>
-                <MenuItem Header="{DynamicResource Menu_View_Resources}" Click="OnResourceAllocationClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsList}" Click="OnDevOpsProjectListClick"/>
-                <MenuItem Header="{DynamicResource Menu_View_HealthCheck}" Click="OnDelayedTasksClick"/>
-                <MenuItem Header="{DynamicResource Menu_View_StoryStatusChart}" Click="OnStoryStatusChartClick"/>
-                <MenuItem Header="{DynamicResource Menu_View_AllocationMap}" Click="OnAllocationMapClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_Language}" Click="OnLanguageClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_Settings}" Click="OnAppSettingsClick"/>
+            </MenuItem>
+            <MenuItem Header="{DynamicResource Menu_Manage}">
+                <MenuItem Header="{DynamicResource Menu_Manage_Resources}" Click="OnResourceAllocationClick"/>
+                <MenuItem Header="{DynamicResource Menu_Manage_HealthCheck}" Click="OnDelayedTasksClick"/>
+                <MenuItem Header="{DynamicResource Menu_Manage_StoryStatusChart}" Click="OnStoryStatusChartClick"/>
+                <MenuItem Header="{DynamicResource Menu_Manage_AllocationMap}" Click="OnAllocationMapClick"/>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Ai}">
                 <MenuItem Header="{DynamicResource Menu_Ai_Assistant}" Click="OnAiAssistantClick"/>

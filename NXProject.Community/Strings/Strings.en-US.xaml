@@ -33,6 +33,13 @@
     <sys:String x:Key="Menu_Edit_Indent">_Create Subtask</sys:String>
     <sys:String x:Key="Menu_Edit_Outdent">_Promote Task</sys:String>
 
+    <!-- Management Menu -->
+    <sys:String x:Key="Menu_Manage">_Management</sys:String>
+    <sys:String x:Key="Menu_Manage_Resources">_Resource Allocation...</sys:String>
+    <sys:String x:Key="Menu_Manage_HealthCheck">Project _Health Check...</sys:String>
+    <sys:String x:Key="Menu_Manage_StoryStatusChart">_Story Status Chart...</sys:String>
+    <sys:String x:Key="Menu_Manage_AllocationMap">Project _Allocation Map...</sys:String>
+
     <!-- View Menu -->
     <sys:String x:Key="Menu_View">_View</sys:String>
     <sys:String x:Key="Menu_View_Gantt">G_antt</sys:String>
