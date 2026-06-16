@@ -124,7 +124,12 @@ namespace NXProject.Controls
             {
                 if (_suppressScrollNotification) return;
                 if (args.VerticalChange != 0 || args.ExtentHeightChange != 0 || args.ViewportHeightChange != 0)
+                {
                     VerticalScrollChanged?.Invoke(_scrollViewer.VerticalOffset);
+                    var hdr = FindChild<DataGridColumnHeadersPresenter>(TaskGrid);
+                    if (hdr != null && hdr.ActualHeight > 0)
+                        PublishRowTops(hdr.ActualHeight);
+                }
             };
         }
 
@@ -217,12 +222,14 @@ namespace NXProject.Controls
             var rowTops = new double[itemCount];
             var measuredAnyRow = false;
 
+            var scrollOffset = _scrollViewer?.VerticalOffset ?? 0;
             for (int i = 0; i < itemCount; i++)
             {
                 var row = TaskGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
                 if (row != null)
                 {
-                    rowTops[i] = row.TranslatePoint(new Point(0, 0), TaskGrid).Y - headerHeight;
+                    // TranslatePoint retorna posição relativa à viewport; somamos o scroll para obter posição absoluta no conteúdo
+                    rowTops[i] = row.TranslatePoint(new Point(0, 0), TaskGrid).Y - headerHeight + scrollOffset;
                     measuredAnyRow = true;
                 }
                 else

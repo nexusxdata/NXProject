@@ -221,7 +221,7 @@
             <TabItem Header="Stories por Recurso">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="22"/>  <!-- Cabeçalho meses -->
+                        <RowDefinition Height="44"/>  <!-- Cabeçalho meses (2 linhas) -->
                         <RowDefinition Height="*"/>   <!-- Dados -->
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
@@ -229,16 +229,22 @@
                         <ColumnDefinition Width="*"/>    <!-- Meses (rola) -->
                     </Grid.ColumnDefinitions>
 
-                    <!-- Cabeçalho fixo -->
+                    <!-- Cabeçalho fixo (2 linhas: linha vazia + labels) -->
                     <Border Grid.Row="0" Grid.Column="0" Background="#2B579A" BorderBrush="#1D3F73" BorderThickness="0,0,1,1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Recurso" Foreground="White" FontWeight="SemiBold" FontSize="11"
-                                       Width="160" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                            <TextBlock Text="Projeto" Foreground="White" FontWeight="SemiBold" FontSize="11"
-                                       Width="160" VerticalAlignment="Center"/>
-                            <TextBlock Text="Story / Tarefa" Foreground="White" FontWeight="SemiBold" FontSize="11"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="22"/>
+                                <RowDefinition Height="22"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                <TextBlock Text="Recurso" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="160" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <TextBlock Text="Projeto" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="160" VerticalAlignment="Center"/>
+                                <TextBlock Text="Story / Tarefa" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <!-- Cabeçalho de meses (rola horizontal) -->

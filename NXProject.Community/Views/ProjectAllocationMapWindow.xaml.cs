@@ -1224,36 +1224,68 @@ namespace NXProject.Views
                 .Where(mi => !hideZero || byRes.Values.Any(l => l.Any(x => x.MonthHours[mi] > 0.01)))
                 .ToList();
 
-            // ── Cabeçalho de meses: duas células por mês (CAPEX | OPEX) ──
+            // ── Cabeçalho de meses: mês mesclado (linha 1) + CAPEX|OPEX (linha 2) ──
             var capexMonBg = Color.FromRgb(140, 70, 20);
             var opexMonBg  = Color.FromRgb(43, 100, 43);
+            double monPairW = SrCapexMonW + SrOpexMonW;
             foreach (var mi in visMi)
             {
                 string lbl = months[mi].ToString("MMM/yy");
-                SrHeaderPanel.Items.Add(new Border
+                var monthGrid = new Grid { Width = monPairW, Height = 44 };
+                monthGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(22) });
+                monthGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(22) });
+                monthGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SrCapexMonW) });
+                monthGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SrOpexMonW) });
+
+                // Linha 1: mês mesclado (span 2 colunas)
+                var monthBorder = new Border
                 {
-                    Width = SrCapexMonW, Height = 22,
+                    Background = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Child = new TextBlock { Text = lbl, FontSize = 10, FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center }
+                };
+                Grid.SetRow(monthBorder, 0);
+                Grid.SetColumn(monthBorder, 0);
+                Grid.SetColumnSpan(monthBorder, 2);
+                monthGrid.Children.Add(monthBorder);
+
+                // Linha 2: CAPEX
+                var capexBorder = new Border
+                {
                     Background = new SolidColorBrush(capexMonBg),
                     BorderBrush = new SolidColorBrush(Color.FromRgb(100, 50, 10)),
                     BorderThickness = new Thickness(0, 0, 1, 1),
-                    Child = new TextBlock { Text = lbl + " C", FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    Child = new TextBlock { Text = "CAPEX", FontSize = 9, FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center }
-                });
-                SrHeaderPanel.Items.Add(new Border
+                };
+                Grid.SetRow(capexBorder, 1);
+                Grid.SetColumn(capexBorder, 0);
+                monthGrid.Children.Add(capexBorder);
+
+                // Linha 2: OPEX
+                var opexBorder = new Border
                 {
-                    Width = SrOpexMonW, Height = 22,
                     Background = new SolidColorBrush(opexMonBg),
                     BorderBrush = new SolidColorBrush(Color.FromRgb(20, 70, 20)),
                     BorderThickness = new Thickness(0, 0, 1, 1),
-                    Child = new TextBlock { Text = lbl + " O", FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    Child = new TextBlock { Text = "OPEX", FontSize = 9, FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center }
-                });
+                };
+                Grid.SetRow(opexBorder, 1);
+                Grid.SetColumn(opexBorder, 1);
+                monthGrid.Children.Add(opexBorder);
+
+                SrHeaderPanel.Items.Add(monthGrid);
             }
-            SrHeaderPanel.Items.Add(SrMakeMonthHeader("TOTAL",  SrTotalW, Color.FromRgb(25,  60, 120)));
-            SrHeaderPanel.Items.Add(SrMakeMonthHeader("CAPEX",  SrCapexW, Color.FromRgb(140, 70,  20)));
-            SrHeaderPanel.Items.Add(SrMakeMonthHeader("OPEX",   SrOpexW,  Color.FromRgb(43, 100,  43)));
+            // Colunas de totais: também duas linhas (label em cima, vazio em baixo)
+            SrHeaderPanel.Items.Add(SrMakeTotalHeader("TOTAL", SrTotalW, Color.FromRgb(25,  60, 120)));
+            SrHeaderPanel.Items.Add(SrMakeTotalHeader("CAPEX", SrCapexW, Color.FromRgb(140, 70,  20)));
+            SrHeaderPanel.Items.Add(SrMakeTotalHeader("OPEX",  SrOpexW,  Color.FromRgb(43, 100,  43)));
 
             // ── Linhas ──
             var grandCapexByMonth = new double[months.Count];
@@ -1545,6 +1577,22 @@ namespace NXProject.Views
             => new Border
             {
                 Width = width, Height = 22,
+                Background = new SolidColorBrush(bg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Child = new TextBlock
+                {
+                    Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+
+        private static Border SrMakeTotalHeader(string text, double width, Color bg)
+            => new Border
+            {
+                Width = width, Height = 44,
                 Background = new SolidColorBrush(bg),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
                 BorderThickness = new Thickness(0, 0, 1, 1),
