@@ -568,7 +568,9 @@ namespace NXProject.Views
             var (periodStart, periodEnd) = GetPeriod();
             bool hideZero = OnlyWithHoursBox.IsChecked == true;
 
-            // Coleta todos os recursos únicos com horas no período
+            var months = BuildMonths(periodStart, periodEnd);
+
+            // Coleta recursos únicos
             var allResources = _projects
                 .SelectMany(p => p.Data.Resources
                     .Where(r => r.Type == ResourceType.Work && !string.IsNullOrWhiteSpace(r.Name))
@@ -577,64 +579,100 @@ namespace NXProject.Views
                 .OrderBy(n => n)
                 .ToList();
 
-            // Para cada projeto, total de horas por recurso no período inteiro
-            // dist[projIdx][resName] = totalHours
-            var dist = new List<Dictionary<string, double>>();
+            // dist[projIdx][resName][monthIdx] = horas
+            var dist = new List<Dictionary<string, double[]>>();
             foreach (var proj in _projects)
             {
-                var d = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                var d = new Dictionary<string, double[]>(StringComparer.OrdinalIgnoreCase);
                 foreach (var res in allResources)
                 {
-                    var mStart = new DateTime(periodStart.Year, periodStart.Month, 1);
-                    var mEnd   = new DateTime(periodEnd.Year, periodEnd.Month,
-                                     DateTime.DaysInMonth(periodEnd.Year, periodEnd.Month));
-                    d[res] = ComputeHours(proj.Data, res, mStart, mEnd);
+                    var mh = new double[months.Count];
+                    for (int mi = 0; mi < months.Count; mi++)
+                    {
+                        var ms = months[mi];
+                        var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                        mh[mi] = ComputeHours(proj.Data, res, ms, me);
+                    }
+                    d[res] = mh;
                 }
                 dist.Add(d);
             }
 
-            // Filtra recursos sem horas em nenhum projeto
             if (hideZero)
                 allResources = allResources
-                    .Where(r => dist.Any(d => d[r] > 0.01))
+                    .Where(r => dist.Any(d => d[r].Sum() > 0.01))
                     .ToList();
 
-            // Filtra projetos sem horas (colunas zeradas)
+            // Projetos com alguma hora
             var visibleProjIdx = Enumerable.Range(0, _projects.Count)
-                .Where(pi => !hideZero || allResources.Any(r => dist[pi][r] > 0.01))
+                .Where(pi => !hideZero || allResources.Any(r => dist[pi][r].Sum() > 0.01))
                 .ToList();
 
-            const double ProjColW  = 140;
-            const double TotalColW2 = 80;
+            // Meses com alguma hora
+            var visibleMonthIdx = Enumerable.Range(0, months.Count)
+                .Where(mi => !hideZero || visibleProjIdx.Any(pi =>
+                    allResources.Any(r => dist[pi][r][mi] > 0.01)))
+                .ToList();
 
-            // ── Cabeçalho linha 1: projetos ──
+            const double MonthColW   = 78;   // coluna por mês
+            const double ProjTotalW  = 66;   // total do projeto
+            const double GrandTotalW = 72;   // total geral
+            const double DistRowH    = 36;   // altura maior para duas linhas
+
+            // ── Cabeçalho linha 1: projeto (span = nMeses × MonthColW + ProjTotalW) ──
             foreach (var pi in visibleProjIdx)
             {
-                var proj = _projects[pi];
+                var proj      = _projects[pi];
+                double projW  = visibleMonthIdx.Count * MonthColW + ProjTotalW;
+                var typeColor = proj.IsOpex ? Color.FromRgb(43, 100, 43) : Color.FromRgb(140, 70, 20);
+
                 DistProjHeaderPanel.Items.Add(new Border
                 {
-                    Width           = ProjColW,
+                    Width           = projW,
                     Height          = 22,
                     Background      = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
                     BorderBrush     = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
-                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    BorderThickness = new Thickness(0, 0, 2, 1),
                     ToolTip         = proj.Name,
-                    Child           = new TextBlock
+                    Child           = new StackPanel
                     {
-                        Text                = proj.Name,
-                        Foreground          = Brushes.White,
-                        FontWeight          = FontWeights.SemiBold,
-                        FontSize            = 11,
+                        Orientation         = Orientation.Horizontal,
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment   = VerticalAlignment.Center,
-                        TextTrimming        = TextTrimming.CharacterEllipsis,
-                        Margin              = new Thickness(2, 0, 2, 0)
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text       = proj.Name,
+                                Foreground = Brushes.White,
+                                FontWeight = FontWeights.SemiBold,
+                                FontSize   = 11,
+                                TextTrimming = TextTrimming.CharacterEllipsis,
+                                MaxWidth   = projW - 60,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                Margin     = new Thickness(4, 0, 6, 0)
+                            },
+                            new Border
+                            {
+                                Background      = new SolidColorBrush(typeColor),
+                                CornerRadius    = new CornerRadius(3),
+                                Padding         = new Thickness(5, 1, 5, 1),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                Child           = new TextBlock
+                                {
+                                    Text       = proj.IsOpex ? "OPEX" : "CAPEX",
+                                    FontSize   = 9,
+                                    FontWeight = FontWeights.SemiBold,
+                                    Foreground = Brushes.White
+                                }
+                            }
+                        }
                     }
                 });
             }
             DistProjHeaderPanel.Items.Add(new Border
             {
-                Width           = TotalColW2,
+                Width           = GrandTotalW,
                 Height          = 22,
                 Background      = new SolidColorBrush(Color.FromRgb(25, 60, 120)),
                 BorderBrush     = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
@@ -643,36 +681,49 @@ namespace NXProject.Views
                 {
                     Text                = "TOTAL",
                     Foreground          = Brushes.White,
-                    FontWeight          = FontWeights.SemiBold,
+                    FontWeight          = FontWeights.Bold,
                     FontSize            = 11,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment   = VerticalAlignment.Center
                 }
             });
 
-            // ── Cabeçalho linha 2: tipo OPEX/CAPEX de cada projeto ──
+            // ── Cabeçalho linha 2: meses de cada projeto + subtotal ──
             foreach (var pi in visibleProjIdx)
             {
-                var proj = _projects[pi];
-                var typeColor = proj.IsOpex
-                    ? Color.FromRgb(200, 235, 200)
-                    : Color.FromRgb(255, 230, 200);
-                var typeFg = proj.IsOpex
-                    ? Color.FromRgb(0, 100, 0)
-                    : Color.FromRgb(140, 60, 0);
+                foreach (var mi in visibleMonthIdx)
+                {
+                    DistTypeHeaderPanel.Items.Add(new Border
+                    {
+                        Width           = MonthColW,
+                        Height          = 20,
+                        Background      = new SolidColorBrush(Color.FromRgb(232, 238, 248)),
+                        BorderBrush     = new SolidColorBrush(Color.FromRgb(197, 208, 224)),
+                        BorderThickness = new Thickness(0, 0, 1, 1),
+                        Child           = new TextBlock
+                        {
+                            Text                = months[mi].ToString("MMM/yy"),
+                            FontSize            = 10,
+                            FontWeight          = FontWeights.SemiBold,
+                            Foreground          = new SolidColorBrush(Color.FromRgb(50, 80, 140)),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment   = VerticalAlignment.Center
+                        }
+                    });
+                }
                 DistTypeHeaderPanel.Items.Add(new Border
                 {
-                    Width           = ProjColW,
+                    Width           = ProjTotalW,
                     Height          = 20,
-                    Background      = new SolidColorBrush(typeColor),
+                    Background      = new SolidColorBrush(Color.FromRgb(220, 230, 248)),
                     BorderBrush     = new SolidColorBrush(Color.FromRgb(197, 208, 224)),
-                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    BorderThickness = new Thickness(0, 0, 2, 1),
                     Child           = new TextBlock
                     {
-                        Text                = proj.IsOpex ? "OPEX" : "CAPEX",
+                        Text                = "Total",
                         FontSize            = 10,
                         FontWeight          = FontWeights.SemiBold,
-                        Foreground          = new SolidColorBrush(typeFg),
+                        Foreground          = new SolidColorBrush(Color.FromRgb(30, 60, 120)),
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment   = VerticalAlignment.Center
                     }
@@ -680,28 +731,38 @@ namespace NXProject.Views
             }
             DistTypeHeaderPanel.Items.Add(new Border
             {
-                Width           = TotalColW2,
+                Width           = GrandTotalW,
                 Height          = 20,
-                Background      = new SolidColorBrush(Color.FromRgb(220, 232, 252)),
+                Background      = new SolidColorBrush(Color.FromRgb(210, 224, 248)),
                 BorderBrush     = new SolidColorBrush(Color.FromRgb(197, 208, 224)),
                 BorderThickness = new Thickness(0, 0, 1, 1)
             });
 
             // ── Linhas por recurso ──
+            // grandByProjMonth[pi][mi] para linha de totais
+            var grandByProjMonth = visibleProjIdx.ToDictionary(
+                pi => pi, _ => new double[months.Count]);
+
             for (int ri = 0; ri < allResources.Count; ri++)
             {
                 var resName = allResources[ri];
-                double resTotal = visibleProjIdx.Sum(pi => dist[pi][resName]);
+
+                // total de horas do recurso por mês (somando todos os projetos) — para calcular %
+                var totalByMonth = new double[months.Count];
+                foreach (var pi in visibleProjIdx)
+                    for (int mi = 0; mi < months.Count; mi++)
+                        totalByMonth[mi] += dist[pi][resName][mi];
+
+                double resGrandTotal = totalByMonth.Sum();
 
                 var resBg = new SolidColorBrush(ri % 2 == 0
                     ? Color.FromRgb(255, 255, 255)
                     : Color.FromRgb(248, 250, 255));
 
-                // Coluna fixa: nome do recurso
                 DistResPanel.Items.Add(new Border
                 {
                     Width           = 200,
-                    Height          = RowHeight,
+                    Height          = DistRowH,
                     Background      = resBg,
                     BorderBrush     = new SolidColorBrush(Color.FromRgb(220, 228, 240)),
                     BorderThickness = new Thickness(0, 0, 1, 1),
@@ -718,60 +779,131 @@ namespace NXProject.Views
                     }
                 });
 
-                // Células de projeto
                 var row = new StackPanel { Orientation = Orientation.Horizontal };
+
                 foreach (var pi in visibleProjIdx)
                 {
-                    double h   = dist[pi][resName];
-                    double pct = resTotal > 0.01 ? h / resTotal * 100 : 0;
-                    string txt = h < 0.05 ? "–" : $"{h:0.#}h\n{pct:0.#}%";
+                    double projResTotal = 0;
 
-                    var cellBg = h < 0.05 ? resBg
-                        : new SolidColorBrush(Color.FromArgb(
-                            (byte)Math.Min(255, 80 + (int)(pct * 1.6)),
-                            210, 225, 250));
-
-                    row.Children.Add(new Border
+                    foreach (var mi in visibleMonthIdx)
                     {
-                        Width           = ProjColW,
-                        Height          = RowHeight,
-                        Background      = cellBg,
-                        BorderBrush     = new SolidColorBrush(Color.FromRgb(220, 228, 240)),
-                        BorderThickness = new Thickness(0, 0, 1, 1),
-                        Child           = new TextBlock
+                        double h   = dist[pi][resName][mi];
+                        double pct = totalByMonth[mi] > 0.01 ? h / totalByMonth[mi] * 100 : 0;
+                        projResTotal += h;
+
+                        if (pi == visibleProjIdx[0]) { /* grandByProjMonth handled below */ }
+                        grandByProjMonth[pi][mi] += h;
+
+                        string hStr  = h   < 0.05 ? "–"         : $"{h:0.#}h";
+                        string pStr  = pct < 0.05 ? ""          : $"{pct:0.#}%";
+
+                        var cellBg = h < 0.05 ? resBg
+                            : new SolidColorBrush(Color.FromArgb(
+                                (byte)Math.Min(220, 60 + (int)(pct * 1.5)),
+                                195, 215, 248));
+
+                        var stack = new StackPanel
                         {
-                            Text                = txt,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment   = VerticalAlignment.Center
+                        };
+                        stack.Children.Add(new TextBlock
+                        {
+                            Text                = hStr,
                             FontSize            = 11,
+                            FontWeight          = FontWeights.SemiBold,
                             Foreground          = h < 0.05
                                 ? new SolidColorBrush(Color.FromRgb(200, 200, 200))
                                 : new SolidColorBrush(Color.FromRgb(20, 50, 120)),
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            VerticalAlignment   = VerticalAlignment.Center,
-                            TextAlignment       = TextAlignment.Center
-                        }
+                            HorizontalAlignment = HorizontalAlignment.Center
+                        });
+                        if (!string.IsNullOrEmpty(pStr))
+                            stack.Children.Add(new TextBlock
+                            {
+                                Text                = pStr,
+                                FontSize            = 9,
+                                Foreground          = new SolidColorBrush(Color.FromRgb(60, 100, 180)),
+                                HorizontalAlignment = HorizontalAlignment.Center
+                            });
+
+                        row.Children.Add(new Border
+                        {
+                            Width           = MonthColW,
+                            Height          = DistRowH,
+                            Background      = cellBg,
+                            BorderBrush     = new SolidColorBrush(Color.FromRgb(220, 228, 240)),
+                            BorderThickness = new Thickness(0, 0, 1, 1),
+                            Child           = stack
+                        });
+                    }
+
+                    // Subtotal do projeto para este recurso
+                    double projResPct = resGrandTotal > 0.01 ? projResTotal / resGrandTotal * 100 : 0;
+                    string ptH = projResTotal < 0.05 ? "–" : $"{projResTotal:0.#}h";
+                    string ptP = projResPct  < 0.05 ? ""  : $"{projResPct:0.#}%";
+                    var ptStack = new StackPanel
+                    {
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment   = VerticalAlignment.Center
+                    };
+                    ptStack.Children.Add(new TextBlock
+                    {
+                        Text                = ptH,
+                        FontSize            = 11,
+                        FontWeight          = FontWeights.Bold,
+                        Foreground          = projResTotal < 0.05
+                            ? new SolidColorBrush(Color.FromRgb(180, 180, 180))
+                            : new SolidColorBrush(Color.FromRgb(20, 40, 100)),
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    });
+                    if (!string.IsNullOrEmpty(ptP))
+                        ptStack.Children.Add(new TextBlock
+                        {
+                            Text                = ptP,
+                            FontSize            = 9,
+                            Foreground          = new SolidColorBrush(Color.FromRgb(40, 80, 160)),
+                            HorizontalAlignment = HorizontalAlignment.Center
+                        });
+
+                    row.Children.Add(new Border
+                    {
+                        Width           = ProjTotalW,
+                        Height          = DistRowH,
+                        Background      = new SolidColorBrush(Color.FromRgb(220, 232, 252)),
+                        BorderBrush     = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
+                        BorderThickness = new Thickness(0, 0, 2, 1),
+                        Child           = ptStack
                     });
                 }
 
-                // Célula TOTAL
-                row.Children.Add(MakeTotalCell(resTotal, TotalColW2, RowHeight));
+                // Grand total da linha
+                row.Children.Add(MakeTotalCell(resGrandTotal, GrandTotalW, DistRowH));
                 DistDataPanel.Items.Add(row);
             }
 
             // ── Linha TOTAL GERAL ──
             var totalBg2 = new SolidColorBrush(Color.FromRgb(43, 87, 154));
-            DistResPanel.Items.Add(MakeCell("TOTAL GERAL", 200, RowHeight + 2, totalBg2,
+            DistResPanel.Items.Add(MakeCell("TOTAL GERAL", 200, DistRowH, totalBg2,
                 bold: true, fg: Colors.White, leftPad: 8));
 
             double grandTotal2 = 0;
             var grandRow2 = new StackPanel { Orientation = Orientation.Horizontal };
+
             foreach (var pi in visibleProjIdx)
             {
-                double projSum = allResources.Sum(r => dist[pi][r]);
+                double projSum = 0;
+                foreach (var mi in visibleMonthIdx)
+                {
+                    double mv = grandByProjMonth[pi][mi];
+                    projSum += mv;
+                    grandRow2.Children.Add(MakeTotalCell(mv, MonthColW, DistRowH,
+                        bold: true, fg: Colors.White, bg: Color.FromRgb(43, 87, 154)));
+                }
                 grandTotal2 += projSum;
-                grandRow2.Children.Add(MakeTotalCell(projSum, ProjColW, RowHeight + 2,
-                    bold: true, fg: Colors.White, bg: Color.FromRgb(43, 87, 154)));
+                grandRow2.Children.Add(MakeTotalCell(projSum, ProjTotalW, DistRowH,
+                    bold: true, fg: Colors.White, bg: Color.FromRgb(30, 70, 140)));
             }
-            grandRow2.Children.Add(MakeTotalCell(grandTotal2, TotalColW2, RowHeight + 2,
+            grandRow2.Children.Add(MakeTotalCell(grandTotal2, GrandTotalW, DistRowH,
                 bold: true, fg: Colors.White, bg: Color.FromRgb(25, 60, 120)));
             DistDataPanel.Items.Add(grandRow2);
         }
