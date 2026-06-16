@@ -7,11 +7,19 @@ namespace NXProject.Views
     {
         public DevOpsProject? Result { get; private set; }
 
-        public DevOpsProjectEditWindow(string name = "", int id = 0)
+        public DevOpsProjectEditWindow(string name = "", int id = 0,
+                                       bool isOpex = true, string costCenter = "")
         {
             InitializeComponent();
             NameBox.Text = name;
-            IdBox.Text = id > 0 ? id.ToString() : "";
+            IdBox.Text   = id > 0 ? id.ToString() : "";
+
+            TypeBox.Items.Add("OPEX");
+            TypeBox.Items.Add("CAPEX");
+            TypeBox.SelectedIndex = isOpex ? 0 : 1;
+
+            CcBox.Text = costCenter;
+
             Loaded += (_, _) => NameBox.Focus();
         }
 
@@ -30,7 +38,13 @@ namespace NXProject.Views
                 return;
             }
 
-            Result = new DevOpsProject { Name = name, RootWorkItemId = id };
+            Result = new DevOpsProject
+            {
+                Name           = name,
+                RootWorkItemId = id,
+                IsOpex         = TypeBox.SelectedIndex == 0,
+                CostCenter     = CcBox.Text?.Trim() ?? ""
+            };
             DialogResult = true;
             Close();
         }

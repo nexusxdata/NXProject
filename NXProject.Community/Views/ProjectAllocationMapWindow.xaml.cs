@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -414,21 +416,9 @@ namespace NXProject.Views
             return row;
         }
 
-        // ── Célula OPEX/CAPEX editável ────────────────────────────────────────
-        private UIElement MakeTypeCell(LoadedProject proj, Brush bg)
+        // ── Célula OPEX/CAPEX (leitura — configurado no picker) ──────────────
+        private static UIElement MakeTypeCell(LoadedProject proj, Brush bg)
         {
-            var cb = new ComboBox
-            {
-                Width         = TypeWidth - 6,
-                Height        = RowHeight - 2,
-                FontSize      = 11,
-                SelectedIndex = proj.IsOpex ? 0 : 1,
-                Margin        = new Thickness(2)
-            };
-            cb.Items.Add("OPEX");
-            cb.Items.Add("CAPEX");
-            cb.SelectionChanged += (_, _) => { proj.IsOpex = cb.SelectedIndex == 0; };
-
             return new Border
             {
                 Width           = TypeWidth,
@@ -436,26 +426,23 @@ namespace NXProject.Views
                 Background      = bg,
                 BorderBrush     = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
                 BorderThickness = new Thickness(0, 0, 1, 1),
-                Child           = cb
+                Padding         = new Thickness(4, 0, 4, 0),
+                Child           = new TextBlock
+                {
+                    Text              = proj.IsOpex ? "OPEX" : "CAPEX",
+                    FontSize          = 11,
+                    FontWeight        = FontWeights.SemiBold,
+                    Foreground        = proj.IsOpex
+                        ? new SolidColorBrush(Color.FromRgb(0, 100, 0))
+                        : new SolidColorBrush(Color.FromRgb(140, 60, 0)),
+                    VerticalAlignment = VerticalAlignment.Center
+                }
             };
         }
 
-        // ── Célula Centro de Custo editável ───────────────────────────────────
+        // ── Célula Centro de Custo (leitura — configurado no picker) ─────────
         private static UIElement MakeCcCell(LoadedProject proj, Brush bg)
         {
-            var tb = new TextBox
-            {
-                Text             = proj.CostCenter,
-                Width            = CcWidth - 6,
-                Height           = RowHeight - 2,
-                FontSize         = 11,
-                Background       = Brushes.Transparent,
-                BorderThickness  = new Thickness(0),
-                Margin           = new Thickness(2),
-                VerticalContentAlignment = VerticalAlignment.Center
-            };
-            tb.TextChanged += (_, _) => proj.CostCenter = tb.Text;
-
             return new Border
             {
                 Width           = CcWidth,
@@ -463,7 +450,16 @@ namespace NXProject.Views
                 Background      = bg,
                 BorderBrush     = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
                 BorderThickness = new Thickness(0, 0, 1, 1),
-                Child           = tb
+                Padding         = new Thickness(4, 0, 4, 0),
+                ToolTip         = proj.CostCenter,
+                Child           = new TextBlock
+                {
+                    Text             = proj.CostCenter,
+                    FontSize         = 11,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming     = TextTrimming.CharacterEllipsis,
+                    Foreground       = new SolidColorBrush(Color.FromRgb(60, 60, 60))
+                }
             };
         }
 
@@ -559,6 +555,227 @@ namespace NXProject.Views
             };
         }
 
+        // ── Distribuição por Pessoa ───────────────────────────────────────────
+        private void BuildDistributionGrid()
+        {
+            DistProjHeaderPanel.Items.Clear();
+            DistTypeHeaderPanel.Items.Clear();
+            DistResPanel.Items.Clear();
+            DistDataPanel.Items.Clear();
+
+            if (_projects.Count == 0) return;
+
+            var (periodStart, periodEnd) = GetPeriod();
+            bool hideZero = OnlyWithHoursBox.IsChecked == true;
+
+            // Coleta todos os recursos únicos com horas no período
+            var allResources = _projects
+                .SelectMany(p => p.Data.Resources
+                    .Where(r => r.Type == ResourceType.Work && !string.IsNullOrWhiteSpace(r.Name))
+                    .Select(r => r.Name!))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n)
+                .ToList();
+
+            // Para cada projeto, total de horas por recurso no período inteiro
+            // dist[projIdx][resName] = totalHours
+            var dist = new List<Dictionary<string, double>>();
+            foreach (var proj in _projects)
+            {
+                var d = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                foreach (var res in allResources)
+                {
+                    var mStart = new DateTime(periodStart.Year, periodStart.Month, 1);
+                    var mEnd   = new DateTime(periodEnd.Year, periodEnd.Month,
+                                     DateTime.DaysInMonth(periodEnd.Year, periodEnd.Month));
+                    d[res] = ComputeHours(proj.Data, res, mStart, mEnd);
+                }
+                dist.Add(d);
+            }
+
+            // Filtra recursos sem horas em nenhum projeto
+            if (hideZero)
+                allResources = allResources
+                    .Where(r => dist.Any(d => d[r] > 0.01))
+                    .ToList();
+
+            // Filtra projetos sem horas (colunas zeradas)
+            var visibleProjIdx = Enumerable.Range(0, _projects.Count)
+                .Where(pi => !hideZero || allResources.Any(r => dist[pi][r] > 0.01))
+                .ToList();
+
+            const double ProjColW  = 140;
+            const double TotalColW2 = 80;
+
+            // ── Cabeçalho linha 1: projetos ──
+            foreach (var pi in visibleProjIdx)
+            {
+                var proj = _projects[pi];
+                DistProjHeaderPanel.Items.Add(new Border
+                {
+                    Width           = ProjColW,
+                    Height          = 22,
+                    Background      = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                    BorderBrush     = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    ToolTip         = proj.Name,
+                    Child           = new TextBlock
+                    {
+                        Text                = proj.Name,
+                        Foreground          = Brushes.White,
+                        FontWeight          = FontWeights.SemiBold,
+                        FontSize            = 11,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment   = VerticalAlignment.Center,
+                        TextTrimming        = TextTrimming.CharacterEllipsis,
+                        Margin              = new Thickness(2, 0, 2, 0)
+                    }
+                });
+            }
+            DistProjHeaderPanel.Items.Add(new Border
+            {
+                Width           = TotalColW2,
+                Height          = 22,
+                Background      = new SolidColorBrush(Color.FromRgb(25, 60, 120)),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Child           = new TextBlock
+                {
+                    Text                = "TOTAL",
+                    Foreground          = Brushes.White,
+                    FontWeight          = FontWeights.SemiBold,
+                    FontSize            = 11,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment   = VerticalAlignment.Center
+                }
+            });
+
+            // ── Cabeçalho linha 2: tipo OPEX/CAPEX de cada projeto ──
+            foreach (var pi in visibleProjIdx)
+            {
+                var proj = _projects[pi];
+                var typeColor = proj.IsOpex
+                    ? Color.FromRgb(200, 235, 200)
+                    : Color.FromRgb(255, 230, 200);
+                var typeFg = proj.IsOpex
+                    ? Color.FromRgb(0, 100, 0)
+                    : Color.FromRgb(140, 60, 0);
+                DistTypeHeaderPanel.Items.Add(new Border
+                {
+                    Width           = ProjColW,
+                    Height          = 20,
+                    Background      = new SolidColorBrush(typeColor),
+                    BorderBrush     = new SolidColorBrush(Color.FromRgb(197, 208, 224)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Child           = new TextBlock
+                    {
+                        Text                = proj.IsOpex ? "OPEX" : "CAPEX",
+                        FontSize            = 10,
+                        FontWeight          = FontWeights.SemiBold,
+                        Foreground          = new SolidColorBrush(typeFg),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment   = VerticalAlignment.Center
+                    }
+                });
+            }
+            DistTypeHeaderPanel.Items.Add(new Border
+            {
+                Width           = TotalColW2,
+                Height          = 20,
+                Background      = new SolidColorBrush(Color.FromRgb(220, 232, 252)),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(197, 208, 224)),
+                BorderThickness = new Thickness(0, 0, 1, 1)
+            });
+
+            // ── Linhas por recurso ──
+            for (int ri = 0; ri < allResources.Count; ri++)
+            {
+                var resName = allResources[ri];
+                double resTotal = visibleProjIdx.Sum(pi => dist[pi][resName]);
+
+                var resBg = new SolidColorBrush(ri % 2 == 0
+                    ? Color.FromRgb(255, 255, 255)
+                    : Color.FromRgb(248, 250, 255));
+
+                // Coluna fixa: nome do recurso
+                DistResPanel.Items.Add(new Border
+                {
+                    Width           = 200,
+                    Height          = RowHeight,
+                    Background      = resBg,
+                    BorderBrush     = new SolidColorBrush(Color.FromRgb(220, 228, 240)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Padding         = new Thickness(8, 0, 4, 0),
+                    ToolTip         = resName,
+                    Child           = new TextBlock
+                    {
+                        Text              = resName,
+                        FontSize          = 12,
+                        FontWeight        = FontWeights.SemiBold,
+                        Foreground        = new SolidColorBrush(Color.FromRgb(40, 70, 130)),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming      = TextTrimming.CharacterEllipsis
+                    }
+                });
+
+                // Células de projeto
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                foreach (var pi in visibleProjIdx)
+                {
+                    double h   = dist[pi][resName];
+                    double pct = resTotal > 0.01 ? h / resTotal * 100 : 0;
+                    string txt = h < 0.05 ? "–" : $"{h:0.#}h\n{pct:0.#}%";
+
+                    var cellBg = h < 0.05 ? resBg
+                        : new SolidColorBrush(Color.FromArgb(
+                            (byte)Math.Min(255, 80 + (int)(pct * 1.6)),
+                            210, 225, 250));
+
+                    row.Children.Add(new Border
+                    {
+                        Width           = ProjColW,
+                        Height          = RowHeight,
+                        Background      = cellBg,
+                        BorderBrush     = new SolidColorBrush(Color.FromRgb(220, 228, 240)),
+                        BorderThickness = new Thickness(0, 0, 1, 1),
+                        Child           = new TextBlock
+                        {
+                            Text                = txt,
+                            FontSize            = 11,
+                            Foreground          = h < 0.05
+                                ? new SolidColorBrush(Color.FromRgb(200, 200, 200))
+                                : new SolidColorBrush(Color.FromRgb(20, 50, 120)),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment   = VerticalAlignment.Center,
+                            TextAlignment       = TextAlignment.Center
+                        }
+                    });
+                }
+
+                // Célula TOTAL
+                row.Children.Add(MakeTotalCell(resTotal, TotalColW2, RowHeight));
+                DistDataPanel.Items.Add(row);
+            }
+
+            // ── Linha TOTAL GERAL ──
+            var totalBg2 = new SolidColorBrush(Color.FromRgb(43, 87, 154));
+            DistResPanel.Items.Add(MakeCell("TOTAL GERAL", 200, RowHeight + 2, totalBg2,
+                bold: true, fg: Colors.White, leftPad: 8));
+
+            double grandTotal2 = 0;
+            var grandRow2 = new StackPanel { Orientation = Orientation.Horizontal };
+            foreach (var pi in visibleProjIdx)
+            {
+                double projSum = allResources.Sum(r => dist[pi][r]);
+                grandTotal2 += projSum;
+                grandRow2.Children.Add(MakeTotalCell(projSum, ProjColW, RowHeight + 2,
+                    bold: true, fg: Colors.White, bg: Color.FromRgb(43, 87, 154)));
+            }
+            grandRow2.Children.Add(MakeTotalCell(grandTotal2, TotalColW2, RowHeight + 2,
+                bold: true, fg: Colors.White, bg: Color.FromRgb(25, 60, 120)));
+            DistDataPanel.Items.Add(grandRow2);
+        }
+
         // ── Sincronização de scroll ───────────────────────────────────────────
         private bool _scrolling;
         private void OnMainScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -574,11 +791,27 @@ namespace NXProject.Views
             _scrolling = false;
         }
 
+        private void OnDistScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scrolling) return;
+            _scrolling = true;
+            DistProjHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
+            DistTypeHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
+            DistResScroll.ScrollToVerticalOffset(e.VerticalOffset);
+            _scrolling = false;
+        }
+
+        private void OnTabChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (MainTabControl.SelectedIndex == 1)
+                BuildDistributionGrid();
+        }
+
         // ── Handlers ──────────────────────────────────────────────────────────
         private void OnSelectProjectsClick(object sender, RoutedEventArgs e)
         {
-            var opts        = TfsConnectionStore.Load();
-            var devOpsList  = DevOpsProjectListService.Load(opts.DevOpsProjectListPath);
+            var opts       = TfsConnectionStore.Load();
+            var devOpsList = DevOpsProjectListService.Load(opts.DevOpsProjectListPath);
 
             if (devOpsList.Count == 0)
             {
@@ -592,14 +825,15 @@ namespace NXProject.Views
             var win = new ProjectPickerWindow(devOpsList, opts.PortfolioProjectConfigs) { Owner = this };
             if (win.ShowDialog() != true) return;
 
-            // Substitui configs pelos selecionados; preserva OPEX/CC dos não selecionados
+            // Merge: update OPEX/CC from picker; add new; remove deselected
             foreach (var newCfg in win.SelectedConfigs)
             {
                 var existing = opts.PortfolioProjectConfigs.FirstOrDefault(c =>
                     string.Equals(c.ProjectName, newCfg.ProjectName, StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
-                    existing.FilePath = newCfg.FilePath;
+                    existing.IsOpex     = newCfg.IsOpex;
+                    existing.CostCenter = newCfg.CostCenter;
                 }
                 else
                 {
@@ -607,7 +841,6 @@ namespace NXProject.Views
                 }
             }
 
-            // Remove projetos desmarcados (não presentes em SelectedConfigs)
             var selectedNames = win.SelectedConfigs
                 .Select(c => c.ProjectName)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -616,8 +849,118 @@ namespace NXProject.Views
                 && !selectedNames.Contains(c.ProjectName));
 
             TfsConnectionStore.Save(opts, !string.IsNullOrEmpty(opts.PersonalAccessToken));
-            LoadProjects(opts);
+
+            int count = opts.PortfolioProjectConfigs.Count;
+            StatusText.Text = $"{count} projeto(s) selecionado(s). Clique em '☁ Importar do DevOps' para carregar os dados.";
+        }
+
+        private async void OnImportFromDevOpsClick(object sender, RoutedEventArgs e)
+        {
+            var opts = TfsConnectionStore.Load();
+
+            if (string.IsNullOrWhiteSpace(opts.OrganizationUrl) ||
+                string.IsNullOrWhiteSpace(opts.PersonalAccessToken))
+            {
+                MessageBox.Show(
+                    "Conexão com o Azure DevOps não configurada.\n\n" +
+                    "Acesse Exportar → Sincronizar para configurar o PAT e a URL da organização.",
+                    "Configuração necessária", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (opts.PortfolioProjectConfigs.Count == 0)
+            {
+                MessageBox.Show("Nenhum projeto selecionado. Use '☑ Selecionar Projetos' primeiro.",
+                    "Sem projetos", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var devOpsList = DevOpsProjectListService.Load(opts.DevOpsProjectListPath);
+
+            var toImport = new List<(PortfolioProjectConfig Cfg, int RootId)>();
+            var skipped  = new List<string>();
+
+            foreach (var cfg in opts.PortfolioProjectConfigs)
+            {
+                var dp = devOpsList.FirstOrDefault(d =>
+                    string.Equals(d.Name, cfg.ProjectName, StringComparison.OrdinalIgnoreCase));
+                if (dp == null || dp.RootWorkItemId <= 0)
+                    skipped.Add(cfg.ProjectName);
+                else
+                    toImport.Add((cfg, dp.RootWorkItemId));
+            }
+
+            if (toImport.Count == 0)
+            {
+                MessageBox.Show(
+                    "Nenhum projeto selecionado tem ID raiz configurado.\n\n" +
+                    "Edite a lista de projetos DevOps (Visualizar → Projetos DevOps) e informe o ID raiz de cada projeto.",
+                    "ID raiz não configurado", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            ImportBtn.IsEnabled = false;
+            var errors = new List<string>();
+            var imported = new List<LoadedProject>();
+
+            for (int i = 0; i < toImport.Count; i++)
+            {
+                var (cfg, rootId) = toImport[i];
+                StatusText.Text = $"Importando {i + 1}/{toImport.Count}: {cfg.ProjectName}...";
+                await Task.Yield(); // permite atualizar a UI
+
+                var importOpts = new TfsConnectionOptions
+                {
+                    OrganizationUrl      = opts.OrganizationUrl,
+                    TeamProject          = opts.TeamProject,
+                    PersonalAccessToken  = opts.PersonalAccessToken,
+                    RootWorkItemId       = rootId,
+                    HoursPerDay          = opts.HoursPerDay,
+                    EffortFieldName      = opts.EffortFieldName,
+                    StartFieldName       = opts.StartFieldName,
+                    FinishFieldName      = opts.FinishFieldName,
+                    PercAlocFieldName    = opts.PercAlocFieldName,
+                    SyncVersionFieldName = opts.SyncVersionFieldName,
+                    SyncNameFieldName    = opts.SyncNameFieldName,
+                    FixedStartTagName    = opts.FixedStartTagName,
+                    FixedFinishTagName   = opts.FixedFinishTagName,
+                    SyncPredecessorLinks = false,
+                    FutureSprintDays     = 0
+                };
+
+                try
+                {
+                    var result = await TfsImportService.ImportAsync(importOpts);
+                    imported.Add(new LoadedProject
+                    {
+                        FilePath   = string.Empty,
+                        Name       = cfg.ProjectName,
+                        IsOpex     = cfg.IsOpex,
+                        CostCenter = cfg.CostCenter,
+                        Data       = result.Project
+                    });
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{cfg.ProjectName}: {ex.Message}");
+                }
+            }
+
+            ImportBtn.IsEnabled = true;
+            _projects = imported;
             BuildGrid();
+
+            var sb = new StringBuilder();
+            sb.Append($"{imported.Count} projeto(s) importado(s) do DevOps");
+            if (skipped.Count > 0)
+                sb.Append($"  ·  {skipped.Count} sem ID raiz (ignorado)");
+            if (errors.Count > 0)
+                sb.Append($"  ·  {errors.Count} erro(s)");
+            StatusText.Text = sb.ToString();
+
+            if (errors.Count > 0)
+                MessageBox.Show("Erros durante a importação:\n\n" + string.Join("\n", errors),
+                    "Importação parcial", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void OnPeriodChanged(object sender, SelectionChangedEventArgs e) { }
@@ -637,11 +980,11 @@ namespace NXProject.Views
             foreach (var proj in _projects)
             {
                 var cfg = opts.PortfolioProjectConfigs
-                    .FirstOrDefault(c => string.Equals(c.FilePath, proj.FilePath,
+                    .FirstOrDefault(c => string.Equals(c.ProjectName, proj.Name,
                                          StringComparison.OrdinalIgnoreCase));
                 if (cfg == null)
                 {
-                    cfg = new PortfolioProjectConfig { FilePath = proj.FilePath };
+                    cfg = new PortfolioProjectConfig { ProjectName = proj.Name };
                     opts.PortfolioProjectConfigs.Add(cfg);
                 }
                 cfg.IsOpex     = proj.IsOpex;

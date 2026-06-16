@@ -107,7 +107,8 @@ namespace NXProject.Views
                 return;
             }
 
-            var dlg = new DevOpsProjectEditWindow(selected.Name, selected.RootWorkItemId) { Owner = this };
+            var dlg = new DevOpsProjectEditWindow(selected.Name, selected.RootWorkItemId,
+                                                  selected.IsOpex, selected.CostCenter) { Owner = this };
             if (dlg.ShowDialog() == true && dlg.Result != null)
             {
                 var idx = _projects.IndexOf(selected);
