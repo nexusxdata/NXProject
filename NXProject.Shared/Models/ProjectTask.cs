@@ -62,6 +62,11 @@ namespace NXProject.Models
         // false → limpa Data_Inicio no TFS (se tarefa não estiver Closed).
         public bool StartFixed { get; set; } = false;
 
+        // Fim calculado com base em HH + % alocação, ignorando a data fixada.
+        // Preenchido apenas quando StartFixed = true e o fim calculado difere do Finish.
+        // Usado pelo Gantt para colorir a barra de vermelho e exibir hint.
+        public DateTime? CalculatedFinish { get; set; }
+
         // Data de fim fixada (prazo comprometido). true → envia Data_Fim + tag DT_FIM_NEG ao TFS.
         public bool FinishFixed { get; set; } = false;
 

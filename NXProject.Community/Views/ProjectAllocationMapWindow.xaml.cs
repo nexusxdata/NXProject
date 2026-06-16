@@ -372,7 +372,11 @@ namespace NXProject.Views
                     {
                         double h = monthHours[mi];
                         resTotal += h;
-                        resRow.Children.Add(MakeHoursCell(h, ColWidth, RowHeight, resBg));
+                        var mStart = _months[mi];
+                        var mEnd   = new DateTime(mStart.Year, mStart.Month,
+                                         DateTime.DaysInMonth(mStart.Year, mStart.Month));
+                        resRow.Children.Add(MakeHoursCellClickable(h, ColWidth, RowHeight,
+                            resBg, proj, resName, mStart, mEnd));
                     }
                     resRow.Children.Add(MakeTotalCell(resTotal, TotalColW, RowHeight));
                     DataRowsPanel.Items.Add(resRow);
@@ -524,6 +528,204 @@ namespace NXProject.Views
                     Margin              = new Thickness(0, 0, 6, 0)
                 }
             };
+        }
+
+        // Versão clicável: abre popup com stories do recurso naquele mês
+        private Border MakeHoursCellClickable(double hours, double width, double height,
+            Brush rowBg, LoadedProject proj, string resName, DateTime monthStart, DateTime monthEnd)
+        {
+            string text   = hours < 0.05 ? "–" : $"{hours:0.#}h";
+            bool hasHours = hours >= 0.05;
+            var fg = hasHours
+                ? new SolidColorBrush(Color.FromRgb(40, 100, 200))
+                : new SolidColorBrush(Color.FromRgb(200, 200, 200));
+
+            var tb = new TextBlock
+            {
+                Text                = text,
+                FontSize            = 11,
+                Foreground          = fg,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment   = VerticalAlignment.Center,
+                Margin              = new Thickness(0, 0, 6, 0),
+                TextDecorations     = hasHours ? TextDecorations.Underline : null
+            };
+            var border = new Border
+            {
+                Width           = width,
+                Height          = height,
+                Background      = rowBg,
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(220, 228, 240)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Cursor          = hasHours ? System.Windows.Input.Cursors.Hand : null,
+                Child           = tb
+            };
+            if (hasHours)
+                border.MouseLeftButtonUp += (_, _) =>
+                    ShowStoriesPopup(proj, resName, monthStart, monthEnd);
+            return border;
+        }
+
+        // ── Lista de stories de um recurso num mês ────────────────────────────
+        private static List<ProjectTask> GetStoriesInMonth(Project project, string resName,
+            DateTime monthStart, DateTime monthEnd)
+        {
+            var result = new List<ProjectTask>();
+            foreach (var task in GetLeafTasks(project.Tasks))
+            {
+                bool hasRes = task.Resources.Any(r =>
+                    string.Equals(r.Resource?.Name, resName, StringComparison.OrdinalIgnoreCase));
+                if (!hasRes) continue;
+
+                var tStart = task.Start.Date;
+                var tEnd   = task.Finish.Date;
+                if (tEnd < monthStart || tStart > monthEnd) continue;
+
+                result.Add(task);
+            }
+            return result;
+        }
+
+        // ── Popup de stories ──────────────────────────────────────────────────
+        private void ShowStoriesPopup(LoadedProject proj, string resName,
+            DateTime monthStart, DateTime monthEnd)
+        {
+            var stories = GetStoriesInMonth(proj.Data, resName, monthStart, monthEnd);
+
+            var opts   = TfsConnectionStore.Load();
+            var orgUrl = opts.OrganizationUrl?.TrimEnd('/') ?? "";
+            var tp     = opts.TeamProject ?? "";
+
+            var win = new Window
+            {
+                Title                 = $"{resName}  ·  {monthStart:MMM/yyyy}  ·  {proj.Name}",
+                Width                 = 760,
+                Height                = 420,
+                MinWidth              = 500,
+                MinHeight             = 300,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = this,
+                Background            = System.Windows.Media.Brushes.White,
+                ResizeMode            = ResizeMode.CanResize
+            };
+
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            // Título
+            var header = new TextBlock
+            {
+                Text       = $"Stories de {resName}  —  {monthStart:MMMM/yyyy}  —  {proj.Name}",
+                FontSize   = 13,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                Margin     = new Thickness(0, 0, 0, 10)
+            };
+            Grid.SetRow(header, 0);
+            grid.Children.Add(header);
+
+            // Lista
+            var sv = new ScrollViewer
+            {
+                VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+            var panel = new StackPanel();
+
+            // Cabeçalho da tabela
+            panel.Children.Add(MakeStoryRow(
+                "Story / Tarefa", "HH Est.", "Início", "Fim", "DevOps",
+                isHeader: true, devOpsUrl: null));
+
+            if (stories.Count == 0)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text    = "Nenhuma story encontrada para este período.",
+                    Margin  = new Thickness(8, 6, 8, 0),
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Color.FromRgb(120, 120, 120))
+                });
+            }
+            else
+            {
+                foreach (var task in stories.OrderBy(t => t.Start))
+                {
+                    string hh    = task.EstimatedHours.HasValue ? $"{task.EstimatedHours.Value:0.#}h" : "–";
+                    string start = task.Start.ToString("dd/MM/yy");
+                    string fin   = task.Finish.ToString("dd/MM/yy");
+                    string? url  = task.TfsId.HasValue && !string.IsNullOrWhiteSpace(orgUrl)
+                        ? $"{orgUrl}/{Uri.EscapeDataString(tp)}/_workitems/edit/{task.TfsId.Value}"
+                        : null;
+                    panel.Children.Add(MakeStoryRow(task.Name, hh, start, fin, url != null ? "↗" : "", isHeader: false, devOpsUrl: url));
+                }
+            }
+
+            sv.Content = panel;
+            Grid.SetRow(sv, 1);
+            grid.Children.Add(sv);
+
+            win.Content = grid;
+            win.ShowDialog();
+        }
+
+        private static UIElement MakeStoryRow(string name, string hh, string start, string fin,
+            string devOps, bool isHeader, string? devOpsUrl)
+        {
+            var bg = isHeader
+                ? new SolidColorBrush(Color.FromRgb(43, 87, 154))
+                : (Brush)System.Windows.Media.Brushes.Transparent;
+            var fgColor = isHeader ? Colors.White : Color.FromRgb(30, 30, 30);
+            var fw = isHeader ? FontWeights.SemiBold : FontWeights.Normal;
+
+            var row = new Border
+            {
+                Background      = bg,
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                BorderThickness = new Thickness(0, 0, 0, 1)
+            };
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+
+            UIElement NameCell(string t, double w) => new Border
+            {
+                Width = w, Padding = new Thickness(6, 4, 6, 4),
+                Child = new TextBlock { Text = t, FontSize = 11, FontWeight = fw,
+                    Foreground = new SolidColorBrush(fgColor),
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    VerticalAlignment = VerticalAlignment.Center, ToolTip = t }
+            };
+
+            sp.Children.Add(NameCell(name, 340));
+            sp.Children.Add(NameCell(hh, 70));
+            sp.Children.Add(NameCell(start, 76));
+            sp.Children.Add(NameCell(fin, 76));
+
+            if (!isHeader && !string.IsNullOrEmpty(devOpsUrl))
+            {
+                var btn = new Button
+                {
+                    Content   = "↗ DevOps",
+                    FontSize  = 10,
+                    Padding   = new Thickness(6, 2, 6, 2),
+                    Margin    = new Thickness(4, 2, 4, 2),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Cursor    = System.Windows.Input.Cursors.Hand
+                };
+                btn.Click += (_, _) =>
+                {
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(devOpsUrl) { UseShellExecute = true }); }
+                    catch { }
+                };
+                sp.Children.Add(btn);
+            }
+            else if (isHeader)
+            {
+                sp.Children.Add(NameCell(devOps, 90));
+            }
+
+            row.Child = sp;
+            return row;
         }
 
         private static Border MakeTotalCell(double hours, double width, double height,
@@ -940,7 +1142,377 @@ namespace NXProject.Views
         {
             if (MainTabControl.SelectedIndex == 1)
                 BuildDistributionGrid();
+            else if (MainTabControl.SelectedIndex == 2)
+                BuildStoriesGrid();
         }
+
+        private void OnSrScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scrolling) return;
+            _scrolling = true;
+            SrHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
+            SrLeftScroll.ScrollToVerticalOffset(e.VerticalOffset);
+            _scrolling = false;
+        }
+
+        // ── Aba 3: Stories por Recurso ────────────────────────────────────────
+        private const double SrResW   = 160;
+        private const double SrProjW  = 160;
+        private const double SrStoryW = 260;
+        private const double SrMonthW = 72;
+        private const double SrTotalW = 72;
+        private const double SrRowH   = 22;
+
+        private void BuildStoriesGrid()
+        {
+            SrHeaderPanel.Items.Clear();
+            SrLeftPanel.Items.Clear();
+            SrDataPanel.Items.Clear();
+
+            if (_projects.Count == 0) return;
+
+            var (periodStart, periodEnd) = GetPeriod();
+            bool hideZero = OnlyWithHoursBox.IsChecked == true;
+            var months = BuildMonths(periodStart, periodEnd);
+
+            // Monta estrutura: recurso → projeto → lista de stories com horas/mês
+            // story entry: (task, double[months])
+            var byRes = new SortedDictionary<string, List<(LoadedProject Proj, ProjectTask Task, double[] MonthHours)>>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var proj in _projects)
+            {
+                foreach (var task in GetLeafTasks(proj.Data.Tasks))
+                {
+                    foreach (var tr in task.Resources)
+                    {
+                        var rname = tr.Resource?.Name;
+                        if (string.IsNullOrWhiteSpace(rname)) continue;
+
+                        var mh = new double[months.Count];
+                        bool any = false;
+                        for (int mi = 0; mi < months.Count; mi++)
+                        {
+                            var ms = months[mi];
+                            var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                            double h = ComputeHoursForTask(task, tr, ms, me);
+                            mh[mi] = h;
+                            if (h > 0.01) any = true;
+                        }
+                        if (hideZero && !any) continue;
+
+                        if (!byRes.TryGetValue(rname, out var list))
+                            byRes[rname] = list = [];
+                        list.Add((proj, task, mh));
+                    }
+                }
+            }
+
+            // Quais meses têm dados
+            var visMi = Enumerable.Range(0, months.Count)
+                .Where(mi => !hideZero || byRes.Values.Any(l => l.Any(x => x.MonthHours[mi] > 0.01)))
+                .ToList();
+
+            // ── Cabeçalho de meses ──
+            foreach (var mi in visMi)
+            {
+                SrHeaderPanel.Items.Add(new Border
+                {
+                    Width = SrMonthW, Height = 22,
+                    Background = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Child = new TextBlock
+                    {
+                        Text = months[mi].ToString("MMM/yy"), FontSize = 11,
+                        FontWeight = FontWeights.SemiBold, Foreground = Brushes.White,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                });
+            }
+            SrHeaderPanel.Items.Add(SrMakeMonthHeader("TOTAL", SrTotalW, Color.FromRgb(25, 60, 120)));
+
+            // ── Linhas ──
+            var grandByMonth = new double[months.Count];
+
+            foreach (var (resName, entries) in byRes)
+            {
+                // Agrupa por projeto
+                var byProj = entries
+                    .GroupBy(e => e.Proj.Name, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(g => g.Key);
+
+                // Totais do recurso por mês
+                var resByMonth = new double[months.Count];
+                foreach (var e in entries)
+                    for (int mi = 0; mi < months.Count; mi++)
+                        resByMonth[mi] += e.MonthHours[mi];
+
+                bool resFirst = true;
+                foreach (var projGroup in byProj)
+                {
+                    var projEntries = projGroup.ToList();
+                    var projByMonth = new double[months.Count];
+                    foreach (var e in projEntries)
+                        for (int mi = 0; mi < months.Count; mi++)
+                            projByMonth[mi] += e.MonthHours[mi];
+
+                    bool projFirst = true;
+                    foreach (var (proj, task, mh) in projEntries.OrderBy(e => e.Task.Start))
+                    {
+                        // Coluna fixa
+                        var leftBg = new SolidColorBrush(Color.FromRgb(248, 250, 255));
+                        var leftRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+                        // Célula Recurso — só na primeira linha do recurso
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrResW, Height = SrRowH,
+                            Background = leftBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                            BorderThickness = new Thickness(0, 0, 1, 1),
+                            Padding = new Thickness(6, 0, 4, 0),
+                            Child = new TextBlock
+                            {
+                                Text = resFirst && projFirst ? resName : "",
+                                FontSize = 11, FontWeight = FontWeights.SemiBold,
+                                Foreground = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                TextTrimming = TextTrimming.CharacterEllipsis,
+                                ToolTip = resFirst && projFirst ? resName : null
+                            }
+                        });
+
+                        // Célula Projeto — só na primeira linha do projeto
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrProjW, Height = SrRowH,
+                            Background = leftBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                            BorderThickness = new Thickness(0, 0, 1, 1),
+                            Padding = new Thickness(4, 0, 4, 0),
+                            Child = new TextBlock
+                            {
+                                Text = projFirst ? projGroup.Key : "",
+                                FontSize = 11,
+                                Foreground = new SolidColorBrush(Color.FromRgb(60, 100, 170)),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                TextTrimming = TextTrimming.CharacterEllipsis,
+                                ToolTip = projFirst ? projGroup.Key : null
+                            }
+                        });
+
+                        // Célula Story
+                        string storyLabel = task.Name ?? $"#{task.TfsId}";
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrStoryW, Height = SrRowH,
+                            Background = leftBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                            BorderThickness = new Thickness(0, 0, 1, 1),
+                            Padding = new Thickness(4, 0, 4, 0),
+                            ToolTip = $"{storyLabel}\nInício: {task.Start:dd/MM/yy}  Fim: {task.Finish:dd/MM/yy}  HH: {task.EstimatedHours?.ToString("0.#") ?? "–"}h",
+                            Child = new TextBlock
+                            {
+                                Text = storyLabel, FontSize = 10,
+                                Foreground = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                TextTrimming = TextTrimming.CharacterEllipsis
+                            }
+                        });
+
+                        SrLeftPanel.Items.Add(leftRow);
+
+                        // Dados (meses)
+                        var dataRow = new StackPanel { Orientation = Orientation.Horizontal };
+                        double rowTotal = 0;
+                        foreach (var mi in visMi)
+                        {
+                            double h = mh[mi];
+                            rowTotal += h;
+                            dataRow.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
+                                SrMonthW, h > 0.01 ? Color.FromRgb(40, 100, 200) : Color.FromRgb(200, 200, 200),
+                                Color.FromRgb(248, 250, 255), bold: false));
+                        }
+                        dataRow.Children.Add(SrMakeCell(rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
+                            SrTotalW, Color.FromRgb(20, 50, 110), Color.FromRgb(230, 238, 252), bold: true));
+                        SrDataPanel.Items.Add(dataRow);
+
+                        projFirst = false;
+                        resFirst  = false;
+                    }
+
+                    // Sub-total do projeto
+                    var projTotalBg = Color.FromRgb(220, 230, 248);
+                    var leftProjTotal = new StackPanel { Orientation = Orientation.Horizontal };
+                    leftProjTotal.Children.Add(new Border { Width = SrResW, Height = SrRowH, Background = new SolidColorBrush(projTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(180,200,230)), BorderThickness = new Thickness(0,0,1,1) });
+                    leftProjTotal.Children.Add(new Border
+                    {
+                        Width = SrProjW, Height = SrRowH,
+                        Background = new SolidColorBrush(projTotalBg),
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
+                        BorderThickness = new Thickness(0, 0, 1, 1),
+                        Padding = new Thickness(4, 0, 4, 0),
+                        Child = new TextBlock { Text = projGroup.Key, FontSize = 10, FontWeight = FontWeights.SemiBold,
+                            Foreground = new SolidColorBrush(Color.FromRgb(30, 60, 130)),
+                            VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }
+                    });
+                    leftProjTotal.Children.Add(new Border
+                    {
+                        Width = SrStoryW, Height = SrRowH,
+                        Background = new SolidColorBrush(projTotalBg),
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
+                        BorderThickness = new Thickness(0, 0, 1, 1),
+                        Padding = new Thickness(4, 0, 4, 0),
+                        Child = new TextBlock { Text = "Subtotal", FontSize = 10, FontStyle = FontStyles.Italic,
+                            Foreground = new SolidColorBrush(Color.FromRgb(60, 90, 150)),
+                            VerticalAlignment = VerticalAlignment.Center }
+                    });
+                    SrLeftPanel.Items.Add(leftProjTotal);
+
+                    var projDataTotal = new StackPanel { Orientation = Orientation.Horizontal };
+                    double ptotal = 0;
+                    foreach (var mi in visMi)
+                    {
+                        double h = projByMonth[mi];
+                        ptotal += h;
+                        projDataTotal.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
+                            SrMonthW, Color.FromRgb(30, 60, 130), projTotalBg, bold: true));
+                    }
+                    projDataTotal.Children.Add(SrMakeCell(ptotal > 0.01 ? $"{ptotal:0.#}h" : "–",
+                        SrTotalW, Color.FromRgb(20, 40, 100), Color.FromRgb(205, 218, 245), bold: true));
+                    SrDataPanel.Items.Add(projDataTotal);
+                }
+
+                // Total do recurso
+                var resTotalBg = Color.FromRgb(43, 87, 154);
+                var leftResTotal = new StackPanel { Orientation = Orientation.Horizontal };
+                leftResTotal.Children.Add(new Border
+                {
+                    Width = SrResW, Height = SrRowH + 2,
+                    Background = new SolidColorBrush(resTotalBg),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Padding = new Thickness(6, 0, 4, 0),
+                    Child = new TextBlock { Text = resName, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis }
+                });
+                leftResTotal.Children.Add(new Border { Width = SrProjW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(29,63,115)), BorderThickness = new Thickness(0,0,1,1) });
+                leftResTotal.Children.Add(new Border
+                {
+                    Width = SrStoryW, Height = SrRowH + 2,
+                    Background = new SolidColorBrush(resTotalBg),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Padding = new Thickness(4, 0, 4, 0),
+                    Child = new TextBlock { Text = "TOTAL", FontSize = 11, FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center }
+                });
+                SrLeftPanel.Items.Add(leftResTotal);
+
+                var resDataTotal = new StackPanel { Orientation = Orientation.Horizontal };
+                double rtotal = 0;
+                foreach (var mi in visMi)
+                {
+                    double h = resByMonth[mi];
+                    rtotal += h;
+                    grandByMonth[mi] += h;
+                    resDataTotal.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
+                        SrMonthW, Colors.White, resTotalBg, bold: true));
+                }
+                resDataTotal.Children.Add(SrMakeCell(rtotal > 0.01 ? $"{rtotal:0.#}h" : "–",
+                    SrTotalW, Colors.White, Color.FromRgb(25, 60, 120), bold: true));
+                SrDataPanel.Items.Add(resDataTotal);
+
+                // Separador
+                SrLeftPanel.Items.Add(new Border { Height = 2, Background = new SolidColorBrush(Color.FromRgb(180, 200, 230)) });
+                SrDataPanel.Items.Add(new Border { Height = 2, Background = new SolidColorBrush(Color.FromRgb(180, 200, 230)) });
+            }
+
+            // TOTAL GERAL
+            var gtBg = Color.FromRgb(25, 60, 120);
+            var gtLeft = new StackPanel { Orientation = Orientation.Horizontal };
+            gtLeft.Children.Add(new Border
+            {
+                Width = SrResW + SrProjW, Height = SrRowH + 2,
+                Background = new SolidColorBrush(gtBg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(15, 40, 90)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Padding = new Thickness(6, 0, 4, 0),
+                Child = new TextBlock { Text = "TOTAL GERAL", FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center }
+            });
+            gtLeft.Children.Add(new Border { Width = SrStoryW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg), BorderBrush = new SolidColorBrush(Color.FromRgb(15,40,90)), BorderThickness = new Thickness(0,0,1,1) });
+            SrLeftPanel.Items.Add(gtLeft);
+
+            var gtData = new StackPanel { Orientation = Orientation.Horizontal };
+            double gtotal = 0;
+            foreach (var mi in visMi)
+            {
+                double h = grandByMonth[mi];
+                gtotal += h;
+                gtData.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
+                    SrMonthW, Colors.White, gtBg, bold: true));
+            }
+            gtData.Children.Add(SrMakeCell(gtotal > 0.01 ? $"{gtotal:0.#}h" : "–",
+                SrTotalW, Colors.White, Color.FromRgb(15, 40, 90), bold: true));
+            SrDataPanel.Items.Add(gtData);
+        }
+
+        private static double ComputeHoursForTask(ProjectTask task, TaskResource tr,
+            DateTime monthStart, DateTime monthEnd)
+        {
+            double hours = tr.EstimatedHours ?? 0;
+            if (hours <= 0) return 0;
+
+            var tStart = task.Start.Date;
+            var tEnd   = task.Finish.Date;
+            if (tEnd < monthStart || tStart > monthEnd) return 0;
+
+            if (tStart >= tEnd) return hours;
+
+            var overlapStart = tStart < monthStart ? monthStart : tStart;
+            var overlapEnd   = tEnd   > monthEnd   ? monthEnd   : tEnd;
+            double overlapDays = Math.Max(0, (overlapEnd - overlapStart).TotalDays + 1);
+            double totalDays   = Math.Max(1, (tEnd - tStart).TotalDays + 1);
+            return hours * (overlapDays / totalDays);
+        }
+
+        private static Border SrMakeCell(string text, double width, Color fg, Color bg, bool bold)
+            => new Border
+            {
+                Width = width, Height = SrRowH,
+                Background = new SolidColorBrush(bg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Child = new TextBlock
+                {
+                    Text = text, FontSize = 11,
+                    FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
+                    Foreground = new SolidColorBrush(fg),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0)
+                }
+            };
+
+        private static Border SrMakeMonthHeader(string text, double width, Color bg)
+            => new Border
+            {
+                Width = width, Height = 22,
+                Background = new SolidColorBrush(bg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Child = new TextBlock
+                {
+                    Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
 
         // ── Handlers ──────────────────────────────────────────────────────────
         private void OnSelectProjectsClick(object sender, RoutedEventArgs e)

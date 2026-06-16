@@ -201,6 +201,8 @@ namespace NXProject.ViewModels
 
         public bool HasSyncConflict => _task.HasSyncConflict;
 
+        public DateTime? CalculatedFinish => _task.CalculatedFinish;
+
         public string Name
         {
             get => _task.Name;

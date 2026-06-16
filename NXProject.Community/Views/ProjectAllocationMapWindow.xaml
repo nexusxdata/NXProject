@@ -217,6 +217,64 @@
                 </Grid>
             </TabItem>
 
+            <!-- ══ ABA 3: Stories por Recurso ══ -->
+            <TabItem Header="Stories por Recurso">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="22"/>  <!-- Cabeçalho meses -->
+                        <RowDefinition Height="*"/>   <!-- Dados -->
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="580"/>  <!-- Recurso + Projeto + Story (fixo) -->
+                        <ColumnDefinition Width="*"/>    <!-- Meses (rola) -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Cabeçalho fixo -->
+                    <Border Grid.Row="0" Grid.Column="0" Background="#2B579A" BorderBrush="#1D3F73" BorderThickness="0,0,1,1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Recurso" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       Width="160" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            <TextBlock Text="Projeto" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       Width="160" VerticalAlignment="Center"/>
+                            <TextBlock Text="Story / Tarefa" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Cabeçalho de meses (rola horizontal) -->
+                    <ScrollViewer x:Name="SrHeaderScroll" Grid.Row="0" Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="SrHeaderPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Coluna fixa (rola vertical) -->
+                    <ScrollViewer x:Name="SrLeftScroll" Grid.Row="1" Grid.Column="0"
+                                  VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="SrLeftPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Dados (rola ambos) -->
+                    <ScrollViewer x:Name="SrMainScroll" Grid.Row="1" Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  ScrollChanged="OnSrScrollChanged">
+                        <ItemsControl x:Name="SrDataPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
         </TabControl>
 
         <!-- Status bar -->

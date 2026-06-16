@@ -87,9 +87,11 @@ namespace NXProject.Views
 
         private void UpdateSubtitle(List<StoryStatusMapping> mappings)
         {
-            SubtitleText.Text = mappings.Count > 0
+            var projectName = string.IsNullOrWhiteSpace(_vm.Project.Name) ? null : _vm.Project.Name.Trim();
+            var projectPart = projectName != null ? $"Projeto: {projectName}  ·  " : "";
+            SubtitleText.Text = projectPart + (mappings.Count > 0
                 ? $"{mappings.Count} mapeamento(s) configurado(s)  ·  estados sem mapeamento usam o nome original do TFS"
-                : "Sem mapeamentos configurados · agrupando pelos estados originais do TFS  ·  tarefas sem TFS: 0%=Novo, >0%=Ativo, 100%=Fechado";
+                : "Sem mapeamentos configurados · agrupando pelos estados originais do TFS  ·  tarefas sem TFS: 0%=Novo, >0%=Ativo, 100%=Fechado");
         }
 
         private List<StatusBucket> ComputeBuckets(List<StoryStatusMapping> mappings)

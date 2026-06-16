@@ -53,6 +53,8 @@ namespace NXProject.Services
             { "Data_Fim", "Data Fim", "DataFim" };
         private static readonly string[] PercAlocFieldNames =
             { "Perc_Alocação", "Perc_Aloc", "PercAloc", "Perc Aloc", "Percentual Alocacao", "Percentual_Alocacao" };
+        private static readonly string[] PercConclusaoFieldNames =
+            { "Perc_Conclusao", "Perc_Conclusão", "PercConclusao", "Percentual Conclusao", "Percentual_Conclusao" };
 
         public static async Task<ImportResult> ImportAsync(
             TfsConnectionOptions options,
@@ -75,6 +77,7 @@ namespace NXProject.Services
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
+            var percConclusaoRef = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
 
             // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
             // (ancora das Stories sem data); as numeradas/exibidas serao so as
@@ -167,6 +170,7 @@ namespace NXProject.Services
                 StartRef = startRef,
                 FinishRef = finishRef,
                 PercAlocRef = percAlocRef,
+                PercConclusaoRef = percConclusaoRef,
                 SyncVersionRef = syncVersionRef,
                 HoursPerDay = options.HoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : options.HoursPerDay,
                 ProjectStart = project.StartDate,
@@ -336,6 +340,7 @@ namespace NXProject.Services
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
+            var percConclusaoRef = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
             var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
             var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
 
@@ -350,7 +355,7 @@ namespace NXProject.Services
                 .ToDictionary(g => g.Key, g => g.First());
 
             var report = new SyncReport();
-            report.LogSuccess($"[config] hoursRef={hoursRef ?? "(não resolvido)"} | startRef={startRef ?? "(não resolvido)"} | finishRef={finishRef ?? "(não resolvido)"} | percAlocRef={percAlocRef ?? "(não resolvido)"}");
+            report.LogSuccess($"[config] hoursRef={hoursRef ?? "(não resolvido)"} | startRef={startRef ?? "(não resolvido)"} | finishRef={finishRef ?? "(não resolvido)"} | percAlocRef={percAlocRef ?? "(não resolvido)"} | percConclusaoRef={percConclusaoRef ?? "(não resolvido)"}");
 
             if (tasks.Count == 0)
             {
@@ -505,6 +510,18 @@ namespace NXProject.Services
                         }
                     }
 
+                    if (percConclusaoRef != null)
+                    {
+                        var percConc = (int)Math.Round(Math.Clamp(task.PercentComplete, 0, 100));
+                        var currentConc = ReadDouble(wi, percConclusaoRef);
+                        if (currentConc == null || Math.Abs(currentConc.Value - percConc) > 0.5)
+                        {
+                            ops.Add(PatchAdd($"/fields/{percConclusaoRef}", percConc));
+                            var oldC = currentConc.HasValue ? $"{currentConc.Value:0}%→" : "";
+                            changes.Add($"% conclusão: {oldC}{percConc}%");
+                        }
+                    }
+
                     if (startRef != null)
                     {
                         var currentStart = ReadDate(wi, startRef);
@@ -531,12 +548,8 @@ namespace NXProject.Services
                                     : $"início: {task.Start:dd/MM}");
                             }
                         }
-                        else if (currentStart != null)
-                        {
-                            // Início alinhado com sprint, não fixado e não encerrada → limpa campo no TFS.
-                            ops.Add(PatchAdd($"/fields/{startRef}", string.Empty));
-                            changes.Add("início: limpo (alinhado com sprint)");
-                        }
+                        // Não limpa Data_Inicio mesmo quando a data coincide com a sprint:
+                        // o campo pode ter sido definido explicitamente pelo usuário no DevOps.
                     }
 
                     // Tag de data fixada: presente quando StartFixed (📌), ausente quando calculado.
@@ -1198,6 +1211,7 @@ namespace NXProject.Services
             public string? StartRef;
             public string? FinishRef;
             public string? PercAlocRef;
+            public string? PercConclusaoRef;
             public string? SyncVersionRef;
             public double HoursPerDay = 8.0;
             public DateTime ProjectStart;
@@ -1382,7 +1396,10 @@ namespace NXProject.Services
                 Start = start,
                 Finish = finish,
                 EstimatedHours = hours,
-                PercentComplete = stateFixedToActive ? 0 : StateToPercent(item.State),
+                PercentComplete = stateFixedToActive ? 0
+                    : ctx.PercConclusaoRef != null && ReadDouble(item, ctx.PercConclusaoRef) is { } pc && pc >= 0 && pc <= 100
+                        ? pc
+                        : StateToPercent(item.State),
                 TfsId = item.Id,
                 TfsParentId = ctx.GetParent(item.Id),
                 TfsType = item.WorkItemType,
@@ -1404,6 +1421,8 @@ namespace NXProject.Services
 
             // Recalcula o fim considerando o % de alocação do recurso (apenas quando não fixado).
             // AssignResource é chamado depois do cálculo inicial do finish, então precisamos corrigir.
+            // Quando StartFixed, a duração é negociada — não recalculamos o Finish, mas guardamos
+            // o Finish calculado em CalculatedFinish para o Gantt exibir como alerta visual.
             if (!task.FinishFixed && !task.IsMilestone &&
                 task.Resources.Count > 0 &&
                 task.Resources.Any(r => Math.Abs(r.AllocationPercent - 100.0) > 0.01))
@@ -1411,9 +1430,18 @@ namespace NXProject.Services
                 var effectiveDuration = TaskScheduleService.GetEffectiveDurationHours(task);
                 if (effectiveDuration > 0)
                 {
-                    task.Finish = ProjectCalendarService.AddWorkingHours(task.Start, effectiveDuration);
-                    // Atualiza também o cursor da fila para este responsável/sprint.
-                    ctx.CursorByLane[laneKey] = task.Finish > baseStart ? task.Finish : baseStart;
+                    var calcFinish = ProjectCalendarService.AddWorkingHours(task.Start, effectiveDuration);
+                    if (task.StartFixed)
+                    {
+                        // Duração negociada: mantém Finish, registra o calculado para alerta visual.
+                        if (calcFinish.Date != task.Finish.Date)
+                            task.CalculatedFinish = calcFinish;
+                    }
+                    else
+                    {
+                        task.Finish = calcFinish;
+                        ctx.CursorByLane[laneKey] = task.Finish > baseStart ? task.Finish : baseStart;
+                    }
                 }
             }
 

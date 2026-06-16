@@ -68,6 +68,9 @@ namespace NXProject.Services
         /// <summary>Nome do campo de percentual de alocação do recurso na Story (ex.: "Perc_Alocação").</summary>
         public string PercAlocFieldName { get; set; } = "Perc_Alocação";
 
+        /// <summary>Nome do campo de percentual de conclusão da Story (ex.: "Perc_Conclusao").</summary>
+        public string PercConclusaoFieldName { get; set; } = "Perc_Conclusao";
+
         /// <summary>Campo inteiro que armazena a versão de sincronização (controle de concorrência).</summary>
         public string SyncVersionFieldName { get; set; } = "Sync_version";
 
@@ -133,6 +136,7 @@ namespace NXProject.Services
             public string StartFieldName { get; set; } = "Data_Inicio";
             public string FinishFieldName { get; set; } = "Data_Fim";
             public string PercAlocFieldName { get; set; } = "Perc_Alocação";
+            public string PercConclusaoFieldName { get; set; } = "Perc_Conclusao";
             public string SyncVersionFieldName { get; set; } = "Sync_version";
             public string SyncNameFieldName { get; set; } = "Sync_Name";
             public string FixedStartTagName { get; set; } = "DT-INI-NEG";
@@ -182,6 +186,8 @@ namespace NXProject.Services
                     ? options.FinishFieldName : stored.FinishFieldName.Trim();
                 options.PercAlocFieldName = string.IsNullOrWhiteSpace(stored.PercAlocFieldName)
                     ? options.PercAlocFieldName : stored.PercAlocFieldName.Trim();
+                options.PercConclusaoFieldName = string.IsNullOrWhiteSpace(stored.PercConclusaoFieldName)
+                    ? options.PercConclusaoFieldName : stored.PercConclusaoFieldName.Trim();
                 options.SyncVersionFieldName = string.IsNullOrWhiteSpace(stored.SyncVersionFieldName)
                     ? options.SyncVersionFieldName : stored.SyncVersionFieldName.Trim();
                 options.SyncNameFieldName = string.IsNullOrWhiteSpace(stored.SyncNameFieldName)
@@ -225,6 +231,7 @@ namespace NXProject.Services
                 StartFieldName = string.IsNullOrWhiteSpace(options.StartFieldName) ? "Data_Inicio" : options.StartFieldName.Trim(),
                 FinishFieldName = string.IsNullOrWhiteSpace(options.FinishFieldName) ? "Data_Fim" : options.FinishFieldName.Trim(),
                 PercAlocFieldName = string.IsNullOrWhiteSpace(options.PercAlocFieldName) ? "Perc_Alocação" : options.PercAlocFieldName.Trim(),
+                PercConclusaoFieldName = string.IsNullOrWhiteSpace(options.PercConclusaoFieldName) ? "Perc_Conclusao" : options.PercConclusaoFieldName.Trim(),
                 SyncVersionFieldName = string.IsNullOrWhiteSpace(options.SyncVersionFieldName) ? "Sync_version" : options.SyncVersionFieldName.Trim(),
                 SyncNameFieldName = string.IsNullOrWhiteSpace(options.SyncNameFieldName) ? "Sync_Name" : options.SyncNameFieldName.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),

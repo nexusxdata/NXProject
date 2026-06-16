@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using NXProject.Services;
 using NXProject.ViewModels;
 
 namespace NXProject.Controls
@@ -1102,9 +1103,11 @@ namespace NXProject.Controls
                 return;
             }
 
+            bool durationOverrun = task.StartFixed && task.CalculatedFinish.HasValue;
             var bgColor = isSelected           ? Color.FromRgb(220, 124, 0)
                         : isPredecessor        ? Color.FromRgb(200, 100, 20)
                         : task.HasSyncConflict ? Color.FromRgb(196, 43, 43)
+                        : durationOverrun      ? Color.FromRgb(196, 43, 43)
                         :                        Color.FromRgb(68, 114, 196);
             var bg = new Rectangle
             {
@@ -1114,6 +1117,16 @@ namespace NXProject.Controls
                 RadiusX = 2,
                 RadiusY = 2
             };
+            if (durationOverrun && task.CalculatedFinish.HasValue)
+            {
+                var calcDays = ProjectCalendarService.CountWorkingDays(task.Model.Start, task.CalculatedFinish.Value);
+                var negDays  = ProjectCalendarService.CountWorkingDays(task.Model.Start, task.Model.Finish);
+                var diff = calcDays - negDays;
+                var hint = diff > 0
+                    ? $"⚠ Duração negociada: {negDays} dia(s) úteis\nDuração calculada (HH/alocação): {calcDays} dia(s) úteis (+{diff}d)"
+                    : $"⚠ Duração negociada: {negDays} dia(s) úteis\nDuração calculada (HH/alocação): {calcDays} dia(s) úteis ({diff}d)";
+                bg.ToolTip = new ToolTip { Content = hint };
+            }
             AttachTaskMetadata(bg, task);
             Canvas.SetLeft(bg, x);
             Canvas.SetTop(bg, y + BarPadding);
