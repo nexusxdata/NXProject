@@ -1,7 +1,7 @@
 <Window x:Class="NXProject.Views.DevOpsProjectListWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Projetos DevOps"
+        Title="Portfólio de Projetos"
         Width="580" Height="480"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
@@ -20,7 +20,7 @@
 
             <!-- Título -->
             <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                <TextBlock Text="Lista de Projetos DevOps"
+                <TextBlock Text="Portfólio de Projetos"
                            FontSize="17" FontWeight="SemiBold" Foreground="#2B579A"/>
                 <TextBlock Text="Cadastre os projetos do Azure DevOps para seleção rápida na importação."
                            FontSize="12" Foreground="#666" Margin="0,4,0,0" TextWrapping="Wrap"/>

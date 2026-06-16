@@ -817,7 +817,7 @@ namespace NXProject.Views
             {
                 MessageBox.Show(
                     "Nenhum projeto DevOps cadastrado.\n\n" +
-                    "Acesse Visualizar → Projetos DevOps (lista) para configurar a lista de projetos.",
+                    "Acesse Visualizar → Portfólio de Projetos para configurar os projetos.",
                     "Lista vazia", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -894,7 +894,7 @@ namespace NXProject.Views
             {
                 MessageBox.Show(
                     "Nenhum projeto selecionado tem ID raiz configurado.\n\n" +
-                    "Edite a lista de projetos DevOps (Visualizar → Projetos DevOps) e informe o ID raiz de cada projeto.",
+                    "Edite o Portfólio de Projetos (Visualizar → Portfólio de Projetos) e informe o ID raiz de cada projeto.",
                     "ID raiz não configurado", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

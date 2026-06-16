@@ -25,7 +25,7 @@
         <TextBlock Grid.Row="1" TextWrapping="Wrap" FontSize="11" Foreground="#666"
                    Margin="0,0,0,10">
             Marque os projetos a incluir no Mapa de Alocação.
-            O tipo OPEX/CAPEX e Centro de Custo são configurados na lista de projetos DevOps.
+            O tipo OPEX/CAPEX e Centro de Custo são configurados no Portfólio de Projetos.
         </TextBlock>
 
         <!-- Busca -->
@@ -76,7 +76,7 @@
 
         <!-- Aviso lista vazia -->
         <TextBlock x:Name="EmptyMsg" Grid.Row="3"
-                   Text="Nenhum projeto DevOps cadastrado. Configure em Visualizar → Projetos DevOps (lista)."
+                   Text="Nenhum projeto cadastrado. Configure em Visualizar → Portfólio de Projetos."
                    FontSize="12" Foreground="#888" TextWrapping="Wrap"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Visibility="Collapsed"/>

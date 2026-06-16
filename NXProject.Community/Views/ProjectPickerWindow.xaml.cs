@@ -125,7 +125,7 @@ namespace NXProject.Views
                 Margin              = new Thickness(4, 4, 6, 4),
                 ToolTip             = entry.RootWorkItemId > 0
                     ? $"ID raiz: {entry.RootWorkItemId}"
-                    : "ID raiz não configurado — edite a lista de projetos DevOps"
+                    : "ID raiz não configurado — edite em Visualizar → Portfólio de Projetos"
             };
             Grid.SetColumn(idBlock, 4);
 

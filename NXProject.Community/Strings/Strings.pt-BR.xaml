@@ -40,7 +40,7 @@
     <sys:String x:Key="Menu_View_Sfp">S_PF...</sys:String>
     <sys:String x:Key="Menu_View_Calendar">_Calendario...</sys:String>
     <sys:String x:Key="Menu_View_Resources">_Alocacao de Recursos...</sys:String>
-    <sys:String x:Key="Menu_View_DevOpsList">Projetos _DevOps (lista)...</sys:String>
+    <sys:String x:Key="Menu_View_DevOpsList">_Portfólio de Projetos...</sys:String>
     <sys:String x:Key="Menu_View_HealthCheck">_Health Check do Projeto...</sys:String>
     <sys:String x:Key="Menu_View_StoryStatusChart">_Status das Stories...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>

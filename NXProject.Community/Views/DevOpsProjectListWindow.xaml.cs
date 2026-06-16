@@ -42,8 +42,9 @@ namespace NXProject.Views
         {
             var dlg = new OpenFileDialog
             {
-                Title = "Abrir ou criar lista de projetos DevOps",
-                Filter = "Lista de Projetos DevOps (*.devops.json)|*.devops.json|JSON (*.json)|*.json|Todos (*.*)|*.*",
+                Title           = "Abrir ou criar Portfólio de Projetos",
+                Filter          = "Portfólio de Projetos (*.devops.json)|*.devops.json|JSON (*.json)|*.json|Todos (*.*)|*.*",
+                FileName        = "Portifolio de Projetos NX",
                 CheckFileExists = false
             };
 
@@ -69,9 +70,10 @@ namespace NXProject.Views
         {
             var dlg = new SaveFileDialog
             {
-                Title = "Salvar lista de projetos DevOps",
-                Filter = "Lista de Projetos DevOps (*.devops.json)|*.devops.json|JSON (*.json)|*.json",
-                DefaultExt = ".devops.json"
+                Title      = "Salvar Portfólio de Projetos",
+                Filter     = "Portfólio de Projetos (*.devops.json)|*.devops.json|JSON (*.json)|*.json",
+                DefaultExt = ".devops.json",
+                FileName   = "Portifolio de Projetos NX"
             };
 
             if (!string.IsNullOrWhiteSpace(ResultFilePath))
