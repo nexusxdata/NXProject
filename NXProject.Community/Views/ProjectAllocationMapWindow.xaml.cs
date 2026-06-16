@@ -1164,14 +1164,15 @@ namespace NXProject.Views
         }
 
         // ── Aba 3: Stories por Recurso ────────────────────────────────────────
-        private const double SrResW   = 160;
-        private const double SrProjW  = 160;
-        private const double SrStoryW = 260;
-        private const double SrMonthW = 72;
-        private const double SrTotalW = 72;
-        private const double SrCapexW = 72;
-        private const double SrOpexW  = 72;
-        private const double SrRowH   = 22;
+        private const double SrResW      = 160;
+        private const double SrProjW     = 160;
+        private const double SrStoryW    = 260;
+        private const double SrCapexMonW = 58;   // CAPEX por mês
+        private const double SrOpexMonW  = 58;   // OPEX  por mês
+        private const double SrTotalW    = 72;   // TOTAL geral
+        private const double SrCapexW    = 72;   // CAPEX total
+        private const double SrOpexW     = 72;   // OPEX  total
+        private const double SrRowH      = 22;
 
         private void BuildStoriesGrid()
         {
@@ -1223,22 +1224,31 @@ namespace NXProject.Views
                 .Where(mi => !hideZero || byRes.Values.Any(l => l.Any(x => x.MonthHours[mi] > 0.01)))
                 .ToList();
 
-            // ── Cabeçalho de meses ──
+            // ── Cabeçalho de meses: duas células por mês (CAPEX | OPEX) ──
+            var capexMonBg = Color.FromRgb(140, 70, 20);
+            var opexMonBg  = Color.FromRgb(43, 100, 43);
             foreach (var mi in visMi)
             {
+                string lbl = months[mi].ToString("MMM/yy");
                 SrHeaderPanel.Items.Add(new Border
                 {
-                    Width = SrMonthW, Height = 22,
-                    Background = new SolidColorBrush(Color.FromRgb(43, 87, 154)),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
+                    Width = SrCapexMonW, Height = 22,
+                    Background = new SolidColorBrush(capexMonBg),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(100, 50, 10)),
                     BorderThickness = new Thickness(0, 0, 1, 1),
-                    Child = new TextBlock
-                    {
-                        Text = months[mi].ToString("MMM/yy"), FontSize = 11,
-                        FontWeight = FontWeights.SemiBold, Foreground = Brushes.White,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
+                    Child = new TextBlock { Text = lbl + " C", FontSize = 10, FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center }
+                });
+                SrHeaderPanel.Items.Add(new Border
+                {
+                    Width = SrOpexMonW, Height = 22,
+                    Background = new SolidColorBrush(opexMonBg),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(20, 70, 20)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Child = new TextBlock { Text = lbl + " O", FontSize = 10, FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center }
                 });
             }
             SrHeaderPanel.Items.Add(SrMakeMonthHeader("TOTAL",  SrTotalW, Color.FromRgb(25,  60, 120)));
@@ -1246,26 +1256,29 @@ namespace NXProject.Views
             SrHeaderPanel.Items.Add(SrMakeMonthHeader("OPEX",   SrOpexW,  Color.FromRgb(43, 100,  43)));
 
             // ── Linhas ──
-            var grandByMonth = new double[months.Count];
+            var grandCapexByMonth = new double[months.Count];
+            var grandOpexByMonth  = new double[months.Count];
             double grandCapex = 0, grandOpex = 0;
 
             foreach (var (resName, entries) in byRes)
             {
-                // Agrupa por projeto
                 var byProj = entries
                     .GroupBy(e => e.Proj.Name, StringComparer.OrdinalIgnoreCase)
                     .OrderBy(g => g.Key);
 
-                // Totais do recurso por mês
-                var resByMonth = new double[months.Count];
+                // Totais do recurso por mês separados em CAPEX/OPEX
+                var resCapexByMonth = new double[months.Count];
+                var resOpexByMonth  = new double[months.Count];
                 foreach (var e in entries)
                     for (int mi = 0; mi < months.Count; mi++)
-                        resByMonth[mi] += e.MonthHours[mi];
+                        if (e.Proj.IsOpex) resOpexByMonth[mi]  += e.MonthHours[mi];
+                        else               resCapexByMonth[mi] += e.MonthHours[mi];
 
                 bool resFirst = true;
                 foreach (var projGroup in byProj)
                 {
                     var projEntries = projGroup.ToList();
+                    bool projIsOpex = projEntries[0].Proj.IsOpex;
                     var projByMonth = new double[months.Count];
                     foreach (var e in projEntries)
                         for (int mi = 0; mi < months.Count; mi++)
@@ -1274,18 +1287,15 @@ namespace NXProject.Views
                     bool projFirst = true;
                     foreach (var (proj, task, mh) in projEntries.OrderBy(e => e.Task.Start))
                     {
-                        // Coluna fixa
+                        bool storyIsOpex = proj.IsOpex;
                         var leftBg = new SolidColorBrush(Color.FromRgb(248, 250, 255));
                         var leftRow = new StackPanel { Orientation = Orientation.Horizontal };
 
-                        // Célula Recurso — só na primeira linha do recurso
                         leftRow.Children.Add(new Border
                         {
-                            Width = SrResW, Height = SrRowH,
-                            Background = leftBg,
+                            Width = SrResW, Height = SrRowH, Background = leftBg,
                             BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
-                            BorderThickness = new Thickness(0, 0, 1, 1),
-                            Padding = new Thickness(6, 0, 4, 0),
+                            BorderThickness = new Thickness(0, 0, 1, 1), Padding = new Thickness(6, 0, 4, 0),
                             Child = new TextBlock
                             {
                                 Text = resFirst && projFirst ? resName : "",
@@ -1296,62 +1306,53 @@ namespace NXProject.Views
                                 ToolTip = resFirst && projFirst ? resName : null
                             }
                         });
-
-                        // Célula Projeto — só na primeira linha do projeto
                         leftRow.Children.Add(new Border
                         {
-                            Width = SrProjW, Height = SrRowH,
-                            Background = leftBg,
+                            Width = SrProjW, Height = SrRowH, Background = leftBg,
                             BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
-                            BorderThickness = new Thickness(0, 0, 1, 1),
-                            Padding = new Thickness(4, 0, 4, 0),
+                            BorderThickness = new Thickness(0, 0, 1, 1), Padding = new Thickness(4, 0, 4, 0),
                             Child = new TextBlock
                             {
                                 Text = projFirst ? projGroup.Key : "",
-                                FontSize = 11,
-                                Foreground = new SolidColorBrush(Color.FromRgb(60, 100, 170)),
+                                FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(60, 100, 170)),
                                 VerticalAlignment = VerticalAlignment.Center,
                                 TextTrimming = TextTrimming.CharacterEllipsis,
                                 ToolTip = projFirst ? projGroup.Key : null
                             }
                         });
-
-                        // Célula Story
                         string storyLabel = task.Name ?? $"#{task.TfsId}";
                         leftRow.Children.Add(new Border
                         {
-                            Width = SrStoryW, Height = SrRowH,
-                            Background = leftBg,
+                            Width = SrStoryW, Height = SrRowH, Background = leftBg,
                             BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
-                            BorderThickness = new Thickness(0, 0, 1, 1),
-                            Padding = new Thickness(4, 0, 4, 0),
+                            BorderThickness = new Thickness(0, 0, 1, 1), Padding = new Thickness(4, 0, 4, 0),
                             ToolTip = $"{storyLabel}\nInício: {task.Start:dd/MM/yy}  Fim: {task.Finish:dd/MM/yy}  HH: {task.EstimatedHours?.ToString("0.#") ?? "–"}h",
-                            Child = new TextBlock
-                            {
-                                Text = storyLabel, FontSize = 10,
+                            Child = new TextBlock { Text = storyLabel, FontSize = 10,
                                 Foreground = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
                                 VerticalAlignment = VerticalAlignment.Center,
-                                TextTrimming = TextTrimming.CharacterEllipsis
-                            }
+                                TextTrimming = TextTrimming.CharacterEllipsis }
                         });
-
                         SrLeftPanel.Items.Add(leftRow);
 
-                        // Dados (meses)
                         var dataRow = new StackPanel { Orientation = Orientation.Horizontal };
                         double rowTotal = 0;
                         foreach (var mi in visMi)
                         {
                             double h = mh[mi];
                             rowTotal += h;
-                            dataRow.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
-                                SrMonthW, h > 0.01 ? Color.FromRgb(40, 100, 200) : Color.FromRgb(200, 200, 200),
-                                Color.FromRgb(248, 250, 255), bold: false));
+                            // CAPEX cell
+                            double hC = !storyIsOpex ? h : 0;
+                            dataRow.Children.Add(SrMakeCell(hC > 0.01 ? $"{hC:0.#}h" : "–",
+                                SrCapexMonW, hC > 0.01 ? Color.FromRgb(120, 60, 10) : Color.FromRgb(200, 200, 200),
+                                Color.FromRgb(255, 248, 240), bold: false));
+                            // OPEX cell
+                            double hO = storyIsOpex ? h : 0;
+                            dataRow.Children.Add(SrMakeCell(hO > 0.01 ? $"{hO:0.#}h" : "–",
+                                SrOpexMonW, hO > 0.01 ? Color.FromRgb(20, 90, 20) : Color.FromRgb(200, 200, 200),
+                                Color.FromRgb(240, 250, 240), bold: false));
                         }
                         dataRow.Children.Add(SrMakeCell(rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
                             SrTotalW, Color.FromRgb(20, 50, 110), Color.FromRgb(230, 238, 252), bold: true));
-                        // CAPEX / OPEX por story
-                        bool storyIsOpex = proj.IsOpex;
                         dataRow.Children.Add(SrMakeCell(!storyIsOpex && rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
                             SrCapexW, !storyIsOpex && rowTotal > 0.01 ? Color.FromRgb(120, 60, 10) : Color.FromRgb(200, 200, 200),
                             Color.FromRgb(255, 248, 240), bold: false));
@@ -1370,10 +1371,8 @@ namespace NXProject.Views
                     leftProjTotal.Children.Add(new Border { Width = SrResW, Height = SrRowH, Background = new SolidColorBrush(projTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(180,200,230)), BorderThickness = new Thickness(0,0,1,1) });
                     leftProjTotal.Children.Add(new Border
                     {
-                        Width = SrProjW, Height = SrRowH,
-                        Background = new SolidColorBrush(projTotalBg),
-                        BorderBrush = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
-                        BorderThickness = new Thickness(0, 0, 1, 1),
+                        Width = SrProjW, Height = SrRowH, Background = new SolidColorBrush(projTotalBg),
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(180, 200, 230)), BorderThickness = new Thickness(0,0,1,1),
                         Padding = new Thickness(4, 0, 4, 0),
                         Child = new TextBlock { Text = projGroup.Key, FontSize = 10, FontWeight = FontWeights.SemiBold,
                             Foreground = new SolidColorBrush(Color.FromRgb(30, 60, 130)),
@@ -1381,26 +1380,28 @@ namespace NXProject.Views
                     });
                     leftProjTotal.Children.Add(new Border
                     {
-                        Width = SrStoryW, Height = SrRowH,
-                        Background = new SolidColorBrush(projTotalBg),
-                        BorderBrush = new SolidColorBrush(Color.FromRgb(180, 200, 230)),
-                        BorderThickness = new Thickness(0, 0, 1, 1),
+                        Width = SrStoryW, Height = SrRowH, Background = new SolidColorBrush(projTotalBg),
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(180, 200, 230)), BorderThickness = new Thickness(0,0,1,1),
                         Padding = new Thickness(4, 0, 4, 0),
                         Child = new TextBlock { Text = "Subtotal", FontSize = 10, FontStyle = FontStyles.Italic,
-                            Foreground = new SolidColorBrush(Color.FromRgb(60, 90, 150)),
-                            VerticalAlignment = VerticalAlignment.Center }
+                            Foreground = new SolidColorBrush(Color.FromRgb(60, 90, 150)), VerticalAlignment = VerticalAlignment.Center }
                     });
                     SrLeftPanel.Items.Add(leftProjTotal);
 
-                    bool projIsOpex = projEntries[0].Proj.IsOpex;
                     var projDataTotal = new StackPanel { Orientation = Orientation.Horizontal };
                     double ptotal = 0;
                     foreach (var mi in visMi)
                     {
                         double h = projByMonth[mi];
                         ptotal += h;
-                        projDataTotal.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
-                            SrMonthW, Color.FromRgb(30, 60, 130), projTotalBg, bold: true));
+                        double pC = !projIsOpex ? h : 0;
+                        double pO = projIsOpex  ? h : 0;
+                        projDataTotal.Children.Add(SrMakeCell(pC > 0.01 ? $"{pC:0.#}h" : "–",
+                            SrCapexMonW, pC > 0.01 ? Color.FromRgb(120, 60, 10) : Color.FromRgb(180, 180, 180),
+                            Color.FromRgb(252, 242, 230), bold: true));
+                        projDataTotal.Children.Add(SrMakeCell(pO > 0.01 ? $"{pO:0.#}h" : "–",
+                            SrOpexMonW, pO > 0.01 ? Color.FromRgb(20, 90, 20) : Color.FromRgb(180, 180, 180),
+                            Color.FromRgb(232, 248, 232), bold: true));
                     }
                     projDataTotal.Children.Add(SrMakeCell(ptotal > 0.01 ? $"{ptotal:0.#}h" : "–",
                         SrTotalW, Color.FromRgb(20, 40, 100), Color.FromRgb(205, 218, 245), bold: true));
@@ -1418,10 +1419,8 @@ namespace NXProject.Views
                 var leftResTotal = new StackPanel { Orientation = Orientation.Horizontal };
                 leftResTotal.Children.Add(new Border
                 {
-                    Width = SrResW, Height = SrRowH + 2,
-                    Background = new SolidColorBrush(resTotalBg),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
-                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Width = SrResW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)), BorderThickness = new Thickness(0,0,1,1),
                     Padding = new Thickness(6, 0, 4, 0),
                     Child = new TextBlock { Text = "", FontSize = 11, FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center,
@@ -1430,10 +1429,8 @@ namespace NXProject.Views
                 leftResTotal.Children.Add(new Border { Width = SrProjW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(29,63,115)), BorderThickness = new Thickness(0,0,1,1) });
                 leftResTotal.Children.Add(new Border
                 {
-                    Width = SrStoryW, Height = SrRowH + 2,
-                    Background = new SolidColorBrush(resTotalBg),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
-                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Width = SrStoryW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)), BorderThickness = new Thickness(0,0,1,1),
                     Padding = new Thickness(4, 0, 4, 0),
                     Child = new TextBlock { Text = "TOTAL", FontSize = 11, FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center }
@@ -1449,11 +1446,16 @@ namespace NXProject.Views
                 double rtotal = 0;
                 foreach (var mi in visMi)
                 {
-                    double h = resByMonth[mi];
+                    double rC = resCapexByMonth[mi];
+                    double rO = resOpexByMonth[mi];
+                    double h  = rC + rO;
                     rtotal += h;
-                    grandByMonth[mi] += h;
-                    resDataTotal.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
-                        SrMonthW, Colors.White, resTotalBg, bold: true, height: SrRowH + 2));
+                    grandCapexByMonth[mi] += rC;
+                    grandOpexByMonth[mi]  += rO;
+                    resDataTotal.Children.Add(SrMakeCell(rC > 0.01 ? $"{rC:0.#}h" : "–",
+                        SrCapexMonW, Colors.White, Color.FromRgb(140, 70, 20), bold: true, height: SrRowH + 2));
+                    resDataTotal.Children.Add(SrMakeCell(rO > 0.01 ? $"{rO:0.#}h" : "–",
+                        SrOpexMonW, Colors.White, Color.FromRgb(43, 100, 43), bold: true, height: SrRowH + 2));
                 }
                 resDataTotal.Children.Add(SrMakeCell(rtotal > 0.01 ? $"{rtotal:0.#}h" : "–",
                     SrTotalW, Colors.White, Color.FromRgb(25, 60, 120), bold: true, height: SrRowH + 2));
@@ -1463,7 +1465,6 @@ namespace NXProject.Views
                     SrOpexW, Colors.White, Color.FromRgb(43, 100, 43), bold: true, height: SrRowH + 2));
                 SrDataPanel.Items.Add(resDataTotal);
 
-                // Separador
                 SrLeftPanel.Items.Add(new Border { Height = 2, Background = new SolidColorBrush(Color.FromRgb(180, 200, 230)) });
                 SrDataPanel.Items.Add(new Border { Height = 2, Background = new SolidColorBrush(Color.FromRgb(180, 200, 230)) });
             }
@@ -1473,10 +1474,8 @@ namespace NXProject.Views
             var gtLeft = new StackPanel { Orientation = Orientation.Horizontal };
             gtLeft.Children.Add(new Border
             {
-                Width = SrResW + SrProjW, Height = SrRowH + 2,
-                Background = new SolidColorBrush(gtBg),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(15, 40, 90)),
-                BorderThickness = new Thickness(0, 0, 1, 1),
+                Width = SrResW + SrProjW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(15, 40, 90)), BorderThickness = new Thickness(0,0,1,1),
                 Padding = new Thickness(6, 0, 4, 0),
                 Child = new TextBlock { Text = "TOTAL GERAL", FontSize = 11, FontWeight = FontWeights.SemiBold,
                     Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center }
@@ -1488,10 +1487,13 @@ namespace NXProject.Views
             double gtotal = 0;
             foreach (var mi in visMi)
             {
-                double h = grandByMonth[mi];
-                gtotal += h;
-                gtData.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
-                    SrMonthW, Colors.White, gtBg, bold: true, height: SrRowH + 2));
+                double gC = grandCapexByMonth[mi];
+                double gO = grandOpexByMonth[mi];
+                gtotal += gC + gO;
+                gtData.Children.Add(SrMakeCell(gC > 0.01 ? $"{gC:0.#}h" : "–",
+                    SrCapexMonW, Colors.White, Color.FromRgb(100, 50, 10), bold: true, height: SrRowH + 2));
+                gtData.Children.Add(SrMakeCell(gO > 0.01 ? $"{gO:0.#}h" : "–",
+                    SrOpexMonW, Colors.White, Color.FromRgb(30, 80, 30), bold: true, height: SrRowH + 2));
             }
             gtData.Children.Add(SrMakeCell(gtotal > 0.01 ? $"{gtotal:0.#}h" : "–",
                 SrTotalW, Colors.White, Color.FromRgb(15, 40, 90), bold: true, height: SrRowH + 2));
