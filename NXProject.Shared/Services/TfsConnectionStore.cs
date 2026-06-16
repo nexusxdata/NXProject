@@ -1,9 +1,38 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
 namespace NXProject.Services
 {
+    /// <summary>
+    /// Mapeamento de um estado TFS para um label de exibição no gráfico de status.
+    /// </summary>
+    public sealed class StoryStatusMapping
+    {
+        /// <summary>Estado exato no DevOps (ex.: "Corrigindo Causa Raiz").</summary>
+        public string TfsState { get; set; } = string.Empty;
+
+        /// <summary>Label agrupador exibido no gráfico (ex.: "Corrigindo").</summary>
+        public string ChartLabel { get; set; } = string.Empty;
+
+        /// <summary>Cor da barra em hex RRGGBB (ex.: "FFA726"). Vazio = cor automática.</summary>
+        public string ColorHex { get; set; } = string.Empty;
+
+        /// <summary>Ordem de exibição da barra (menor = mais à esquerda).</summary>
+        public int Order { get; set; }
+    }
+
+    /// <summary>
+    /// Configuração de um projeto no portfólio (tipo OPEX/CAPEX e centro de custo).
+    /// </summary>
+    public sealed class PortfolioProjectConfig
+    {
+        public string FilePath    { get; set; } = string.Empty;
+        public bool   IsOpex      { get; set; } = true;
+        public string CostCenter  { get; set; } = string.Empty;
+    }
+
     /// <summary>
     /// Dados de conexao com o Azure DevOps / TFS usados pelo import.
     /// </summary>
@@ -69,6 +98,15 @@ namespace NXProject.Services
         /// <summary>Logo da empresa em Base64 PNG (normalizado 300×80px) para cabeçalho do PDF. Vazio = sem logo.</summary>
         public string CompanyLogoBase64 { get; set; } = string.Empty;
 
+        /// <summary>Mapeamentos customizados de estado TFS → label do gráfico de status.</summary>
+        public List<StoryStatusMapping> StoryStatusMappings { get; set; } = [];
+
+        /// <summary>Caminhos de arquivos conhecidos no portfólio (Mapa de Alocação).</summary>
+        public List<string> PortfolioProjectPaths { get; set; } = [];
+
+        /// <summary>Configuração por projeto do portfólio (OPEX/CAPEX, centro de custo).</summary>
+        public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&
@@ -104,6 +142,9 @@ namespace NXProject.Services
             public string Language { get; set; } = string.Empty;
             public string CompanyName { get; set; } = string.Empty;
             public string CompanyLogoBase64 { get; set; } = string.Empty;
+            public List<StoryStatusMapping> StoryStatusMappings { get; set; } = [];
+            public List<string> PortfolioProjectPaths { get; set; } = [];
+            public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
         }
 
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
@@ -154,6 +195,9 @@ namespace NXProject.Services
                 options.Language = stored.Language ?? string.Empty;
                 options.CompanyName = stored.CompanyName ?? string.Empty;
                 options.CompanyLogoBase64 = stored.CompanyLogoBase64 ?? string.Empty;
+                options.StoryStatusMappings = stored.StoryStatusMappings ?? [];
+                options.PortfolioProjectPaths = stored.PortfolioProjectPaths ?? [];
+                options.PortfolioProjectConfigs = stored.PortfolioProjectConfigs ?? [];
             }
             catch
             {
@@ -191,7 +235,10 @@ namespace NXProject.Services
                 DevOpsProjectListPath = options.DevOpsProjectListPath ?? string.Empty,
                 Language = options.Language ?? string.Empty,
                 CompanyName = options.CompanyName ?? string.Empty,
-                CompanyLogoBase64 = options.CompanyLogoBase64 ?? string.Empty
+                CompanyLogoBase64 = options.CompanyLogoBase64 ?? string.Empty,
+                StoryStatusMappings = options.StoryStatusMappings ?? [],
+                PortfolioProjectPaths = options.PortfolioProjectPaths ?? [],
+                PortfolioProjectConfigs = options.PortfolioProjectConfigs ?? []
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });

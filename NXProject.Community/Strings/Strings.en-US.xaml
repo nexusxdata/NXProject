@@ -42,6 +42,8 @@
     <sys:String x:Key="Menu_View_Resources">_Resource Allocation...</sys:String>
     <sys:String x:Key="Menu_View_DevOpsList">_DevOps Projects (list)...</sys:String>
     <sys:String x:Key="Menu_View_HealthCheck">Project _Health Check...</sys:String>
+    <sys:String x:Key="Menu_View_StoryStatusChart">_Story Status Chart...</sys:String>
+    <sys:String x:Key="Menu_View_AllocationMap">Project _Allocation Map...</sys:String>
     <sys:String x:Key="Menu_View_People">_People...</sys:String>
     <sys:String x:Key="Menu_View_Language">_Language / Idioma...</sys:String>
 

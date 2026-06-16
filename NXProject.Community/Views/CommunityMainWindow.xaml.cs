@@ -1502,6 +1502,19 @@ namespace NXProject.Views
             new DelayedTasksWindow(vm) { Owner = this }.ShowDialog();
         }
 
+        private void OnStoryStatusChartClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            new StoryStatusChartWindow(vm) { Owner = this }.ShowDialog();
+        }
+
+        private void OnAllocationMapClick(object sender, RoutedEventArgs e)
+        {
+            new ProjectAllocationMapWindow() { Owner = this }.ShowDialog();
+        }
+
         private void OnPeopleClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm)
