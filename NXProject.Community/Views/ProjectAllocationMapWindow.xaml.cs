@@ -1423,7 +1423,7 @@ namespace NXProject.Views
                     BorderBrush = new SolidColorBrush(Color.FromRgb(29, 63, 115)),
                     BorderThickness = new Thickness(0, 0, 1, 1),
                     Padding = new Thickness(6, 0, 4, 0),
-                    Child = new TextBlock { Text = resName, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Child = new TextBlock { Text = "", FontSize = 11, FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center,
                         TextTrimming = TextTrimming.CharacterEllipsis }
                 });
