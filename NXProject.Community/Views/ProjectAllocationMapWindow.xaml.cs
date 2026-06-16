@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Win32;
 using NXProject.Models;
 using NXProject.Services;
 
@@ -1099,11 +1102,244 @@ namespace NXProject.Views
 
         private void OnFilterChanged(object sender, RoutedEventArgs e) => BuildGrid();
 
-        private void OnRefreshClick(object sender, RoutedEventArgs e)
+        private void OnExportExcelClick(object sender, RoutedEventArgs e)
         {
-            var opts = TfsConnectionStore.Load();
-            LoadProjects(opts);
-            BuildGrid();
+            if (_projects.Count == 0)
+            {
+                MessageBox.Show("Nenhum dado para exportar. Importe os projetos primeiro.",
+                    "Exportar", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dlg = new SaveFileDialog
+            {
+                Title      = "Exportar Mapa de Alocação",
+                Filter     = "Excel XML 2003 (*.xml)|*.xml",
+                DefaultExt = ".xml",
+                FileName   = "Mapa de Alocação para Projetos"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+
+            try
+            {
+                ExportAllocationToExcel(dlg.FileName);
+                StatusText.Text = $"Exportado: {dlg.FileName}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao exportar:\n{ex.Message}", "Erro",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportAllocationToExcel(string filePath)
+        {
+            var (periodStart, periodEnd) = GetPeriod();
+            var months    = BuildMonths(periodStart, periodEnd);
+            bool hideZero = OnlyWithHoursBox.IsChecked == true;
+
+            XNamespace ns = "urn:schemas-microsoft-com:office:spreadsheet";
+            XNamespace ss = "urn:schemas-microsoft-com:office:spreadsheet";
+
+            // ── Pré-computa dados (igual ao BuildGrid) ──
+            var projResourceData = new List<(LoadedProject Proj,
+                                             List<(string Res, double[] MonthHours)> Rows)>();
+            var allResources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var proj in _projects)
+            {
+                var resources = proj.Data.Resources
+                    .Where(r => r.Type == ResourceType.Work && !string.IsNullOrWhiteSpace(r.Name))
+                    .Select(r => r.Name!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n)
+                    .ToList();
+
+                var rows = new List<(string Res, double[] MonthHours)>();
+                foreach (var res in resources)
+                {
+                    var mh = new double[months.Count];
+                    for (int mi = 0; mi < months.Count; mi++)
+                    {
+                        var ms = months[mi];
+                        var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                        mh[mi] = ComputeHours(proj.Data, res, ms, me);
+                    }
+                    if (hideZero && mh.Sum() < 0.01) continue;
+                    rows.Add((res, mh));
+                    allResources.Add(res);
+                }
+                projResourceData.Add((proj, rows));
+            }
+
+            var visibleMonths = Enumerable.Range(0, months.Count)
+                .Where(mi => !hideZero || projResourceData.Any(p => p.Rows.Any(r => r.MonthHours[mi] > 0.01)))
+                .ToList();
+
+            // ── Aba 1: Horas por Projeto ──
+            var sheet1Rows = new List<XElement>();
+
+            // Cabeçalho
+            var header = new List<string> { "Projeto", "Recurso", "Tipo", "Centro de Custo" };
+            header.AddRange(visibleMonths.Select(mi => months[mi].ToString("MMM/yyyy")));
+            header.Add("TOTAL");
+            sheet1Rows.Add(ExXmlRow(ns, header.ToArray()));
+
+            var grandByMonth1 = new double[months.Count];
+
+            foreach (var (proj, resRows) in projResourceData)
+            {
+                var projByMonth = new double[months.Count];
+                foreach (var (_, mh) in resRows)
+                    for (int mi = 0; mi < months.Count; mi++)
+                        projByMonth[mi] += mh[mi];
+
+                // Linha do projeto (totais)
+                var projCells = new List<object> { proj.Name, "", proj.IsOpex ? "OPEX" : "CAPEX", proj.CostCenter };
+                foreach (var mi in visibleMonths) projCells.Add(Math.Round(projByMonth[mi], 1));
+                projCells.Add(Math.Round(projByMonth.Sum(), 1));
+                sheet1Rows.Add(ExXmlRowMixed(ns, projCells.ToArray()));
+
+                for (int mi = 0; mi < months.Count; mi++)
+                    grandByMonth1[mi] += projByMonth[mi];
+
+                // Sub-linhas de recurso
+                foreach (var (resName, mh) in resRows)
+                {
+                    var resCells = new List<object> { "", resName, "", "" };
+                    foreach (var mi in visibleMonths) resCells.Add(Math.Round(mh[mi], 1));
+                    resCells.Add(Math.Round(mh.Sum(), 1));
+                    sheet1Rows.Add(ExXmlRowMixed(ns, resCells.ToArray()));
+                }
+            }
+
+            // Linha TOTAL GERAL
+            var totalCells = new List<object> { "TOTAL GERAL", "", "", "" };
+            foreach (var mi in visibleMonths) totalCells.Add(Math.Round(grandByMonth1[mi], 1));
+            totalCells.Add(Math.Round(visibleMonths.Select(mi => grandByMonth1[mi]).Sum(), 1));
+            sheet1Rows.Add(ExXmlRowMixed(ns, totalCells.ToArray()));
+
+            // ── Aba 2: Distribuição por Pessoa ──
+            var resList = allResources.OrderBy(r => r).ToList();
+            if (hideZero)
+                resList = resList.Where(r => projResourceData.Any(p => p.Rows.Any(x => x.Res == r))).ToList();
+
+            // dist[proj][res][month]
+            var dist2 = projResourceData.Select(p =>
+                resList.ToDictionary(r => r,
+                    r => p.Rows.FirstOrDefault(x => string.Equals(x.Res, r, StringComparison.OrdinalIgnoreCase))
+                               .MonthHours ?? new double[months.Count],
+                    StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            var visibleProj2 = Enumerable.Range(0, projResourceData.Count)
+                .Where(pi => !hideZero || resList.Any(r => dist2[pi][r].Sum() > 0.01))
+                .ToList();
+
+            var sheet2Rows = new List<XElement>();
+
+            // Cabeçalho linha 1: projeto spans
+            var hdr2 = new List<string> { "Recurso" };
+            foreach (var pi in visibleProj2)
+            {
+                var p = projResourceData[pi].Proj;
+                string label = $"{p.Name} ({(p.IsOpex ? "OPEX" : "CAPEX")})";
+                foreach (var mi in visibleMonths) hdr2.Add(label);
+                hdr2.Add(label + " - Total");
+            }
+            hdr2.Add("TOTAL GERAL");
+            sheet2Rows.Add(ExXmlRow(ns, hdr2.ToArray()));
+
+            // Cabeçalho linha 2: meses
+            var hdr2b = new List<string> { "" };
+            foreach (var pi in visibleProj2)
+            {
+                foreach (var mi in visibleMonths) hdr2b.Add(months[mi].ToString("MMM/yyyy"));
+                hdr2b.Add("Total");
+            }
+            hdr2b.Add("");
+            sheet2Rows.Add(ExXmlRow(ns, hdr2b.ToArray()));
+
+            var grandByProjMonth2 = visibleProj2.ToDictionary(pi => pi, _ => new double[months.Count]);
+
+            foreach (var resName in resList)
+            {
+                var totalByMonth = new double[months.Count];
+                foreach (var pi in visibleProj2)
+                    for (int mi = 0; mi < months.Count; mi++)
+                        totalByMonth[mi] += dist2[pi][resName][mi];
+
+                double resTotal = totalByMonth.Sum();
+                var cells = new List<object> { resName };
+
+                foreach (var pi in visibleProj2)
+                {
+                    double projResTotal = 0;
+                    foreach (var mi in visibleMonths)
+                    {
+                        double h   = dist2[pi][resName][mi];
+                        double pct = totalByMonth[mi] > 0.01 ? h / totalByMonth[mi] * 100 : 0;
+                        projResTotal += h;
+                        grandByProjMonth2[pi][mi] += h;
+                        cells.Add($"{h:0.#}h / {pct:0.#}%");
+                    }
+                    double projPct = resTotal > 0.01 ? projResTotal / resTotal * 100 : 0;
+                    cells.Add($"{projResTotal:0.#}h / {projPct:0.#}%");
+                }
+                cells.Add(Math.Round(resTotal, 1));
+                sheet2Rows.Add(ExXmlRowMixed(ns, cells.ToArray()));
+            }
+
+            // Total geral aba 2
+            var totalCells2 = new List<object> { "TOTAL GERAL" };
+            double grand2 = 0;
+            foreach (var pi in visibleProj2)
+            {
+                foreach (var mi in visibleMonths)
+                {
+                    totalCells2.Add(Math.Round(grandByProjMonth2[pi][mi], 1));
+                }
+                double ps = visibleMonths.Sum(mi => grandByProjMonth2[pi][mi]);
+                grand2 += ps;
+                totalCells2.Add(Math.Round(ps, 1));
+            }
+            totalCells2.Add(Math.Round(grand2, 1));
+            sheet2Rows.Add(ExXmlRowMixed(ns, totalCells2.ToArray()));
+
+            // ── Gera o arquivo ──
+            var workbook = new XDocument(
+                new XDeclaration("1.0", "utf-8", "yes"),
+                new XElement(ns + "Workbook",
+                    new XAttribute(XNamespace.Xmlns + "ss", ss),
+                    new XElement(ns + "Worksheet",
+                        new XAttribute(ss + "Name", "Horas por Projeto"),
+                        new XElement(ns + "Table", sheet1Rows)),
+                    new XElement(ns + "Worksheet",
+                        new XAttribute(ss + "Name", "Distribuição por Pessoa"),
+                        new XElement(ns + "Table", sheet2Rows))));
+
+            workbook.Save(filePath);
+        }
+
+        private static XElement ExXmlRow(XNamespace ns, params string[] values)
+        {
+            return new XElement(ns + "Row",
+                values.Select(v => new XElement(ns + "Cell",
+                    new XElement(ns + "Data",
+                        new XAttribute(ns + "Type", "String"), v))));
+        }
+
+        private static XElement ExXmlRowMixed(XNamespace ns, params object[] values)
+        {
+            return new XElement(ns + "Row",
+                values.Select(v =>
+                {
+                    bool isNum = v is double or float or int;
+                    return new XElement(ns + "Cell",
+                        new XElement(ns + "Data",
+                            new XAttribute(ns + "Type", isNum ? "Number" : "String"),
+                            isNum ? ((double)Convert.ToDouble(v)).ToString(System.Globalization.CultureInfo.InvariantCulture) : v.ToString()));
+                }));
         }
 
         private void OnSaveConfigClick(object sender, RoutedEventArgs e)

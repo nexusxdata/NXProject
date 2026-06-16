@@ -46,8 +46,8 @@
                       FontSize="12" IsChecked="True"
                       Click="OnFilterChanged"/>
 
-            <Button Content="Atualizar" Height="28" Padding="10,0"
-                    Click="OnRefreshClick"/>
+            <Button Content="📊 Exportar Excel" Height="28" Padding="10,0"
+                    Click="OnExportExcelClick"/>
         </WrapPanel>
 
         <!-- Abas -->
