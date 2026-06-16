@@ -40,7 +40,7 @@ namespace NXProject.Views
             InitializeComponent();
             var v = Assembly.GetExecutingAssembly().GetName().Version;
             if (v != null)
-                Title = $"NXProject Community {v.Major}.{v.Minor}.{v.Build}";
+                Title = $"NXProject Community {v.Major}.{v.Minor}.{v.Build} build({v.Revision})";
             ProjectCalendarService.Load("NXProject.Community");
             StatusLogoImage.Source = ProtectedLogoProvider.GetLogoImage();
             var vm = new MainViewModel("NXProject.Community");
@@ -267,7 +267,7 @@ namespace NXProject.Views
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
                 ResizeMode = System.Windows.ResizeMode.NoResize,
                 Width = 360,
-                Height = 230,
+                Height = 260,
                 Background = System.Windows.Media.Brushes.White
             };
 

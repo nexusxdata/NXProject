@@ -17,7 +17,7 @@ namespace NXProject.Views
             CompanyLogoImage.Source = ProtectedLogoProvider.GetLogoImage();
 
             var v = Assembly.GetExecutingAssembly().GetName().Version;
-            var ver = v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "?";
+            var ver = v != null ? $"{v.Major}.{v.Minor}.{v.Build} build({v.Revision})" : "?";
             Title = $"Sobre o NXProject Community {ver}";
             VersionText.Text = $"Versao {ver}";
         }

@@ -33,7 +33,7 @@ A equipe de desenvolvimento segue usando o Azure DevOps como fonte da verdade: c
 
 ## A motivação por trás do NXProject
 
-Depois de mais de 20 anos gerenciando projetos de TI, percebi que sempre existia um conflito silencioso: as ferramentas técnicas eram ótimas para a equipe de desenvolvimento, mas não entregavam a visibilidade que a gestão precisava. As ferramentas de gestão, por sua vez, davam os relatórios e o Gantt que os executivos pediam, mas penalizavam a equipe técnica com processos paralelos, retrabalho e perda de rastreabilidade.
+Depois de mais de 20 anos liderando tecnicamente produtos de dados e gerenciando projetos de engenharia de software, percebi que sempre existia um conflito silencioso: as ferramentas técnicas eram ótimas para a equipe de desenvolvimento, mas não entregavam a visibilidade que a gestão precisava. As ferramentas de gestão, por sua vez, davam os relatórios e o Gantt que os executivos pediam, mas penalizavam a equipe técnica com processos paralelos, retrabalho e perda de rastreabilidade.
 
 A solução que eu encontrava era sempre um meio-termo insatisfatório — ou a equipe sofria, ou a gestão ficava no escuro.
 
@@ -156,7 +156,7 @@ Em qualquer tarefa vinculada, o botão **"Abrir no DevOps ↗"** abre o work ite
 
 ---
 
-## Outras funcionalidades
+## Usabilidade
 
 - **Gráfico de Gantt** interativo com zoom por dia, sprint ou período
 - **Dependências entre tarefas** (predecessoras), inclusive entre Stories de Epics diferentes

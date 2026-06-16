@@ -33,7 +33,7 @@ The development team keeps using Azure DevOps as the single source of truth: lin
 
 ## The story behind NXProject
 
-After more than 20 years managing IT projects, I kept running into the same silent conflict: technical tools were great for the development team but didn't deliver the visibility management needed. Management tools gave executives the reports and Gantt charts they asked for, but penalized the technical team with parallel processes, rework, and lost traceability.
+After more than 20 years technically leading data products and managing software engineering projects, I kept running into the same silent conflict: technical tools were great for the development team but didn't deliver the visibility management needed. Management tools gave executives the reports and Gantt charts they asked for, but penalized the technical team with parallel processes, rework, and lost traceability.
 
 The solution was always an unsatisfying compromise — either the team suffered, or management stayed in the dark.
 
@@ -134,6 +134,7 @@ When two users sync changes simultaneously, the last write could overwrite the f
 - On every sync that writes at least one change, `Sync_version` is incremented by 1 and `Sync_Name` is set to the current Windows user.
 - When you sync, NXProject compares the version it read during import with the current version in DevOps. If the DevOps version is higher, someone else saved more recently — the item is **skipped** and marked in **red** in the schedule.
 - Red items remain highlighted until you re-import the project. The sync log shows which items had conflicts.
+- Clicking a red item in the state column opens the DevOps link window, which displays a conflict warning with a **↓ Re-import** button to start the import directly.
 - The version counter resets to 1 after reaching the integer limit.
 
 > **`Sync_Name` must be plain text, not Identity type.** If you created it as an Identity (person picker) field, delete it and recreate it as **Text (single line)**.
@@ -155,7 +156,7 @@ On any linked task, the **"Open in DevOps ↗"** button opens the work item in t
 
 ---
 
-## Other features
+## Usability
 
 - **Interactive Gantt chart** with zoom by day, sprint, or custom period
 - **Task dependencies** (predecessors), including across Stories from different Epics
