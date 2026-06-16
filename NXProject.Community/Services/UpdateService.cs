@@ -98,6 +98,21 @@ public static class UpdateService
                 $waited += 300
             }
 
+            # Verifica se o novo exe existe no pacote extraido antes de substituir qualquer coisa
+            $new_exe_src = Join-Path $src_dir $exe_name
+            if (-not (Test-Path $new_exe_src)) {
+                Add-Type -AssemblyName PresentationFramework
+                [System.Windows.MessageBox]::Show(
+                    "Atualizacao cancelada: o arquivo '$exe_name' nao foi encontrado no pacote baixado. O executavel atual nao foi alterado.",
+                    "Erro na Atualizacao",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Error)
+                Remove-Item -Path $src_dir -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path (Split-Path $src_dir) -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $script_path -Force -ErrorAction SilentlyContinue
+                exit 1
+            }
+
             $exe_path = Join-Path $app_dir $exe_name
             if (Test-Path $exe_path) {
                 Get-ChildItem -Path $app_dir -Filter "old_*$exe_name" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue

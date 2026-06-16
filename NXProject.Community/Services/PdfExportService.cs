@@ -115,7 +115,7 @@ namespace NXProject.Community.Services
             string companyName,
             BitmapImage? companyLogo,
             string filePath,
-            Views.PdfLayoutMode layoutMode     = Views.PdfLayoutMode.Together,
+            NXProject.Views.PdfLayoutMode layoutMode     = NXProject.Views.PdfLayoutMode.Together,
             PdfSharp.PageSize   pageSize       = PdfSharp.PageSize.A3,
             string exportedOnLabel = "Exportado em",
             string scheduleSubject = "Cronograma NXProject")
@@ -127,7 +127,7 @@ namespace NXProject.Community.Services
             doc.Info.Subject = scheduleSubject;
             doc.Info.Creator = "NXProject Community";
 
-            if (layoutMode == Views.PdfLayoutMode.TwoPages)
+            if (layoutMode == NXProject.Views.PdfLayoutMode.TwoPages)
             {
                 if (ganttData != null)
                 {

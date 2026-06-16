@@ -152,8 +152,11 @@ if ($wpftmp) {
 }
 
 Write-Step "Restaurando pacotes..."
+# Remove assets.json para forcar restore com RID correto
+$assetsJson = Join-Path $SolutionDir "NXProject.Community\obj\project.assets.json"
+if (Test-Path $assetsJson) { Remove-Item $assetsJson -Force }
 Invoke-DotnetCommandWithRetry -ActionLabel "O restore" -Command {
-    dotnet restore $ProjectFile -r $Runtime --nologo -v q
+    dotnet restore $ProjectFile -r $Runtime --nologo -v q --force
 }
 
 Write-Step "Publicando NXProject Community self-contained ($Runtime)..."
@@ -170,6 +173,11 @@ if (Test-Path $StageDir) {
 }
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
+$exePath = Join-Path $PublishDir "NXProject.Community.exe"
+if (-not (Test-Path $exePath)) {
+    Write-Host "Executavel nao encontrado apos publish: $exePath" -ForegroundColor Red
+    exit 1
+}
 Copy-Item -Path (Join-Path $PublishDir "*") -Destination $StageDir -Recurse -Force
 Remove-UnusedSatelliteResourceFolders $StageDir
 
