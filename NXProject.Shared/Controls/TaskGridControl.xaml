@@ -373,17 +373,7 @@
             <DataGridTemplateColumn x:Name="FinishColumn" Header="Fim" Width="110" SortMemberPath="Finish">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding FinishDisplay}" VerticalAlignment="Center" Margin="3,0">
-                            <TextBlock.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Fixar data fim"
-                                              Command="{Binding FixFinishCommand}"/>
-                                    <MenuItem Header="Retirar data fixa"
-                                              Command="{Binding ClearFinishFixedCommand}"
-                                              IsEnabled="{Binding FinishFixed}"/>
-                                </ContextMenu>
-                            </TextBlock.ContextMenu>
-                        </TextBlock>
+                        <TextBlock Text="{Binding FinishDisplay}" VerticalAlignment="Center" Margin="3,0"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
