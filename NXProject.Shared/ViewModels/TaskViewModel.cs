@@ -331,6 +331,7 @@ namespace NXProject.ViewModels
                         RefreshOriginalEstimatedHoursProperties();
                     }
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(EstimatedHoursDisplay));
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
@@ -603,6 +604,8 @@ namespace NXProject.ViewModels
         public void RefreshDerivedDisplayProperties()
         {
             OnPropertyChanged(nameof(DurationHours));
+            OnPropertyChanged(nameof(EstimatedHoursDisplay));
+            OnPropertyChanged(nameof(CurrentHoursDisplay));
             RefreshOriginalEstimatedHoursProperties();
         }
 
