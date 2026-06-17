@@ -490,6 +490,22 @@ namespace NXProject.ViewModels
                     return;
 
                 _task.PercentComplete = normalized;
+
+                // Recalcula HH Atual e HH Restante com base no % e na duração total fixada.
+                var totalH = _task.CurrentHours is > 0
+                    ? _task.CurrentHours.Value + (_task.EstimatedHours ?? 0)
+                    : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
+                if (totalH > 0)
+                {
+                    var newCurrentH   = Math.Round(normalized / 100.0 * totalH, 2);
+                    var newRemainingH = Math.Round(Math.Max(0, totalH - newCurrentH), 2);
+                    _task.CurrentHours   = newCurrentH > 0 ? newCurrentH : null;
+                    _task.EstimatedHours = newRemainingH > 0 ? newRemainingH : 0;
+                    OnPropertyChanged(nameof(CurrentHours));
+                    OnPropertyChanged(nameof(CurrentHoursDisplay));
+                    OnPropertyChanged(nameof(EstimatedHoursDisplay));
+                }
+
                 if (normalized >= 100)
                 {
                     // Se a tarefa ainda não começou (start no futuro) e o start não é fixo,
@@ -518,9 +534,8 @@ namespace NXProject.ViewModels
                 }
                 else if (!_task.FinishFixed)
                 {
-                    // Ao reduzir % abaixo de 100, restaura Finish a partir de EstimatedHours
-                    // para que a coluna HH Restante volte a mostrar o valor correto e seja editável.
-                    var restoreH = _task.EstimatedHours ?? 0;
+                    // Restaura Finish com base no total (HH Atual + HH Restante).
+                    var restoreH = (_task.CurrentHours ?? 0) + (_task.EstimatedHours ?? 0);
                     if (restoreH > 0)
                     {
                         _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, restoreH);
