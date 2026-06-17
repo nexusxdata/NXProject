@@ -196,7 +196,11 @@ namespace NXProject.Controls
 
         public void ScrollToProjectStart() => ScheduleRender(resetScroll: true);
 
-        public void ForceRender() => ScheduleRender();
+        public void ForceRender()
+        {
+            _renderScheduled = false;
+            ScheduleRender();
+        }
 
         private void ScheduleRender(bool resetScroll = false)
         {

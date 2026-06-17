@@ -660,22 +660,24 @@ namespace NXProject.Controls
             ShowOriginalHoursColumn = !ShowOriginalHoursColumn;
         }
 
+        // Guarda a VM capturada no ContextMenuOpening para usar no click (PlacementTarget pode ser null no Click)
+        private TaskViewModel? _durationContextMenuVm;
+
         private void OnToggleGanttOriginalViewClick(object sender, RoutedEventArgs e)
         {
-            if (sender is not MenuItem mi) return;
-            var ctx = ((mi.Parent as ContextMenu)?.PlacementTarget as System.Windows.FrameworkElement)?.DataContext;
-            if (ctx is not TaskViewModel vm) return;
+            var vm = _durationContextMenuVm;
+            if (vm == null) return;
             vm.SetOriginalHoursView(!vm.UseOriginalHoursView);
             GanttViewToggled?.Invoke();
         }
 
-        // Atualiza os labels dos itens de menu antes de abrir o ContextMenu.
+        // Atualiza os labels dos itens de menu e captura a VM antes de abrir o ContextMenu.
         private void OnDurationContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
             if (sender is not Border { ContextMenu: { } cm }) return;
 
-            // DataContext da linha (TaskViewModel)
-            var vm = (sender as System.Windows.FrameworkElement)?.DataContext as TaskViewModel;
+            _durationContextMenuVm = (sender as System.Windows.FrameworkElement)?.DataContext as TaskViewModel;
+            var vm = _durationContextMenuVm;
 
             var orgHItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleOrgHMenuItem");
             if (orgHItem != null)
