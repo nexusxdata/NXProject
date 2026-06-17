@@ -50,9 +50,9 @@ namespace NXProject.Services
         private static readonly string[] OriginalHoursFieldNames =
             { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado", "HH Original", "HH_Original" };
         private static readonly string[] RemainingHoursFieldNames =
-            { "HH_Restante", "HH Restante", "HHRestante" };
+            { "HH_Restante_float", "HH_Restante", "HH Restante", "HHRestante" };
         private static readonly string[] CurrentHoursFieldNames =
-            { "HH_Atual", "HH Atual", "HHAtual", "HH Realizado", "HH_Realizado", "HHRealizado" };
+            { "HH_Atual_float", "HH_Atual", "HH Atual", "HHAtual", "HH Realizado", "HH_Realizado", "HHRealizado" };
         private static readonly string[] StartFieldNames =
             { "Data_Inicio", "Data Inicio", "DataInicio" };
         private static readonly string[] FinishFieldNames =
