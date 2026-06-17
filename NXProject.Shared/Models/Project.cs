@@ -46,6 +46,9 @@ namespace NXProject.Models
         public string? DevOpsProjectName { get; set; }
         public int DevOpsRootWorkItemId { get; set; }
 
+        // Exibe coluna "OrgH" (Estimativa Original) no cronograma
+        public bool ShowOriginalHoursColumn { get; set; } = false;
+
         // Quantos dias de duracao equivalem a 1 SFP em cada faixa
         public double LowDaysPerSfp { get; set; } = 1.0;
         public double MediumDaysPerSfp { get; set; } = 1.0;

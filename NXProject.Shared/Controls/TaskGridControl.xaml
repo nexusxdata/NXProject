@@ -205,62 +205,22 @@
                                 <ContextMenu Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}">
                                     <MenuItem Header="{Binding OriginalEstimatedHoursText}" IsEnabled="False"
                                               FontStyle="Italic" Foreground="#555"/>
-                                    <Separator/>
-                                    <MenuItem Header="Ver HH Original no Gantt"
-                                              Tag="UseOriginal"
-                                              Click="OnToggleOriginalHoursViewClick">
-                                        <MenuItem.Style>
-                                            <Style TargetType="MenuItem">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </MenuItem.Style>
-                                    </MenuItem>
-                                    <MenuItem Header="Voltar para HH Restante"
-                                              Tag="UseEstimated"
-                                              Click="OnToggleOriginalHoursViewClick">
-                                        <MenuItem.Style>
-                                            <Style TargetType="MenuItem">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </MenuItem.Style>
-                                    </MenuItem>
                                 </ContextMenu>
                             </Border.ContextMenu>
-                            <StackPanel VerticalAlignment="Center">
-                                <!-- HH Restante (valor principal) -->
-                                <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
-                                           TextAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="Black"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
-                                                    <Setter Property="Foreground" Value="#6E6E6E"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
-                                                    <Setter Property="FontSize" Value="10"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <!-- HH Original — visível apenas quando UseOriginalHoursView = True -->
-                                <TextBlock Text="{Binding OriginalHoursDisplay}"
-                                           TextAlignment="Center"
-                                           FontSize="9"
-                                           Foreground="#1565C0"
-                                           FontWeight="SemiBold"
-                                           Visibility="{Binding UseOriginalHoursView, Converter={StaticResource BoolToVis}}"/>
-                            </StackPanel>
+                            <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="Black"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
+                                                <Setter Property="Foreground" Value="#6E6E6E"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Background" Value="Transparent"/>
@@ -270,11 +230,6 @@
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding HasOriginalEstimate}" Value="True">
                                             <Setter Property="BorderBrush" Value="#B0C4DE"/>
-                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
-                                            <Setter Property="Background" Value="#E8F0FE"/>
-                                            <Setter Property="BorderBrush" Value="#1565C0"/>
                                             <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -318,6 +273,21 @@
                     <Style TargetType="TextBlock">
                         <Setter Property="TextAlignment" Value="Center"/>
                         <Setter Property="VerticalAlignment" Value="Center"/>
+                    </Style>
+                </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
+
+            <!-- Estimativa Original (OrgH) — visível quando ShowOriginalHoursColumn = true -->
+            <DataGridTextColumn x:Name="OriginalHoursColumn" Header="OrgH"
+                                Binding="{Binding OriginalEstimatedHoursDisplay}"
+                                Width="50" IsReadOnly="True"
+                                Visibility="Collapsed">
+                <DataGridTextColumn.ElementStyle>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="TextAlignment" Value="Center"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="Foreground" Value="#1565C0"/>
+                        <Setter Property="FontSize" Value="11"/>
                     </Style>
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>

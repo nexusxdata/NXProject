@@ -528,6 +528,10 @@ namespace NXProject.ViewModels
 
         public bool HasOriginalEstimate => _task.OriginalEstimatedHours is > 0;
 
+        // Valor exibido na coluna OrgH
+        public string? OriginalEstimatedHoursDisplay =>
+            _task.OriginalEstimatedHours is > 0 ? $"{_task.OriginalEstimatedHours.Value:0}" : null;
+
         public bool UseOriginalHoursView => _task.UseOriginalHoursView;
 
         // Valor de HH Original formatado para exibição compacta na célula (ex: "↑40").

@@ -69,6 +69,7 @@ namespace NXProject.ViewModels
         }
         [ObservableProperty] private double _mediumDaysPerSfp = 1.0;
         [ObservableProperty] private double _highDaysPerSfp = 1.0;
+        [ObservableProperty] private bool _showOriginalHoursColumn = false;
 
         public ObservableCollection<string> ZoomLevels { get; } = new()
         {
@@ -456,6 +457,12 @@ namespace NXProject.ViewModels
 
             Project.IsDirty = true;
             RebuildFlatTasks();
+        }
+
+        partial void OnShowOriginalHoursColumnChanged(bool value)
+        {
+            Project.ShowOriginalHoursColumn = value;
+            Project.IsDirty = true;
         }
 
         partial void OnSelectedTaskChanged(TaskViewModel? oldValue, TaskViewModel? newValue)
@@ -1423,6 +1430,7 @@ namespace NXProject.ViewModels
                 LowDaysPerSfp = project.LowDaysPerSfp;
                 MediumDaysPerSfp = project.MediumDaysPerSfp;
                 HighDaysPerSfp = project.HighDaysPerSfp;
+                ShowOriginalHoursColumn = project.ShowOriginalHoursColumn;
             }
             finally
             {

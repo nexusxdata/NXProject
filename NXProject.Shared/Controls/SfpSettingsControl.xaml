@@ -11,6 +11,8 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="16"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
@@ -109,7 +111,31 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="4"
+            <Border Grid.Row="3"
+                    Padding="20"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    MaxWidth="620"
+                    HorizontalAlignment="Left">
+                <StackPanel>
+                    <TextBlock Text="Estimativa Original (OrgH)"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+                    <CheckBox Content="Exibir coluna OrgH no cronograma"
+                              IsChecked="{Binding ShowOriginalHoursColumn, Mode=TwoWay}"
+                              FontSize="13"/>
+                    <TextBlock Margin="20,4,0,0"
+                               FontSize="12"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               Text="Quando ativa, exibe uma coluna pequena (OrgH) ao lado do SPF com a estimativa original de cada tarefa. Util para comparar o planejado original com o restante atual."/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="6"
                     Padding="16"
                     Background="#F6F8FB"
                     BorderBrush="{StaticResource BorderBrush}"

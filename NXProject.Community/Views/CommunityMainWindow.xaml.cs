@@ -91,12 +91,12 @@ namespace NXProject.Views
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
-            TaskGridCtrl.TaskModified += () =>
+            vm.PropertyChanged += (_, e) =>
             {
-                vm.Project.IsDirty = true;
-                TaskGridCtrl.RefreshRows();
-                GanttCtrl.ForceRender();
+                if (e.PropertyName == nameof(vm.ShowOriginalHoursColumn))
+                    TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
             };
+            TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {

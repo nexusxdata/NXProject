@@ -61,6 +61,22 @@ namespace NXProject.Controls
         // troca quando o usuário realmente mudou a escolha (evita limpar sem querer).
         private object? _sprintEditOriginalSelection;
 
+        public static readonly DependencyProperty ShowOriginalHoursColumnProperty =
+            DependencyProperty.Register(nameof(ShowOriginalHoursColumn), typeof(bool),
+                typeof(TaskGridControl), new PropertyMetadata(false, OnShowOriginalHoursColumnChanged));
+
+        public bool ShowOriginalHoursColumn
+        {
+            get => (bool)GetValue(ShowOriginalHoursColumnProperty);
+            set => SetValue(ShowOriginalHoursColumnProperty, value);
+        }
+
+        private static void OnShowOriginalHoursColumnChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is TaskGridControl ctrl)
+                ctrl.OriginalHoursColumn.Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         /// <summary>Disparado quando o DataGrid rola verticalmente.</summary>
         public event Action<double>? VerticalScrollChanged;
 
@@ -514,16 +530,6 @@ namespace NXProject.Controls
                 CommitDurationEdit(tb);
         }
 
-        private void OnToggleOriginalHoursViewClick(object sender, RoutedEventArgs e)
-        {
-            if (sender is not MenuItem { Tag: string tag } mi) return;
-            // O DataContext do ContextMenu está no PlacementTarget (o Border).
-            var ctx = ((mi.Parent as ContextMenu)?.PlacementTarget as System.Windows.FrameworkElement)?.DataContext
-                   ?? mi.DataContext;
-            if (ctx is not TaskViewModel vm) return;
-            vm.SetOriginalHoursView(tag == "UseOriginal");
-            TaskModified?.Invoke();
-        }
 
         private void CommitStartEdit(TextBox tb)
         {
