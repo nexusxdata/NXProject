@@ -411,7 +411,7 @@ namespace NXProject.Views
             var lastActual = points.LastOrDefault(p => !p.IsFuture);
             var gap = lastActual != null ? lastActual.PlannedPct - lastActual.ActualPct : 0;
             CurveSummary.Text = lastActual != null
-                ? $"Realizado: {lastActual.ActualPct:0.#}%  |  HH Original: {lastActual.PlannedPct:0.#}%  |  " +
+                ? $"HH Atual: {lastActual.ActualPct:0.#}%  |  HH Original: {lastActual.PlannedPct:0.#}%  |  " +
                   $"Gap: {gap:0.#}%{(projEndLabel != null ? $"  |  Conclusão prevista: {projEndLabel}" : "")}"
                 : string.Empty;
         }
@@ -426,6 +426,14 @@ namespace NXProject.Views
             task.EstimatedHours is > 0
                 ? task.EstimatedHours.Value
                 : TaskScheduleService.GetEffectiveDurationHours(task);
+
+        // Duração total = HH Atual + HH Restante quando HH Atual disponível; senão EstimatedHours ou duração calculada.
+        private static double GetTotalHours(ProjectTask task) =>
+            task.CurrentHours is > 0
+                ? task.CurrentHours.Value + (task.EstimatedHours ?? 0)
+                : task.EstimatedHours is > 0
+                    ? task.EstimatedHours.Value
+                    : TaskScheduleService.GetEffectiveDurationHours(task);
 
         private List<SprintPoint> BuildCurvePoints(
             List<SprintInfo> sprints, List<TaskViewModel> leafTasks,
@@ -447,15 +455,23 @@ namespace NXProject.Views
 
                 if (!isFuture)
                 {
-                    // Passado/atual: acumula HH Realizado = EstimatedHours * % concluído
+                    // Passado/atual: acumula HH Atual (trabalho já realizado).
+                    // Quando HH Atual disponível, usa diretamente; senão estima pelo %.
                     cumProgress += inSprint.Sum(t =>
-                        GetEstimatedHours(t.Model) * t.Model.PercentComplete / 100.0) / totalOriginalHours * 100.0;
+                        t.Model.CurrentHours is > 0
+                            ? t.Model.CurrentHours.Value
+                            : GetTotalHours(t.Model) * t.Model.PercentComplete / 100.0
+                    ) / totalOriginalHours * 100.0;
                 }
                 else
                 {
-                    // Futuro: acumula HH Restante = EstimatedHours * (1 - % concluído)
+                    // Futuro: acumula HH Restante (trabalho ainda a fazer).
+                    // Quando HH Atual disponível, HH Restante = EstimatedHours; senão estima pelo %.
                     cumProgress += inSprint.Sum(t =>
-                        GetEstimatedHours(t.Model) * (1.0 - t.Model.PercentComplete / 100.0)) / totalOriginalHours * 100.0;
+                        t.Model.CurrentHours is > 0
+                            ? (t.Model.EstimatedHours ?? 0)
+                            : GetTotalHours(t.Model) * (1.0 - t.Model.PercentComplete / 100.0)
+                    ) / totalOriginalHours * 100.0;
                 }
 
                 points.Add(new SprintPoint(
@@ -790,7 +806,7 @@ namespace NXProject.Views
             }
             else if (nearest.IsFuture)
             {
-                TooltipActual.Text = $"HH Restante: {nearest.ActualPct:0.#}%";
+                TooltipActual.Text = $"HH Restante: {nearest.ActualPct:0.#}% (futuro)";
                 var gap = nearest.PlannedPct - nearest.ActualPct;
                 TooltipGap.Text = gap > 0.1  ? $"Gap: -{gap:0.#}% (atraso)"
                                 : gap < -0.1 ? $"Gap: +{-gap:0.#}% (adiantado)"
@@ -798,7 +814,7 @@ namespace NXProject.Views
             }
             else
             {
-                TooltipActual.Text = $"HH Realizado: {nearest.ActualPct:0.#}%";
+                TooltipActual.Text = $"HH Atual: {nearest.ActualPct:0.#}%";
                 var gap = nearest.PlannedPct - nearest.ActualPct;
                 TooltipGap.Text = gap > 0.1  ? $"Gap: -{gap:0.#}% (atraso)"
                                 : gap < -0.1 ? $"Gap: +{-gap:0.#}% (adiantado)"
