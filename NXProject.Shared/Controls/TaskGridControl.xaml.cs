@@ -645,6 +645,8 @@ namespace NXProject.Controls
             vm.DurationText = tb.Text;
             TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                () => TaskGrid.Items.Refresh());
         }
 
         private void OnDurationEditKeyDown(object sender, KeyEventArgs e)
