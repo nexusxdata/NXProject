@@ -688,12 +688,19 @@ namespace NXProject.ViewModels
         {
             foreach (var task in tasks)
             {
-                // Só restaura se o import não trouxe valor do TFS (null ou zero).
-                if (task.TfsId is > 0
-                    && (task.OriginalEstimatedHours == null || task.OriginalEstimatedHours <= 0)
-                    && saved.TryGetValue(task.TfsId.Value, out var orig))
+                if (task.TfsId is > 0)
                 {
-                    task.OriginalEstimatedHours = orig;
+                    if (task.OriginalEstimatedHours == null || task.OriginalEstimatedHours <= 0)
+                    {
+                        // TFS não trouxe Esforço Estimado — restaura do valor salvo antes do import.
+                        if (saved.TryGetValue(task.TfsId.Value, out var orig))
+                            task.OriginalEstimatedHours = orig;
+                    }
+
+                    // % = 0 significa que nenhum trabalho foi feito:
+                    // a estimativa original deve ser igual à estimativa restante.
+                    if (task.PercentComplete < 0.0001 && task.EstimatedHours is > 0)
+                        task.OriginalEstimatedHours = task.EstimatedHours;
                 }
                 RestoreOriginalEstimatedHours(task.Children, saved);
             }
