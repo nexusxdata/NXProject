@@ -55,7 +55,7 @@
         <DataGrid.Columns>
 
             <!-- ID (clicável: abre edição do vínculo DevOps) -->
-            <DataGridTemplateColumn x:Name="IdColumn" Header="ID" Width="35" IsReadOnly="True">
+            <DataGridTemplateColumn x:Name="IdColumn" Header="ID" Width="55" IsReadOnly="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Button Content="{Binding DisplayId}"
@@ -461,7 +461,7 @@
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
-            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="55" SortMemberPath="PredecessorsText">
+            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="70" SortMemberPath="PredecessorsText">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Button Content="{Binding PredecessorsText}"

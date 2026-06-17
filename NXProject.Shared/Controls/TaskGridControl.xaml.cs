@@ -324,7 +324,7 @@ namespace NXProject.Controls
         {
             ApplyHiddenColumns(hiddenDefault, hiddenExpanded, expanded);
 
-            IdColumn.Width = new DataGridLength(expanded ? 86 : 42);
+            IdColumn.Width = new DataGridLength(expanded ? 100 : 55);
             DevOpsColumn.Width = new DataGridLength(expanded ? 62 : 46);
             NameColumn.MinWidth = expanded ? 280 : 210;
             NameColumn.Width = expanded
@@ -335,7 +335,7 @@ namespace NXProject.Controls
             StartColumn.Width = new DataGridLength(expanded ? 96 : 76);
             FinishColumn.Width = new DataGridLength(expanded ? 96 : 76);
             PercentColumn.Width = new DataGridLength(expanded ? 82 : 62);
-            PredecessorColumn.Width = new DataGridLength(expanded ? 86 : 54);
+            PredecessorColumn.Width = new DataGridLength(expanded ? 100 : 70);
             ResourcesColumn.Width = new DataGridLength(expanded ? 190 : 88);
             SprintColumn.Width = new DataGridLength(expanded ? 150 : 118);
         }
