@@ -1,7 +1,7 @@
 <Window x:Class="NXProject.Views.DelayedTasksWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Check Progresso do Projeto"
+        Title="Progresso do Projeto e Curva S"
         Width="1100" Height="720"
         MinWidth="860" MinHeight="520"
         WindowStartupLocation="CenterOwner"
@@ -14,13 +14,59 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,10">
-            <TextBlock Text="Check Progresso do Projeto"
+            <TextBlock Text="Progresso do Projeto e Curva S"
                        FontSize="18" FontWeight="SemiBold" Foreground="#2B579A"/>
         </StackPanel>
 
         <TabControl Grid.Row="1" SelectionChanged="OnTabChanged">
 
-            <!-- ══════════════════ ABA 1: ATRASOS POR RECURSO ══════════════════ -->
+            <!-- ══════════════════ ABA 1: CURVA S ══════════════════ -->
+            <TabItem Header="Curva S de Progresso">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Legenda -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Rectangle Width="28" Height="4" Fill="#1F4EA1" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="HH Original (Planejado)" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
+                        <Rectangle Width="16" Height="4" Fill="#2E7D32" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="HH Realizado" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <Line X1="0" Y1="2" X2="20" Y2="2" Stroke="#E65100" StrokeThickness="2"
+                                  StrokeDashArray="4 2" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBlock Text="HH Restante / Tendência" VerticalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                        <TextBlock x:Name="CurveSummary" VerticalAlignment="Center"
+                                   FontSize="12" Foreground="#555" FontStyle="Italic"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="1" Background="White">
+                        <Canvas x:Name="CurveCanvas"
+                                SizeChanged="OnCurveCanvasSizeChanged"
+                                MouseMove="OnCurveCanvasMouseMove"
+                                MouseLeave="OnCurveCanvasMouseLeave"
+                                ClipToBounds="True">
+                            <Border x:Name="CurveTooltip"
+                                    Background="#F5F7FA" BorderBrush="#90A4AE" BorderThickness="1"
+                                    CornerRadius="4" Padding="10,7"
+                                    Visibility="Collapsed" Panel.ZIndex="10"
+                                    IsHitTestVisible="False">
+                                <StackPanel>
+                                    <TextBlock x:Name="TooltipSprint" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="TooltipPlanned" FontSize="11" Foreground="#1F4EA1"/>
+                                    <TextBlock x:Name="TooltipActual"  FontSize="11" Foreground="#2E7D32"/>
+                                    <TextBlock x:Name="TooltipGap"     FontSize="11" Foreground="#B23600"/>
+                                </StackPanel>
+                            </Border>
+                        </Canvas>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ══════════════════ ABA 2: ATRASOS POR RECURSO ══════════════════ -->
             <TabItem Header="Atrasos por Recurso">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
@@ -214,52 +260,6 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                </Grid>
-            </TabItem>
-
-            <!-- ══════════════════ ABA 3: CURVA S ══════════════════ -->
-            <TabItem Header="Curva S de Progresso">
-                <Grid Margin="8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Legenda -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Rectangle Width="28" Height="4" Fill="#1F4EA1" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="HH Original (Planejado)" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
-                        <Rectangle Width="16" Height="4" Fill="#2E7D32" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="HH Realizado" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <Line X1="0" Y1="2" X2="20" Y2="2" Stroke="#E65100" StrokeThickness="2"
-                                  StrokeDashArray="4 2" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Text="HH Restante / Tendência" VerticalAlignment="Center" FontSize="12"/>
-                        </StackPanel>
-                        <TextBlock x:Name="CurveSummary" VerticalAlignment="Center"
-                                   FontSize="12" Foreground="#555" FontStyle="Italic"/>
-                    </StackPanel>
-
-                    <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="1" Background="White">
-                        <Canvas x:Name="CurveCanvas"
-                                SizeChanged="OnCurveCanvasSizeChanged"
-                                MouseMove="OnCurveCanvasMouseMove"
-                                MouseLeave="OnCurveCanvasMouseLeave"
-                                ClipToBounds="True">
-                            <Border x:Name="CurveTooltip"
-                                    Background="#F5F7FA" BorderBrush="#90A4AE" BorderThickness="1"
-                                    CornerRadius="4" Padding="10,7"
-                                    Visibility="Collapsed" Panel.ZIndex="10"
-                                    IsHitTestVisible="False">
-                                <StackPanel>
-                                    <TextBlock x:Name="TooltipSprint" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,2"/>
-                                    <TextBlock x:Name="TooltipPlanned" FontSize="11" Foreground="#1F4EA1"/>
-                                    <TextBlock x:Name="TooltipActual"  FontSize="11" Foreground="#2E7D32"/>
-                                    <TextBlock x:Name="TooltipGap"     FontSize="11" Foreground="#B23600"/>
-                                </StackPanel>
-                            </Border>
-                        </Canvas>
-                    </Border>
                 </Grid>
             </TabItem>
 
