@@ -367,21 +367,23 @@ namespace NXProject.Views
             DrawGridAndAxes(pl, pt, pr, pb, pw, ph, points);
             DrawCurrentSprintMarker(pl, pt, pb, pw, points, currentSprintNumber);
 
-            // HH Original / Planejado — linha azul sólida
+            // Linha azul sólida: HH Original acumulado (baseline planejado)
             DrawPolyline(points.Select(p => ToCanvasPoint(p.SprintNumber - points[0].SprintNumber,
                                                            p.PlannedPct, points.Count, pl, pt, pw, ph)).ToList(),
                          "#1F4EA1", 2.5, false);
 
-            // HH Realizado — linha verde sólida (sprints passadas + atual)
+            // Linha pontilhada laranja: HH Atual (passado) + HH Restante (futuro) — deve bater com duração total
+            var lastRealizedPoint = points.LastOrDefault(p => !p.IsFuture);
+            var futurePts = points.Where(p => p.IsFuture).ToList();
+
+            // Segmento passado/atual (sólido laranja escuro)
             var realizedPts = points.Where(p => !p.IsFuture)
                                     .Select(p => ToCanvasPoint(p.SprintNumber - points[0].SprintNumber,
                                                                p.ActualPct, points.Count, pl, pt, pw, ph)).ToList();
             if (realizedPts.Count > 0)
-                DrawPolyline(realizedPts, "#2E7D32", 2.5, false);
+                DrawPolyline(realizedPts, "#E65100", 2.5, false);
 
-            // HH Restante — linha laranja tracejada (sprints futuras a partir do último ponto realizado)
-            var lastRealizedPoint = points.LastOrDefault(p => !p.IsFuture);
-            var futurePts = points.Where(p => p.IsFuture).ToList();
+            // Segmento futuro (tracejado laranja claro) continuando do último ponto realizado
             if (lastRealizedPoint != null && futurePts.Count > 0)
             {
                 var remainingLine = new List<(double X, double Y)>
@@ -397,7 +399,7 @@ namespace NXProject.Views
             // Tendência além das sprints existentes
             if (projPoints.Count > 1)
                 DrawPolyline(projPoints.Select(p => ToCanvasPoint(p.X, p.Y, points.Count, pl, pt, pw, ph)).ToList(),
-                             "#E65100", 1.8, true);
+                             "#FF8F00", 1.8, true);
 
             DrawSprintLabels(pl, pb, pw, points);
 
@@ -439,6 +441,11 @@ namespace NXProject.Views
             List<SprintInfo> sprints, List<TaskViewModel> leafTasks,
             double totalOriginalHours, int currentSprintNumber)
         {
+            // Denominador da linha pontilhada = soma de (HH Atual + HH Restante) de todas as tasks.
+            // Deve bater com a duração total; se for zero, cai no totalOriginalHours.
+            var totalDurationHours = leafTasks.Sum(t => GetTotalHours(t.Model));
+            if (totalDurationHours < 0.01) totalDurationHours = totalOriginalHours;
+
             var points = new List<SprintPoint>();
             double cumPlanned  = 0;
             double cumProgress = 0;
@@ -447,7 +454,7 @@ namespace NXProject.Views
             {
                 var inSprint = leafTasks.Where(t => GetTaskSprint(t) == sprint.Number).ToList();
 
-                // Planejado: HH Original desta sprint
+                // Linha azul: HH Original acumulado (baseline planejado).
                 cumPlanned += inSprint.Sum(t => GetOriginalHours(t.Model)) / totalOriginalHours * 100.0;
 
                 var isFuture  = sprint.Number > currentSprintNumber;
@@ -455,23 +462,21 @@ namespace NXProject.Views
 
                 if (!isFuture)
                 {
-                    // Passado/atual: acumula HH Atual (trabalho já realizado).
-                    // Quando HH Atual disponível, usa diretamente; senão estima pelo %.
+                    // Passado/atual: acumula HH Atual (trabalho efetivamente realizado).
                     cumProgress += inSprint.Sum(t =>
                         t.Model.CurrentHours is > 0
                             ? t.Model.CurrentHours.Value
                             : GetTotalHours(t.Model) * t.Model.PercentComplete / 100.0
-                    ) / totalOriginalHours * 100.0;
+                    ) / totalDurationHours * 100.0;
                 }
                 else
                 {
-                    // Futuro: acumula HH Restante (trabalho ainda a fazer).
-                    // Quando HH Atual disponível, HH Restante = EstimatedHours; senão estima pelo %.
+                    // Futuro: acumula HH Restante (trabalho ainda a executar).
                     cumProgress += inSprint.Sum(t =>
                         t.Model.CurrentHours is > 0
                             ? (t.Model.EstimatedHours ?? 0)
                             : GetTotalHours(t.Model) * (1.0 - t.Model.PercentComplete / 100.0)
-                    ) / totalOriginalHours * 100.0;
+                    ) / totalDurationHours * 100.0;
                 }
 
                 points.Add(new SprintPoint(
