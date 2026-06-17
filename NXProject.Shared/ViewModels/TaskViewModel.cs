@@ -555,6 +555,7 @@ namespace NXProject.ViewModels
                 OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
                 OnPropertyChanged(nameof(OriginalEstimatedHoursText));
                 OnPropertyChanged(nameof(HasOriginalEstimate));
+                OnPropertyChanged(nameof(IsDurationReadOnly));
                 NotifyParentPercentChanged();
             }
         }
@@ -591,7 +592,7 @@ namespace NXProject.ViewModels
 
         public bool CanEditDuration => _task.Children.Count == 0 && !UsesSfpEstimate;
 
-        public bool IsDurationReadOnly => !CanEditDuration;
+        public bool IsDurationReadOnly => !CanEditDuration || _task.PercentComplete >= 100;
 
         public double? CurrentHours => _task.CurrentHours;
         public double? EstimatedHoursValue => _task.EstimatedHours;
