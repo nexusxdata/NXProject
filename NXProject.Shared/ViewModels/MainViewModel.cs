@@ -863,7 +863,12 @@ namespace NXProject.ViewModels
                 if (!visited.Add(sibling.Model.Id)) continue;
 
                 var nextStart = ProjectCalendarService.AddWorkingDays(changedFinish, 1);
-                if (sibling.Model.Start.Date >= nextStart.Date) break; // Já está depois, sem sobreposição
+                if (sibling.Model.Start.Date == nextStart.Date)
+                {
+                    // Já na posição correta; encadeia a partir do fim deste
+                    changedFinish = ProjectCalendarService.GetInclusiveFinishDate(sibling.Model.Start, sibling.Model.Finish);
+                    continue;
+                }
 
                 var oldFinish = sibling.Model.Finish;
                 var durationHours = sibling.DurationHours;
