@@ -117,6 +117,7 @@ namespace NXProject.ViewModels
 
         private void RebuildFlatTasks()
         {
+            SyncOriginalHoursWhenZeroPercent(Project.Tasks);
             var selectedModel = SelectedTask?.Model;
             FlatTasks.Clear();
             foreach (var task in Project.Tasks)
