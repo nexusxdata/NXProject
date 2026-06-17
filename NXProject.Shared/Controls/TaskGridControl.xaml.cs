@@ -195,7 +195,7 @@ namespace NXProject.Controls
             ("Início",        StartColumn),
             ("Fim",           FinishColumn),
             ("% Compl.",      PercentColumn),
-            ("HH Realizado",  RealizedHoursColumn),
+            ("HH Atual",      RealizedHoursColumn),
             ("HH Restante",   EstimatedHoursColumn),
             ("Predecessoras", PredecessorColumn),
             ("Recursos",      ResourcesColumn),

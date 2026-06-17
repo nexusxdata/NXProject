@@ -303,9 +303,9 @@
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
-            <!-- HH Realizado (oculto por padrão) -->
-            <DataGridTextColumn x:Name="RealizedHoursColumn" Header="HH Realizado"
-                                Binding="{Binding RealizedHoursDisplay}" Width="80" IsReadOnly="True"
+            <!-- HH Atual (oculto por padrão) -->
+            <DataGridTextColumn x:Name="RealizedHoursColumn" Header="HH Atual"
+                                Binding="{Binding CurrentHoursDisplay}" Width="80" IsReadOnly="True"
                                 Visibility="Collapsed">
                 <DataGridTextColumn.ElementStyle>
                     <Style TargetType="TextBlock">

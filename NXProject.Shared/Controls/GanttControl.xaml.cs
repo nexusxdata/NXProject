@@ -1173,13 +1173,14 @@ namespace NXProject.Controls
             Canvas.SetTop(dot, y + RowHeight / 2 - 2.5);
             GanttCanvas.Children.Add(dot);
 
-            // Barra preta: horas realizadas proporcional à duração total
-            double? realizedH  = task.Model.RealizedHours;
-            double  durationH  = task.Model.EstimatedHours is > 0 ? task.Model.EstimatedHours.Value
-                                 : ProjectCalendarService.CountWorkingHours(task.Model.Start, task.Model.Finish);
-            if (realizedH is > 0 && durationH > 0)
+            // Barra preta: HH Atual proporcional à duração total (HH Atual + HH Restante)
+            double? realizedH = task.Model.CurrentHours;
+            double  totalH    = task.Model.CurrentHours is > 0
+                                ? task.Model.CurrentHours.Value + (task.Model.EstimatedHours ?? 0)
+                                : ProjectCalendarService.CountWorkingHours(task.Model.Start, task.Model.Finish);
+            if (realizedH is > 0 && totalH > 0)
             {
-                double realizedW = Math.Min(width, width * (realizedH.Value / durationH));
+                double realizedW = Math.Min(width, width * (realizedH.Value / totalH));
                 if (realizedW > 1)
                 {
                     var realBar = new Rectangle
@@ -1189,7 +1190,7 @@ namespace NXProject.Controls
                         Fill = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
                         RadiusX = 2,
                         RadiusY = 2,
-                        ToolTip = new ToolTip { Content = $"HH Realizado: {realizedH.Value:0.#}h de {durationH:0.#}h" }
+                        ToolTip = new ToolTip { Content = $"HH Atual: {realizedH.Value:0.#}h | HH Restante: {(task.Model.EstimatedHours ?? 0):0.#}h | Total: {totalH:0.#}h" }
                     };
                     AttachTaskMetadata(realBar, task);
                     Canvas.SetLeft(realBar, x);

@@ -51,8 +51,8 @@ namespace NXProject.Services
             { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado", "HH Original", "HH_Original" };
         private static readonly string[] RemainingHoursFieldNames =
             { "HH_Restante", "HH Restante", "HHRestante" };
-        private static readonly string[] RealizedHoursFieldNames =
-            { "HH Realizado", "HH_Realizado", "HHRealizado" };
+        private static readonly string[] CurrentHoursFieldNames =
+            { "HH_Atual", "HH Atual", "HHAtual", "HH Realizado", "HH_Realizado", "HHRealizado" };
         private static readonly string[] StartFieldNames =
             { "Data_Inicio", "Data Inicio", "DataInicio" };
         private static readonly string[] FinishFieldNames =
@@ -88,7 +88,7 @@ namespace NXProject.Services
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
             var percConclusaoRef   = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
             var tipoCentroCustoRef = ResolveField(fieldMap, null, TipoCentroCustoFieldNames);
-            var realizedHoursRef   = ResolveField(fieldMap, null, RealizedHoursFieldNames);
+            var realizedHoursRef   = ResolveField(fieldMap, null, CurrentHoursFieldNames);
 
             // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
             // (ancora das Stories sem data); as numeradas/exibidas serao so as
@@ -187,7 +187,7 @@ namespace NXProject.Services
                 PercAlocRef = percAlocRef,
                 PercConclusaoRef = percConclusaoRef,
                 TipoCentroCustoRef = tipoCentroCustoRef,
-                RealizedHoursRef   = realizedHoursRef,
+                CurrentHoursRef    = realizedHoursRef,
                 SyncVersionRef = syncVersionRef,
                 HoursPerDay = options.HoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : options.HoursPerDay,
                 ProjectStart = project.StartDate,
@@ -356,7 +356,7 @@ namespace NXProject.Services
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
             var originalHoursRef  = ResolveField(fieldMap, null, OriginalHoursFieldNames);
             var remainingHoursRef = ResolveField(fieldMap, null, RemainingHoursFieldNames);
-            var realizedHoursRef  = ResolveField(fieldMap, null, RealizedHoursFieldNames);
+            var realizedHoursRef  = ResolveField(fieldMap, null, CurrentHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
@@ -529,19 +529,16 @@ namespace NXProject.Services
                         }
                     }
 
-                    // HH Realizado: grava quando % = 100 e o valor difere do TFS.
-                    if (realizedHoursRef != null && task.PercentComplete >= 99.9999)
+                    // HH Atual: grava sempre que o valor local difere do TFS.
+                    if (realizedHoursRef != null && task.CurrentHours is > 0)
                     {
-                        var realizedH = GetSyncHours(task) ?? 0;
-                        if (realizedH > 0)
+                        var currentH    = task.CurrentHours.Value;
+                        var currentTfsH = ReadDouble(wi, realizedHoursRef);
+                        if (currentTfsH == null || Math.Abs(currentTfsH.Value - currentH) > 0.0001)
                         {
-                            var currentRealH = ReadDouble(wi, realizedHoursRef);
-                            if (currentRealH == null || Math.Abs(currentRealH.Value - realizedH) > 0.0001)
-                            {
-                                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", realizedH));
-                                var oldR = currentRealH.HasValue ? $"{currentRealH.Value:0.##}→" : "";
-                                changes.Add($"HH Realizado: {oldR}{realizedH:0.##}h");
-                            }
+                            ops.Add(PatchAdd($"/fields/{realizedHoursRef}", currentH));
+                            var oldR = currentTfsH.HasValue ? $"{currentTfsH.Value:0.##}→" : "";
+                            changes.Add($"HH Atual: {oldR}{currentH:0.##}h");
                         }
                     }
 
@@ -1178,9 +1175,9 @@ namespace NXProject.Services
                 ops.Add(PatchAdd($"/fields/{remainingHoursRef}", remH));
             }
 
-            // HH Realizado na criação quando % = 100
-            if (realizedHoursRef != null && task.PercentComplete >= 99.9999 && desiredHours is > 0)
-                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", desiredHours.Value));
+            // HH Atual na criação quando o campo existe e há horas atuais
+            if (realizedHoursRef != null && task.CurrentHours is > 0)
+                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", task.CurrentHours.Value));
 
             var desiredAssignee = GetDesiredAssigneeEmail(task);
             if (!string.IsNullOrWhiteSpace(desiredAssignee))
@@ -1310,7 +1307,7 @@ namespace NXProject.Services
             public string? PercConclusaoRef;
             public string? SyncVersionRef;
             public string? TipoCentroCustoRef;
-            public string? RealizedHoursRef;
+            public string? CurrentHoursRef;
             public double HoursPerDay = 8.0;
             public DateTime ProjectStart;
 
@@ -1469,16 +1466,24 @@ namespace NXProject.Services
 
             bool hasFixedTag = HasTag(item.Tags, ctx.FixedStartTagName);
             DateTime start = (hasFixedTag && explicitStart != null) ? explicitStart.Value : baseStart;
+            // HH Atual lido diretamente para usar no cálculo de duração total.
+            var currentHoursRaw = ctx.CurrentHoursRef != null && ReadDouble(item, ctx.CurrentHoursRef) is { } rh2 && rh2 > 0 ? rh2 : (double?)null;
+
             var durationHours = hours.HasValue
                 ? Math.Max(0.0, hours.Value)
                 : ctx.HoursPerDay > 0
                     ? ctx.HoursPerDay
                     : ProjectCalendarService.WorkingHoursPerDay;
 
+            // Duração total = HH Atual + HH Restante quando HH Atual disponível.
+            var totalDurationHours = currentHoursRaw is > 0
+                ? currentHoursRaw.Value + durationHours
+                : durationHours;
+
             DateTime finish = isMilestone
                 ? start
-                : (explicitFinish ?? ProjectCalendarService.AddWorkingHours(start, durationHours));
-            if (finish < start) finish = isMilestone ? start : ProjectCalendarService.AddWorkingHours(start, durationHours);
+                : (explicitFinish ?? ProjectCalendarService.AddWorkingHours(start, totalDurationHours));
+            if (finish < start) finish = isMilestone ? start : ProjectCalendarService.AddWorkingHours(start, totalDurationHours);
 
             // Avanca a fila (pessoa, sprint) — SO para frente. Uma Story com data
             // explicita anterior nao pode puxar o cursor para tras (senao as
@@ -1513,7 +1518,7 @@ namespace NXProject.Services
                 FinishFixed = explicitFinish.HasValue || HasTag(item.Tags, ctx.FixedFinishTagName),
                 Justificativa = ParseJustificativa(item.Description),
                 TipoCentroCusto = ReadTipoCentroCusto(item, ctx.TipoCentroCustoRef),
-                RealizedHours = ctx.RealizedHoursRef != null && ReadDouble(item, ctx.RealizedHoursRef) is { } rh && rh > 0 ? rh : null,
+                CurrentHours  = ctx.CurrentHoursRef  != null && ReadDouble(item, ctx.CurrentHoursRef)  is { } rh && rh > 0 ? rh : null,
                 SyncVersion = ctx.SyncVersionRef != null ? (int?)ReadDouble(item, ctx.SyncVersionRef).GetValueOrDefault(0) : null,
                 HasSyncConflict = false,
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"

@@ -307,20 +307,26 @@ namespace NXProject.ViewModels
 
         public double DurationHours
         {
-            get => ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
+            // Duração total = HH Atual + HH Restante quando HH Atual > 0; caso contrário, baseada em datas.
+            get => _task.CurrentHours is > 0
+                ? _task.CurrentHours.Value + (_task.EstimatedHours ?? 0)
+                : ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
             set
             {
                 if (!CanEditDuration || _task.FinishFixed) return;
 
                 if (value >= 0)
                 {
-                    _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value);
-                    _task.EstimatedHours = value;
-                    // Enquanto a tarefa não estiver concluída, HH Restante editado na grade
-                    // também atualiza OrgH e avisa imediatamente as colunas derivadas.
+                    // Ao editar, o usuário define o total; HH Atual não muda — extrai HH Restante.
+                    var remaining = _task.CurrentHours is > 0
+                        ? Math.Max(0, value - _task.CurrentHours.Value)
+                        : value;
+                    _task.EstimatedHours = remaining;
+                    var totalH = _task.CurrentHours is > 0 ? _task.CurrentHours.Value + remaining : remaining;
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
                     if (_task.PercentComplete < 100)
                     {
-                        _task.OriginalEstimatedHours = value;
+                        _task.OriginalEstimatedHours = remaining;
                         RefreshOriginalEstimatedHoursProperties();
                     }
                     OnPropertyChanged();
@@ -570,11 +576,11 @@ namespace NXProject.ViewModels
 
         public bool IsDurationReadOnly => !CanEditDuration || (_task.FinishFixed && _task.StartFixed);
 
-        public double? RealizedHours => _task.RealizedHours;
+        public double? CurrentHours => _task.CurrentHours;
         public double? EstimatedHoursValue => _task.EstimatedHours;
 
-        public string RealizedHoursDisplay =>
-            _task.RealizedHours is > 0 ? _task.RealizedHours.Value.ToString("0.#") : "";
+        public string CurrentHoursDisplay =>
+            _task.CurrentHours is > 0 ? _task.CurrentHours.Value.ToString("0.#") : "";
         public string EstimatedHoursDisplay =>
             _task.EstimatedHours is > 0 ? _task.EstimatedHours.Value.ToString("0.#") : "";
 
