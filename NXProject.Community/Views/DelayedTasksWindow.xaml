@@ -228,12 +228,13 @@
                     <!-- Legenda -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                         <Rectangle Width="28" Height="4" Fill="#1F4EA1" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="Planejado" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
+                        <TextBlock Text="HH Original (Planejado)" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
+                        <Rectangle Width="16" Height="4" Fill="#2E7D32" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="HH Realizado" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <Rectangle Width="16" Height="4" Fill="#2E7D32" VerticalAlignment="Center"/>
-                            <Line X1="0" Y1="2" X2="14" Y2="2" Stroke="#2E7D32" StrokeThickness="2"
-                                  StrokeDashArray="3 2" VerticalAlignment="Center" Margin="2,0,4,0"/>
-                            <TextBlock Text="Realizado / Tendência" VerticalAlignment="Center" FontSize="12"/>
+                            <Line X1="0" Y1="2" X2="20" Y2="2" Stroke="#E65100" StrokeThickness="2"
+                                  StrokeDashArray="4 2" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBlock Text="HH Restante / Tendência" VerticalAlignment="Center" FontSize="12"/>
                         </StackPanel>
                         <TextBlock x:Name="CurveSummary" VerticalAlignment="Center"
                                    FontSize="12" Foreground="#555" FontStyle="Italic"/>

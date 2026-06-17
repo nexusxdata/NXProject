@@ -219,7 +219,7 @@
                                             </Style>
                                         </MenuItem.Style>
                                     </MenuItem>
-                                    <MenuItem Header="Voltar para HH Estimado"
+                                    <MenuItem Header="Voltar para HH Restante"
                                               Tag="UseEstimated"
                                               Click="OnToggleOriginalHoursViewClick">
                                         <MenuItem.Style>
