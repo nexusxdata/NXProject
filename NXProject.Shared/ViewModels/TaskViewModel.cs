@@ -494,9 +494,11 @@ namespace NXProject.ViewModels
                 _task.PercentComplete = normalized;
 
                 // Recalcula HH Atual e HH Restante com base no % e na duração total fixada.
+                // Usa CountWorkingHours como fallback quando HH estão zerados (sem informação).
                 var totalH = _task.CurrentHours is > 0
                     ? _task.CurrentHours.Value + (_task.EstimatedHours ?? 0)
-                    : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
+                    : ((_task.EstimatedHours is > 0 ? _task.EstimatedHours.Value : (double?)null)
+                       ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
                 if (totalH > 0)
                 {
                     var newCurrentH   = Math.Round(normalized / 100.0 * totalH, 2);
