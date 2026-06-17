@@ -518,11 +518,10 @@ namespace NXProject.Services
                         }
                     }
 
-                    // HH Restante: grava a diferença de horas ainda não concluídas.
-                    if (remainingHoursRef != null)
+                    // HH Restante: grava EstimatedHours diretamente (já é o restante calculado).
+                    if (remainingHoursRef != null && task.EstimatedHours is >= 0)
                     {
-                        var estH = GetSyncHours(task) ?? 0;
-                        var remainingH = Math.Max(0, estH * (1.0 - task.PercentComplete / 100.0));
+                        var remainingH = task.EstimatedHours.Value;
                         var currentRemH = ReadDouble(wi, remainingHoursRef);
                         if (currentRemH == null || Math.Abs(currentRemH.Value - remainingH) > 0.0001)
                         {
@@ -1171,12 +1170,9 @@ namespace NXProject.Services
             if (originalHoursRef != null && task.OriginalEstimatedHours is > 0 && task.PercentComplete < 0.0001)
                 ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
 
-            // HH Restante na criação
-            if (remainingHoursRef != null && desiredHours.HasValue)
-            {
-                var remH = Math.Max(0, desiredHours.Value * (1.0 - task.PercentComplete / 100.0));
-                ops.Add(PatchAdd($"/fields/{remainingHoursRef}", remH));
-            }
+            // HH Restante na criação: EstimatedHours já é o valor restante.
+            if (remainingHoursRef != null && task.EstimatedHours is >= 0)
+                ops.Add(PatchAdd($"/fields/{remainingHoursRef}", task.EstimatedHours.Value));
 
             // HH Atual na criação quando o campo existe e há horas atuais
             if (realizedHoursRef != null && task.CurrentHours is > 0)
