@@ -49,6 +49,8 @@ namespace NXProject.Services
             { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado" };
         private static readonly string[] OriginalHoursFieldNames =
             { "HH Original", "HH_Original", "HHOriginal" };
+        private static readonly string[] RealizedHoursFieldNames =
+            { "HH Realizado", "HH_Realizado", "HHRealizado" };
         private static readonly string[] StartFieldNames =
             { "Data_Inicio", "Data Inicio", "DataInicio" };
         private static readonly string[] FinishFieldNames =
@@ -342,7 +344,8 @@ namespace NXProject.Services
 
             var fieldMap = await LoadFieldMapAsync(orgBase, auth, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
-            var originalHoursRef = ResolveField(fieldMap, null, OriginalHoursFieldNames);
+            var originalHoursRef  = ResolveField(fieldMap, null, OriginalHoursFieldNames);
+            var realizedHoursRef  = ResolveField(fieldMap, null, RealizedHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
@@ -374,6 +377,7 @@ namespace NXProject.Services
             var requested = new List<string> { "System.Id", "System.Title", "System.State", "System.Description" };
             if (hoursRef != null) requested.Add(hoursRef);
             if (originalHoursRef != null) requested.Add(originalHoursRef);
+            if (realizedHoursRef != null) requested.Add(realizedHoursRef);
             if (startRef != null) requested.Add(startRef);
             if (finishRef != null) requested.Add(finishRef);
             if (percAlocRef != null) requested.Add(percAlocRef);
@@ -494,6 +498,22 @@ namespace NXProject.Services
                             ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
                             var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
                             changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
+                        }
+                    }
+
+                    // HH Realizado: grava quando % = 100 e o valor difere do TFS.
+                    if (realizedHoursRef != null && task.PercentComplete >= 99.9999)
+                    {
+                        var realizedH = GetSyncHours(task) ?? 0;
+                        if (realizedH > 0)
+                        {
+                            var currentRealH = ReadDouble(wi, realizedHoursRef);
+                            if (currentRealH == null || Math.Abs(currentRealH.Value - realizedH) > 0.0001)
+                            {
+                                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", realizedH));
+                                var oldR = currentRealH.HasValue ? $"{currentRealH.Value:0.##}→" : "";
+                                changes.Add($"HH Realizado: {oldR}{realizedH:0.##}h");
+                            }
                         }
                     }
 
