@@ -465,6 +465,13 @@ namespace NXProject.Controls
 
         // Só Feature e Story têm sprint: cancela a edição da coluna Sprint para
         // Projeto/Epic (e qualquer tipo sem suporte a sprint).
+        private void OnTaskGridCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction == DataGridEditAction.Commit)
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                    () => TaskGrid.Items.Refresh());
+        }
+
         private void OnTaskGridBeginningEdit(object? sender, DataGridBeginningEditEventArgs e)
         {
             if (e.Column == SprintColumn && e.Row?.Item is TaskViewModel task && !task.SupportsSprint)

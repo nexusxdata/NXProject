@@ -24,6 +24,7 @@
               DragOver="OnTaskGridDragOver"
               Drop="OnTaskGridDrop"
               BeginningEdit="OnTaskGridBeginningEdit"
+              CellEditEnding="OnTaskGridCellEditEnding"
               SelectionChanged="OnTaskGridSelectionChanged">
 
         <DataGrid.RowStyle>
