@@ -228,7 +228,7 @@
                                               Click="OnToggleOrgHColumnClick"/>
                                 </ContextMenu>
                             </Border.ContextMenu>
-                            <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
+                            <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0.#}}"
                                        TextAlignment="Center"
                                        VerticalAlignment="Center">
                                 <TextBlock.Style>
@@ -261,7 +261,7 @@
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate>
-                        <TextBox Text="{Binding DurationHours, StringFormat={}{0:0}, Mode=OneTime}"
+                        <TextBox Text="{Binding DurationHours, StringFormat={}{0:0.#}, Mode=OneTime}"
                                  BorderThickness="0"
                                  TextAlignment="Center"
                                  VerticalContentAlignment="Center"
@@ -402,7 +402,7 @@
                         <Grid Margin="2,1">
                             <ProgressBar Value="{Binding PercentComplete}" Maximum="100" Height="12"
                                          Background="#E0E0E0" Foreground="#217346"/>
-                            <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0}%}"
+                            <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0.#}%}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontSize="9" Foreground="{Binding PercentCompleteTextBrush}"/>
                         </Grid>
@@ -410,7 +410,7 @@
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
                     <DataTemplate>
-                        <TextBox Text="{Binding PercentComplete, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0}}"
+                        <TextBox Text="{Binding PercentComplete, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.#}}"
                                  BorderThickness="0"
                                  VerticalContentAlignment="Center"
                                  HorizontalContentAlignment="Center">
