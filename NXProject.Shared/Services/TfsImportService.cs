@@ -648,52 +648,6 @@ namespace NXProject.Services
                         }
                     }
 
-                    // Data fim: prioridade → fixado > fechado/100% > limpar.
-                    // O bloco de fechados (abaixo) também escreve finishRef; para evitar
-                    // duplicata no mesmo PATCH, só limpamos quando o item NÃO está fechado.
-                    var effectiveStateForFinish = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
-                    bool isClosedForFinish = IsClosedState(effectiveStateForFinish) || task.PercentComplete >= 100;
-                    if (finishRef != null && task.FinishFixed)
-                    {
-                        var inclusiveFinish = ProjectCalendarService.GetInclusiveFinishDate(task.Start, task.Finish);
-                        var currentFinish = ReadDate(wi, finishRef);
-                        if (currentFinish == null || currentFinish.Value.Date != inclusiveFinish.Date)
-                        {
-                            ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(inclusiveFinish)));
-                            changes.Add($"fim: {inclusiveFinish:dd/MM} (fixado)");
-                        }
-                    }
-                    else if (finishRef != null && !task.FinishFixed && !isClosedForFinish)
-                    {
-                        var currentFinish = ReadDate(wi, finishRef);
-                        if (currentFinish != null)
-                        {
-                            ops.Add(PatchAdd($"/fields/{finishRef}", string.Empty));
-                            changes.Add("fim: limpo");
-                        }
-                    }
-
-                    // Tag de data fim fixada.
-                    {
-                        var fixedFinishTag = string.IsNullOrWhiteSpace(options.FixedFinishTagName) ? "DT_FIM_NEG" : options.FixedFinishTagName.Trim();
-                        var currentTags = wi.Tags ?? string.Empty;
-                        bool hasTagNow = HasTag(currentTags, fixedFinishTag);
-                        if (task.FinishFixed && !hasTagNow)
-                        {
-                            var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedFinishTag).Trim().TrimStart(';').Trim();
-                            ops.Add(PatchAdd("/fields/System.Tags", newTags));
-                            changes.Add($"tag: +{fixedFinishTag}");
-                        }
-                        else if (!task.FinishFixed && hasTagNow)
-                        {
-                            var parts = currentTags
-                                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                .Where(t => !string.Equals(t, fixedFinishTag, StringComparison.OrdinalIgnoreCase));
-                            ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
-                            changes.Add($"tag: -{fixedFinishTag}");
-                        }
-                    }
-
                     // Sprint (System.IterationPath): sincroniza se a sprint escolhida
                     // no NXProject difere da que esta no DevOps.
                     if (!string.IsNullOrWhiteSpace(task.TfsIterationPath) &&
@@ -710,16 +664,6 @@ namespace NXProject.Services
                     {
                         ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
                         changes.Add($"estado: {task.TfsState.Trim()}");
-                    }
-
-                    if (finishRef != null && isClosedForFinish && !task.FinishFixed)
-                    {
-                        var currentFinish = ReadDate(wi, finishRef);
-                        if (currentFinish == null || currentFinish.Value.Date != task.Finish.Date)
-                        {
-                            ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(task.Finish)));
-                            changes.Add($"fim: {task.Finish:dd/MM}");
-                        }
                     }
 
                     // Parent: reparenta SÓ se o pai mudou em relação ao que está no DevOps.
@@ -1517,7 +1461,7 @@ namespace NXProject.Services
                 TfsStackRank = item.StackRank,
                 TfsIterationPath = item.IterationPath,
                 StartFixed = hasFixedTag,
-                FinishFixed = explicitFinish.HasValue || HasTag(item.Tags, ctx.FixedFinishTagName),
+                FinishFixed = false,
                 Justificativa = ParseJustificativa(item.Description),
                 TipoCentroCusto = ReadTipoCentroCusto(item, ctx.TipoCentroCustoRef),
                 CurrentHours  = ctx.CurrentHoursRef  != null && ReadDouble(item, ctx.CurrentHoursRef)  is { } rh && rh > 0 ? rh : null,
