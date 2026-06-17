@@ -80,9 +80,6 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o DataGrid rola verticalmente.</summary>
         public event Action<double>? VerticalScrollChanged;
 
-        /// <summary>Disparado quando uma ação do usuário modifica dados (ex.: toggle de modo de horas).</summary>
-        public event Action? TaskModified;
-
         /// <summary>Disparado quando a altura real do header do DataGrid e conhecida.</summary>
         public event Action<double>? HeaderHeightMeasured;
 
