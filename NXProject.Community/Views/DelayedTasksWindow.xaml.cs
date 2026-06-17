@@ -35,6 +35,7 @@ namespace NXProject.Views
             _vm = vm;
             BuildMatrix();
             BuildAllDelayedList();
+            BuildBlockedList();
         }
 
         // ── Buckets ──────────────────────────────────────────────────────────
@@ -268,6 +269,7 @@ namespace NXProject.Views
         {
             BuildMatrix();
             BuildAllDelayedList();
+            BuildBlockedList();
             if (_selectedResource != null && _selectedBucket.HasValue)
                 ShowMatrixDetails(_selectedResource, _selectedBucket.Value);
             if (CurveCanvas.ActualWidth > 0)
@@ -656,6 +658,48 @@ namespace NXProject.Views
         {
             if (sender is TabControl tc && tc.SelectedIndex == 2 && CurveCanvas.ActualWidth > 0)
                 RenderCurve();
+        }
+
+        // ── ABA 4: Em Bloqueio ───────────────────────────────────────────────
+
+        private void BuildBlockedList()
+        {
+            var rows = _vm.FlatTasks
+                .Where(t => t.IsBlocked)
+                .OrderBy(t => t.Model.SprintNumber)
+                .ThenBy(t => t.Model.Name)
+                .Select(t => new BlockedTaskRow(t, _vm))
+                .ToList();
+
+            BlockedGrid.ItemsSource = rows;
+            BlockedSummary.Text = rows.Count > 0
+                ? $"{rows.Count} item(ns) em bloqueio"
+                : "Nenhum item em bloqueio.";
+        }
+
+        public sealed class BlockedTaskRow
+        {
+            private readonly TaskViewModel _vm;
+            private readonly MainViewModel _mainVm;
+
+            public BlockedTaskRow(TaskViewModel vm, MainViewModel mainVm)
+            {
+                _vm = vm; _mainVm = mainVm;
+            }
+
+            public string DisplayId   => _vm.DisplayId;
+            public string TfsType     => _vm.Model.TfsType ?? "—";
+            public string Name        => _vm.Model.Name;
+            public string ResourceName =>
+                _vm.Model.Resources.FirstOrDefault()?.Resource?.Name ?? "Sem recurso";
+            public string PercentText => $"{_vm.Model.PercentComplete:0}%";
+            public string StartText   => _vm.Model.Start.ToString("dd/MM/yy");
+            public string FinishText  => ProjectCalendarService
+                .GetInclusiveFinishDate(_vm.Model.Start, _vm.Model.Finish)
+                .ToString("dd/MM/yy");
+            public string SprintLabel =>
+                _vm.SprintNumber > 0 ? $"Sprint {_vm.SprintNumber}" : "—";
+            public string Tags        => _vm.Model.Tags ?? string.Empty;
         }
 
         private void OnCurveCanvasSizeChanged(object sender, SizeChangedEventArgs e)

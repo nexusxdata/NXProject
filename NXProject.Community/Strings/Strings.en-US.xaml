@@ -36,7 +36,7 @@
     <!-- Management Menu -->
     <sys:String x:Key="Menu_Manage">_Management</sys:String>
     <sys:String x:Key="Menu_Manage_Resources">_Resource Allocation...</sys:String>
-    <sys:String x:Key="Menu_Manage_HealthCheck">Project _Health Check...</sys:String>
+    <sys:String x:Key="Menu_Manage_HealthCheck">Project _Progress Check...</sys:String>
     <sys:String x:Key="Menu_Manage_StoryStatusChart">_Story Status Chart...</sys:String>
     <sys:String x:Key="Menu_Manage_AllocationMap">Project _Allocation Map...</sys:String>
 
@@ -48,7 +48,7 @@
     <sys:String x:Key="Menu_View_Calendar">_Calendar...</sys:String>
     <sys:String x:Key="Menu_View_Resources">_Resource Allocation...</sys:String>
     <sys:String x:Key="Menu_View_DevOpsList">Project _Portfolio...</sys:String>
-    <sys:String x:Key="Menu_View_HealthCheck">Project _Health Check...</sys:String>
+    <sys:String x:Key="Menu_View_HealthCheck">Project _Progress Check...</sys:String>
     <sys:String x:Key="Menu_View_StoryStatusChart">_Story Status Chart...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">Project _Allocation Map...</sys:String>
     <sys:String x:Key="Menu_View_People">_People...</sys:String>
