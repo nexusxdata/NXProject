@@ -319,7 +319,7 @@ namespace NXProject.ViewModels
                     _task.EstimatedHours = value;
                     // Quando % = 0, atualiza também a estimativa original (baseline sempre espelha o atual).
                     // Quando % > 0, preserva a original — só atualiza EstimatedHours.
-                    if (_task.PercentComplete < 0.0001)
+                    if (_task.PercentComplete < 100)
                         _task.OriginalEstimatedHours = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
