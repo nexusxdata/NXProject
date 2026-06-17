@@ -201,6 +201,12 @@
                         <Border Padding="2,0"
                                 CornerRadius="2"
                                 Background="Transparent">
+                            <Border.ContextMenu>
+                                <ContextMenu Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}">
+                                    <MenuItem Header="{Binding OriginalEstimatedHoursText}" IsEnabled="False"
+                                              FontStyle="Italic" Foreground="#555"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
                             <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
                                        TextAlignment="Center"
                                        VerticalAlignment="Center">
@@ -221,6 +227,10 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
                                             <Setter Property="Background" Value="#F1F1F1"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasOriginalEstimate}" Value="True">
+                                            <Setter Property="BorderBrush" Value="#B0C4DE"/>
+                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

@@ -23,6 +23,10 @@ namespace NXProject.Models
 
         public double? EstimatedHours { get; set; }
 
+        // Estimativa original: gravada automaticamente quando % = 0 e horas são definidas.
+        // Nunca sobrescrita após % > 0 — serve como baseline de comparação.
+        public double? OriginalEstimatedHours { get; set; }
+
         public double? SfpPoints { get; set; }
 
         // ── Vínculo com TFS / Azure DevOps ──────────────────────────────────

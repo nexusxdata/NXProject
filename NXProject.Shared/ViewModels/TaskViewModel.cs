@@ -316,11 +316,16 @@ namespace NXProject.ViewModels
                 if (value >= 0)
                 {
                     _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value);
+                    _task.EstimatedHours = value;
+                    // Grava estimativa original na primeira vez que horas são definidas com % = 0.
+                    if (_task.PercentComplete < 0.0001 && (_task.OriginalEstimatedHours == null || _task.OriginalEstimatedHours <= 0))
+                        _task.OriginalEstimatedHours = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
+                    OnPropertyChanged(nameof(OriginalEstimatedHoursText));
                     RecalcAncestorSummaries();
                 }
             }
@@ -471,10 +476,33 @@ namespace NXProject.ViewModels
                 if (Math.Abs(_task.PercentComplete - normalized) < 0.0001)
                     return;
 
+                // Captura estimativa original antes da primeira mudança acima de 0.
+                if (normalized > 0 && _task.PercentComplete < 0.0001 &&
+                    (_task.OriginalEstimatedHours == null || _task.OriginalEstimatedHours <= 0))
+                {
+                    _task.OriginalEstimatedHours = _task.EstimatedHours ?? (_task.DurationHours > 0 ? _task.DurationHours : null);
+                }
+
                 _task.PercentComplete = normalized;
                 if (normalized >= 100)
                 {
-                    _task.Finish = DateTime.Today;
+                    // Se a tarefa ainda não começou (start no futuro) e o start não é fixo,
+                    // move o start para hoje preservando as horas estimadas — evita zerar a duração.
+                    var estimatedH = _task.EstimatedHours ?? (_task.DurationHours > 0 ? _task.DurationHours : 0);
+                    if (!_task.StartFixed && _task.Start.Date > DateTime.Today)
+                    {
+                        _task.Start = DateTime.Today;
+                        if (estimatedH > 0)
+                            _task.Finish = ProjectCalendarService.AddWorkingHours(DateTime.Today, estimatedH);
+                        else
+                            _task.Finish = DateTime.Today;
+                        OnPropertyChanged(nameof(Start));
+                        OnPropertyChanged(nameof(StartDisplay));
+                    }
+                    else
+                    {
+                        _task.Finish = DateTime.Today;
+                    }
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DurationHours));
@@ -489,6 +517,22 @@ namespace NXProject.ViewModels
         }
 
         public bool CanEditPercentComplete => _task.Children.Count == 0;
+
+        public string? OriginalEstimatedHoursText
+        {
+            get
+            {
+                var orig = _task.OriginalEstimatedHours;
+                if (orig == null || orig <= 0) return null;
+                var current = _task.EstimatedHours ?? DurationHours;
+                var diff = current - orig.Value;
+                var diffText = Math.Abs(diff) < 0.05 ? "" :
+                    diff > 0 ? $"  (+{diff:0.#}h)" : $"  ({diff:0.#}h)";
+                return $"Estimativa original: {orig.Value:0.#}h{diffText}";
+            }
+        }
+
+        public bool HasOriginalEstimate => _task.OriginalEstimatedHours is > 0;
 
         public Brush PercentCompleteTextBrush =>
             PercentComplete <= 30
