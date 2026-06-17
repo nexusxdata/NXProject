@@ -312,8 +312,6 @@ namespace NXProject.ViewModels
             {
                 if (UsesSfpEstimate || _task.FinishFixed)
                     return;
-                if (_task.UseOriginalHoursView && _task.PercentComplete > 0.0001)
-                    return;
 
                 if (value >= 0)
                 {
@@ -532,10 +530,13 @@ namespace NXProject.ViewModels
 
         public bool UseOriginalHoursView => _task.UseOriginalHoursView;
 
-        // Bloqueia edição quando está em modo original com % > 0.
-        public bool IsDurationReadOnly =>
-            UsesSfpEstimate ||
-            (_task.UseOriginalHoursView && _task.PercentComplete > 0.0001);
+        // Valor de HH Original formatado para exibição compacta na célula (ex: "↑40").
+        public string? OriginalHoursDisplay =>
+            _task.UseOriginalHoursView && _task.OriginalEstimatedHours is > 0
+                ? $"↑{_task.OriginalEstimatedHours.Value:0}"
+                : null;
+
+        public bool IsDurationReadOnly => UsesSfpEstimate;
 
         public void SetOriginalHoursView(bool useOriginal)
         {
@@ -543,26 +544,10 @@ namespace NXProject.ViewModels
             if (useOriginal && !(_task.OriginalEstimatedHours is > 0)) return;
 
             _task.UseOriginalHoursView = useOriginal;
-
-            var targetHours = useOriginal
-                ? _task.OriginalEstimatedHours!.Value
-                : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
-
-            if (targetHours > 0 && !_task.FinishFixed)
-            {
-                _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, targetHours);
-                OnPropertyChanged(nameof(Finish));
-                OnPropertyChanged(nameof(FinishDisplay));
-                OnPropertyChanged(nameof(DurationDays));
-                OnPropertyChanged(nameof(DurationHours));
-                OnPropertyChanged(nameof(DisplayAsMilestone));
-                RecalcAncestorSummaries();
-                ScheduleSuccessors?.Invoke(this);
-            }
-
             OnPropertyChanged(nameof(UseOriginalHoursView));
             OnPropertyChanged(nameof(IsDurationReadOnly));
             OnPropertyChanged(nameof(OriginalEstimatedHoursText));
+            OnPropertyChanged(nameof(OriginalHoursDisplay));
         }
 
         public Brush PercentCompleteTextBrush =>

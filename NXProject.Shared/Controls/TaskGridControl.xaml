@@ -195,7 +195,7 @@
             </DataGridTemplateColumn>
 
             <!-- Duração -->
-            <DataGridTemplateColumn x:Name="DurationColumn" Header="Dur.(h)" Width="55">
+            <DataGridTemplateColumn x:Name="DurationColumn" Header="Dur.(h)" Width="60">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Border Padding="2,0"
@@ -235,20 +235,32 @@
                                     </MenuItem>
                                 </ContextMenu>
                             </Border.ContextMenu>
-                            <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
-                                       TextAlignment="Center"
-                                       VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="Black"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
-                                                <Setter Property="Foreground" Value="#6E6E6E"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                            <StackPanel VerticalAlignment="Center">
+                                <!-- HH Restante (valor principal) -->
+                                <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
+                                           TextAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="Black"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
+                                                    <Setter Property="Foreground" Value="#6E6E6E"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
+                                                    <Setter Property="FontSize" Value="10"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <!-- HH Original — visível apenas quando UseOriginalHoursView = True -->
+                                <TextBlock Text="{Binding OriginalHoursDisplay}"
+                                           TextAlignment="Center"
+                                           FontSize="9"
+                                           Foreground="#1565C0"
+                                           FontWeight="SemiBold"
+                                           Visibility="{Binding UseOriginalHoursView, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Background" Value="Transparent"/>
@@ -261,9 +273,9 @@
                                             <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
-                                            <Setter Property="Background" Value="#FFF3CD"/>
-                                            <Setter Property="BorderBrush" Value="#E6A817"/>
-                                            <Setter Property="BorderThickness" Value="1"/>
+                                            <Setter Property="Background" Value="#E8F0FE"/>
+                                            <Setter Property="BorderBrush" Value="#1565C0"/>
+                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -289,12 +301,6 @@
                                         <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
                                             <Setter Property="Background" Value="#F1F1F1"/>
                                             <Setter Property="Foreground" Value="#6E6E6E"/>
-                                            <Setter Property="IsHitTestVisible" Value="False"/>
-                                            <Setter Property="IsTabStop" Value="False"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsDurationReadOnly}" Value="True">
-                                            <Setter Property="Background" Value="#FFF3CD"/>
-                                            <Setter Property="Foreground" Value="#7A6000"/>
                                             <Setter Property="IsHitTestVisible" Value="False"/>
                                             <Setter Property="IsTabStop" Value="False"/>
                                         </DataTrigger>
