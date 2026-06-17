@@ -179,18 +179,23 @@ namespace NXProject.Controls
             _hasCustomColumnConfig = !string.IsNullOrWhiteSpace(hiddenColumnsCsv);
 
             HashSet<string> hidden;
-            if (_hasCustomColumnConfig)
+            if (!_hasCustomColumnConfig)
             {
-                hidden = new HashSet<string>(
-                    hiddenColumnsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-            }
-            else
-            {
-                // Sem configuração salva: usa defaults (colunas não listadas em DefaultVisibleColumns ficam ocultas).
+                // Sem configuração salva: usa defaults (colunas fora de DefaultVisibleColumns ficam ocultas).
                 hidden = new HashSet<string>(
                     GetCustomizableColumns()
                         .Select(x => x.Label)
                         .Where(l => !DefaultVisibleColumns.Contains(l)));
+            }
+            else if (hiddenColumnsCsv.Trim() == "~custom~")
+            {
+                // Usuário salvou explicitamente com todas as colunas visíveis.
+                hidden = [];
+            }
+            else
+            {
+                hidden = new HashSet<string>(
+                    hiddenColumnsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
             }
 
             foreach (var (label, col) in GetCustomizableColumns())
@@ -295,10 +300,14 @@ namespace NXProject.Controls
                 var orgHCheck = checks.FirstOrDefault(x => x.col == OriginalHoursColumn);
                 ShowOriginalHoursColumn = orgHCheck.cb.IsChecked == true;
 
-                var hidden = checks
+                var hiddenList = checks
                     .Where(x => x.cb.IsChecked != true)
-                    .Select(x => x.label);
-                ColumnSettingsSaved?.Invoke(string.Join(",", hidden));
+                    .Select(x => x.label)
+                    .ToList();
+                // "~custom~" sinaliza que o usuario salvou uma configuracao explícita
+                // (mesmo que todas as colunas estejam visíveis), distinguindo de "sem configuracao".
+                var saved = hiddenList.Count > 0 ? string.Join(",", hiddenList) : "~custom~";
+                ColumnSettingsSaved?.Invoke(saved);
 
                 win.Close();
             };
