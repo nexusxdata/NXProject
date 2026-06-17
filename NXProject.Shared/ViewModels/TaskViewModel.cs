@@ -313,7 +313,7 @@ namespace NXProject.ViewModels
                 : ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
             set
             {
-                if (!CanEditDuration || _task.FinishFixed) return;
+                if (!CanEditDuration) return;
 
                 if (value >= 0)
                 {
@@ -323,7 +323,8 @@ namespace NXProject.ViewModels
                         : value;
                     _task.EstimatedHours = remaining;
                     var totalH = _task.CurrentHours is > 0 ? _task.CurrentHours.Value + remaining : remaining;
-                    _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
+                    if (!_task.FinishFixed)
+                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
                     if (_task.PercentComplete < 100)
                     {
                         _task.OriginalEstimatedHours = remaining;
@@ -589,7 +590,7 @@ namespace NXProject.ViewModels
 
         public bool CanEditDuration => _task.Children.Count == 0 && !UsesSfpEstimate;
 
-        public bool IsDurationReadOnly => !CanEditDuration || (_task.FinishFixed && _task.StartFixed);
+        public bool IsDurationReadOnly => !CanEditDuration;
 
         public double? CurrentHours => _task.CurrentHours;
         public double? EstimatedHoursValue => _task.EstimatedHours;
