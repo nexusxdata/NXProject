@@ -23,6 +23,22 @@ namespace NXProject
         {
             base.OnStartup(e);
 
+            // Captura exceções não tratadas para exibir mensagem em vez de fechar silenciosamente
+            DispatcherUnhandledException += (_, args) =>
+            {
+                args.Handled = true;
+                MessageBox.Show(
+                    $"Erro inesperado:\n\n{args.Exception.Message}\n\n{args.Exception.StackTrace}",
+                    "Erro — NXProject",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            };
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            {
+                var msg = args.ExceptionObject?.ToString() ?? "(sem detalhes)";
+                MessageBox.Show($"Erro crítico:\n\n{msg}", "Erro — NXProject", MessageBoxButton.OK, MessageBoxImage.Error);
+            };
+
             // Carrega idioma salvo; se vazio, detecta pelo Windows
             var saved = TfsConnectionStore.Load();
             var lang = string.IsNullOrWhiteSpace(saved.Language)
