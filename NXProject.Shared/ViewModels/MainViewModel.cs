@@ -874,7 +874,6 @@ namespace NXProject.ViewModels
                 var durationHours = sibling.DurationHours;
                 sibling.Model.Start = nextStart;
                 sibling.Model.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
-                sibling.Model.StartFixed = true;
 
                 sibling.NotifyDatesChanged();
 
