@@ -82,6 +82,7 @@ namespace NXProject.Services
             //    candidatos conhecidos como fallback.
             var fieldMap = await LoadFieldMapAsync(orgBase, authHeader, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
+            var remainingHoursRefImport = ResolveField(fieldMap, null, RemainingHoursFieldNames);
             var originalHoursRef = ResolveField(fieldMap, null, OriginalHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
@@ -121,6 +122,7 @@ namespace NXProject.Services
             var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
 
             if (hoursRef != null) requestedFields.Add(hoursRef);
+            if (remainingHoursRefImport != null && !requestedFields.Contains(remainingHoursRefImport)) requestedFields.Add(remainingHoursRefImport);
             if (originalHoursRef != null) requestedFields.Add(originalHoursRef);
             if (startRef != null) requestedFields.Add(startRef);
             if (finishRef != null) requestedFields.Add(finishRef);
@@ -181,6 +183,7 @@ namespace NXProject.Services
                 Items = items,
                 ChildrenByParent = childrenByParent,
                 HoursRef = hoursRef,
+                RemainingHoursRef = remainingHoursRefImport,
                 OriginalHoursRef = originalHoursRef,
                 StartRef = startRef,
                 FinishRef = finishRef,
@@ -1300,6 +1303,7 @@ namespace NXProject.Services
             public Dictionary<int, WorkItem> Items = new();
             public Dictionary<int, List<int>> ChildrenByParent = new();
             public string? HoursRef;
+            public string? RemainingHoursRef;
             public string? OriginalHoursRef;
             public string? StartRef;
             public string? FinishRef;
@@ -1417,7 +1421,9 @@ namespace NXProject.Services
 
         private static ProjectTask BuildStory(BuildContext ctx, WorkItem item, int level)
         {
-            var hours = ReadDouble(item, ctx.HoursRef);
+            // HH Restante tem prioridade; fallback para HoursRef (campo de esforço geral).
+            var hours = (ctx.RemainingHoursRef != null ? ReadDouble(item, ctx.RemainingHoursRef) : null)
+                        ?? ReadDouble(item, ctx.HoursRef);
             var explicitStart = ReadDate(item, ctx.StartRef);
             var explicitFinish = ReadDate(item, ctx.FinishRef);
 
