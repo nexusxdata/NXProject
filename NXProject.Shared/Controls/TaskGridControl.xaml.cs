@@ -192,6 +192,8 @@ namespace NXProject.Controls
             ("Dur.(h)",       DurationColumn),
             ("SFP",           SfpColumn),
             ("OrgH",          OriginalHoursColumn),
+            ("HH Atual",      RealizedHoursColumn),
+            ("HH Restante",   EstimatedHoursColumn),
             ("Início",        StartColumn),
             ("Fim",           FinishColumn),
             ("% Compl.",      PercentColumn),
@@ -292,8 +294,6 @@ namespace NXProject.Controls
         {
             SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             PredecessorColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            RealizedHoursColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            EstimatedHoursColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
 
             IdColumn.Width = new DataGridLength(expanded ? 86 : 42);
             DevOpsColumn.Width = new DataGridLength(expanded ? 62 : 46);
