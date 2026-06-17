@@ -544,6 +544,7 @@ namespace NXProject.ViewModels
                     var project = XmlProjectService.Load(dlg.FileName);
                     foreach (var root in project.Tasks)
                         root.RecalcSummary();
+                    SyncOriginalHoursWhenZeroPercent(project.Tasks);
                     Project = project;
                     ApplyProjectSprintSettingsToViewModel(project);
                     _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
@@ -696,13 +697,20 @@ namespace NXProject.ViewModels
                         if (saved.TryGetValue(task.TfsId.Value, out var orig))
                             task.OriginalEstimatedHours = orig;
                     }
-
-                    // % = 0 significa que nenhum trabalho foi feito:
-                    // a estimativa original deve ser igual à estimativa restante.
-                    if (task.PercentComplete < 0.0001 && task.EstimatedHours is > 0)
-                        task.OriginalEstimatedHours = task.EstimatedHours;
                 }
                 RestoreOriginalEstimatedHours(task.Children, saved);
+            }
+            SyncOriginalHoursWhenZeroPercent(tasks);
+        }
+
+        // Quando % = 0, nenhum trabalho foi feito: OrgH deve espelhar HH Restante.
+        private static void SyncOriginalHoursWhenZeroPercent(IEnumerable<Models.ProjectTask> tasks)
+        {
+            foreach (var task in tasks)
+            {
+                if (task.PercentComplete < 0.0001 && task.EstimatedHours is > 0)
+                    task.OriginalEstimatedHours = task.EstimatedHours;
+                SyncOriginalHoursWhenZeroPercent(task.Children);
             }
         }
 
