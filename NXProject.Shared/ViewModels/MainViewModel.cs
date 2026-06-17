@@ -598,6 +598,7 @@ namespace NXProject.ViewModels
                     ApplyProjectSprintSettingsToViewModel(project);
                     _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
                     RebuildFlatTasks();
+                    ApplyVirtualPredecessorsToAll();
                     StatusMessage = $"Projeto aberto: {dlg.FileName}";
                 }
                 catch (Exception ex)
@@ -658,6 +659,7 @@ namespace NXProject.ViewModels
             ApplyProjectSprintSettingsToViewModel(project);
             _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
             RebuildFlatTasks();
+            ApplyVirtualPredecessorsToAll();
             Project.IsDirty = true;
             StatusMessage = statusMessage ?? "Projeto importado.";
         }
@@ -947,6 +949,84 @@ namespace NXProject.ViewModels
                     CascadeSuccessors(sibling);
                     break;
                 }
+            }
+        }
+
+        // Após arrasto: reposiciona a tarefa com base no irmão anterior do mesmo recurso
+        // e cascata os irmãos afetados (origem e destino).
+        private void RescheduleAfterDrop(TaskViewModel moved)
+        {
+            if (moved.Model.PredecessorIds.Count > 0) return;
+
+            var resourceId = moved.Model.Resources.FirstOrDefault()?.ResourceId;
+            if (resourceId == null) return;
+
+            var movedIndex = FlatTasks.IndexOf(moved);
+            if (movedIndex < 0) return;
+
+            // 1. Procura o último irmão anterior com mesmo recurso → define o início da tarefa movida
+            DateTime? lastFinishBefore = null;
+            for (int i = movedIndex - 1; i >= 0; i--)
+            {
+                var prev = FlatTasks[i];
+                if (prev.Depth < moved.Depth) break;
+                if (prev.Depth > moved.Depth) continue;
+                if (!ReferenceEquals(prev.ParentViewModel, moved.ParentViewModel)) break;
+                if (prev.Model.Resources.FirstOrDefault()?.ResourceId != resourceId) continue;
+
+                lastFinishBefore = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
+                break;
+            }
+
+            if (lastFinishBefore.HasValue)
+            {
+                var nextStart = ProjectCalendarService.AddWorkingDays(lastFinishBefore.Value, 1);
+                if (moved.Model.Start.Date != nextStart.Date)
+                {
+                    var durationHours = moved.DurationHours;
+                    moved.Model.Start  = nextStart;
+                    moved.Model.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
+                    moved.NotifyDatesChanged();
+                }
+            }
+
+            // 2. Cascata os irmãos seguintes (novo vizinho agora pode precisar recalcular)
+            CascadeSuccessors(moved);
+
+            // 3. Cascata a partir do primeiro irmão do mesmo recurso após o buraco deixado
+            //    (posição original — já que RebuildFlatTasks reorganizou, cascateamos do topo do grupo)
+            for (int i = 0; i < FlatTasks.Count; i++)
+            {
+                var t = FlatTasks[i];
+                if (t.Depth != moved.Depth) continue;
+                if (!ReferenceEquals(t.ParentViewModel, moved.ParentViewModel)) continue;
+                if (t.Model.Resources.FirstOrDefault()?.ResourceId != resourceId) continue;
+                if (t.Model.PredecessorIds.Count > 0) continue;
+                if (t == moved) break; // já tratado acima
+
+                CascadeSuccessors(t);
+                break;
+            }
+        }
+
+        // Percorre todos os grupos de irmãos e aplica predecessor virtual para todos.
+        // Chamado ao abrir ou importar projeto para garantir consistência inicial.
+        public void ApplyVirtualPredecessorsToAll()
+        {
+            // Coleta o primeiro item de cada grupo (pai + recurso) e cascata a partir dele.
+            var processed = new System.Collections.Generic.HashSet<(int parentId, int resourceId)>();
+            foreach (var task in FlatTasks)
+            {
+                if (task.IsSummary) continue;
+                if (task.Model.PredecessorIds.Count > 0) continue;
+                var resourceId = task.Model.Resources.FirstOrDefault()?.ResourceId;
+                if (resourceId == null) continue;
+                var parentId = task.ParentViewModel?.Model.Id ?? -1;
+                var key = (parentId, resourceId.Value);
+                if (!processed.Add(key)) continue;
+
+                // Encontra o primeiro irmão do grupo no FlatTasks e cascata a partir dele
+                CascadeSuccessors(task);
             }
         }
 
@@ -1447,6 +1527,7 @@ namespace NXProject.ViewModels
                 return false;
 
             MoveTask(sourceCollection, currentIndex, targetIndex);
+            RescheduleAfterDrop(sourceVm);
             StatusMessage = "Tarefa reordenada";
             return true;
         }

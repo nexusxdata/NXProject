@@ -118,6 +118,18 @@ Acesse em Exibir > Progresso do Projeto e Curva S para acompanhar o andamento ge
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Linha laranja tracejada: HH Restante projetado (sprints futuras)."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- O calculo considera somente atividades no nivel story (nivel de menor profundidade com sprint atribuida)."/>
 
+                    <!-- 9. Predecessora Virtual -->
+                    <TextBlock Text="9. Predecessora Virtual (mesmo recurso e hierarquia)"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+Atividades do mesmo nivel hierarquico e com o mesmo recurso sao automaticamente encadeadas como se tivessem predecessoras, mesmo sem predecessoras explicitas cadastradas.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Quando a data fim de uma atividade muda, as atividades seguintes do mesmo recurso e nivel sao recalculadas."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- O recalculo ocorre ao alterar duracao, data inicio, data fim, percentual de conclusao ou predecessora."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao alterar o recurso de uma atividade, ela e reposicionada apos a ultima atividade do novo recurso no mesmo nivel."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao arrastar uma atividade para outra posicao, as datas sao recalculadas tanto na origem quanto no destino."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Atividades com predecessoras explicitas nao sao afetadas pela predecessora virtual."/>
+
                     <Border Background="#FFF7E8"
                             BorderBrush="#E8D39A"
                             BorderThickness="1"
@@ -125,7 +137,7 @@ Acesse em Exibir > Progresso do Projeto e Curva S para acompanhar o andamento ge
                             Padding="12"
                             Margin="0,8,0,0">
                         <TextBlock TextWrapping="Wrap" Foreground="#444"
-                                   Text="Dica rapida: informe Inicio e Dur.(h) — o Fim e calculado pelo calendario. Atualize % Compl. para registrar o progresso; HH Atual e HH Restante sao calculados automaticamente e sincronizados com o Azure DevOps."/>
+                                   Text="Dica rapida: informe Inicio e Dur.(h) — o Fim e calculado pelo calendario. Atividades do mesmo recurso e nivel se encadeiam automaticamente. Atualize % Compl. para registrar o progresso; HH Atual e HH Restante sao calculados e sincronizados com o Azure DevOps."/>
                     </Border>
 
                 </StackPanel>
