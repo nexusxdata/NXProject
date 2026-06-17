@@ -70,6 +70,7 @@ namespace NXProject.ViewModels
         [ObservableProperty] private double _mediumDaysPerSfp = 1.0;
         [ObservableProperty] private double _highDaysPerSfp = 1.0;
         [ObservableProperty] private bool _showOriginalHoursColumn = false;
+        [ObservableProperty] private string _hiddenColumns = "";
 
         public ObservableCollection<string> ZoomLevels { get; } = new()
         {
@@ -462,6 +463,12 @@ namespace NXProject.ViewModels
         partial void OnShowOriginalHoursColumnChanged(bool value)
         {
             Project.ShowOriginalHoursColumn = value;
+            Project.IsDirty = true;
+        }
+
+        partial void OnHiddenColumnsChanged(string value)
+        {
+            Project.HiddenColumns = value ?? "";
             Project.IsDirty = true;
         }
 
@@ -1431,6 +1438,7 @@ namespace NXProject.ViewModels
                 MediumDaysPerSfp = project.MediumDaysPerSfp;
                 HighDaysPerSfp = project.HighDaysPerSfp;
                 ShowOriginalHoursColumn = project.ShowOriginalHoursColumn;
+                HiddenColumns = project.HiddenColumns ?? "";
             }
             finally
             {

@@ -49,6 +49,9 @@ namespace NXProject.Models
         // Exibe coluna "OrgH" (Estimativa Original) no cronograma
         public bool ShowOriginalHoursColumn { get; set; } = false;
 
+        // Nomes das colunas ocultas pelo usuário (ex: "SFP,Pred.,T·E")
+        public string HiddenColumns { get; set; } = "";
+
         // Quantos dias de duracao equivalem a 1 SFP em cada faixa
         public double LowDaysPerSfp { get; set; } = 1.0;
         public double MediumDaysPerSfp { get; set; } = 1.0;

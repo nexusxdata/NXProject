@@ -161,22 +161,46 @@ namespace NXProject.Controls
             _suppressScrollNotification = false;
         }
 
+        // Colunas visíveis por padrão (nome = Header da coluna conforme definido no XAML)
+        private static readonly HashSet<string> DefaultVisibleColumns = new()
+        {
+            "ID", "T·E (DevOps)", "Dur.(h)", "Início", "Fim", "% Compl.", "Recursos", "Sprint"
+        };
+
+        /// <summary>Disparado quando o usuário salva a configuração de colunas. Arg = nomes das colunas ocultas.</summary>
+        public event Action<string>? ColumnSettingsSaved;
+
+        public void ApplyHiddenColumns(string hiddenColumnsCsv)
+        {
+            var hidden = new HashSet<string>(
+                (hiddenColumnsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+            foreach (var (label, col) in GetCustomizableColumns())
+                col.Visibility = hidden.Contains(label) ? Visibility.Collapsed : Visibility.Visible;
+
+            var orgHHidden = hidden.Contains("OrgH");
+            if (ShowOriginalHoursColumn == orgHHidden)
+                ShowOriginalHoursColumn = !orgHHidden;
+        }
+
+        private IEnumerable<(string Label, DataGridColumn Col)> GetCustomizableColumns() =>
+        [
+            ("ID",            IdColumn),
+            ("T·E (DevOps)",  DevOpsColumn),
+            ("Dur.(h)",       DurationColumn),
+            ("SFP",           SfpColumn),
+            ("OrgH",          OriginalHoursColumn),
+            ("Início",        StartColumn),
+            ("Fim",           FinishColumn),
+            ("% Compl.",      PercentColumn),
+            ("Predecessoras", PredecessorColumn),
+            ("Recursos",      ResourcesColumn),
+            ("Sprint",        SprintColumn),
+        ];
+
         public void ShowColumnCustomizer()
         {
-            var columns = new[]
-            {
-                ("ID",              IdColumn),
-                ("T·E (DevOps)",    DevOpsColumn),
-                ("Dur.(h)",         DurationColumn),
-                ("SFP",             SfpColumn),
-                ("OrgH",            OriginalHoursColumn),
-                ("Início",          (DataGridColumn)StartColumn),
-                ("Fim",             (DataGridColumn)FinishColumn),
-                ("% Compl.",        (DataGridColumn)PercentColumn),
-                ("Predecessoras",   (DataGridColumn)PredecessorColumn),
-                ("Recursos",        (DataGridColumn)ResourcesColumn),
-                ("Sprint",          (DataGridColumn)SprintColumn),
-            };
+            var cols = GetCustomizableColumns().ToList();
 
             var panel = new StackPanel { Margin = new Thickness(16) };
             panel.Children.Add(new TextBlock
@@ -187,8 +211,8 @@ namespace NXProject.Controls
                 Margin = new Thickness(0, 0, 0, 12)
             });
 
-            var checks = new List<(CheckBox cb, DataGridColumn col)>();
-            foreach (var (label, col) in columns)
+            var checks = new List<(CheckBox cb, DataGridColumn col, string label)>();
+            foreach (var (label, col) in cols)
             {
                 var cb = new CheckBox
                 {
@@ -198,38 +222,64 @@ namespace NXProject.Controls
                     FontSize = 13
                 };
                 panel.Children.Add(cb);
-                checks.Add((cb, col));
+                checks.Add((cb, col, label));
             }
 
-            var btn = new Button
+            // Botões
+            var btnPanel = new StackPanel
             {
-                Content = "OK",
-                Width = 80,
+                Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 16, 0, 0),
-                Padding = new Thickness(0, 6, 0, 6)
+                Margin = new Thickness(0, 16, 0, 0)
             };
-            panel.Children.Add(btn);
+
+            var btnRestore = new Button
+            {
+                Content = "Restaurar Padrão",
+                Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            var btnSave = new Button
+            {
+                Content = "Salvar",
+                Width = 80,
+                Padding = new Thickness(0, 6, 0, 6),
+                IsDefault = true
+            };
+            btnPanel.Children.Add(btnRestore);
+            btnPanel.Children.Add(btnSave);
+            panel.Children.Add(btnPanel);
 
             var win = new Window
             {
                 Title = "Customizar colunas",
                 Content = new ScrollViewer { Content = panel },
-                Width = 280,
+                Width = 300,
                 SizeToContent = SizeToContent.Height,
                 ResizeMode = ResizeMode.NoResize,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = Window.GetWindow(this)
             };
 
-            btn.Click += (_, _) =>
+            btnRestore.Click += (_, _) =>
             {
-                foreach (var (cb, col) in checks)
+                foreach (var (cb, _, label) in checks)
+                    cb.IsChecked = DefaultVisibleColumns.Contains(label);
+            };
+
+            btnSave.Click += (_, _) =>
+            {
+                foreach (var (cb, col, _) in checks)
                     col.Visibility = cb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-                // Sincroniza ShowOriginalHoursColumn com o estado do checkbox de OrgH
+
                 var orgHCheck = checks.FirstOrDefault(x => x.col == OriginalHoursColumn);
-                if (orgHCheck != default)
-                    ShowOriginalHoursColumn = orgHCheck.cb.IsChecked == true;
+                ShowOriginalHoursColumn = orgHCheck.cb.IsChecked == true;
+
+                var hidden = checks
+                    .Where(x => x.cb.IsChecked != true)
+                    .Select(x => x.label);
+                ColumnSettingsSaved?.Invoke(string.Join(",", hidden));
+
                 win.Close();
             };
 

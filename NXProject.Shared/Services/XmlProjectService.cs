@@ -33,6 +33,7 @@ namespace NXProject.Services
                     new XElement(NS + "MediumDaysPerSfp", project.MediumDaysPerSfp),
                     new XElement(NS + "HighDaysPerSfp", project.HighDaysPerSfp),
                     new XElement(NS + "ShowOriginalHoursColumn", project.ShowOriginalHoursColumn),
+                    new XElement(NS + "HiddenColumns", project.HiddenColumns ?? ""),
                     new XElement(EXT + "DevOpsProjectName", project.DevOpsProjectName ?? ""),
                     new XElement(EXT + "DevOpsRootWorkItemId", project.DevOpsRootWorkItemId),
                     new XElement(EXT + "UseHierarchyColors", project.UseHierarchyColors),
@@ -182,6 +183,7 @@ namespace NXProject.Services
                 MediumDaysPerSfp = double.TryParse(root.Element(NS + "MediumDaysPerSfp")?.Value, out var mdps) ? mdps : 1.0,
                 HighDaysPerSfp = double.TryParse(root.Element(NS + "HighDaysPerSfp")?.Value, out var hdps) ? hdps : 1.0,
                 ShowOriginalHoursColumn = bool.TryParse(root.Element(NS + "ShowOriginalHoursColumn")?.Value, out var sohc) && sohc,
+                HiddenColumns = root.Element(NS + "HiddenColumns")?.Value ?? "",
                 DevOpsProjectName = string.IsNullOrWhiteSpace(root.Element(EXT + "DevOpsProjectName")?.Value)
                     ? null : root.Element(EXT + "DevOpsProjectName")!.Value,
                 DevOpsRootWorkItemId = int.TryParse(root.Element(EXT + "DevOpsRootWorkItemId")?.Value, out var devOpsId) ? devOpsId : 0,

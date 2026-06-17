@@ -95,8 +95,15 @@ namespace NXProject.Views
             {
                 if (e.PropertyName == nameof(vm.ShowOriginalHoursColumn))
                     TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
+                if (e.PropertyName == nameof(vm.HiddenColumns))
+                    TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns);
             };
             TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
+            TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns);
+            TaskGridCtrl.ColumnSettingsSaved += hidden =>
+            {
+                vm.HiddenColumns = hidden;
+            };
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {
