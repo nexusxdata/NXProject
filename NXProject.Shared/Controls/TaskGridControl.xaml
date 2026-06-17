@@ -461,7 +461,7 @@
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
-            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="70" SortMemberPath="PredecessorsText">
+            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="80" SortMemberPath="PredecessorsText">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Button Content="{Binding PredecessorsText}"

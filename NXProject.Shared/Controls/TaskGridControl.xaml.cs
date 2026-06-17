@@ -335,7 +335,7 @@ namespace NXProject.Controls
             StartColumn.Width = new DataGridLength(expanded ? 96 : 76);
             FinishColumn.Width = new DataGridLength(expanded ? 96 : 76);
             PercentColumn.Width = new DataGridLength(expanded ? 82 : 62);
-            PredecessorColumn.Width = new DataGridLength(expanded ? 100 : 70);
+            PredecessorColumn.Width = new DataGridLength(expanded ? 110 : 80);
             ResourcesColumn.Width = new DataGridLength(expanded ? 190 : 88);
             SprintColumn.Width = new DataGridLength(expanded ? 150 : 118);
         }
