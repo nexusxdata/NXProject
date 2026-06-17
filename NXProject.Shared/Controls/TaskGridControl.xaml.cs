@@ -482,6 +482,9 @@ namespace NXProject.Controls
             if (e.ClickCount >= 2 && TryHandleReadOnlyDoubleClick(e))
                 return;
 
+            if (e.ClickCount >= 2 && TryHandleEditableDoubleClick(e))
+                return;
+
             _dragStartPoint = e.GetPosition(TaskGrid);
             _dragSourceTask = FindTaskViewModel(e.OriginalSource as DependencyObject);
         }
@@ -517,6 +520,46 @@ namespace NXProject.Controls
                 combo.Focus();
                 Keyboard.Focus(combo);
                 combo.IsDropDownOpen = true;
+            }));
+
+            return true;
+        }
+
+        private bool TryHandleEditableDoubleClick(MouseButtonEventArgs e)
+        {
+            var source = e.OriginalSource as DependencyObject;
+            var cell = FindParent<DataGridCell>(source);
+            var row = FindParent<DataGridRow>(source);
+            if (cell?.Column == null || row?.Item is not TaskViewModel task)
+                return false;
+
+            if (!CanEditCell(task, cell.Column))
+                return false;
+
+            if (cell.Column == SprintColumn || cell.Column == ResourcesColumn)
+                return false;
+
+            BeginControlledEditSwitch();
+            _dragSourceTask = null;
+            TaskGrid.SelectedItem = task;
+            TaskGrid.CurrentCell = new DataGridCellInfo(task, cell.Column);
+            e.Handled = true;
+
+            var editColumn = cell.Column;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
+                TaskGrid.BeginEdit();
+                TaskGrid.UpdateLayout();
+
+                var rowContainer = TaskGrid.ItemContainerGenerator.ContainerFromItem(task) as DataGridRow;
+                var editCell = rowContainer != null ? FindCell(rowContainer, editColumn) : null;
+                var editor = editCell != null ? FindChild<TextBox>(editCell) : null;
+                if (editor == null)
+                    return;
+
+                editor.Focus();
+                Keyboard.Focus(editor);
+                editor.SelectAll();
             }));
 
             return true;
@@ -1005,7 +1048,7 @@ namespace NXProject.Controls
             var ganttItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleGanttOriginalMenuItem");
             if (ganttItem != null)
                 ganttItem.Header = vm?.UseOriginalHoursView == true
-                    ? "Voltar Gantt para Estimativa Restante"
+                    ? "Mostrar Gantt pela Duração (HH Atual + HH Restante)"
                     : "Mostrar Gantt pela Estimativa Original";
 
         }

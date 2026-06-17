@@ -1481,9 +1481,10 @@ namespace NXProject.Services
                 task.Resources.Any(r => Math.Abs(r.AllocationPercent - 100.0) > 0.01))
             {
                 var effectiveDuration = TaskScheduleService.GetEffectiveDurationHours(task);
-                if (effectiveDuration > 0)
+                var totalEffective    = effectiveDuration + (task.CurrentHours ?? 0);
+                if (totalEffective > 0)
                 {
-                    var calcFinish = ProjectCalendarService.AddWorkingHours(task.Start, effectiveDuration);
+                    var calcFinish = ProjectCalendarService.AddWorkingHours(task.Start, totalEffective);
                     if (task.StartFixed)
                     {
                         // Duração negociada: mantém Finish, registra o calculado para alerta visual.
