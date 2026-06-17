@@ -5,12 +5,16 @@ namespace NXProject.Views;
 
 public partial class PercAlocEditWindow : Window
 {
+    private readonly int _maxPercent;
+
     public double ResultPercent { get; private set; }
 
-    public PercAlocEditWindow(string taskName, double currentPercent)
+    public PercAlocEditWindow(string taskName, double currentPercent, int maxPercent = 100)
     {
         InitializeComponent();
+        _maxPercent = Math.Clamp(maxPercent, 1, 120);
         TaskNameText.Text = taskName;
+        RangeText.Text = $"  (1 a {_maxPercent})";
         PercAlocBox.Text = ((int)currentPercent).ToString();
         PercAlocBox.SelectAll();
         PercAlocBox.Focus();
@@ -23,9 +27,9 @@ public partial class PercAlocEditWindow : Window
 
     private void OnOk(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(PercAlocBox.Text, out var v) || v < 1 || v > 100)
+        if (!int.TryParse(PercAlocBox.Text, out var v) || v < 1 || v > _maxPercent)
         {
-            ErrorText.Text = "Digite um valor entre 1 e 100.";
+            ErrorText.Text = $"Digite um valor entre 1 e {_maxPercent}.";
             ErrorText.Visibility = Visibility.Visible;
             PercAlocBox.Focus();
             PercAlocBox.SelectAll();

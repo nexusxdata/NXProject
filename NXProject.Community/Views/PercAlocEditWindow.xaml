@@ -48,7 +48,8 @@
                        Foreground="#444"
                        VerticalAlignment="Center"
                        Margin="6,0,0,0"/>
-            <TextBlock Text="  (1 a 100)"
+            <TextBlock x:Name="RangeText"
+                       Text="  (1 a 100)"
                        FontSize="11"
                        Foreground="#999"
                        VerticalAlignment="Center"/>
