@@ -548,24 +548,6 @@ namespace NXProject.ViewModels
             if (useOriginal && !(_task.OriginalEstimatedHours is > 0)) return;
 
             _task.UseOriginalHoursView = useOriginal;
-
-            // Recalcula Finish para refletir a duração alvo no Gantt
-            var targetHours = useOriginal
-                ? _task.OriginalEstimatedHours!.Value
-                : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
-
-            if (targetHours > 0 && !_task.FinishFixed)
-            {
-                _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, targetHours);
-                OnPropertyChanged(nameof(Finish));
-                OnPropertyChanged(nameof(FinishDisplay));
-                OnPropertyChanged(nameof(DurationDays));
-                OnPropertyChanged(nameof(DurationHours));
-                OnPropertyChanged(nameof(DisplayAsMilestone));
-                RecalcAncestorSummaries();
-                ScheduleSuccessors?.Invoke(this);
-            }
-
             OnPropertyChanged(nameof(UseOriginalHoursView));
             OnPropertyChanged(nameof(IsDurationReadOnly));
             OnPropertyChanged(nameof(OriginalEstimatedHoursText));
