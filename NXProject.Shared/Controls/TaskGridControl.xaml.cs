@@ -77,6 +77,9 @@ namespace NXProject.Controls
                 ctrl.OriginalHoursColumn.Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        /// <summary>Disparado quando o usuário alterna o modo de visualização do Gantt (original/restante).</summary>
+        public event Action? GanttViewToggled;
+
         /// <summary>Disparado quando o DataGrid rola verticalmente.</summary>
         public event Action<double>? VerticalScrollChanged;
 
@@ -607,18 +610,34 @@ namespace NXProject.Controls
             ShowOriginalHoursColumn = !ShowOriginalHoursColumn;
         }
 
-        // Atualiza o label do item de menu antes de abrir o ContextMenu.
+        private void OnToggleGanttOriginalViewClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem mi) return;
+            var ctx = ((mi.Parent as ContextMenu)?.PlacementTarget as System.Windows.FrameworkElement)?.DataContext;
+            if (ctx is not TaskViewModel vm) return;
+            vm.SetOriginalHoursView(!vm.UseOriginalHoursView);
+            GanttViewToggled?.Invoke();
+        }
+
+        // Atualiza os labels dos itens de menu antes de abrir o ContextMenu.
         private void OnDurationContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
-            if (sender is Border { ContextMenu: { } cm })
-            {
-                var item = cm.Items.OfType<MenuItem>()
-                             .FirstOrDefault(m => m.Name == "ToggleOrgHMenuItem");
-                if (item != null)
-                    item.Header = ShowOriginalHoursColumn
-                        ? "Ocultar coluna Estimativa Original (OrgH)"
-                        : "Mostrar coluna Estimativa Original (OrgH)";
-            }
+            if (sender is not Border { ContextMenu: { } cm }) return;
+
+            // DataContext da linha (TaskViewModel)
+            var vm = (sender as System.Windows.FrameworkElement)?.DataContext as TaskViewModel;
+
+            var orgHItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleOrgHMenuItem");
+            if (orgHItem != null)
+                orgHItem.Header = ShowOriginalHoursColumn
+                    ? "Ocultar coluna Estimativa Original (OrgH)"
+                    : "Mostrar coluna Estimativa Original (OrgH)";
+
+            var ganttItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleGanttOriginalMenuItem");
+            if (ganttItem != null)
+                ganttItem.Header = vm?.UseOriginalHoursView == true
+                    ? "Voltar Gantt para Estimativa Restante"
+                    : "Mostrar Gantt pela Estimativa Original";
         }
 
 

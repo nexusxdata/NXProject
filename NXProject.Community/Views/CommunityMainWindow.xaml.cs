@@ -103,6 +103,12 @@ namespace NXProject.Views
                 vm.ApplyTaskSprintChange(task, sprint);
                 GanttCtrl.ForceRender();
             };
+            TaskGridCtrl.GanttViewToggled += () =>
+            {
+                vm.Project.IsDirty = true;
+                TaskGridCtrl.RefreshRows();
+                GanttCtrl.ForceRender();
+            };
 
             vm.PropertyChanged += (_, args) =>
             {

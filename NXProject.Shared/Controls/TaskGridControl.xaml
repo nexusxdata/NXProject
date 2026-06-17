@@ -208,6 +208,10 @@
                                               FontStyle="Italic" Foreground="#555"
                                               Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
                                     <Separator Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
+                                    <MenuItem x:Name="ToggleGanttOriginalMenuItem"
+                                              Click="OnToggleGanttOriginalViewClick"
+                                              Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
+                                    <Separator/>
                                     <MenuItem x:Name="ToggleOrgHMenuItem"
                                               Click="OnToggleOrgHColumnClick"/>
                                 </ContextMenu>

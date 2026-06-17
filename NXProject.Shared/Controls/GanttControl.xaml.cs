@@ -1118,11 +1118,12 @@ namespace NXProject.Controls
             }
 
             bool durationOverrun = task.StartFixed && task.CalculatedFinish.HasValue;
-            var bgColor = isSelected           ? Color.FromRgb(220, 124, 0)
-                        : isPredecessor        ? Color.FromRgb(200, 100, 20)
-                        : task.HasSyncConflict ? Color.FromRgb(196, 43, 43)
-                        : durationOverrun      ? Color.FromRgb(196, 43, 43)
-                        :                        Color.FromRgb(68, 114, 196);
+            var bgColor = isSelected                  ? Color.FromRgb(220, 124, 0)
+                        : isPredecessor               ? Color.FromRgb(200, 100, 20)
+                        : task.UseOriginalHoursView   ? Color.FromRgb(185, 28, 28)
+                        : task.HasSyncConflict        ? Color.FromRgb(196, 43, 43)
+                        : durationOverrun             ? Color.FromRgb(196, 43, 43)
+                        :                               Color.FromRgb(68, 114, 196);
             var bg = new Rectangle
             {
                 Width = width,
