@@ -595,6 +595,12 @@ namespace NXProject.ViewModels
             var existingAvailability      = CaptureAvailabilityByResourceKey();
             var existingOriginalHours     = CaptureOriginalEstimatedHoursByTfsId();
 
+            // Preserva configurações de UI do projeto atual que não vêm do TFS.
+            if (string.IsNullOrEmpty(project.HiddenColumns) && !string.IsNullOrEmpty(Project?.HiddenColumns))
+                project.HiddenColumns = Project.HiddenColumns;
+            if (!project.ShowOriginalHoursColumn && Project?.ShowOriginalHoursColumn == true)
+                project.ShowOriginalHoursColumn = Project.ShowOriginalHoursColumn;
+
             Project = project;
             RestoreAllocationPercentByDevOpsTask(Project.Tasks, existingAllocations);
             RestoreAvailabilityByResourceKey(Project.Resources, existingAvailability);
