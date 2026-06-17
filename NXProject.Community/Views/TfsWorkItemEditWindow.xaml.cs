@@ -31,6 +31,24 @@ namespace NXProject.Views
             BlockCheck.IsChecked = HasTag(TagsBox.Text, "Block");
             _suppressBlockToggle = false;
 
+            // Mostra TipoCentroCusto para Epic ou segundo nível de hierarquia (depth == 1)
+            bool isEpicOrLevel2 = string.Equals(task.TfsType, "Epic", StringComparison.OrdinalIgnoreCase)
+                                   || task.Depth == 1;
+            if (isEpicOrLevel2)
+            {
+                CentroCustoPanel.Visibility = Visibility.Visible;
+                var current = task.Model.TipoCentroCusto?.ToUpperInvariant() ?? "PROJETO";
+                foreach (ComboBoxItem item2 in TipoCentroCustoBox.Items)
+                {
+                    if (string.Equals(item2.Content?.ToString(), current, StringComparison.OrdinalIgnoreCase))
+                    {
+                        TipoCentroCustoBox.SelectedItem = item2;
+                        break;
+                    }
+                }
+                if (TipoCentroCustoBox.SelectedIndex < 0) TipoCentroCustoBox.SelectedIndex = 0;
+            }
+
             if (task.HasSyncConflict)
                 ConflictBanner.Visibility = Visibility.Visible;
 
@@ -171,6 +189,9 @@ namespace NXProject.Views
             _task.TfsType = (TypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
             _task.TfsState = (StateBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
             _task.Tags = string.Join("; ", SplitTags(TagsBox.Text));
+
+            if (CentroCustoPanel.Visibility == Visibility.Visible)
+                _task.Model.TipoCentroCusto = (TipoCentroCustoBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "PROJETO";
 
             DialogResult = true;
             Close();

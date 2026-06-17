@@ -8,7 +8,8 @@ namespace NXProject.Views
         public DevOpsProject? Result { get; private set; }
 
         public DevOpsProjectEditWindow(string name = "", int id = 0,
-                                       bool isOpex = true, string costCenter = "")
+                                       bool isOpex = true, string costCenter = "",
+                                       string costCenterSource = "")
         {
             InitializeComponent();
             NameBox.Text = name;
@@ -16,7 +17,13 @@ namespace NXProject.Views
 
             TypeBox.Items.Add("OPEX");
             TypeBox.Items.Add("CAPEX");
-            TypeBox.SelectedIndex = isOpex ? 0 : 1;
+            TypeBox.Items.Add("EPIC");
+
+            var source = string.IsNullOrWhiteSpace(costCenterSource)
+                ? (isOpex ? "OPEX" : "CAPEX")
+                : costCenterSource.ToUpperInvariant();
+
+            TypeBox.SelectedIndex = source switch { "CAPEX" => 1, "EPIC" => 2, _ => 0 };
 
             CcBox.Text = costCenter;
 
@@ -38,12 +45,14 @@ namespace NXProject.Views
                 return;
             }
 
+            var src = (TypeBox.SelectedItem as string) ?? "OPEX";
             Result = new DevOpsProject
             {
-                Name           = name,
-                RootWorkItemId = id,
-                IsOpex         = TypeBox.SelectedIndex == 0,
-                CostCenter     = CcBox.Text?.Trim() ?? ""
+                Name             = name,
+                RootWorkItemId   = id,
+                IsOpex           = src != "CAPEX",
+                CostCenter       = CcBox.Text?.Trim() ?? "",
+                CostCenterSource = src
             };
             DialogResult = true;
             Close();

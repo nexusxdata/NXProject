@@ -61,6 +61,8 @@ namespace NXProject.Services
             { "Perc_Alocação", "Perc_Aloc", "PercAloc", "Perc Aloc", "Percentual Alocacao", "Percentual_Alocacao" };
         private static readonly string[] PercConclusaoFieldNames =
             { "Perc_Conclusao", "Perc_Conclusão", "PercConclusao", "Percentual Conclusao", "Percentual_Conclusao" };
+        private static readonly string[] TipoCentroCustoFieldNames =
+            { "Tipo_Centro_Custo", "TipoCentroCusto", "Tipo Centro Custo" };
 
         public static async Task<ImportResult> ImportAsync(
             TfsConnectionOptions options,
@@ -85,6 +87,7 @@ namespace NXProject.Services
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
             var percConclusaoRef = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
+            var tipoCentroCustoRef = ResolveField(fieldMap, null, TipoCentroCustoFieldNames);
 
             // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
             // (ancora das Stories sem data); as numeradas/exibidas serao so as
@@ -121,6 +124,7 @@ namespace NXProject.Services
             if (startRef != null) requestedFields.Add(startRef);
             if (finishRef != null) requestedFields.Add(finishRef);
             if (percAlocRef != null) requestedFields.Add(percAlocRef);
+            if (tipoCentroCustoRef != null) requestedFields.Add(tipoCentroCustoRef);
             if (syncVersionRef != null) requestedFields.Add(syncVersionRef);
             if (syncNameRef != null) requestedFields.Add(syncNameRef);
 
@@ -180,6 +184,7 @@ namespace NXProject.Services
                 FinishRef = finishRef,
                 PercAlocRef = percAlocRef,
                 PercConclusaoRef = percConclusaoRef,
+                TipoCentroCustoRef = tipoCentroCustoRef,
                 SyncVersionRef = syncVersionRef,
                 HoursPerDay = options.HoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : options.HoursPerDay,
                 ProjectStart = project.StartDate,
@@ -1301,6 +1306,7 @@ namespace NXProject.Services
             public string? PercAlocRef;
             public string? PercConclusaoRef;
             public string? SyncVersionRef;
+            public string? TipoCentroCustoRef;
             public double HoursPerDay = 8.0;
             public DateTime ProjectStart;
 
@@ -1376,7 +1382,8 @@ namespace NXProject.Services
                 BlockedByChild = summaryBlocked,
                 TfsStackRank = item.StackRank,
                 TfsIterationPath = item.IterationPath,
-                Justificativa = ParseJustificativa(item.Description)
+                Justificativa = ParseJustificativa(item.Description),
+                TipoCentroCusto = ReadTipoCentroCusto(item, ctx.TipoCentroCustoRef)
             };
             AssignResource(ctx, task, item);
 
@@ -1501,6 +1508,7 @@ namespace NXProject.Services
                 StartFixed = hasFixedTag,
                 FinishFixed = explicitFinish.HasValue || HasTag(item.Tags, ctx.FixedFinishTagName),
                 Justificativa = ParseJustificativa(item.Description),
+                TipoCentroCusto = ReadTipoCentroCusto(item, ctx.TipoCentroCustoRef),
                 SyncVersion = ctx.SyncVersionRef != null ? (int?)ReadDouble(item, ctx.SyncVersionRef).GetValueOrDefault(0) : null,
                 HasSyncConflict = false,
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
@@ -2335,6 +2343,14 @@ namespace NXProject.Services
                 default:
                     return null;
             }
+        }
+
+        // Lê Tipo_Centro_Custo do TFS. Se campo ausente/nulo, retorna "PROJETO" (default).
+        private static string ReadTipoCentroCusto(WorkItem item, string? refName)
+        {
+            var raw = ReadString(item, refName)?.Trim().ToUpperInvariant();
+            if (raw == "CAPEX" || raw == "OPEX") return raw;
+            return "PROJETO";
         }
 
         private static string? ReadString(WorkItem item, string? refName)

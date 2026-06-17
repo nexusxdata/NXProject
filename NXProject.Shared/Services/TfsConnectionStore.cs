@@ -32,8 +32,10 @@ namespace NXProject.Services
         public string ProjectName { get; set; } = string.Empty;
         /// <summary>Caminho do arquivo .nxproject local correspondente.</summary>
         public string FilePath    { get; set; } = string.Empty;
-        public bool   IsOpex      { get; set; } = true;
-        public string CostCenter  { get; set; } = string.Empty;
+        public bool   IsOpex           { get; set; } = true;
+        public string CostCenter       { get; set; } = string.Empty;
+        // "CAPEX", "OPEX" ou "EPIC". Vazio = derivado de IsOpex.
+        public string CostCenterSource { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -28,13 +28,17 @@ namespace NXProject.Views
                 var cfg = existingConfigs.FirstOrDefault(c =>
                     string.Equals(c.ProjectName, dp.Name, StringComparison.OrdinalIgnoreCase));
 
+                var src = string.IsNullOrWhiteSpace(dp.CostCenterSource)
+                    ? (dp.IsOpex ? "OPEX" : "CAPEX")
+                    : dp.CostCenterSource.ToUpperInvariant();
                 _all.Add(new ProjectEntry
                 {
-                    ProjectName    = dp.Name,
-                    RootWorkItemId = dp.RootWorkItemId,
-                    IsOpex         = dp.IsOpex,
-                    CostCenter     = dp.CostCenter,
-                    IsSelected     = cfg != null
+                    ProjectName      = dp.Name,
+                    RootWorkItemId   = dp.RootWorkItemId,
+                    IsOpex           = dp.IsOpex,
+                    CostCenter       = dp.CostCenter,
+                    CostCenterSource = src,
+                    IsSelected       = cfg != null
                 });
             }
 
@@ -90,14 +94,17 @@ namespace NXProject.Views
             };
             Grid.SetColumn(nameBlock, 1);
 
+            var typeLabel = entry.CostCenterSource == "EPIC" ? "EPIC"
+                          : entry.IsOpex ? "OPEX" : "CAPEX";
+            var typeColor = entry.CostCenterSource == "EPIC"
+                ? Color.FromRgb(80, 0, 140)
+                : entry.IsOpex ? Color.FromRgb(0, 100, 0) : Color.FromRgb(140, 60, 0);
             var typeBlock = new TextBlock
             {
-                Text              = entry.IsOpex ? "OPEX" : "CAPEX",
+                Text              = typeLabel,
                 FontSize          = 11,
                 FontWeight        = FontWeights.SemiBold,
-                Foreground        = entry.IsOpex
-                    ? new SolidColorBrush(Color.FromRgb(0, 100, 0))
-                    : new SolidColorBrush(Color.FromRgb(140, 60, 0)),
+                Foreground        = new SolidColorBrush(typeColor),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin            = new Thickness(4, 4, 4, 4)
             };
@@ -165,10 +172,11 @@ namespace NXProject.Views
                 .Where(x => x.IsSelected)
                 .Select(x => new PortfolioProjectConfig
                 {
-                    ProjectName = x.ProjectName,
-                    FilePath    = string.Empty,
-                    IsOpex      = x.IsOpex,
-                    CostCenter  = x.CostCenter
+                    ProjectName      = x.ProjectName,
+                    FilePath         = string.Empty,
+                    IsOpex           = x.IsOpex,
+                    CostCenter       = x.CostCenter,
+                    CostCenterSource = x.CostCenterSource
                 })
                 .ToList();
 
@@ -181,10 +189,11 @@ namespace NXProject.Views
         {
             private bool _isSelected;
 
-            public string ProjectName    { get; set; } = string.Empty;
-            public int    RootWorkItemId { get; set; }
-            public bool   IsOpex         { get; set; } = true;
-            public string CostCenter     { get; set; } = string.Empty;
+            public string ProjectName      { get; set; } = string.Empty;
+            public int    RootWorkItemId   { get; set; }
+            public bool   IsOpex           { get; set; } = true;
+            public string CostCenter       { get; set; } = string.Empty;
+            public string CostCenterSource { get; set; } = string.Empty;
 
             public bool IsSelected
             {

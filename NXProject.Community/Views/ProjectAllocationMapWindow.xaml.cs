@@ -19,11 +19,38 @@ namespace NXProject.Views
         // ── Modelo interno ────────────────────────────────────────────────────
         private sealed class LoadedProject
         {
-            public string  FilePath   { get; set; } = string.Empty;
-            public string  Name       { get; set; } = string.Empty;
-            public bool    IsOpex     { get; set; } = true;
-            public string  CostCenter { get; set; } = string.Empty;
-            public Project Data       { get; set; } = null!;
+            public string  FilePath         { get; set; } = string.Empty;
+            public string  Name             { get; set; } = string.Empty;
+            public bool    IsOpex           { get; set; } = true;
+            public string  CostCenter       { get; set; } = string.Empty;
+            // "CAPEX", "OPEX" ou "EPIC" (lê de cada EPIC da hierarquia).
+            public string  CostCenterSource { get; set; } = string.Empty;
+            public Project Data             { get; set; } = null!;
+
+            // Retorna OPEX/CAPEX para uma story, considerando o EPIC pai quando CostCenterSource=EPIC.
+            public bool IsOpexForTask(ProjectTask task)
+            {
+                if (CostCenterSource.Equals("EPIC", StringComparison.OrdinalIgnoreCase))
+                {
+                    var epicTipo = FindEpicAncestor(task)?.TipoCentroCusto?.ToUpperInvariant();
+                    if (epicTipo == "CAPEX") return false;
+                    if (epicTipo == "OPEX") return true;
+                    // PROJETO ou nulo → fallback para configuração do projeto
+                }
+                return IsOpex;
+            }
+
+            private static ProjectTask? FindEpicAncestor(ProjectTask task)
+            {
+                var current = task.Parent;
+                while (current != null)
+                {
+                    if (string.Equals(current.TfsType, "Epic", StringComparison.OrdinalIgnoreCase))
+                        return current;
+                    current = current.Parent;
+                }
+                return null;
+            }
         }
 
         // ── Estado ────────────────────────────────────────────────────────────
@@ -106,8 +133,11 @@ namespace NXProject.Views
                                      : (!string.IsNullOrWhiteSpace(project.Name)
                                          ? project.Name
                                          : System.IO.Path.GetFileNameWithoutExtension(cfg.FilePath)),
-                        IsOpex     = cfg.IsOpex,
-                        CostCenter = cfg.CostCenter,
+                        IsOpex           = cfg.IsOpex,
+                        CostCenter       = cfg.CostCenter,
+                        CostCenterSource = string.IsNullOrWhiteSpace(cfg.CostCenterSource)
+                                           ? (cfg.IsOpex ? "OPEX" : "CAPEX")
+                                           : cfg.CostCenterSource,
                         Data       = project
                     });
                 }
@@ -1303,14 +1333,14 @@ namespace NXProject.Views
                 var resOpexByMonth  = new double[months.Count];
                 foreach (var e in entries)
                     for (int mi = 0; mi < months.Count; mi++)
-                        if (e.Proj.IsOpex) resOpexByMonth[mi]  += e.MonthHours[mi];
-                        else               resCapexByMonth[mi] += e.MonthHours[mi];
+                        if (e.Proj.IsOpexForTask(e.Task)) resOpexByMonth[mi]  += e.MonthHours[mi];
+                        else                              resCapexByMonth[mi] += e.MonthHours[mi];
 
                 bool resFirst = true;
                 foreach (var projGroup in byProj)
                 {
                     var projEntries = projGroup.ToList();
-                    bool projIsOpex = projEntries[0].Proj.IsOpex;
+                    bool projIsOpex = projEntries[0].Proj.IsOpexForTask(projEntries[0].Task);
                     var projByMonth = new double[months.Count];
                     foreach (var e in projEntries)
                         for (int mi = 0; mi < months.Count; mi++)
@@ -1319,7 +1349,7 @@ namespace NXProject.Views
                     bool projFirst = true;
                     foreach (var (proj, task, mh) in projEntries.OrderBy(e => e.Task.Start))
                     {
-                        bool storyIsOpex = proj.IsOpex;
+                        bool storyIsOpex = proj.IsOpexForTask(task);
                         var leftBg = new SolidColorBrush(Color.FromRgb(248, 250, 255));
                         var leftRow = new StackPanel { Orientation = Orientation.Horizontal };
 
@@ -1731,11 +1761,14 @@ namespace NXProject.Views
                     var result = await TfsImportService.ImportAsync(importOpts);
                     imported.Add(new LoadedProject
                     {
-                        FilePath   = string.Empty,
-                        Name       = cfg.ProjectName,
-                        IsOpex     = cfg.IsOpex,
-                        CostCenter = cfg.CostCenter,
-                        Data       = result.Project
+                        FilePath         = string.Empty,
+                        Name             = cfg.ProjectName,
+                        IsOpex           = cfg.IsOpex,
+                        CostCenter       = cfg.CostCenter,
+                        CostCenterSource = string.IsNullOrWhiteSpace(cfg.CostCenterSource)
+                                           ? (cfg.IsOpex ? "OPEX" : "CAPEX")
+                                           : cfg.CostCenterSource,
+                        Data             = result.Project
                     });
                 }
                 catch (Exception ex)
@@ -1967,7 +2000,7 @@ namespace NXProject.Views
                     bool projFirst = true;
                     foreach (var (proj, task, mh) in projEntries.OrderBy(e => e.Task.Start))
                     {
-                        bool isOpex = proj.IsOpex;
+                        bool isOpex = proj.IsOpexForTask(task);
                         double rowTotal = visMi.Sum(mi => mh[mi]);
 
                         var row = new XElement(ns + "Row", new XAttribute(ss + "Height", "18"));

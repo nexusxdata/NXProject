@@ -27,6 +27,10 @@ namespace NXProject.Models
         // Nunca sobrescrita após % > 0 — serve como baseline de comparação.
         public double? OriginalEstimatedHours { get; set; }
 
+        // Tipo de Centro de Custo para itens EPIC: "CAPEX", "OPEX", "PROJETO".
+        // "PROJETO" (default) = herda configuração do projeto; "CAPEX"/"OPEX" = sobrescreve.
+        public string? TipoCentroCusto { get; set; }
+
         // Quando true, o Gantt usa OriginalEstimatedHours como duração em vez de EstimatedHours.
         // Não editável se PercentComplete > 0.
         public bool UseOriginalHoursView { get; set; }

@@ -96,6 +96,23 @@
                     <ComboBoxItem>Removed</ComboBoxItem>
                 </ComboBox>
 
+                <!-- Centro de Custo: visível somente para Epic ou nível 2 -->
+                <Border x:Name="CentroCustoPanel" Visibility="Collapsed"
+                        Background="#F5F7FA" BorderBrush="#D0D7E0" BorderThickness="1"
+                        CornerRadius="4" Padding="10,8" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Tipo Centro de Custo" FontWeight="SemiBold" FontSize="12"
+                                   Foreground="#2B579A" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="TipoCentroCustoBox" Height="28">
+                            <ComboBoxItem Content="PROJETO"/>
+                            <ComboBoxItem Content="CAPEX"/>
+                            <ComboBoxItem Content="OPEX"/>
+                        </ComboBox>
+                        <TextBlock Text="PROJETO = herda configuração do projeto no Mapa de Alocação."
+                                   FontSize="11" Foreground="#888" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Text="Tags (separadas por ;)" FontWeight="SemiBold" Margin="0,12,0,4"/>
                 <TextBox x:Name="TagsBox" Height="28" Padding="6,4"/>
                 <CheckBox x:Name="BlockCheck" Content="Bloqueado (tag Block)"
