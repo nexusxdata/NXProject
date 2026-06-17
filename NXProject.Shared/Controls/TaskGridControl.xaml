@@ -266,6 +266,7 @@
                                  TextAlignment="Center"
                                  VerticalContentAlignment="Center"
                                  IsReadOnly="{Binding IsDurationReadOnly}"
+                                 GotFocus="OnEditTextBoxGotFocus"
                                  LostFocus="OnDurationEditLostFocus"
                                  KeyDown="OnDurationEditKeyDown">
                             <TextBox.Style>
@@ -361,6 +362,7 @@
                         <TextBox x:Name="StartEditBox"
                                  Text="{Binding Start, StringFormat=dd/MM/yyyy, UpdateSourceTrigger=Explicit}"
                                  VerticalAlignment="Center"
+                                 GotFocus="OnEditTextBoxGotFocus"
                                  KeyDown="OnStartEditKeyDown"
                                  LostFocus="OnStartEditLostFocus"/>
                     </DataTemplate>
@@ -389,6 +391,7 @@
                         <TextBox x:Name="FinishEditBox"
                                  Text="{Binding Finish, StringFormat=dd/MM/yyyy, UpdateSourceTrigger=Explicit}"
                                  VerticalAlignment="Center"
+                                 GotFocus="OnEditTextBoxGotFocus"
                                  KeyDown="OnFinishEditKeyDown"
                                  LostFocus="OnFinishEditLostFocus"/>
                     </DataTemplate>
@@ -413,7 +416,8 @@
                         <TextBox Text="{Binding PercentComplete, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.#}}"
                                  BorderThickness="0"
                                  VerticalContentAlignment="Center"
-                                 HorizontalContentAlignment="Center">
+                                 HorizontalContentAlignment="Center"
+                                 GotFocus="OnEditTextBoxGotFocus">
                             <TextBox.Style>
                                 <Style TargetType="TextBox">
                                     <Setter Property="IsReadOnly" Value="True"/>

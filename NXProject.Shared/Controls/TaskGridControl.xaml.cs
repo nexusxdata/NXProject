@@ -919,6 +919,12 @@ namespace NXProject.Controls
             ClearEditSnapshot();
         }
 
+        private void OnEditTextBoxGotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb)
+                tb.Dispatcher.BeginInvoke(tb.SelectAll);
+        }
+
         private void OnDurationEditKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter && sender is TextBox tb)
