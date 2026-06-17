@@ -47,6 +47,8 @@ namespace NXProject.Services
         // confundir campos diferentes.
         private static readonly string[] HoursFieldNames =
             { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado" };
+        private static readonly string[] OriginalHoursFieldNames =
+            { "HH Original", "HH_Original", "HHOriginal" };
         private static readonly string[] StartFieldNames =
             { "Data_Inicio", "Data Inicio", "DataInicio" };
         private static readonly string[] FinishFieldNames =
@@ -74,6 +76,7 @@ namespace NXProject.Services
             //    candidatos conhecidos como fallback.
             var fieldMap = await LoadFieldMapAsync(orgBase, authHeader, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
+            var originalHoursRef = ResolveField(fieldMap, null, OriginalHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
@@ -110,6 +113,7 @@ namespace NXProject.Services
             var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
 
             if (hoursRef != null) requestedFields.Add(hoursRef);
+            if (originalHoursRef != null) requestedFields.Add(originalHoursRef);
             if (startRef != null) requestedFields.Add(startRef);
             if (finishRef != null) requestedFields.Add(finishRef);
             if (percAlocRef != null) requestedFields.Add(percAlocRef);
@@ -167,6 +171,7 @@ namespace NXProject.Services
                 Items = items,
                 ChildrenByParent = childrenByParent,
                 HoursRef = hoursRef,
+                OriginalHoursRef = originalHoursRef,
                 StartRef = startRef,
                 FinishRef = finishRef,
                 PercAlocRef = percAlocRef,
@@ -337,6 +342,7 @@ namespace NXProject.Services
 
             var fieldMap = await LoadFieldMapAsync(orgBase, auth, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
+            var originalHoursRef = ResolveField(fieldMap, null, OriginalHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
@@ -367,6 +373,7 @@ namespace NXProject.Services
             var existingIds = tasks.Where(t => t.TfsId.HasValue && t.TfsId.Value > 0).Select(t => t.TfsId!.Value).ToList();
             var requested = new List<string> { "System.Id", "System.Title", "System.State", "System.Description" };
             if (hoursRef != null) requested.Add(hoursRef);
+            if (originalHoursRef != null) requested.Add(originalHoursRef);
             if (startRef != null) requested.Add(startRef);
             if (finishRef != null) requested.Add(finishRef);
             if (percAlocRef != null) requested.Add(percAlocRef);
@@ -406,7 +413,7 @@ namespace NXProject.Services
                             task.TfsType = createType;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef, originalHoursRef);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -487,6 +494,27 @@ namespace NXProject.Services
                             ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
                             var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
                             changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
+                        }
+                    }
+
+                    // HH Original: grava quando % = 0 (tarefa não iniciada) ou quando o campo TFS está vazio/zero.
+                    if (originalHoursRef != null && task.OriginalEstimatedHours is > 0)
+                    {
+                        var currentOrigH = ReadDouble(wi, originalHoursRef);
+                        bool tfsMissing = currentOrigH == null || currentOrigH.Value < 0.0001;
+                        bool taskNotStarted = task.PercentComplete < 0.0001;
+                        if (tfsMissing || taskNotStarted)
+                        {
+                            ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
+                            if (!tfsMissing)
+                            {
+                                var oldO = $"{currentOrigH!.Value:0.##}→";
+                                changes.Add($"HH Original: {oldO}{task.OriginalEstimatedHours.Value:0.##}h");
+                            }
+                            else
+                            {
+                                changes.Add($"HH Original: {task.OriginalEstimatedHours.Value:0.##}h");
+                            }
                         }
                     }
 
@@ -1064,7 +1092,8 @@ namespace NXProject.Services
             string? hoursRef, string? startRef, string? finishRef,
             Dictionary<int, ProjectTask> tasksById,
             bool syncPredecessorLinks = true,
-            string? percAlocRef = null)
+            string? percAlocRef = null,
+            string? originalHoursRef = null)
         {
             var ops = new List<object>
             {
@@ -1086,6 +1115,10 @@ namespace NXProject.Services
             var desiredHours = GetSyncHours(task);
             if (hoursRef != null && desiredHours.HasValue)
                 ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
+
+            // HH Original: gravado na criação quando % = 0 (tarefa nova, não iniciada).
+            if (originalHoursRef != null && task.OriginalEstimatedHours is > 0 && task.PercentComplete < 0.0001)
+                ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
 
             var desiredAssignee = GetDesiredAssigneeEmail(task);
             if (!string.IsNullOrWhiteSpace(desiredAssignee))
@@ -1208,6 +1241,7 @@ namespace NXProject.Services
             public Dictionary<int, WorkItem> Items = new();
             public Dictionary<int, List<int>> ChildrenByParent = new();
             public string? HoursRef;
+            public string? OriginalHoursRef;
             public string? StartRef;
             public string? FinishRef;
             public string? PercAlocRef;
@@ -1396,6 +1430,7 @@ namespace NXProject.Services
                 Start = start,
                 Finish = finish,
                 EstimatedHours = hours,
+                OriginalEstimatedHours = ReadDouble(item, ctx.OriginalHoursRef) is { } origH && origH > 0 ? origH : null,
                 PercentComplete = stateFixedToActive ? 0
                     : ctx.PercConclusaoRef != null && ReadDouble(item, ctx.PercConclusaoRef) is { } pc && pc >= 0 && pc <= 100
                         ? pc

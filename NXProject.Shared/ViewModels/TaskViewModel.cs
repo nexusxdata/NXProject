@@ -317,8 +317,9 @@ namespace NXProject.ViewModels
                 {
                     _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value);
                     _task.EstimatedHours = value;
-                    // Grava estimativa original na primeira vez que horas são definidas com % = 0.
-                    if (_task.PercentComplete < 0.0001 && (_task.OriginalEstimatedHours == null || _task.OriginalEstimatedHours <= 0))
+                    // Quando % = 0, atualiza também a estimativa original (baseline sempre espelha o atual).
+                    // Quando % > 0, preserva a original — só atualiza EstimatedHours.
+                    if (_task.PercentComplete < 0.0001)
                         _task.OriginalEstimatedHours = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
@@ -475,13 +476,6 @@ namespace NXProject.ViewModels
                 var normalized = Math.Clamp(value, 0, 100);
                 if (Math.Abs(_task.PercentComplete - normalized) < 0.0001)
                     return;
-
-                // Captura estimativa original antes da primeira mudança acima de 0.
-                if (normalized > 0 && _task.PercentComplete < 0.0001 &&
-                    (_task.OriginalEstimatedHours == null || _task.OriginalEstimatedHours <= 0))
-                {
-                    _task.OriginalEstimatedHours = _task.EstimatedHours ?? (_task.DurationHours > 0 ? _task.DurationHours : null);
-                }
 
                 _task.PercentComplete = normalized;
                 if (normalized >= 100)
