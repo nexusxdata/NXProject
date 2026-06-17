@@ -343,7 +343,12 @@ namespace NXProject.Views
                 return;
             }
 
-            var leafTasks = _vm.FlatTasks.Where(t => t.Model.Children.Count == 0).ToList();
+            // Considera somente o nível "story": o menor Depth entre todas as tasks folha.
+            // Quando stories têm sub-tasks importadas do TFS, sub-tasks ficam em Depth maior
+            // e são excluídas — a story (Depth menor) é a unidade de progresso.
+            var allLeaves = _vm.FlatTasks.Where(t => t.Model.Children.Count == 0).ToList();
+            var storyDepth = allLeaves.Count > 0 ? allLeaves.Min(t => t.Depth) : 0;
+            var leafTasks = allLeaves.Where(t => t.Depth == storyDepth).ToList();
 
             // Usa apenas tasks que têm sprint atribuída para o denominador e cálculo da curva,
             // evitando que tasks sem sprint inflacionem os percentuais.
