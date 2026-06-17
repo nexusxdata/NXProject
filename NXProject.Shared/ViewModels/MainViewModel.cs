@@ -31,10 +31,14 @@ namespace NXProject.ViewModels
         public HashSet<int>? ResourceFilter { get; private set; }
         public double? PercentCompleteFilterMin { get; private set; }
         public double? PercentCompleteFilterMax { get; private set; }
+        public string? ProgressDateFilterMode { get; private set; }
+        public DateTime? ProgressDateFilterReference { get; private set; }
 
         public bool HasResourceFilter => ResourceFilter != null;
         public bool HasPercentCompleteFilter =>
-            PercentCompleteFilterMin.HasValue || PercentCompleteFilterMax.HasValue;
+            PercentCompleteFilterMin.HasValue ||
+            PercentCompleteFilterMax.HasValue ||
+            !string.IsNullOrWhiteSpace(ProgressDateFilterMode);
 
         public void SetResourceFilter(HashSet<int>? filter)
         {
@@ -43,10 +47,18 @@ namespace NXProject.ViewModels
             RebuildFlatTasks();
         }
 
-        public void SetPercentCompleteFilter(double? min, double? max)
+        public void SetPercentCompleteFilter(
+            double? min,
+            double? max,
+            string? dateFilterMode = null,
+            DateTime? dateFilterReference = null)
         {
             PercentCompleteFilterMin = NormalizePercentFilterValue(min);
             PercentCompleteFilterMax = NormalizePercentFilterValue(max);
+            ProgressDateFilterMode = NormalizeProgressDateFilterMode(dateFilterMode);
+            ProgressDateFilterReference = ProgressDateFilterMode != null
+                ? (dateFilterReference ?? DateTime.Today).Date
+                : null;
 
             if (PercentCompleteFilterMin.HasValue &&
                 PercentCompleteFilterMax.HasValue &&
@@ -66,6 +78,16 @@ namespace NXProject.ViewModels
                 return null;
 
             return Math.Clamp(Math.Round(value.Value), 0.0, 100.0);
+        }
+
+        private static string? NormalizeProgressDateFilterMode(string? mode)
+        {
+            return mode switch
+            {
+                "StartDate" or "StartToday" => "StartDate",
+                "FinishDate" or "FinishToday" => "FinishDate",
+                _ => null
+            };
         }
         [ObservableProperty] private double _mediumDaysPerSfp = 1.0;
         [ObservableProperty] private double _highDaysPerSfp = 1.0;
@@ -237,7 +259,8 @@ namespace NXProject.ViewModels
         private bool TaskSelfMatchesActiveFilters(ProjectTask task)
         {
             return TaskSelfMatchesResourceFilter(task) &&
-                   TaskSelfMatchesPercentCompleteFilter(task);
+                   TaskSelfMatchesPercentCompleteFilter(task) &&
+                   TaskSelfMatchesProgressDateFilter(task);
         }
 
         private bool TaskSelfMatchesResourceFilter(ProjectTask task)
@@ -257,6 +280,23 @@ namespace NXProject.ViewModels
                 return false;
 
             return true;
+        }
+
+        private bool TaskSelfMatchesProgressDateFilter(ProjectTask task)
+        {
+            if (string.IsNullOrWhiteSpace(ProgressDateFilterMode))
+                return true;
+
+            var today = DateTime.Today;
+            var referenceDate = (ProgressDateFilterReference ?? today).Date;
+            return ProgressDateFilterMode switch
+            {
+                "StartDate" => task.Start.Date > referenceDate,
+                "FinishDate" => ProjectCalendarService
+                    .GetInclusiveFinishDate(task.Start, task.Finish)
+                    .Date < referenceDate,
+                _ => true
+            };
         }
 
         private DateTime GetTaskSprintStart(ProjectTask task)
@@ -769,6 +809,9 @@ namespace NXProject.ViewModels
                 while (queue.Count > 0)
                 {
                     var currentId = queue.Dequeue();
+                    var current = FlatTasks.FirstOrDefault(t => t.Model.Id == currentId);
+
+                    // Predecessoras explícitas
                     foreach (var task in FlatTasks)
                     {
                         if (!task.Model.PredecessorIds.Contains(currentId)) continue;
@@ -779,11 +822,62 @@ namespace NXProject.ViewModels
                         if (task.Model.Finish != oldFinish)
                             queue.Enqueue(task.Model.Id);
                     }
+
+                    // Predecessor virtual: irmãos do mesmo pai, mesmo recurso, sem predecessoras, após a tarefa alterada
+                    if (current != null)
+                        CascadeVirtualSiblings(current, visited, queue);
                 }
             }
             finally
             {
                 _cascading = false;
+            }
+        }
+
+        private void CascadeVirtualSiblings(TaskViewModel changed, System.Collections.Generic.HashSet<int> visited, System.Collections.Generic.Queue<int> queue)
+        {
+            // Só propaga para irmãos sem predecessoras explícitas, mesmo pai e mesmo recurso primário
+            var changedResource = changed.Model.Resources.FirstOrDefault()?.ResourceId;
+            if (changedResource == null) return;
+
+            var changedIndex = FlatTasks.IndexOf(changed);
+            if (changedIndex < 0) return;
+
+            var changedFinish = ProjectCalendarService.GetInclusiveFinishDate(changed.Model.Start, changed.Model.Finish);
+
+            for (int i = changedIndex + 1; i < FlatTasks.Count; i++)
+            {
+                var sibling = FlatTasks[i];
+
+                // Para quando sair do grupo (profundidade menor = subiu na hierarquia)
+                if (sibling.Depth < changed.Depth) break;
+                // Pula filhos mais profundos
+                if (sibling.Depth > changed.Depth) continue;
+                // Deve ser do mesmo pai
+                if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
+                // Deve ter o mesmo recurso primário
+                if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != changedResource) continue;
+                // Só irmãos sem predecessoras explícitas (predecessor virtual não se sobrepõe ao explícito)
+                if (sibling.Model.PredecessorIds.Count > 0) continue;
+                // Não reprocessar
+                if (!visited.Add(sibling.Model.Id)) continue;
+
+                var nextStart = ProjectCalendarService.AddWorkingDays(changedFinish, 1);
+                if (sibling.Model.Start.Date >= nextStart.Date) break; // Já está depois, sem sobreposição
+
+                var oldFinish = sibling.Model.Finish;
+                var durationHours = sibling.DurationHours;
+                sibling.Model.Start = nextStart;
+                sibling.Model.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
+                sibling.Model.StartFixed = true;
+
+                sibling.NotifyDatesChanged();
+
+                if (sibling.Model.Finish != oldFinish)
+                    queue.Enqueue(sibling.Model.Id);
+
+                // O próximo irmão deve considerar o fim deste
+                changedFinish = ProjectCalendarService.GetInclusiveFinishDate(sibling.Model.Start, sibling.Model.Finish);
             }
         }
 

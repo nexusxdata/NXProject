@@ -921,6 +921,20 @@ namespace NXProject.ViewModels
             ScheduleSuccessors?.Invoke(this);
         }
 
+        // Dispara notificações de data/duração após alteração direta no Model (sem passar pelo setter).
+        public void NotifyDatesChanged()
+        {
+            OnPropertyChanged(nameof(Start));
+            OnPropertyChanged(nameof(StartDisplay));
+            OnPropertyChanged(nameof(Finish));
+            OnPropertyChanged(nameof(FinishDisplay));
+            OnPropertyChanged(nameof(DurationDays));
+            OnPropertyChanged(nameof(DurationHours));
+            OnPropertyChanged(nameof(DisplayAsMilestone));
+            OnPropertyChanged(nameof(StartFixed));
+            RecalcAncestorSummaries();
+        }
+
         public string ResourcesText
         {
             get
