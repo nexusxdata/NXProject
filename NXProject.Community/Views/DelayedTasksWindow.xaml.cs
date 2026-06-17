@@ -344,7 +344,13 @@ namespace NXProject.Views
             }
 
             var leafTasks = _vm.FlatTasks.Where(t => t.Model.Children.Count == 0).ToList();
-            var totalOriginalHours = leafTasks.Sum(t => GetOriginalHours(t.Model));
+
+            // Usa apenas tasks que têm sprint atribuída para o denominador e cálculo da curva,
+            // evitando que tasks sem sprint inflacionem os percentuais.
+            var sprintNumbers = new HashSet<int>(sprints.Select(s => s.Number));
+            var tasksWithSprint = leafTasks.Where(t => sprintNumbers.Contains(GetTaskSprint(t))).ToList();
+
+            var totalOriginalHours = tasksWithSprint.Sum(t => GetOriginalHours(t.Model));
             if (totalOriginalHours < 0.01)
             {
                 DrawNoDataMessage("Sem horas estimadas para gerar a Curva S.");
@@ -354,7 +360,7 @@ namespace NXProject.Views
             var today = DateTime.Today;
             int currentSprintNumber = DetermineCurrentSprint(sprints, today);
 
-            var points = BuildCurvePoints(sprints, leafTasks, totalOriginalHours, currentSprintNumber);
+            var points = BuildCurvePoints(sprints, tasksWithSprint, totalOriginalHours, currentSprintNumber);
             _curvePoints = points;
 
             var (projPoints, projEndLabel) = BuildProjection(points, sprints);
