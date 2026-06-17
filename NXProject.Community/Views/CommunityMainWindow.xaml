@@ -61,9 +61,7 @@
                 <MenuItem Header="{DynamicResource Menu_View_Gantt}" Command="{Binding ShowGanttCommand}"/>
                 <MenuItem Header="{DynamicResource Menu_View_Sprint}" Click="OnSprintSettingsClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_Sfp}" Click="OnSfpSettingsClick"/>
-                <MenuItem Header="Coluna Estimativa Original (OrgH)"
-                          IsCheckable="True"
-                          IsChecked="{Binding ShowOriginalHoursColumn, Mode=TwoWay}"/>
+                <MenuItem Header="Customizar colunas..." Click="OnCustomizeColumnsClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_Calendar}" Click="OnCalendarSettingsClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsList}" Click="OnDevOpsProjectListClick"/>

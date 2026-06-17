@@ -200,11 +200,16 @@
                     <DataTemplate>
                         <Border Padding="2,0"
                                 CornerRadius="2"
-                                Background="Transparent">
+                                Background="Transparent"
+                                ContextMenuOpening="OnDurationContextMenuOpening">
                             <Border.ContextMenu>
-                                <ContextMenu Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}">
+                                <ContextMenu>
                                     <MenuItem Header="{Binding OriginalEstimatedHoursText}" IsEnabled="False"
-                                              FontStyle="Italic" Foreground="#555"/>
+                                              FontStyle="Italic" Foreground="#555"
+                                              Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
+                                    <Separator Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
+                                    <MenuItem x:Name="ToggleOrgHMenuItem"
+                                              Click="OnToggleOrgHColumnClick"/>
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"

@@ -158,6 +158,81 @@ namespace NXProject.Controls
             _suppressScrollNotification = false;
         }
 
+        public void ShowColumnCustomizer()
+        {
+            var columns = new[]
+            {
+                ("ID",              IdColumn),
+                ("T·E (DevOps)",    DevOpsColumn),
+                ("Dur.(h)",         DurationColumn),
+                ("SFP",             SfpColumn),
+                ("OrgH",            OriginalHoursColumn),
+                ("Início",          (DataGridColumn)StartColumn),
+                ("Fim",             (DataGridColumn)FinishColumn),
+                ("% Compl.",        (DataGridColumn)PercentColumn),
+                ("Predecessoras",   (DataGridColumn)PredecessorColumn),
+                ("Recursos",        (DataGridColumn)ResourcesColumn),
+                ("Sprint",          (DataGridColumn)SprintColumn),
+            };
+
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Selecione as colunas visíveis:",
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            var checks = new List<(CheckBox cb, DataGridColumn col)>();
+            foreach (var (label, col) in columns)
+            {
+                var cb = new CheckBox
+                {
+                    Content = label,
+                    IsChecked = col.Visibility == Visibility.Visible,
+                    Margin = new Thickness(0, 4, 0, 4),
+                    FontSize = 13
+                };
+                panel.Children.Add(cb);
+                checks.Add((cb, col));
+            }
+
+            var btn = new Button
+            {
+                Content = "OK",
+                Width = 80,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 16, 0, 0),
+                Padding = new Thickness(0, 6, 0, 6)
+            };
+            panel.Children.Add(btn);
+
+            var win = new Window
+            {
+                Title = "Customizar colunas",
+                Content = new ScrollViewer { Content = panel },
+                Width = 280,
+                SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = Window.GetWindow(this)
+            };
+
+            btn.Click += (_, _) =>
+            {
+                foreach (var (cb, col) in checks)
+                    col.Visibility = cb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+                // Sincroniza ShowOriginalHoursColumn com o estado do checkbox de OrgH
+                var orgHCheck = checks.FirstOrDefault(x => x.col == OriginalHoursColumn);
+                if (orgHCheck != default)
+                    ShowOriginalHoursColumn = orgHCheck.cb.IsChecked == true;
+                win.Close();
+            };
+
+            win.ShowDialog();
+        }
+
         public void SetPresentationMode(bool expanded)
         {
             SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
@@ -525,6 +600,25 @@ namespace NXProject.Controls
         {
             if (sender is TextBox tb)
                 CommitDurationEdit(tb);
+        }
+
+        private void OnToggleOrgHColumnClick(object sender, RoutedEventArgs e)
+        {
+            ShowOriginalHoursColumn = !ShowOriginalHoursColumn;
+        }
+
+        // Atualiza o label do item de menu antes de abrir o ContextMenu.
+        private void OnDurationContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is Border { ContextMenu: { } cm })
+            {
+                var item = cm.Items.OfType<MenuItem>()
+                             .FirstOrDefault(m => m.Name == "ToggleOrgHMenuItem");
+                if (item != null)
+                    item.Header = ShowOriginalHoursColumn
+                        ? "Ocultar coluna Estimativa Original (OrgH)"
+                        : "Mostrar coluna Estimativa Original (OrgH)";
+            }
         }
 
 

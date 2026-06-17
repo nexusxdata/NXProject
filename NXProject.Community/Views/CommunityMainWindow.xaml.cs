@@ -662,6 +662,11 @@ namespace NXProject.Views
             window.ShowDialog();
         }
 
+        private void OnCustomizeColumnsClick(object sender, RoutedEventArgs e)
+        {
+            TaskGridCtrl.ShowColumnCustomizer();
+        }
+
         private void OnResourceFilterClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
