@@ -205,7 +205,8 @@ namespace NXProject.ViewModels
                     }
                     return null;
                 },
-                ScheduleSuccessors = source => CascadeSuccessors(source)
+                ScheduleSuccessors = source => CascadeSuccessors(source),
+                PrimaryResourceChanged = (source, oldResourceId) => OnPrimaryResourceChanged(source, oldResourceId)
             };
             if (parentVm != null)
                 parentVm.ChildrenViewModels.Add(vm);
@@ -882,6 +883,70 @@ namespace NXProject.ViewModels
 
                 // O próximo irmão deve considerar o fim deste
                 changedFinish = ProjectCalendarService.GetInclusiveFinishDate(sibling.Model.Start, sibling.Model.Finish);
+            }
+        }
+
+        // Quando o recurso de uma tarefa muda, reposiciona ela com base no novo recurso
+        // e libera a lacuna deixada no recurso antigo.
+        private void OnPrimaryResourceChanged(TaskViewModel changed, int? oldResourceId)
+        {
+            if (_cascading) return;
+
+            // 1. Reposicionar a tarefa no contexto do NOVO recurso:
+            //    procura o último irmão com o novo recurso antes desta tarefa.
+            if (changed.Model.PredecessorIds.Count == 0)
+            {
+                var newResourceId = changed.Model.Resources.FirstOrDefault()?.ResourceId;
+                var changedIndex  = FlatTasks.IndexOf(changed);
+
+                if (newResourceId != null && changedIndex > 0)
+                {
+                    DateTime? lastFinish = null;
+                    for (int i = changedIndex - 1; i >= 0; i--)
+                    {
+                        var prev = FlatTasks[i];
+                        if (prev.Depth < changed.Depth) break;
+                        if (prev.Depth > changed.Depth) continue;
+                        if (!ReferenceEquals(prev.ParentViewModel, changed.ParentViewModel)) break;
+                        if (prev.Model.Resources.FirstOrDefault()?.ResourceId != newResourceId) continue;
+
+                        lastFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
+                        break;
+                    }
+
+                    if (lastFinish.HasValue)
+                    {
+                        var nextStart = ProjectCalendarService.AddWorkingDays(lastFinish.Value, 1);
+                        if (changed.Model.Start.Date != nextStart.Date)
+                        {
+                            var durationHours = changed.DurationHours;
+                            changed.Model.Start  = nextStart;
+                            changed.Model.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
+                            changed.NotifyDatesChanged();
+                        }
+                    }
+                }
+            }
+
+            // 2. Cascatar irmãos do NOVO recurso após a tarefa alterada.
+            CascadeSuccessors(changed);
+
+            // 3. Cascatar irmãos do recurso ANTIGO — a lacuna deixada permite que avancem.
+            if (oldResourceId != null)
+            {
+                var changedIndex = FlatTasks.IndexOf(changed);
+                for (int i = changedIndex + 1; i < FlatTasks.Count; i++)
+                {
+                    var sibling = FlatTasks[i];
+                    if (sibling.Depth < changed.Depth) break;
+                    if (sibling.Depth > changed.Depth) continue;
+                    if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
+                    if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != oldResourceId) continue;
+                    if (sibling.Model.PredecessorIds.Count > 0) continue;
+
+                    CascadeSuccessors(sibling);
+                    break;
+                }
             }
         }
 

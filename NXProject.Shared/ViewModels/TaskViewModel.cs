@@ -994,11 +994,16 @@ namespace NXProject.ViewModels
 
         // Conveniência: recurso principal (primeiro da lista). Usado pela grade para
         // permitir editar/atribuir rapidamente um recurso único.
+        // Callback acionado quando o recurso primário muda, passando o ID do recurso anterior.
+        public Action<TaskViewModel, int?>? PrimaryResourceChanged { get; set; }
+
         public NXProject.Models.Resource? PrimaryResource
         {
             get => _task.Resources.Count > 0 ? _task.Resources[0].Resource : null;
             set
             {
+                var oldResourceId = _task.Resources.Count > 0 ? (int?)_task.Resources[0].ResourceId : null;
+
                 if (value == null)
                 {
                     _task.Resources.Clear();
@@ -1024,6 +1029,10 @@ namespace NXProject.ViewModels
 
                 OnPropertyChanged(); // PrimaryResource
                 OnPropertyChanged(nameof(ResourcesText));
+
+                var newResourceId = _task.Resources.Count > 0 ? (int?)_task.Resources[0].ResourceId : null;
+                if (oldResourceId != newResourceId)
+                    PrimaryResourceChanged?.Invoke(this, oldResourceId);
             }
         }
 
