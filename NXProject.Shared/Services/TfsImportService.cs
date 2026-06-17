@@ -48,7 +48,9 @@ namespace NXProject.Services
         private static readonly string[] HoursFieldNames =
             { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado" };
         private static readonly string[] OriginalHoursFieldNames =
-            { "HH Original", "HH_Original", "HHOriginal" };
+            { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado", "HH Original", "HH_Original" };
+        private static readonly string[] RemainingHoursFieldNames =
+            { "HH_Restante", "HH Restante", "HHRestante" };
         private static readonly string[] RealizedHoursFieldNames =
             { "HH Realizado", "HH_Realizado", "HHRealizado" };
         private static readonly string[] StartFieldNames =
@@ -345,6 +347,7 @@ namespace NXProject.Services
             var fieldMap = await LoadFieldMapAsync(orgBase, auth, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
             var originalHoursRef  = ResolveField(fieldMap, null, OriginalHoursFieldNames);
+            var remainingHoursRef = ResolveField(fieldMap, null, RemainingHoursFieldNames);
             var realizedHoursRef  = ResolveField(fieldMap, null, RealizedHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
@@ -376,8 +379,9 @@ namespace NXProject.Services
             var existingIds = tasks.Where(t => t.TfsId.HasValue && t.TfsId.Value > 0).Select(t => t.TfsId!.Value).ToList();
             var requested = new List<string> { "System.Id", "System.Title", "System.State", "System.Description" };
             if (hoursRef != null) requested.Add(hoursRef);
-            if (originalHoursRef != null) requested.Add(originalHoursRef);
-            if (realizedHoursRef != null) requested.Add(realizedHoursRef);
+            if (originalHoursRef  != null && !requested.Contains(originalHoursRef))  requested.Add(originalHoursRef);
+            if (remainingHoursRef != null && !requested.Contains(remainingHoursRef)) requested.Add(remainingHoursRef);
+            if (realizedHoursRef  != null && !requested.Contains(realizedHoursRef))  requested.Add(realizedHoursRef);
             if (startRef != null) requested.Add(startRef);
             if (finishRef != null) requested.Add(finishRef);
             if (percAlocRef != null) requested.Add(percAlocRef);
@@ -417,7 +421,7 @@ namespace NXProject.Services
                             task.TfsType = createType;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef, originalHoursRef);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef, originalHoursRef, remainingHoursRef, realizedHoursRef);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -489,8 +493,10 @@ namespace NXProject.Services
                         }
                     }
 
+                    // HH Estimado (Esforço Estimado): só grava quando originalHoursRef não aponta para o mesmo campo
+                    // (evita sobrescrever HH Original com EstimatedHours quando o campo é o mesmo).
                     var desiredHours = GetSyncHours(task);
-                    if (hoursRef != null && desiredHours.HasValue)
+                    if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
                     {
                         var currentHours = ReadDouble(wi, hoursRef);
                         if (currentHours == null || Math.Abs(currentHours.Value - desiredHours.Value) > 0.0001)
@@ -498,6 +504,20 @@ namespace NXProject.Services
                             ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
                             var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
                             changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
+                        }
+                    }
+
+                    // HH Restante: grava a diferença de horas ainda não concluídas.
+                    if (remainingHoursRef != null)
+                    {
+                        var estH = GetSyncHours(task) ?? 0;
+                        var remainingH = Math.Max(0, estH * (1.0 - task.PercentComplete / 100.0));
+                        var currentRemH = ReadDouble(wi, remainingHoursRef);
+                        if (currentRemH == null || Math.Abs(currentRemH.Value - remainingH) > 0.0001)
+                        {
+                            ops.Add(PatchAdd($"/fields/{remainingHoursRef}", remainingH));
+                            var oldRem = currentRemH.HasValue ? $"{currentRemH.Value:0.##}→" : "";
+                            changes.Add($"HH Restante: {oldRem}{remainingH:0.##}h");
                         }
                     }
 
@@ -1113,7 +1133,9 @@ namespace NXProject.Services
             Dictionary<int, ProjectTask> tasksById,
             bool syncPredecessorLinks = true,
             string? percAlocRef = null,
-            string? originalHoursRef = null)
+            string? originalHoursRef = null,
+            string? remainingHoursRef = null,
+            string? realizedHoursRef = null)
         {
             var ops = new List<object>
             {
@@ -1133,12 +1155,24 @@ namespace NXProject.Services
                 ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
 
             var desiredHours = GetSyncHours(task);
-            if (hoursRef != null && desiredHours.HasValue)
+            // Só grava hoursRef se for um campo diferente do originalHoursRef (evitar conflito com "Esforço Estimado")
+            if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
                 ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
 
-            // HH Original: gravado na criação quando % = 0 (tarefa nova, não iniciada).
+            // HH Original (Esforço Estimado): gravado na criação quando % = 0.
             if (originalHoursRef != null && task.OriginalEstimatedHours is > 0 && task.PercentComplete < 0.0001)
                 ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
+
+            // HH Restante na criação
+            if (remainingHoursRef != null && desiredHours.HasValue)
+            {
+                var remH = Math.Max(0, desiredHours.Value * (1.0 - task.PercentComplete / 100.0));
+                ops.Add(PatchAdd($"/fields/{remainingHoursRef}", remH));
+            }
+
+            // HH Realizado na criação quando % = 100
+            if (realizedHoursRef != null && task.PercentComplete >= 99.9999 && desiredHours is > 0)
+                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", desiredHours.Value));
 
             var desiredAssignee = GetDesiredAssigneeEmail(task);
             if (!string.IsNullOrWhiteSpace(desiredAssignee))
