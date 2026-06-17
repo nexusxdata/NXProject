@@ -42,6 +42,16 @@
             </Style>
         </DataGrid.RowStyle>
 
+        <DataGrid.CellStyle>
+            <Style TargetType="DataGridCell">
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Foreground" Value="White"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </DataGrid.CellStyle>
+
         <DataGrid.Columns>
 
             <!-- ID (clicável: abre edição do vínculo DevOps) -->
