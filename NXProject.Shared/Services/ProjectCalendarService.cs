@@ -122,6 +122,25 @@ namespace NXProject.Services
             return current;
         }
 
+        // Subtrai horas úteis de uma data de fim para obter o início correspondente.
+        public static DateTime SubtractWorkingHours(DateTime finish, double hours)
+        {
+            if (hours <= 0) return finish;
+            var calendar = Current;
+            var current = finish;
+            var remaining = hours;
+            while (remaining > 0)
+            {
+                current = current.AddDays(-1);
+                if (!IsWorkingDay(current.Date, calendar))
+                    continue;
+                var cap = WorkingHoursPerDay;
+                var chunk = Math.Min(remaining, cap);
+                remaining -= chunk;
+            }
+            return current;
+        }
+
         public static double CountWorkingHours(DateTime start, DateTime finish) => CountWorkingHours(start, finish, Current);
 
         public static double CountWorkingHours(DateTime start, DateTime finish, ProjectCalendar? calendar)

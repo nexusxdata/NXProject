@@ -310,26 +310,49 @@ namespace NXProject.ViewModels
             get => ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
             set
             {
-                if (UsesSfpEstimate || _task.FinishFixed)
+                if (!CanEditDuration) return;
+                // Fim fixo + início NÃO fixo: recalcula início para trás.
+                if (_task.FinishFixed && !_task.StartFixed)
+                {
+                    if (value >= 0)
+                    {
+                        _task.Start = ProjectCalendarService.SubtractWorkingHours(_task.Finish, value);
+                        _task.EstimatedHours = value;
+                        if (_task.PercentComplete < 100)
+                        {
+                            _task.OriginalEstimatedHours = value;
+                            RefreshOriginalEstimatedHoursProperties();
+                        }
+                        OnPropertyChanged();
+                        OnPropertyChanged(nameof(Start));
+                        OnPropertyChanged(nameof(StartDisplay));
+                        OnPropertyChanged(nameof(DurationDays));
+                        OnPropertyChanged(nameof(DisplayAsMilestone));
+                        RecalcAncestorSummaries();
+                        RefreshAncestorCalculatedProperties();
+                    }
                     return;
+                }
+                if (_task.FinishFixed) return;
 
                 if (value >= 0)
                 {
                     _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, value);
                     _task.EstimatedHours = value;
-                    // Quando % = 0, atualiza também a estimativa original (baseline sempre espelha o atual).
-                    // Quando % > 0, preserva a original — só atualiza EstimatedHours.
+                    // Enquanto a tarefa não estiver concluída, HH Restante editado na grade
+                    // também atualiza OrgH e avisa imediatamente as colunas derivadas.
                     if (_task.PercentComplete < 100)
+                    {
                         _task.OriginalEstimatedHours = value;
+                        RefreshOriginalEstimatedHoursProperties();
+                    }
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
-                    OnPropertyChanged(nameof(OriginalEstimatedHoursText));
-                    OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
-                    OnPropertyChanged(nameof(HasOriginalEstimate));
                     RecalcAncestorSummaries();
+                    RefreshAncestorCalculatedProperties();
                 }
             }
         }
@@ -340,7 +363,7 @@ namespace NXProject.ViewModels
         {
             set
             {
-                if (UsesSfpEstimate) return;
+                if (!CanEditDuration) return;
                 var raw = value?.Trim() ?? string.Empty;
                 double hours;
                 if (raw.EndsWith("d", StringComparison.OrdinalIgnoreCase) &&
@@ -390,6 +413,8 @@ namespace NXProject.ViewModels
 
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(UsesSfpEstimate));
+                OnPropertyChanged(nameof(CanEditDuration));
+                OnPropertyChanged(nameof(IsDurationReadOnly));
                 OnPropertyChanged(nameof(DurationDays));
                 OnPropertyChanged(nameof(DurationHours));
                 OnPropertyChanged(nameof(Finish));
@@ -406,6 +431,7 @@ namespace NXProject.ViewModels
                 _task.FinishFixed = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(FinishDisplay));
+                OnPropertyChanged(nameof(IsDurationReadOnly));
                 FixFinishCommand.NotifyCanExecuteChanged();
             }
         }
@@ -425,6 +451,7 @@ namespace NXProject.ViewModels
             _task.FinishFixed = false;
             OnPropertyChanged(nameof(FinishFixed));
             OnPropertyChanged(nameof(FinishDisplay));
+            OnPropertyChanged(nameof(IsDurationReadOnly));
         }
 
         // Setter de texto aceita data válida (marca fix) ou "0" (limpa fix).
@@ -538,9 +565,9 @@ namespace NXProject.ViewModels
         {
             get
             {
-                var orig = _task.OriginalEstimatedHours;
+                var orig = GetCalculatedOriginalEstimatedHours(_task);
                 if (orig == null || orig <= 0) return null;
-                var current = _task.EstimatedHours ?? DurationHours;
+                var current = GetCalculatedEstimatedHours(_task) ?? DurationHours;
                 var diff = current - orig.Value;
                 var diffText = Math.Abs(diff) < 0.05 ? "" :
                     diff > 0 ? $"  (+{diff:0.#}h)" : $"  ({diff:0.#}h)";
@@ -548,34 +575,86 @@ namespace NXProject.ViewModels
             }
         }
 
-        public bool HasOriginalEstimate => _task.OriginalEstimatedHours is > 0;
+        public bool HasOriginalEstimate => GetCalculatedOriginalEstimatedHours(_task) is > 0;
 
         // Valor exibido na coluna OrgH
         public string? OriginalEstimatedHoursDisplay =>
-            _task.OriginalEstimatedHours is > 0 ? $"{_task.OriginalEstimatedHours.Value:0}" : null;
+            GetCalculatedOriginalEstimatedHours(_task) is { } hours && hours > 0 ? $"{hours:0}" : null;
 
         public bool UseOriginalHoursView => _task.UseOriginalHoursView;
 
         // Valor de HH Original formatado para exibição compacta na célula (ex: "↑40").
         public string? OriginalHoursDisplay =>
-            _task.UseOriginalHoursView && _task.OriginalEstimatedHours is > 0
-                ? $"↑{_task.OriginalEstimatedHours.Value:0}"
+            _task.UseOriginalHoursView && GetCalculatedOriginalEstimatedHours(_task) is { } hours && hours > 0
+                ? $"↑{hours:0}"
                 : null;
 
-        public bool IsDurationReadOnly => UsesSfpEstimate;
+        public bool CanEditDuration => _task.Children.Count == 0 && !UsesSfpEstimate;
+
+        public bool IsDurationReadOnly => !CanEditDuration || _task.FinishFixed;
 
         public void RefreshDerivedDisplayProperties()
         {
             OnPropertyChanged(nameof(DurationHours));
+            RefreshOriginalEstimatedHoursProperties();
+        }
+
+        private void RefreshOriginalEstimatedHoursProperties()
+        {
             OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
             OnPropertyChanged(nameof(OriginalEstimatedHoursText));
             OnPropertyChanged(nameof(HasOriginalEstimate));
+            OnPropertyChanged(nameof(OriginalHoursDisplay));
+        }
+
+        private static double? GetCalculatedOriginalEstimatedHours(ProjectTask task)
+        {
+            if (task.Children.Count == 0)
+                return task.OriginalEstimatedHours is > 0 ? task.OriginalEstimatedHours.Value : null;
+
+            var total = task.Children
+                .Select(GetCalculatedOriginalEstimatedHours)
+                .Where(h => h is > 0)
+                .Sum(h => h!.Value);
+
+            return total > 0 ? total : null;
+        }
+
+        private static double? GetCalculatedEstimatedHours(ProjectTask task)
+        {
+            if (task.Children.Count == 0)
+            {
+                var hours = task.EstimatedHours ?? task.DurationHours;
+                return hours > 0 ? hours : null;
+            }
+
+            var total = task.Children
+                .Select(GetCalculatedEstimatedHours)
+                .Where(h => h is > 0)
+                .Sum(h => h!.Value);
+
+            return total > 0 ? total : null;
+        }
+
+        private void RefreshAncestorCalculatedProperties()
+        {
+            var current = ParentViewModel;
+            while (current != null)
+            {
+                current.OnPropertyChanged(nameof(DurationHours));
+                current.OnPropertyChanged(nameof(DurationDays));
+                current.OnPropertyChanged(nameof(Finish));
+                current.OnPropertyChanged(nameof(FinishDisplay));
+                current.OnPropertyChanged(nameof(DisplayAsMilestone));
+                current.RefreshOriginalEstimatedHoursProperties();
+                current = current.ParentViewModel;
+            }
         }
 
         public void SetOriginalHoursView(bool useOriginal)
         {
             if (useOriginal == _task.UseOriginalHoursView) return;
-            if (useOriginal && !(_task.OriginalEstimatedHours is > 0)) return;
+            if (useOriginal && !(GetCalculatedOriginalEstimatedHours(_task) is > 0)) return;
 
             _task.UseOriginalHoursView = useOriginal;
             OnPropertyChanged(nameof(UseOriginalHoursView));
