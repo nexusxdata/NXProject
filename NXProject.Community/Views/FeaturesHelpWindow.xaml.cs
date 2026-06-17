@@ -137,8 +137,8 @@ namespace NXProject.Views
                      "• Use Editar → Promover Tarefa para subir um nível.\n" +
                      "• Tarefas agrupamento (com filhos) calculam datas e duração automaticamente a partir dos filhos."),
                     ("Duração e datas",
-                     "• Coluna Dur.(h): informe em horas (ex: 8) ou em dias úteis com d (ex: 2d = 2 dias úteis).\n" +
-                     "• A data Fim é calculada automaticamente: Início + Dur.(h) respeitando o calendário de trabalho.\n" +
+                     "• Coluna Rest.(h): informe em horas (ex: 8) ou em dias úteis com d (ex: 2d = 2 dias úteis).\n" +
+                     "• A data Fim é calculada automaticamente: Início + Rest.(h) respeitando o calendário de trabalho.\n" +
                      "• Para fixar a data de Início, digite a data no campo — ela fica marcada com 📌.\n" +
                      "• Para fixar a data de Fim, informe a data no campo Fim ou arraste a borda direita da barra no Gantt com o botão direito do mouse (na barra já selecionada).\n" +
                      "• Para remover fixação de Início, digite 0 no campo Início."),
@@ -147,7 +147,7 @@ namespace NXProject.Views
                      "• Tarefas agrupamento calculam o percentual como média ponderada das horas dos filhos.\n" +
                      "• Se a data Fim estiver no passado e o percentual for menor que 100, o sistema alerta automaticamente no Health Check.")
                 },
-                "Informe Início e Dur.(h) — o Fim é calculado pelo calendário. Para dependências, use a coluna Pred."
+                "Informe Início e Rest.(h) — o Fim é calculado pelo calendário. Para dependências, use a coluna Pred."
             ),
             (
                 "Gráfico Gantt",

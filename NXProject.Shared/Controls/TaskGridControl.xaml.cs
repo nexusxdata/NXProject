@@ -166,7 +166,7 @@ namespace NXProject.Controls
         // Colunas visíveis por padrão (nome = Header da coluna conforme definido no XAML)
         private static readonly HashSet<string> DefaultVisibleColumns = new()
         {
-            "ID", "T·E (DevOps)", "Dur.(h)", "Início", "Fim", "% Compl.", "Recursos", "Sprint"
+            "ID", "T·E (DevOps)", "Rest.(h)", "Início", "Fim", "% Compl.", "Recursos", "Sprint"
         };
 
         /// <summary>Disparado quando o usuário salva a configuração de colunas. Arg = nomes das colunas ocultas.</summary>
@@ -189,7 +189,7 @@ namespace NXProject.Controls
         [
             ("ID",            IdColumn),
             ("T·E (DevOps)",  DevOpsColumn),
-            ("Dur.(h)",       DurationColumn),
+            ("Rest.(h)",       DurationColumn),
             ("SFP",           SfpColumn),
             ("OrgH",          OriginalHoursColumn),
             ("Início",        StartColumn),
