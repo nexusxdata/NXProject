@@ -172,10 +172,14 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário salva a configuração de colunas. Arg = nomes das colunas ocultas.</summary>
         public event Action<string>? ColumnSettingsSaved;
 
+        private bool _hasCustomColumnConfig;
+
         public void ApplyHiddenColumns(string hiddenColumnsCsv)
         {
             var hidden = new HashSet<string>(
                 (hiddenColumnsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+            _hasCustomColumnConfig = !string.IsNullOrWhiteSpace(hiddenColumnsCsv);
 
             foreach (var (label, col) in GetCustomizableColumns())
                 col.Visibility = hidden.Contains(label) ? Visibility.Collapsed : Visibility.Visible;
@@ -292,8 +296,13 @@ namespace NXProject.Controls
 
         public void SetPresentationMode(bool expanded)
         {
-            SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            PredecessorColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            // Só aplica visibilidade padrão de SFP/Predecessoras quando não há configuração
+            // salva pelo usuário — evita sobrescrever o Customizar Colunas ao mudar de modo.
+            if (!_hasCustomColumnConfig)
+            {
+                SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+                PredecessorColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            }
 
             IdColumn.Width = new DataGridLength(expanded ? 86 : 42);
             DevOpsColumn.Width = new DataGridLength(expanded ? 62 : 46);
