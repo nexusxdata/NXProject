@@ -65,7 +65,7 @@
                                 Cursor="Hand"
                                 BorderThickness="0"
                                 Background="Transparent"
-                                Foreground="#2B579A"
+                                Foreground="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=Foreground}"
                                 FontSize="11"
                                 Padding="0"
                                 HorizontalContentAlignment="Left"
@@ -238,6 +238,9 @@
                                             <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
                                                 <Setter Property="Foreground" Value="#6E6E6E"/>
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=IsSelected}" Value="True">
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
@@ -310,6 +313,11 @@
                         <Setter Property="VerticalAlignment" Value="Center"/>
                         <Setter Property="Foreground" Value="#1565C0"/>
                         <Setter Property="FontSize" Value="11"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=IsSelected}" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
@@ -324,6 +332,11 @@
                         <Setter Property="VerticalAlignment" Value="Center"/>
                         <Setter Property="Foreground" Value="#4A148C"/>
                         <Setter Property="FontSize" Value="11"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=IsSelected}" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
@@ -338,6 +351,11 @@
                         <Setter Property="VerticalAlignment" Value="Center"/>
                         <Setter Property="Foreground" Value="#1565C0"/>
                         <Setter Property="FontSize" Value="11"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=IsSelected}" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
@@ -397,7 +415,18 @@
                                          Background="#E0E0E0" Foreground="#217346"/>
                             <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0.#}%}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontSize="9" Foreground="{Binding PercentCompleteTextBrush}"/>
+                                       FontSize="9">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{Binding PercentCompleteTextBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=IsSelected}" Value="True">
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
