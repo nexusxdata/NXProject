@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Como usar o cronograma"
-        Width="820"
-        Height="640"
+        Width="860"
+        Height="680"
         MinWidth="640"
         MinHeight="460"
         WindowStartupLocation="CenterOwner"
@@ -21,7 +21,7 @@
                        FontSize="24"
                        FontWeight="SemiBold"
                        Foreground="#2B579A"/>
-            <TextBlock Text="Use a grade e o Gantt para planejar datas, duracao, dependencias, conclusao, recursos e sprints. O NXProject recalcula o fim das atividades a partir do calendario de trabalho."
+            <TextBlock Text="Use a grade e o Gantt para planejar datas, duracao, progresso, recursos e sprints. O NXProject recalcula o fim das atividades a partir do calendario de trabalho."
                        Margin="0,8,0,0"
                        TextWrapping="Wrap"
                        Foreground="#444"/>
@@ -35,81 +35,88 @@
                 Padding="16">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="1. Informe a duracao"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,0,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
-A coluna Dur.(h) trabalha em horas. Digite 8 para uma atividade de 8 horas, 16 para 16 horas, e assim por diante.
-                    </TextBlock>
 
-                    <TextBlock Text="2. Use dias quando for mais natural"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,8,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-Na mesma coluna Dur.(h), voce pode digitar o valor seguido de d para converter dias uteis em horas.
+                    <!-- 1. Duracao -->
+                    <TextBlock Text="1. Duracao (Dur.(h))"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,0,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+A coluna Dur.(h) trabalha em horas com uma casa decimal. Digite 8 para 8 horas, 16.5 para 16 horas e 30 minutos.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- 1d vira 1 dia util em horas."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- 2d vira 2 dias uteis em horas."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A quantidade de horas por dia vem de Exibir > Calendario..."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Para converter dias uteis em horas, use o sufixo d: 2d vira 2 dias uteis."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Alterar Dur.(h) recalcula a data Fim mantendo a data Inicio."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Quando HH Atual > 0, a duracao exibida e HH Atual + HH Restante."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A edicao de duracao fica bloqueada quando a atividade esta 100% concluida."/>
 
-                    <TextBlock Text="3. Entenda o calculo da data fim"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,8,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-A data Fim e calculada automaticamente a partir da data Inicio + Dur.(h), respeitando o calendario configurado.
+                    <!-- 2. HH Atual e HH Restante -->
+                    <TextBlock Text="2. HH Atual e HH Restante"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+HH Atual representa o esforco ja realizado na atividade. HH Restante e o esforco ainda necessario para concluir.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Se sabado e domingo nao forem dias uteis, eles sao pulados."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Feriados cadastrados no calendario tambem sao ignorados."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Alterar a duracao recalcula o fim mantendo o inicio da atividade."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Duracao total = HH Atual + HH Restante (quando HH Atual esta preenchido)."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao alterar % Compl., o NXProject recalcula automaticamente HH Atual e HH Restante."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Esses campos sao sincronizados com o Azure DevOps (campos HH_Atual_float e HH_Restante_float)."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Para visualizar as colunas, use Exibir > Customizar colunas e habilite HH Atual e HH Restante."/>
 
-                    <TextBlock Text="4. Ajuste o inicio da atividade"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,8,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-Ao digitar uma data na coluna Inicio, o NXProject fixa esse inicio e recalcula o fim preservando a duracao.
+                    <!-- 3. Percentual de conclusao -->
+                    <TextBlock Text="3. Percentual de conclusao (% Compl.)"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+Ao digitar o percentual de conclusao, o NXProject recalcula HH Atual e HH Restante proporcional a duracao total da atividade.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
-Se a atividade veio de uma sprint do Azure DevOps, digitar 0 no campo Inicio remove a fixacao e volta a posicionar a atividade pelo inicio calculado da sprint.
-                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Com % = 100, a data Fim e ajustada para hoje e a edicao de duracao e bloqueada."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Atividades no estado Encerrado (Closed) com % diferente de 100 continuam com duracao editavel."/>
 
-                    <TextBlock Text="5. Use predecessoras para criar dependencias"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,8,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-A coluna Pred. indica quais atividades precisam terminar antes da atividade atual. Ao clicar no campo, o NXProject abre uma janela de selecao com atividades de ultimo nivel.
+                    <!-- 4. Data Inicio e Fim -->
+                    <TextBlock Text="4. Datas Inicio e Fim"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+A data Fim e calculada automaticamente: Inicio + Dur.(h), respeitando o calendario (fins de semana e feriados sao pulados).
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Clique em Pred. na atividade que depende de outra."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Use a busca para localizar a atividade pelo nome ou ID."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Marque uma ou mais atividades usando os checkboxes."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A parte superior da janela mostra as predecessoras ja marcadas antes de confirmar."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Alterar a data Fim muda a duracao; o sistema pede confirmacao antes de aceitar."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Digitar 0 no campo Inicio remove a fixacao e reposiciona pela sprint ou predecessora."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A configuracao do calendario esta em Exibir > Calendario."/>
 
-                    <TextBlock Text="6. Interprete o Gantt"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,8,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
-O Gantt mostra as barras das atividades, marcos, sprints e setas de dependencia. Ao mover uma atividade no Gantt, atividades dependentes podem acompanhar o deslocamento conforme as predecessoras cadastradas.
+                    <!-- 5. Predecessoras -->
+                    <TextBlock Text="5. Predecessoras"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+A coluna Pred. define quais atividades precisam terminar antes da atividade atual iniciar.
                     </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Clique no campo Pred. para abrir a janela de selecao."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Use a busca para localizar por nome ou ID."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- E possivel marcar multiplas predecessoras com os checkboxes."/>
 
-                    <TextBlock Text="7. Acompanhe conclusao, recursos e sprints"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#2B579A"
-                               Margin="0,8,0,8"/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- % Compl. atualiza o progresso da atividade e dos resumos."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Recursos mostra quem esta alocado na atividade."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Sprint permite mover Stories e Features entre iterations importadas do Azure DevOps."/>
+                    <!-- 6. Gantt -->
+                    <TextBlock Text="6. Gantt"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+O Gantt exibe barras de duracao, marcos, sprints e setas de dependencia.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A barra azul representa a duracao total planejada da atividade."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A faixa preta dentro da barra representa o HH Atual (esforco ja realizado)."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Ao mover uma atividade no Gantt, as dependentes podem acompanhar o deslocamento."/>
+
+                    <!-- 7. Colunas e modos de exibicao -->
+                    <TextBlock Text="7. Colunas e modos de exibicao"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+Use o botao Exibir > Customizar colunas para escolher quais colunas aparecem em cada modo de visualizacao.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Visao Padrao: configuracao compacta, ideal para monitores menores."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Visao Expandida: configuracao completa com HH Atual, HH Restante, OrgH, SFP e Predecessoras."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A configuracao e salva no arquivo do projeto e restaurada ao reabrir."/>
+
+                    <!-- 8. Progresso e Curva S -->
+                    <TextBlock Text="8. Progresso do Projeto e Curva S"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+Acesse em Exibir > Progresso do Projeto e Curva S para acompanhar o andamento geral do projeto.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Linha azul: HH Original (Planejado) acumulado por sprint."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Linha laranja solida: HH Atual acumulado (sprints concluidas ou em andamento)."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Linha laranja tracejada: HH Restante projetado (sprints futuras)."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- O calculo considera somente atividades no nivel story (nivel de menor profundidade com sprint atribuida)."/>
 
                     <Border Background="#FFF7E8"
                             BorderBrush="#E8D39A"
@@ -117,10 +124,10 @@ O Gantt mostra as barras das atividades, marcos, sprints e setas de dependencia.
                             CornerRadius="6"
                             Padding="12"
                             Margin="0,8,0,0">
-                        <TextBlock TextWrapping="Wrap"
-                                   Foreground="#444"
-                                   Text="Dica rapida: informe Inicio e Dur.(h); o Fim e calculado pelo calendario. Para dependencias, clique em Pred. na atividade que depende e marque as atividades anteriores na janela de selecao."/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#444"
+                                   Text="Dica rapida: informe Inicio e Dur.(h) — o Fim e calculado pelo calendario. Atualize % Compl. para registrar o progresso; HH Atual e HH Restante sao calculados automaticamente e sincronizados com o Azure DevOps."/>
                     </Border>
+
                 </StackPanel>
             </ScrollViewer>
         </Border>
