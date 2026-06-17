@@ -643,9 +643,11 @@ namespace NXProject.Controls
         {
             if (tb.DataContext is not TaskViewModel vm) return;
             vm.DurationText = tb.Text;
+            // Notifica explicitamente as colunas read-only que dependem de DurationHours
+            vm.RefreshDerivedDisplayProperties();
             TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render,
                 () => TaskGrid.Items.Refresh());
         }
 

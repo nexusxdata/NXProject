@@ -564,6 +564,14 @@ namespace NXProject.ViewModels
 
         public bool IsDurationReadOnly => UsesSfpEstimate;
 
+        public void RefreshDerivedDisplayProperties()
+        {
+            OnPropertyChanged(nameof(DurationHours));
+            OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
+            OnPropertyChanged(nameof(OriginalEstimatedHoursText));
+            OnPropertyChanged(nameof(HasOriginalEstimate));
+        }
+
         public void SetOriginalHoursView(bool useOriginal)
         {
             if (useOriginal == _task.UseOriginalHoursView) return;
