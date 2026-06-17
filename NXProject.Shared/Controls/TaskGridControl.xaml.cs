@@ -176,10 +176,22 @@ namespace NXProject.Controls
 
         public void ApplyHiddenColumns(string hiddenColumnsCsv)
         {
-            var hidden = new HashSet<string>(
-                (hiddenColumnsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-
             _hasCustomColumnConfig = !string.IsNullOrWhiteSpace(hiddenColumnsCsv);
+
+            HashSet<string> hidden;
+            if (_hasCustomColumnConfig)
+            {
+                hidden = new HashSet<string>(
+                    hiddenColumnsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+            else
+            {
+                // Sem configuração salva: usa defaults (colunas não listadas em DefaultVisibleColumns ficam ocultas).
+                hidden = new HashSet<string>(
+                    GetCustomizableColumns()
+                        .Select(x => x.Label)
+                        .Where(l => !DefaultVisibleColumns.Contains(l)));
+            }
 
             foreach (var (label, col) in GetCustomizableColumns())
                 col.Visibility = hidden.Contains(label) ? Visibility.Collapsed : Visibility.Visible;
