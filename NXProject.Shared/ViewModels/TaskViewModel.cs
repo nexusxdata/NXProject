@@ -310,30 +310,7 @@ namespace NXProject.ViewModels
             get => ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
             set
             {
-                if (!CanEditDuration) return;
-                // Fim fixo + início NÃO fixo: recalcula início para trás.
-                if (_task.FinishFixed && !_task.StartFixed)
-                {
-                    if (value >= 0)
-                    {
-                        _task.Start = ProjectCalendarService.SubtractWorkingHours(_task.Finish, value);
-                        _task.EstimatedHours = value;
-                        if (_task.PercentComplete < 100)
-                        {
-                            _task.OriginalEstimatedHours = value;
-                            RefreshOriginalEstimatedHoursProperties();
-                        }
-                        OnPropertyChanged();
-                        OnPropertyChanged(nameof(Start));
-                        OnPropertyChanged(nameof(StartDisplay));
-                        OnPropertyChanged(nameof(DurationDays));
-                        OnPropertyChanged(nameof(DisplayAsMilestone));
-                        RecalcAncestorSummaries();
-                        RefreshAncestorCalculatedProperties();
-                    }
-                    return;
-                }
-                if (_task.FinishFixed) return;
+                if (!CanEditDuration || _task.FinishFixed) return;
 
                 if (value >= 0)
                 {
