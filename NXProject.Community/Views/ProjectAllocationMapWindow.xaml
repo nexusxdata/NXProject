@@ -225,7 +225,7 @@
                         <RowDefinition Height="*"/>   <!-- Dados -->
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="580"/>  <!-- Recurso + Projeto + Story (fixo) -->
+                        <ColumnDefinition Width="730"/>  <!-- Recurso + Projeto + EPIC + Feature + Story (fixo) -->
                         <ColumnDefinition Width="*"/>    <!-- Meses (rola) -->
                     </Grid.ColumnDefinitions>
 
@@ -238,9 +238,13 @@
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Row="1" Orientation="Horizontal">
                                 <TextBlock Text="Recurso" Foreground="White" FontWeight="SemiBold" FontSize="11"
-                                           Width="160" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                           Width="130" VerticalAlignment="Center" Margin="6,0,0,0"/>
                                 <TextBlock Text="Projeto" Foreground="White" FontWeight="SemiBold" FontSize="11"
-                                           Width="160" VerticalAlignment="Center"/>
+                                           Width="120" VerticalAlignment="Center"/>
+                                <TextBlock Text="EPIC" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="140" VerticalAlignment="Center"/>
+                                <TextBlock Text="Feature" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="140" VerticalAlignment="Center"/>
                                 <TextBlock Text="Story / Tarefa" Foreground="White" FontWeight="SemiBold" FontSize="11"
                                            VerticalAlignment="Center"/>
                             </StackPanel>

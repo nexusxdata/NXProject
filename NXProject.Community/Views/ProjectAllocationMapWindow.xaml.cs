@@ -35,7 +35,7 @@ namespace NXProject.Views
                     var epicTipo = FindEpicAncestor(task)?.TipoCentroCusto?.ToUpperInvariant();
                     if (epicTipo == "CAPEX") return false;
                     if (epicTipo == "OPEX") return true;
-                    // PROJETO ou nulo → fallback para configuração do projeto
+                    // DEFINIDO_NO_PROJETO, nulo ou valor desconhecido → fallback para configuração do projeto
                 }
                 return IsOpex;
             }
@@ -1194,15 +1194,30 @@ namespace NXProject.Views
         }
 
         // ── Aba 3: Stories por Recurso ────────────────────────────────────────
-        private const double SrResW      = 160;
-        private const double SrProjW     = 160;
-        private const double SrStoryW    = 260;
+        private const double SrResW      = 130;
+        private const double SrProjW     = 120;
+        private const double SrEpicW     = 140;
+        private const double SrFeatureW  = 140;
+        private const double SrStoryW    = 200;
         private const double SrCapexMonW = 58;   // CAPEX por mês
         private const double SrOpexMonW  = 58;   // OPEX  por mês
         private const double SrTotalW    = 72;   // TOTAL geral
         private const double SrCapexW    = 72;   // CAPEX total
         private const double SrOpexW     = 72;   // OPEX  total
         private const double SrRowH      = 22;
+
+        // Sobe a hierarquia procurando o primeiro ancestral do tipo informado.
+        private static ProjectTask? FindAncestorByType(ProjectTask task, string type)
+        {
+            var current = task.Parent;
+            while (current != null)
+            {
+                if (string.Equals(current.TfsType, type, StringComparison.OrdinalIgnoreCase))
+                    return current;
+                current = current.Parent;
+            }
+            return null;
+        }
 
         private void BuildStoriesGrid()
         {
@@ -1382,6 +1397,32 @@ namespace NXProject.Views
                                 ToolTip = projFirst ? projGroup.Key : null
                             }
                         });
+                        var epicTask    = FindAncestorByType(task, "Epic");
+                        var featureTask = FindAncestorByType(task, "Feature");
+                        var epicLabel    = epicTask?.Name    ?? "";
+                        var featureLabel = featureTask?.Name ?? "";
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrEpicW, Height = SrRowH, Background = leftBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                            BorderThickness = new Thickness(0, 0, 1, 1), Padding = new Thickness(4, 0, 4, 0),
+                            ToolTip = string.IsNullOrEmpty(epicLabel) ? null : epicLabel,
+                            Child = new TextBlock { Text = epicLabel, FontSize = 10,
+                                Foreground = new SolidColorBrush(Color.FromRgb(100, 40, 140)),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                TextTrimming = TextTrimming.CharacterEllipsis }
+                        });
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrFeatureW, Height = SrRowH, Background = leftBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(210, 220, 240)),
+                            BorderThickness = new Thickness(0, 0, 1, 1), Padding = new Thickness(4, 0, 4, 0),
+                            ToolTip = string.IsNullOrEmpty(featureLabel) ? null : featureLabel,
+                            Child = new TextBlock { Text = featureLabel, FontSize = 10,
+                                Foreground = new SolidColorBrush(Color.FromRgb(20, 100, 120)),
+                                VerticalAlignment = VerticalAlignment.Center,
+                                TextTrimming = TextTrimming.CharacterEllipsis }
+                        });
                         string storyLabel = task.Name ?? $"#{task.TfsId}";
                         leftRow.Children.Add(new Border
                         {
@@ -1440,6 +1481,8 @@ namespace NXProject.Views
                             Foreground = new SolidColorBrush(Color.FromRgb(30, 60, 130)),
                             VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }
                     });
+                    leftProjTotal.Children.Add(new Border { Width = SrEpicW,    Height = SrRowH, Background = new SolidColorBrush(projTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(180,200,230)), BorderThickness = new Thickness(0,0,1,1) });
+                    leftProjTotal.Children.Add(new Border { Width = SrFeatureW, Height = SrRowH, Background = new SolidColorBrush(projTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(180,200,230)), BorderThickness = new Thickness(0,0,1,1) });
                     leftProjTotal.Children.Add(new Border
                     {
                         Width = SrStoryW, Height = SrRowH, Background = new SolidColorBrush(projTotalBg),
@@ -1488,7 +1531,9 @@ namespace NXProject.Views
                         Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center,
                         TextTrimming = TextTrimming.CharacterEllipsis }
                 });
-                leftResTotal.Children.Add(new Border { Width = SrProjW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(29,63,115)), BorderThickness = new Thickness(0,0,1,1) });
+                leftResTotal.Children.Add(new Border { Width = SrProjW,    Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(29,63,115)), BorderThickness = new Thickness(0,0,1,1) });
+                leftResTotal.Children.Add(new Border { Width = SrEpicW,    Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(29,63,115)), BorderThickness = new Thickness(0,0,1,1) });
+                leftResTotal.Children.Add(new Border { Width = SrFeatureW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg), BorderBrush = new SolidColorBrush(Color.FromRgb(29,63,115)), BorderThickness = new Thickness(0,0,1,1) });
                 leftResTotal.Children.Add(new Border
                 {
                     Width = SrStoryW, Height = SrRowH + 2, Background = new SolidColorBrush(resTotalBg),
@@ -1536,13 +1581,15 @@ namespace NXProject.Views
             var gtLeft = new StackPanel { Orientation = Orientation.Horizontal };
             gtLeft.Children.Add(new Border
             {
-                Width = SrResW + SrProjW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg),
+                Width = SrResW + SrProjW + SrEpicW + SrFeatureW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(15, 40, 90)), BorderThickness = new Thickness(0,0,1,1),
                 Padding = new Thickness(6, 0, 4, 0),
                 Child = new TextBlock { Text = "TOTAL GERAL", FontSize = 11, FontWeight = FontWeights.SemiBold,
                     Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center }
             });
-            gtLeft.Children.Add(new Border { Width = SrStoryW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg), BorderBrush = new SolidColorBrush(Color.FromRgb(15,40,90)), BorderThickness = new Thickness(0,0,1,1) });
+            gtLeft.Children.Add(new Border { Width = SrEpicW,    Height = SrRowH + 2, Background = new SolidColorBrush(gtBg), BorderBrush = new SolidColorBrush(Color.FromRgb(15,40,90)), BorderThickness = new Thickness(0,0,1,1) });
+            gtLeft.Children.Add(new Border { Width = SrFeatureW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg), BorderBrush = new SolidColorBrush(Color.FromRgb(15,40,90)), BorderThickness = new Thickness(0,0,1,1) });
+            gtLeft.Children.Add(new Border { Width = SrStoryW,   Height = SrRowH + 2, Background = new SolidColorBrush(gtBg), BorderBrush = new SolidColorBrush(Color.FromRgb(15,40,90)), BorderThickness = new Thickness(0,0,1,1) });
             SrLeftPanel.Items.Add(gtLeft);
 
             var gtData = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1950,6 +1997,8 @@ namespace NXProject.Views
             var hdrRow1 = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
             hdrRow1.Add(ExStCell(ns, "Recurso", "H0"));
             hdrRow1.Add(ExStCell(ns, "Projeto", "H0"));
+            hdrRow1.Add(ExStCell(ns, "EPIC",    "H0"));
+            hdrRow1.Add(ExStCell(ns, "Feature", "H0"));
             hdrRow1.Add(ExStCell(ns, "Story",   "H0"));
             foreach (var mi in visMi)
                 hdrRow1.Add(ExStCell(ns, months[mi].ToString("MMM/yyyy"), "HM", mergeAcross: 1));
@@ -2003,9 +2052,13 @@ namespace NXProject.Views
                         bool isOpex = proj.IsOpexForTask(task);
                         double rowTotal = visMi.Sum(mi => mh[mi]);
 
+                        var epicEx    = FindAncestorByType(task, "Epic");
+                        var featureEx = FindAncestorByType(task, "Feature");
                         var row = new XElement(ns + "Row", new XAttribute(ss + "Height", "18"));
                         row.Add(ExStCell(ns, resFirst && projFirst ? resName : "", "SL"));
                         row.Add(ExStCell(ns, projFirst ? projGroup.Key : "", "SL"));
+                        row.Add(ExStCell(ns, epicEx?.Name    ?? "", "SL"));
+                        row.Add(ExStCell(ns, featureEx?.Name ?? "", "SL"));
                         row.Add(ExStCell(ns, task.Name ?? $"#{task.TfsId}", "SL"));
                         foreach (var mi in visMi)
                         {

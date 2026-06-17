@@ -2345,12 +2345,12 @@ namespace NXProject.Services
             }
         }
 
-        // Lê Tipo_Centro_Custo do TFS. Se campo ausente/nulo, retorna "PROJETO" (default).
-        private static string ReadTipoCentroCusto(WorkItem item, string? refName)
+        // Lê Tipo_Centro_Custo do TFS. Se campo ausente/nulo, retorna null (= DEFINIDO_NO_PROJETO).
+        private static string? ReadTipoCentroCusto(WorkItem item, string? refName)
         {
             var raw = ReadString(item, refName)?.Trim().ToUpperInvariant();
             if (raw == "CAPEX" || raw == "OPEX") return raw;
-            return "PROJETO";
+            return null;
         }
 
         private static string? ReadString(WorkItem item, string? refName)

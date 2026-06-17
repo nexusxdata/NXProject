@@ -37,7 +37,7 @@ namespace NXProject.Views
             if (isEpicOrLevel2)
             {
                 CentroCustoPanel.Visibility = Visibility.Visible;
-                var current = task.Model.TipoCentroCusto?.ToUpperInvariant() ?? "PROJETO";
+                var current = task.Model.TipoCentroCusto?.ToUpperInvariant() ?? "DEFINIDO_NO_PROJETO";
                 foreach (ComboBoxItem item2 in TipoCentroCustoBox.Items)
                 {
                     if (string.Equals(item2.Content?.ToString(), current, StringComparison.OrdinalIgnoreCase))
@@ -191,7 +191,10 @@ namespace NXProject.Views
             _task.Tags = string.Join("; ", SplitTags(TagsBox.Text));
 
             if (CentroCustoPanel.Visibility == Visibility.Visible)
-                _task.Model.TipoCentroCusto = (TipoCentroCustoBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "PROJETO";
+            {
+                var selected = (TipoCentroCustoBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                _task.Model.TipoCentroCusto = selected == "DEFINIDO_NO_PROJETO" ? null : selected;
+            }
 
             DialogResult = true;
             Close();
