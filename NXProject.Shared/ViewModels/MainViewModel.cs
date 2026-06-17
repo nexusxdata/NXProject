@@ -575,12 +575,14 @@ namespace NXProject.ViewModels
         {
             if (project == null) return;
 
-            var existingAllocations   = CaptureAllocationPercentByDevOpsTask();
-            var existingAvailability  = CaptureAvailabilityByResourceKey();
+            var existingAllocations       = CaptureAllocationPercentByDevOpsTask();
+            var existingAvailability      = CaptureAvailabilityByResourceKey();
+            var existingOriginalHours     = CaptureOriginalEstimatedHoursByTfsId();
 
             Project = project;
             RestoreAllocationPercentByDevOpsTask(Project.Tasks, existingAllocations);
             RestoreAvailabilityByResourceKey(Project.Resources, existingAvailability);
+            RestoreOriginalEstimatedHours(Project.Tasks, existingOriginalHours);
             ApplyProjectSprintSettingsToViewModel(project);
             _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
             RebuildFlatTasks();
@@ -654,6 +656,32 @@ namespace NXProject.ViewModels
                 var key = GetResourceKey(r);
                 if (!string.IsNullOrWhiteSpace(key) && saved.TryGetValue(key, out var pct))
                     r.AvailabilityPercent = pct;
+            }
+        }
+
+        private Dictionary<int, double> CaptureOriginalEstimatedHoursByTfsId()
+        {
+            var result = new Dictionary<int, double>();
+            foreach (var task in AllTasks())
+                if (task.TfsId is > 0 && task.OriginalEstimatedHours is > 0)
+                    result[task.TfsId.Value] = task.OriginalEstimatedHours.Value;
+            return result;
+        }
+
+        private static void RestoreOriginalEstimatedHours(
+            IEnumerable<Models.ProjectTask> tasks,
+            Dictionary<int, double> saved)
+        {
+            foreach (var task in tasks)
+            {
+                // Só restaura se o import não trouxe valor do TFS (null ou zero).
+                if (task.TfsId is > 0
+                    && (task.OriginalEstimatedHours == null || task.OriginalEstimatedHours <= 0)
+                    && saved.TryGetValue(task.TfsId.Value, out var orig))
+                {
+                    task.OriginalEstimatedHours = orig;
+                }
+                RestoreOriginalEstimatedHours(task.Children, saved);
             }
         }
 
