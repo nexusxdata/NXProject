@@ -1774,18 +1774,23 @@ namespace NXProject.Views
                 return;
             }
 
+            bool isStoriesTab = MainTabControl.SelectedIndex == 2;
+
             var dlg = new SaveFileDialog
             {
-                Title      = "Exportar Mapa de Alocação",
+                Title      = isStoriesTab ? "Exportar Stories por Recurso" : "Exportar Mapa de Alocação",
                 Filter     = "Excel XML 2003 (*.xml)|*.xml",
                 DefaultExt = ".xml",
-                FileName   = "Mapa de Alocação para Projetos"
+                FileName   = isStoriesTab ? "Stories por Recurso" : "Mapa de Alocação para Projetos"
             };
             if (dlg.ShowDialog(this) != true) return;
 
             try
             {
-                ExportAllocationToExcel(dlg.FileName);
+                if (isStoriesTab)
+                    ExportStoriesToExcel(dlg.FileName);
+                else
+                    ExportAllocationToExcel(dlg.FileName);
                 StatusText.Text = $"Exportado: {dlg.FileName}";
             }
             catch (Exception ex)
@@ -1794,6 +1799,322 @@ namespace NXProject.Views
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        private void ExportStoriesToExcel(string filePath)
+        {
+            var (periodStart, periodEnd) = GetPeriod();
+            bool hideZero = OnlyWithHoursBox.IsChecked == true;
+            var months = BuildMonths(periodStart, periodEnd);
+
+            var byRes = new SortedDictionary<string, List<(LoadedProject Proj, ProjectTask Task, double[] MonthHours)>>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var proj in _projects)
+            {
+                foreach (var task in GetLeafTasks(proj.Data.Tasks))
+                {
+                    foreach (var tr in task.Resources)
+                    {
+                        var rname = tr.Resource?.Name;
+                        if (string.IsNullOrWhiteSpace(rname)) continue;
+
+                        var mh = new double[months.Count];
+                        bool any = false;
+                        for (int mi = 0; mi < months.Count; mi++)
+                        {
+                            var ms = months[mi];
+                            var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                            double h = ComputeHoursForTask(task, tr, ms, me);
+                            mh[mi] = h;
+                            if (h > 0.01) any = true;
+                        }
+                        if (hideZero && !any) continue;
+
+                        if (!byRes.TryGetValue(rname, out var list))
+                            byRes[rname] = list = [];
+                        list.Add((proj, task, mh));
+                    }
+                }
+            }
+
+            var visMi = Enumerable.Range(0, months.Count)
+                .Where(mi => !hideZero || byRes.Values.Any(l => l.Any(x => x.MonthHours[mi] > 0.01)))
+                .ToList();
+
+            XNamespace ns = "urn:schemas-microsoft-com:office:spreadsheet";
+            XNamespace ss = "urn:schemas-microsoft-com:office:spreadsheet";
+
+            // ── Estilos ──
+            var styles = new XElement(ns + "Styles",
+                ExSt(ns, "Default"),
+                // Cabeçalhos fixos (Recurso/Projeto/Story)
+                ExSt(ns, "H0", bg: "#1D3F73", fg: "#FFFFFF", bold: true),
+                // Mês mesclado
+                ExSt(ns, "HM", bg: "#2B579A", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                // Sub-header CAPEX
+                ExSt(ns, "HC", bg: "#8C4614", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                // Sub-header OPEX
+                ExSt(ns, "HO", bg: "#2B642B", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                // Colunas TOTAL/CAPEX/OPEX no cabeçalho
+                ExSt(ns, "HT", bg: "#193C78", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                // Story: célula de label
+                ExSt(ns, "SL", bg: "#F8FAFF", fg: "#1E2840"),
+                // Story: valor CAPEX
+                ExSt(ns, "SC", bg: "#FFF8F0", fg: "#783C0A", hAlign: "Right", numFmt: "0.0"),
+                // Story: valor OPEX
+                ExSt(ns, "SO", bg: "#F0FAF0", fg: "#145A14", hAlign: "Right", numFmt: "0.0"),
+                // Story: coluna TOTAL
+                ExSt(ns, "ST", bg: "#E6EEFA", fg: "#143264", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Story: CAPEX total col
+                ExSt(ns, "STC", bg: "#FFF8F0", fg: "#783C0A", hAlign: "Right", numFmt: "0.0"),
+                // Story: OPEX total col
+                ExSt(ns, "STO", bg: "#F0FAF0", fg: "#145A14", hAlign: "Right", numFmt: "0.0"),
+                // Subtotal projeto: label
+                ExSt(ns, "PL", bg: "#DCE6F8", fg: "#1E3C82", bold: true, italic: true),
+                // Subtotal: CAPEX value
+                ExSt(ns, "PC", bg: "#FCF2E6", fg: "#783C0A", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Subtotal: OPEX value
+                ExSt(ns, "PO", bg: "#E8F8E8", fg: "#145A14", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Subtotal: TOTAL
+                ExSt(ns, "PT", bg: "#CDDBF5", fg: "#1E3C82", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Subtotal: CAPEX/OPEX total cols
+                ExSt(ns, "PTC", bg: "#FCF2E6", fg: "#783C0A", bold: true, hAlign: "Right", numFmt: "0.0"),
+                ExSt(ns, "PTO", bg: "#E8F8E8", fg: "#145A14", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Total recurso: label
+                ExSt(ns, "RL", bg: "#2B579A", fg: "#FFFFFF", bold: true),
+                // Total recurso: CAPEX
+                ExSt(ns, "RC", bg: "#8C4614", fg: "#FFFFFF", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Total recurso: OPEX
+                ExSt(ns, "RO", bg: "#2B642B", fg: "#FFFFFF", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Total recurso: TOTAL col
+                ExSt(ns, "RT", bg: "#193C78", fg: "#FFFFFF", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Grand total: label
+                ExSt(ns, "GL", bg: "#0F2857", fg: "#FFFFFF", bold: true),
+                // Grand total: CAPEX
+                ExSt(ns, "GC", bg: "#643208", fg: "#FFFFFF", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Grand total: OPEX
+                ExSt(ns, "GO", bg: "#1E501E", fg: "#FFFFFF", bold: true, hAlign: "Right", numFmt: "0.0"),
+                // Grand total: TOTAL col
+                ExSt(ns, "GT", bg: "#0A1E3C", fg: "#FFFFFF", bold: true, hAlign: "Right", numFmt: "0.0")
+            );
+
+            var tableChildren = new List<XElement>();
+
+            // ── Larguras das colunas ──
+            tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "120")));
+            tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "150")));
+            tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "200")));
+            foreach (var _ in visMi)
+            {
+                tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "55")));
+                tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "55")));
+            }
+            tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "65")));
+            tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "65")));
+            tableChildren.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "65")));
+
+            // ── Cabeçalho linha 1: labels fixos + meses mesclados + totais ──
+            var hdrRow1 = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            hdrRow1.Add(ExStCell(ns, "Recurso", "H0"));
+            hdrRow1.Add(ExStCell(ns, "Projeto", "H0"));
+            hdrRow1.Add(ExStCell(ns, "Story",   "H0"));
+            foreach (var mi in visMi)
+                hdrRow1.Add(ExStCell(ns, months[mi].ToString("MMM/yyyy"), "HM", mergeAcross: 1));
+            hdrRow1.Add(ExStCell(ns, "TOTAL", "HT"));
+            hdrRow1.Add(ExStCell(ns, "CAPEX", "HT"));
+            hdrRow1.Add(ExStCell(ns, "OPEX",  "HT"));
+            tableChildren.Add(hdrRow1);
+
+            // ── Cabeçalho linha 2: CAPEX | OPEX por mês ──
+            var hdrRow2 = new XElement(ns + "Row", new XAttribute(ss + "Height", "20"));
+            hdrRow2.Add(ExStCell(ns, "", "H0"));
+            hdrRow2.Add(ExStCell(ns, "", "H0"));
+            hdrRow2.Add(ExStCell(ns, "", "H0"));
+            foreach (var _ in visMi)
+            {
+                hdrRow2.Add(ExStCell(ns, "CAPEX", "HC"));
+                hdrRow2.Add(ExStCell(ns, "OPEX",  "HO"));
+            }
+            hdrRow2.Add(ExStCell(ns, "", "HT"));
+            hdrRow2.Add(ExStCell(ns, "", "HT"));
+            hdrRow2.Add(ExStCell(ns, "", "HT"));
+            tableChildren.Add(hdrRow2);
+
+            // ── Linhas de dados ──
+            var grandCapexByMonth = new double[months.Count];
+            var grandOpexByMonth  = new double[months.Count];
+            double grandCapex = 0, grandOpex = 0;
+
+            foreach (var (resName, entries) in byRes)
+            {
+                var resCapexByMonth = new double[months.Count];
+                var resOpexByMonth  = new double[months.Count];
+                foreach (var e in entries)
+                    for (int mi = 0; mi < months.Count; mi++)
+                        if (e.Proj.IsOpex) resOpexByMonth[mi]  += e.MonthHours[mi];
+                        else               resCapexByMonth[mi] += e.MonthHours[mi];
+
+                bool resFirst = true;
+                foreach (var projGroup in entries.GroupBy(e => e.Proj.Name, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key))
+                {
+                    var projEntries = projGroup.ToList();
+                    bool projIsOpex = projEntries[0].Proj.IsOpex;
+                    var projByMonth = new double[months.Count];
+                    foreach (var e in projEntries)
+                        for (int mi = 0; mi < months.Count; mi++)
+                            projByMonth[mi] += e.MonthHours[mi];
+
+                    bool projFirst = true;
+                    foreach (var (proj, task, mh) in projEntries.OrderBy(e => e.Task.Start))
+                    {
+                        bool isOpex = proj.IsOpex;
+                        double rowTotal = visMi.Sum(mi => mh[mi]);
+
+                        var row = new XElement(ns + "Row", new XAttribute(ss + "Height", "18"));
+                        row.Add(ExStCell(ns, resFirst && projFirst ? resName : "", "SL"));
+                        row.Add(ExStCell(ns, projFirst ? projGroup.Key : "", "SL"));
+                        row.Add(ExStCell(ns, task.Name ?? $"#{task.TfsId}", "SL"));
+                        foreach (var mi in visMi)
+                        {
+                            double h = mh[mi];
+                            double hC = !isOpex ? h : 0;
+                            double hO =  isOpex ? h : 0;
+                            row.Add(ExStCell(ns, hC > 0.01 ? (object)Math.Round(hC, 2) : "", "SC"));
+                            row.Add(ExStCell(ns, hO > 0.01 ? (object)Math.Round(hO, 2) : "", "SO"));
+                        }
+                        row.Add(ExStCell(ns, Math.Round(rowTotal, 2), "ST"));
+                        row.Add(ExStCell(ns, !isOpex && rowTotal > 0.01 ? (object)Math.Round(rowTotal, 2) : "", "STC"));
+                        row.Add(ExStCell(ns,  isOpex && rowTotal > 0.01 ? (object)Math.Round(rowTotal, 2) : "", "STO"));
+                        tableChildren.Add(row);
+
+                        projFirst = false;
+                        resFirst  = false;
+                    }
+
+                    // Subtotal do projeto
+                    double ptotal = visMi.Sum(mi => projByMonth[mi]);
+                    var pRow = new XElement(ns + "Row", new XAttribute(ss + "Height", "18"));
+                    pRow.Add(ExStCell(ns, "", projGroup.Key, "PL"));
+                    pRow.Add(ExStCell(ns, projGroup.Key, "PL"));
+                    pRow.Add(ExStCell(ns, "Subtotal", "PL"));
+                    foreach (var mi in visMi)
+                    {
+                        double h = projByMonth[mi];
+                        double pC = !projIsOpex ? h : 0;
+                        double pO =  projIsOpex ? h : 0;
+                        pRow.Add(ExStCell(ns, pC > 0.01 ? (object)Math.Round(pC, 2) : "", "PC"));
+                        pRow.Add(ExStCell(ns, pO > 0.01 ? (object)Math.Round(pO, 2) : "", "PO"));
+                    }
+                    pRow.Add(ExStCell(ns, Math.Round(ptotal, 2), "PT"));
+                    pRow.Add(ExStCell(ns, !projIsOpex && ptotal > 0.01 ? (object)Math.Round(ptotal, 2) : "", "PTC"));
+                    pRow.Add(ExStCell(ns,  projIsOpex && ptotal > 0.01 ? (object)Math.Round(ptotal, 2) : "", "PTO"));
+                    tableChildren.Add(pRow);
+                }
+
+                // Total do recurso
+                double resCapex = visMi.Sum(mi => resCapexByMonth[mi]);
+                double resOpex  = visMi.Sum(mi => resOpexByMonth[mi]);
+                double rtotal   = resCapex + resOpex;
+                grandCapex += resCapex; grandOpex += resOpex;
+                for (int mi = 0; mi < months.Count; mi++) { grandCapexByMonth[mi] += resCapexByMonth[mi]; grandOpexByMonth[mi] += resOpexByMonth[mi]; }
+
+                var rRow = new XElement(ns + "Row", new XAttribute(ss + "Height", "20"));
+                rRow.Add(ExStCell(ns, resName,  "RL"));
+                rRow.Add(ExStCell(ns, "",       "RL"));
+                rRow.Add(ExStCell(ns, "TOTAL",  "RL"));
+                foreach (var mi in visMi)
+                {
+                    rRow.Add(ExStCell(ns, resCapexByMonth[mi] > 0.01 ? (object)Math.Round(resCapexByMonth[mi], 2) : "", "RC"));
+                    rRow.Add(ExStCell(ns, resOpexByMonth[mi]  > 0.01 ? (object)Math.Round(resOpexByMonth[mi],  2) : "", "RO"));
+                }
+                rRow.Add(ExStCell(ns, Math.Round(rtotal,  2), "RT"));
+                rRow.Add(ExStCell(ns, resCapex > 0.01 ? (object)Math.Round(resCapex, 2) : "", "RC"));
+                rRow.Add(ExStCell(ns, resOpex  > 0.01 ? (object)Math.Round(resOpex,  2) : "", "RO"));
+                tableChildren.Add(rRow);
+
+                tableChildren.Add(new XElement(ns + "Row", new XAttribute(ss + "Height", "4")));
+            }
+
+            // TOTAL GERAL
+            double gtotal = grandCapex + grandOpex;
+            var gRow = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            gRow.Add(ExStCell(ns, "TOTAL GERAL", "GL"));
+            gRow.Add(ExStCell(ns, "", "GL"));
+            gRow.Add(ExStCell(ns, "", "GL"));
+            foreach (var mi in visMi)
+            {
+                gRow.Add(ExStCell(ns, grandCapexByMonth[mi] > 0.01 ? (object)Math.Round(grandCapexByMonth[mi], 2) : "", "GC"));
+                gRow.Add(ExStCell(ns, grandOpexByMonth[mi]  > 0.01 ? (object)Math.Round(grandOpexByMonth[mi],  2) : "", "GO"));
+            }
+            gRow.Add(ExStCell(ns, Math.Round(gtotal,     2), "GT"));
+            gRow.Add(ExStCell(ns, grandCapex > 0.01 ? (object)Math.Round(grandCapex, 2) : "", "GC"));
+            gRow.Add(ExStCell(ns, grandOpex  > 0.01 ? (object)Math.Round(grandOpex,  2) : "", "GO"));
+            tableChildren.Add(gRow);
+
+            var workbook = new XDocument(
+                new XDeclaration("1.0", "utf-8", "yes"),
+                new XElement(ns + "Workbook",
+                    new XAttribute(XNamespace.Xmlns + "ss", ss),
+                    styles,
+                    new XElement(ns + "Worksheet",
+                        new XAttribute(ss + "Name", "Stories por Recurso"),
+                        new XElement(ns + "Table", tableChildren))));
+
+            workbook.Save(filePath);
+        }
+
+        private static XElement ExSt(XNamespace ns, string id,
+            string? bg = null, string fg = "#000000",
+            bool bold = false, bool italic = false,
+            string hAlign = "Left", string vAlign = "Center",
+            string? numFmt = null)
+        {
+            var style = new XElement(ns + "Style", new XAttribute(ns + "ID", id));
+            style.Add(new XElement(ns + "Alignment",
+                new XAttribute(ns + "Horizontal", hAlign),
+                new XAttribute(ns + "Vertical",   vAlign)));
+            var font = new XElement(ns + "Font",
+                new XAttribute(ns + "FontName", "Calibri"),
+                new XAttribute(ns + "Size", "10"),
+                new XAttribute(ns + "Color", fg));
+            if (bold)   font.Add(new XAttribute(ns + "Bold",   "1"));
+            if (italic) font.Add(new XAttribute(ns + "Italic", "1"));
+            style.Add(font);
+            if (bg != null)
+                style.Add(new XElement(ns + "Interior",
+                    new XAttribute(ns + "Color",   bg),
+                    new XAttribute(ns + "Pattern", "Solid")));
+            style.Add(new XElement(ns + "Borders",
+                ExStBorder(ns, "Bottom"), ExStBorder(ns, "Left"),
+                ExStBorder(ns, "Right"),  ExStBorder(ns, "Top")));
+            if (numFmt != null)
+                style.Add(new XElement(ns + "NumberFormat",
+                    new XAttribute(ns + "Format", numFmt)));
+            return style;
+        }
+
+        private static XElement ExStBorder(XNamespace ns, string position) =>
+            new(ns + "Border",
+                new XAttribute(ns + "Position",  position),
+                new XAttribute(ns + "LineStyle", "Continuous"),
+                new XAttribute(ns + "Weight",    "1"),
+                new XAttribute(ns + "Color",     "#C8D0DC"));
+
+        private static XElement ExStCell(XNamespace ns, object value, string styleId, int mergeAcross = 0)
+        {
+            var cell = new XElement(ns + "Cell", new XAttribute(ns + "StyleID", styleId));
+            if (mergeAcross > 0) cell.Add(new XAttribute(ns + "MergeAcross", mergeAcross));
+            bool isNum = value is double or float or int or long;
+            cell.Add(new XElement(ns + "Data",
+                new XAttribute(ns + "Type", isNum ? "Number" : "String"),
+                isNum ? Convert.ToDouble(value).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                      : value?.ToString() ?? ""));
+            return cell;
+        }
+
+        // overload used in subtotal row to avoid ambiguity with the string/object overloads
+        private static XElement ExStCell(XNamespace ns, string _ignored, string projName, string styleId) =>
+            ExStCell(ns, projName, styleId);
 
         private void ExportAllocationToExcel(string filePath)
         {
@@ -1839,14 +2160,49 @@ namespace NXProject.Views
                 .Where(mi => !hideZero || projResourceData.Any(p => p.Rows.Any(r => r.MonthHours[mi] > 0.01)))
                 .ToList();
 
+            // ── Estilos ──
+            var styles = new XElement(ns + "Styles",
+                ExSt(ns, "Default"),
+                // Aba 1
+                ExSt(ns, "AH",  bg: "#1D3F73", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                ExSt(ns, "AHL", bg: "#1D3F73", fg: "#FFFFFF", bold: true),
+                ExSt(ns, "AP",  bg: "#2B579A", fg: "#FFFFFF", bold: true),
+                ExSt(ns, "APN", bg: "#2B579A", fg: "#FFFFFF", bold: true,  hAlign: "Right", numFmt: "0.0"),
+                ExSt(ns, "AR",  bg: "#EEF2FA", fg: "#1E2840"),
+                ExSt(ns, "ARN", bg: "#EEF2FA", fg: "#1E2840", hAlign: "Right", numFmt: "0.0"),
+                ExSt(ns, "AT",  bg: "#0F2857", fg: "#FFFFFF", bold: true),
+                ExSt(ns, "ATN", bg: "#0F2857", fg: "#FFFFFF", bold: true,  hAlign: "Right", numFmt: "0.0"),
+                // Aba 2
+                ExSt(ns, "BH1", bg: "#2B579A", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                ExSt(ns, "BH2", bg: "#3A6EBF", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                ExSt(ns, "BR",  bg: "#EEF2FA", fg: "#1E2840"),
+                ExSt(ns, "BD",  bg: "#FFFFFF", fg: "#1E2840", hAlign: "Right"),
+                ExSt(ns, "BDN", bg: "#FFFFFF", fg: "#1E2840", hAlign: "Right", numFmt: "0.0"),
+                ExSt(ns, "BTL", bg: "#0F2857", fg: "#FFFFFF", bold: true),
+                ExSt(ns, "BTN", bg: "#0F2857", fg: "#FFFFFF", bold: true,  hAlign: "Right", numFmt: "0.0")
+            );
+
             // ── Aba 1: Horas por Projeto ──
-            var sheet1Rows = new List<XElement>();
+            var sheet1 = new List<XElement>();
+
+            // Larguras de colunas
+            sheet1.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "180")));
+            sheet1.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "140")));
+            sheet1.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "60")));
+            sheet1.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "110")));
+            foreach (var _ in visibleMonths)
+                sheet1.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "65")));
+            sheet1.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "70")));
 
             // Cabeçalho
-            var header = new List<string> { "Projeto", "Recurso", "Tipo", "Centro de Custo" };
-            header.AddRange(visibleMonths.Select(mi => months[mi].ToString("MMM/yyyy")));
-            header.Add("TOTAL");
-            sheet1Rows.Add(ExXmlRow(ns, header.ToArray()));
+            var hdr1 = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            hdr1.Add(ExStCell(ns, "Projeto",         "AHL"));
+            hdr1.Add(ExStCell(ns, "Recurso",         "AHL"));
+            hdr1.Add(ExStCell(ns, "Tipo",            "AH"));
+            hdr1.Add(ExStCell(ns, "Centro de Custo", "AHL"));
+            foreach (var mi in visibleMonths) hdr1.Add(ExStCell(ns, months[mi].ToString("MMM/yyyy"), "AH"));
+            hdr1.Add(ExStCell(ns, "TOTAL", "AH"));
+            sheet1.Add(hdr1);
 
             var grandByMonth1 = new double[months.Count];
 
@@ -1857,11 +2213,15 @@ namespace NXProject.Views
                     for (int mi = 0; mi < months.Count; mi++)
                         projByMonth[mi] += mh[mi];
 
-                // Linha do projeto (totais)
-                var projCells = new List<object> { proj.Name, "", proj.IsOpex ? "OPEX" : "CAPEX", proj.CostCenter };
-                foreach (var mi in visibleMonths) projCells.Add(Math.Round(projByMonth[mi], 1));
-                projCells.Add(Math.Round(projByMonth.Sum(), 1));
-                sheet1Rows.Add(ExXmlRowMixed(ns, projCells.ToArray()));
+                // Linha do projeto
+                var projRow = new XElement(ns + "Row", new XAttribute(ss + "Height", "20"));
+                projRow.Add(ExStCell(ns, proj.Name,                       "AP"));
+                projRow.Add(ExStCell(ns, "",                              "AP"));
+                projRow.Add(ExStCell(ns, proj.IsOpex ? "OPEX" : "CAPEX", "AP"));
+                projRow.Add(ExStCell(ns, proj.CostCenter ?? "",           "AP"));
+                foreach (var mi in visibleMonths) projRow.Add(ExStCell(ns, Math.Round(projByMonth[mi], 1), "APN"));
+                projRow.Add(ExStCell(ns, Math.Round(projByMonth.Sum(), 1), "APN"));
+                sheet1.Add(projRow);
 
                 for (int mi = 0; mi < months.Count; mi++)
                     grandByMonth1[mi] += projByMonth[mi];
@@ -1869,25 +2229,32 @@ namespace NXProject.Views
                 // Sub-linhas de recurso
                 foreach (var (resName, mh) in resRows)
                 {
-                    var resCells = new List<object> { "", resName, "", "" };
-                    foreach (var mi in visibleMonths) resCells.Add(Math.Round(mh[mi], 1));
-                    resCells.Add(Math.Round(mh.Sum(), 1));
-                    sheet1Rows.Add(ExXmlRowMixed(ns, resCells.ToArray()));
+                    var resRow = new XElement(ns + "Row", new XAttribute(ss + "Height", "18"));
+                    resRow.Add(ExStCell(ns, "", "AR"));
+                    resRow.Add(ExStCell(ns, resName, "AR"));
+                    resRow.Add(ExStCell(ns, "", "AR"));
+                    resRow.Add(ExStCell(ns, "", "AR"));
+                    foreach (var mi in visibleMonths) resRow.Add(ExStCell(ns, Math.Round(mh[mi], 1), "ARN"));
+                    resRow.Add(ExStCell(ns, Math.Round(mh.Sum(), 1), "ARN"));
+                    sheet1.Add(resRow);
                 }
             }
 
             // Linha TOTAL GERAL
-            var totalCells = new List<object> { "TOTAL GERAL", "", "", "" };
-            foreach (var mi in visibleMonths) totalCells.Add(Math.Round(grandByMonth1[mi], 1));
-            totalCells.Add(Math.Round(visibleMonths.Select(mi => grandByMonth1[mi]).Sum(), 1));
-            sheet1Rows.Add(ExXmlRowMixed(ns, totalCells.ToArray()));
+            var totRow1 = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            totRow1.Add(ExStCell(ns, "TOTAL GERAL", "AT"));
+            totRow1.Add(ExStCell(ns, "", "AT"));
+            totRow1.Add(ExStCell(ns, "", "AT"));
+            totRow1.Add(ExStCell(ns, "", "AT"));
+            foreach (var mi in visibleMonths) totRow1.Add(ExStCell(ns, Math.Round(grandByMonth1[mi], 1), "ATN"));
+            totRow1.Add(ExStCell(ns, Math.Round(visibleMonths.Select(mi => grandByMonth1[mi]).Sum(), 1), "ATN"));
+            sheet1.Add(totRow1);
 
             // ── Aba 2: Distribuição por Pessoa ──
             var resList = allResources.OrderBy(r => r).ToList();
             if (hideZero)
                 resList = resList.Where(r => projResourceData.Any(p => p.Rows.Any(x => x.Res == r))).ToList();
 
-            // dist[proj][res][month]
             var dist2 = projResourceData.Select(p =>
                 resList.ToDictionary(r => r,
                     r => p.Rows.FirstOrDefault(x => string.Equals(x.Res, r, StringComparison.OrdinalIgnoreCase))
@@ -1899,29 +2266,40 @@ namespace NXProject.Views
                 .Where(pi => !hideZero || resList.Any(r => dist2[pi][r].Sum() > 0.01))
                 .ToList();
 
-            var sheet2Rows = new List<XElement>();
+            var sheet2 = new List<XElement>();
 
-            // Cabeçalho linha 1: projeto spans
-            var hdr2 = new List<string> { "Recurso" };
+            // Larguras de colunas aba 2
+            sheet2.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "140")));
+            foreach (var pi in visibleProj2)
+            {
+                foreach (var _ in visibleMonths)
+                    sheet2.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "85")));
+                sheet2.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "85")));
+            }
+            sheet2.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "70")));
+
+            // Cabeçalho linha 1: nome do projeto mesclado sobre meses + total
+            var hdr2a = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            hdr2a.Add(ExStCell(ns, "Recurso", "AHL"));
             foreach (var pi in visibleProj2)
             {
                 var p = projResourceData[pi].Proj;
                 string label = $"{p.Name} ({(p.IsOpex ? "OPEX" : "CAPEX")})";
-                foreach (var mi in visibleMonths) hdr2.Add(label);
-                hdr2.Add(label + " - Total");
+                hdr2a.Add(ExStCell(ns, label, "BH1", mergeAcross: visibleMonths.Count));
             }
-            hdr2.Add("TOTAL GERAL");
-            sheet2Rows.Add(ExXmlRow(ns, hdr2.ToArray()));
+            hdr2a.Add(ExStCell(ns, "TOTAL GERAL", "AHL"));
+            sheet2.Add(hdr2a);
 
-            // Cabeçalho linha 2: meses
-            var hdr2b = new List<string> { "" };
+            // Cabeçalho linha 2: meses + "Total" por projeto
+            var hdr2b = new XElement(ns + "Row", new XAttribute(ss + "Height", "20"));
+            hdr2b.Add(ExStCell(ns, "", "AHL"));
             foreach (var pi in visibleProj2)
             {
-                foreach (var mi in visibleMonths) hdr2b.Add(months[mi].ToString("MMM/yyyy"));
-                hdr2b.Add("Total");
+                foreach (var mi in visibleMonths) hdr2b.Add(ExStCell(ns, months[mi].ToString("MMM/yyyy"), "BH2"));
+                hdr2b.Add(ExStCell(ns, "Total", "BH2"));
             }
-            hdr2b.Add("");
-            sheet2Rows.Add(ExXmlRow(ns, hdr2b.ToArray()));
+            hdr2b.Add(ExStCell(ns, "", "AHL"));
+            sheet2.Add(hdr2b);
 
             var grandByProjMonth2 = visibleProj2.ToDictionary(pi => pi, _ => new double[months.Count]);
 
@@ -1933,7 +2311,8 @@ namespace NXProject.Views
                         totalByMonth[mi] += dist2[pi][resName][mi];
 
                 double resTotal = totalByMonth.Sum();
-                var cells = new List<object> { resName };
+                var dataRow = new XElement(ns + "Row", new XAttribute(ss + "Height", "18"));
+                dataRow.Add(ExStCell(ns, resName, "BR"));
 
                 foreach (var pi in visibleProj2)
                 {
@@ -1944,42 +2323,42 @@ namespace NXProject.Views
                         double pct = totalByMonth[mi] > 0.01 ? h / totalByMonth[mi] * 100 : 0;
                         projResTotal += h;
                         grandByProjMonth2[pi][mi] += h;
-                        cells.Add($"{h:0.#}h / {pct:0.#}%");
+                        dataRow.Add(ExStCell(ns, $"{h:0.#}h / {pct:0.#}%", "BD"));
                     }
                     double projPct = resTotal > 0.01 ? projResTotal / resTotal * 100 : 0;
-                    cells.Add($"{projResTotal:0.#}h / {projPct:0.#}%");
+                    dataRow.Add(ExStCell(ns, $"{projResTotal:0.#}h / {projPct:0.#}%", "BD"));
                 }
-                cells.Add(Math.Round(resTotal, 1));
-                sheet2Rows.Add(ExXmlRowMixed(ns, cells.ToArray()));
+                dataRow.Add(ExStCell(ns, Math.Round(resTotal, 1), "BDN"));
+                sheet2.Add(dataRow);
             }
 
             // Total geral aba 2
-            var totalCells2 = new List<object> { "TOTAL GERAL" };
+            var totRow2 = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            totRow2.Add(ExStCell(ns, "TOTAL GERAL", "BTL"));
             double grand2 = 0;
             foreach (var pi in visibleProj2)
             {
                 foreach (var mi in visibleMonths)
-                {
-                    totalCells2.Add(Math.Round(grandByProjMonth2[pi][mi], 1));
-                }
+                    totRow2.Add(ExStCell(ns, Math.Round(grandByProjMonth2[pi][mi], 1), "BTN"));
                 double ps = visibleMonths.Sum(mi => grandByProjMonth2[pi][mi]);
                 grand2 += ps;
-                totalCells2.Add(Math.Round(ps, 1));
+                totRow2.Add(ExStCell(ns, Math.Round(ps, 1), "BTN"));
             }
-            totalCells2.Add(Math.Round(grand2, 1));
-            sheet2Rows.Add(ExXmlRowMixed(ns, totalCells2.ToArray()));
+            totRow2.Add(ExStCell(ns, Math.Round(grand2, 1), "BTN"));
+            sheet2.Add(totRow2);
 
             // ── Gera o arquivo ──
             var workbook = new XDocument(
                 new XDeclaration("1.0", "utf-8", "yes"),
                 new XElement(ns + "Workbook",
                     new XAttribute(XNamespace.Xmlns + "ss", ss),
+                    styles,
                     new XElement(ns + "Worksheet",
                         new XAttribute(ss + "Name", "Horas por Projeto"),
-                        new XElement(ns + "Table", sheet1Rows)),
+                        new XElement(ns + "Table", sheet1)),
                     new XElement(ns + "Worksheet",
                         new XAttribute(ss + "Name", "Distribuição por Pessoa"),
-                        new XElement(ns + "Table", sheet2Rows))));
+                        new XElement(ns + "Table", sheet2))));
 
             workbook.Save(filePath);
         }

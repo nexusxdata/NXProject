@@ -15,15 +15,43 @@ namespace NXProject.Services
 
         public static void Export(Project project, List<ProjectTask> tasks, string filePath)
         {
+            var styles = new XElement(DefaultNs + "Styles",
+                StyledCell(DefaultNs, "Default"),
+                StyledCell(DefaultNs, "H",  bg: "#1D3F73", fg: "#FFFFFF", bold: true),
+                StyledCell(DefaultNs, "S0", bg: "#2B579A", fg: "#FFFFFF", bold: true),
+                StyledCell(DefaultNs, "S1", bg: "#D6E4F7", fg: "#1E2840", bold: true, italic: true),
+                StyledCell(DefaultNs, "S2", bg: "#F0F4FA", fg: "#1E2840"),
+                StyledCell(DefaultNs, "SN", bg: "#F0F4FA", fg: "#1E2840", hAlign: "Right", numFmt: "0.0")
+            );
+
+            var tableChildren = new List<object>();
+
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "40")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "250")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "40")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "90")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "90")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "70")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "70")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "90")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "50")));
+            tableChildren.Add(new XElement(DefaultNs + "Column", new XAttribute(Ss + "Width", "70")));
+
+            var hdrRow = new XElement(DefaultNs + "Row", new XAttribute(Ss + "Height", "22"));
+            foreach (var h in new[] { "ID", "Nome", "Nível", "Início", "Fim", "Duração(d)", "% Completo", "Predecessoras", "Sprint", "Horas Est." })
+                hdrRow.Add(StyledData(DefaultNs, h, "H"));
+            tableChildren.Add(hdrRow);
+
+            tableChildren.AddRange(tasks.Select(CreateTaskRow));
+
             var workbook = new XDocument(
                 new XDeclaration("1.0", "utf-8", "yes"),
                 new XElement(DefaultNs + "Workbook",
                     new XAttribute(XNamespace.Xmlns + "ss", Ss),
+                    styles,
                     new XElement(DefaultNs + "Worksheet",
                         new XAttribute(Ss + "Name", "Tarefas"),
-                        new XElement(DefaultNs + "Table",
-                            CreateRow("ID", "Nome", "Nível", "Início", "Fim", "Duração(d)", "% Completo", "Predecessoras", "Sprint", "Horas Est."),
-                            tasks.Select(CreateTaskRow)))));
+                        new XElement(DefaultNs + "Table", tableChildren))));
 
             workbook.Save(filePath);
         }
@@ -79,17 +107,21 @@ namespace NXProject.Services
 
         private static XElement CreateTaskRow(ProjectTask task)
         {
-            return CreateRow(
-                task.Id.ToString(CultureInfo.InvariantCulture),
-                task.Name,
-                task.Level.ToString(CultureInfo.InvariantCulture),
-                task.Start.ToString("s", CultureInfo.InvariantCulture),
-                task.Finish.ToString("s", CultureInfo.InvariantCulture),
-                ((int)(task.Finish - task.Start).TotalDays).ToString(CultureInfo.InvariantCulture),
-                task.PercentComplete.ToString("0", CultureInfo.InvariantCulture),
-                string.Join(",", task.PredecessorIds),
-                task.SprintNumber.ToString(CultureInfo.InvariantCulture),
-                task.EstimatedHours?.ToString("0.0", CultureInfo.InvariantCulture) ?? string.Empty);
+            string style = task.Level == 0 ? "S0" : task.IsSummary ? "S1" : "S2";
+            var row = new XElement(DefaultNs + "Row", new XAttribute(Ss + "Height", "18"));
+            row.Add(StyledData(DefaultNs, task.Id.ToString(CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs, task.Name, style));
+            row.Add(StyledData(DefaultNs, task.Level.ToString(CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs, task.Start.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs, task.Finish.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs, ((int)(task.Finish - task.Start).TotalDays).ToString(CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs, task.PercentComplete.ToString("0", CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs, string.Join(",", task.PredecessorIds), style));
+            row.Add(StyledData(DefaultNs, task.SprintNumber.ToString(CultureInfo.InvariantCulture), style));
+            row.Add(StyledData(DefaultNs,
+                task.EstimatedHours.HasValue ? task.EstimatedHours.Value.ToString("0.0", CultureInfo.InvariantCulture) : "",
+                task.EstimatedHours.HasValue ? "SN" : style));
+            return row;
         }
 
         private static XElement CreateRow(params object?[] values)
@@ -104,6 +136,50 @@ namespace NXProject.Services
                 new XElement(DefaultNs + "Data",
                     new XAttribute(Ss + "Type", "String"),
                     value?.ToString() ?? string.Empty));
+        }
+
+        private static XElement StyledCell(XNamespace ns, string id,
+            string? bg = null, string fg = "#000000",
+            bool bold = false, bool italic = false,
+            string hAlign = "Left", string? numFmt = null)
+        {
+            var style = new XElement(ns + "Style", new XAttribute(ns + "ID", id));
+            style.Add(new XElement(ns + "Alignment",
+                new XAttribute(ns + "Horizontal", hAlign),
+                new XAttribute(ns + "Vertical",   "Center")));
+            var font = new XElement(ns + "Font",
+                new XAttribute(ns + "FontName", "Calibri"),
+                new XAttribute(ns + "Size", "10"),
+                new XAttribute(ns + "Color", fg));
+            if (bold)   font.Add(new XAttribute(ns + "Bold",   "1"));
+            if (italic) font.Add(new XAttribute(ns + "Italic", "1"));
+            style.Add(font);
+            if (bg != null)
+                style.Add(new XElement(ns + "Interior",
+                    new XAttribute(ns + "Color",   bg),
+                    new XAttribute(ns + "Pattern", "Solid")));
+            style.Add(new XElement(ns + "Borders",
+                StyledBorder(ns, "Bottom"), StyledBorder(ns, "Left"),
+                StyledBorder(ns, "Right"),  StyledBorder(ns, "Top")));
+            if (numFmt != null)
+                style.Add(new XElement(ns + "NumberFormat",
+                    new XAttribute(ns + "Format", numFmt)));
+            return style;
+        }
+
+        private static XElement StyledBorder(XNamespace ns, string position) =>
+            new(ns + "Border",
+                new XAttribute(ns + "Position",  position),
+                new XAttribute(ns + "LineStyle", "Continuous"),
+                new XAttribute(ns + "Weight",    "1"),
+                new XAttribute(ns + "Color",     "#C8D0DC"));
+
+        private static XElement StyledData(XNamespace ns, string value, string styleId)
+        {
+            var cell = new XElement(ns + "Cell", new XAttribute(ns + "StyleID", styleId));
+            cell.Add(new XElement(ns + "Data",
+                new XAttribute(ns + "Type", "String"), value));
+            return cell;
         }
 
         private static List<string> ReadRowValues(XElement row)
