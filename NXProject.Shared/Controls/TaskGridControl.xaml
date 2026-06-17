@@ -49,6 +49,7 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Button Content="{Binding DisplayId}"
+                                PreviewMouseLeftButtonDown="OnIdCellPreviewMouseLeftButtonDown"
                                 Click="OnIdCellClick"
                                 ToolTip="Clique para editar o vínculo DevOps (ID, tipo, estado)"
                                 Cursor="Hand"
@@ -213,6 +214,9 @@
                                               Click="OnToggleGanttOriginalViewClick"
                                               Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
                                     <Separator/>
+                                    <MenuItem x:Name="FixRealizedHoursMenuItem"
+                                              Click="OnFixRealizedHoursClick"/>
+                                    <Separator/>
                                     <MenuItem x:Name="ToggleOrgHMenuItem"
                                               Click="OnToggleOrgHColumnClick"/>
                                 </ContextMenu>
@@ -263,7 +267,7 @@
                                     <Setter Property="IsHitTestVisible" Value="True"/>
                                     <Setter Property="IsTabStop" Value="True"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
+                                        <DataTrigger Binding="{Binding IsDurationReadOnly}" Value="True">
                                             <Setter Property="Background" Value="#F1F1F1"/>
                                             <Setter Property="Foreground" Value="#6E6E6E"/>
                                             <Setter Property="IsHitTestVisible" Value="False"/>
@@ -289,7 +293,7 @@
 
             <!-- Estimativa Original (OrgH) — visível quando ShowOriginalHoursColumn = true -->
             <DataGridTextColumn x:Name="OriginalHoursColumn" Header="OrgH"
-                                Binding="{Binding OriginalEstimatedHoursDisplay}"
+                                Binding="{Binding OriginalEstimatedHoursDisplay, Mode=OneWay}"
                                 Width="50" IsReadOnly="True"
                                 Visibility="Collapsed">
                 <DataGridTextColumn.ElementStyle>
@@ -466,6 +470,7 @@
                                   IsEditable="True"
                                   StaysOpenOnEdit="False"
                                   IsTextSearchEnabled="False"
+                                  DropDownOpened="OnResourceComboDropDownOpened"
                                   DropDownClosed="OnResourceComboDropDownClosed"
                                   KeyDown="OnResourceComboKeyDown"
                                   BorderThickness="0"

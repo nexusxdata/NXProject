@@ -27,6 +27,9 @@ namespace NXProject.Models
         // Nunca sobrescrita após % > 0 — serve como baseline de comparação.
         public double? OriginalEstimatedHours { get; set; }
 
+        // Horas realizadas (HH Realizado). Quando > 0, bloqueia edição de EstimatedHours.
+        public double? RealizedHours { get; set; }
+
         // Tipo de Centro de Custo para itens EPIC: "CAPEX", "OPEX", "DEFINIDO_NO_PROJETO".
         // Nulo ou "DEFINIDO_NO_PROJETO" = herda configuração do projeto; "CAPEX"/"OPEX" = sobrescreve.
         public string? TipoCentroCusto { get; set; }

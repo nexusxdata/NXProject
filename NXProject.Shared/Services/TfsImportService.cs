@@ -86,8 +86,9 @@ namespace NXProject.Services
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
-            var percConclusaoRef = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
+            var percConclusaoRef   = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
             var tipoCentroCustoRef = ResolveField(fieldMap, null, TipoCentroCustoFieldNames);
+            var realizedHoursRef   = ResolveField(fieldMap, null, RealizedHoursFieldNames);
 
             // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
             // (ancora das Stories sem data); as numeradas/exibidas serao so as
@@ -125,6 +126,7 @@ namespace NXProject.Services
             if (finishRef != null) requestedFields.Add(finishRef);
             if (percAlocRef != null) requestedFields.Add(percAlocRef);
             if (tipoCentroCustoRef != null) requestedFields.Add(tipoCentroCustoRef);
+            if (realizedHoursRef   != null) requestedFields.Add(realizedHoursRef);
             if (syncVersionRef != null) requestedFields.Add(syncVersionRef);
             if (syncNameRef != null) requestedFields.Add(syncNameRef);
 
@@ -185,6 +187,7 @@ namespace NXProject.Services
                 PercAlocRef = percAlocRef,
                 PercConclusaoRef = percConclusaoRef,
                 TipoCentroCustoRef = tipoCentroCustoRef,
+                RealizedHoursRef   = realizedHoursRef,
                 SyncVersionRef = syncVersionRef,
                 HoursPerDay = options.HoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : options.HoursPerDay,
                 ProjectStart = project.StartDate,
@@ -1307,6 +1310,7 @@ namespace NXProject.Services
             public string? PercConclusaoRef;
             public string? SyncVersionRef;
             public string? TipoCentroCustoRef;
+            public string? RealizedHoursRef;
             public double HoursPerDay = 8.0;
             public DateTime ProjectStart;
 
@@ -1509,6 +1513,7 @@ namespace NXProject.Services
                 FinishFixed = explicitFinish.HasValue || HasTag(item.Tags, ctx.FixedFinishTagName),
                 Justificativa = ParseJustificativa(item.Description),
                 TipoCentroCusto = ReadTipoCentroCusto(item, ctx.TipoCentroCustoRef),
+                RealizedHours = ctx.RealizedHoursRef != null && ReadDouble(item, ctx.RealizedHoursRef) is { } rh && rh > 0 ? rh : null,
                 SyncVersion = ctx.SyncVersionRef != null ? (int?)ReadDouble(item, ctx.SyncVersionRef).GetValueOrDefault(0) : null,
                 HasSyncConflict = false,
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"

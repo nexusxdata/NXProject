@@ -57,9 +57,11 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário escolhe outra sprint (ou "(sem sprint)" = null) para uma tarefa.</summary>
         public event Action<TaskViewModel, Sprint?>? TaskSprintChangeRequested;
 
-        // Seleção da sprint no momento em que o dropdown abriu, para só aplicar a
-        // troca quando o usuário realmente mudou a escolha (evita limpar sem querer).
-        private object? _sprintEditOriginalSelection;
+        private TaskViewModel? _editSnapshotTask;
+        private DataGridColumn? _editSnapshotColumn;
+        private string _editSnapshotValue = string.Empty;
+        private bool _suppressEditorLostFocusCommit;
+        private bool _taskIdClickInProgress;
 
         public static readonly DependencyProperty ShowOriginalHoursColumnProperty =
             DependencyProperty.Register(nameof(ShowOriginalHoursColumn), typeof(bool),
@@ -349,6 +351,33 @@ namespace NXProject.Controls
             }));
         }
 
+        private void RefreshGridPreservingSelection(object? selectedItem, DataGridColumn? selectedColumn)
+        {
+            selectedItem ??= TaskGrid.SelectedItem;
+            selectedColumn ??= TaskGrid.CurrentCell.Column ?? NameColumn;
+
+            TaskGrid.Items.Refresh();
+
+            if (selectedItem == null || !TaskGrid.Items.Contains(selectedItem))
+                return;
+
+            TaskGrid.SelectedItem = selectedItem;
+            TaskGrid.ScrollIntoView(selectedItem, selectedColumn);
+            TaskGrid.CurrentCell = new DataGridCellInfo(selectedItem, selectedColumn);
+            TaskGrid.UpdateLayout();
+
+            if (TaskGrid.ItemContainerGenerator.ContainerFromItem(selectedItem) is not DataGridRow row)
+                return;
+
+            row.IsSelected = true;
+            var cell = FindCell(row, selectedColumn);
+            if (cell != null)
+            {
+                cell.Focus();
+                Keyboard.Focus(cell);
+            }
+        }
+
         private static DataGridCell? FindCell(DataGridRow row, DataGridColumn column)
         {
             var presenter = FindChild<DataGridCellsPresenter>(row);
@@ -413,8 +442,74 @@ namespace NXProject.Controls
                 return;
             }
 
+            if (e.ClickCount >= 2 && TryHandleComboDoubleClick(e, SprintColumn))
+                return;
+
+            if (e.ClickCount >= 2 && TryHandleComboDoubleClick(e, ResourcesColumn))
+                return;
+
+            if (e.ClickCount >= 2 && TryHandleReadOnlyDoubleClick(e))
+                return;
+
             _dragStartPoint = e.GetPosition(TaskGrid);
             _dragSourceTask = FindTaskViewModel(e.OriginalSource as DependencyObject);
+        }
+
+        private bool TryHandleComboDoubleClick(MouseButtonEventArgs e, DataGridColumn comboColumn)
+        {
+            var source = e.OriginalSource as DependencyObject;
+            var cell = FindParent<DataGridCell>(source);
+            var row = FindParent<DataGridRow>(source);
+            if (cell?.Column != comboColumn || row?.Item is not TaskViewModel task)
+                return false;
+
+            if (!CanEditCell(task, comboColumn))
+                return false;
+
+            BeginControlledEditSwitch();
+            _dragSourceTask = null;
+            TaskGrid.SelectedItem = task;
+            TaskGrid.CurrentCell = new DataGridCellInfo(task, comboColumn);
+            e.Handled = true;
+
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
+                TaskGrid.BeginEdit();
+                TaskGrid.UpdateLayout();
+
+                var rowContainer = TaskGrid.ItemContainerGenerator.ContainerFromItem(task) as DataGridRow;
+                var editCell = rowContainer != null ? FindCell(rowContainer, comboColumn) : null;
+                var combo = editCell != null ? FindChild<ComboBox>(editCell) : null;
+                if (combo == null)
+                    return;
+
+                combo.Focus();
+                Keyboard.Focus(combo);
+                combo.IsDropDownOpen = true;
+            }));
+
+            return true;
+        }
+
+        private bool TryHandleReadOnlyDoubleClick(MouseButtonEventArgs e)
+        {
+            var source = e.OriginalSource as DependencyObject;
+            var cell = FindParent<DataGridCell>(source);
+            var row = FindParent<DataGridRow>(source);
+            if (cell?.Column == null || row?.Item is not TaskViewModel task)
+                return false;
+
+            if (CanEditCell(task, cell.Column))
+                return false;
+
+            BeginControlledEditSwitch();
+            _dragSourceTask = null;
+            TaskGrid.SelectedItem = task;
+            TaskGrid.CurrentCell = new DataGridCellInfo(task, cell.Column);
+            cell.Focus();
+            Keyboard.Focus(cell);
+            e.Handled = true;
+            return true;
         }
 
         private void OnTaskGridPreviewMouseMove(object sender, MouseEventArgs e)
@@ -467,22 +562,170 @@ namespace NXProject.Controls
         // Projeto/Epic (e qualquer tipo sem suporte a sprint).
         private void OnTaskGridCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
+            if (e.Column == DurationColumn || e.Column == OriginalHoursColumn)
+                return;
+
             if (e.EditAction == DataGridEditAction.Commit)
+            {
+                if (IsUnchangedEdit(e.Column, e.EditingElement as FrameworkElement))
+                {
+                    e.Cancel = true;
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                        new Action(CancelCurrentEdit));
+                    return;
+                }
+
+                var selectedItem = e.Row?.Item ?? TaskGrid.SelectedItem;
+                var selectedColumn = e.Column;
                 Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
-                    () => TaskGrid.Items.Refresh());
+                    () => RefreshGridPreservingSelection(selectedItem, selectedColumn));
+                ClearEditSnapshot();
+            }
         }
 
         private void OnTaskGridBeginningEdit(object? sender, DataGridBeginningEditEventArgs e)
         {
-            if (e.Column == SprintColumn && e.Row?.Item is TaskViewModel task && !task.SupportsSprint)
-                e.Cancel = true;
+            if (e.Row?.Item is not TaskViewModel task)
+                return;
 
-            if (e.Column == PercentColumn && e.Row?.Item is TaskViewModel percentTask && !percentTask.CanEditPercentComplete)
+            if (!CanEditCell(task, e.Column))
+            {
                 e.Cancel = true;
+                return;
+            }
 
-            if (e.Column == PredecessorColumn && e.Row?.Item is TaskViewModel predecessorTask && !predecessorTask.CanEditPredecessors)
-                e.Cancel = true;
+            CaptureEditSnapshot(task, e.Column);
         }
+
+        private bool CanEditCell(TaskViewModel task, DataGridColumn column)
+        {
+            if (column == IdColumn ||
+                column == DevOpsColumn ||
+                column == OriginalHoursColumn)
+                return false;
+
+            if (column == DurationColumn)
+                return !task.IsDurationReadOnly;
+
+            if (column == StartColumn || column == FinishColumn)
+                return task.Model.Children.Count == 0;
+
+            if (column == PercentColumn)
+                return task.CanEditPercentComplete;
+
+            if (column == PredecessorColumn)
+                return task.CanEditPredecessors;
+
+            if (column == SprintColumn)
+                return task.SupportsSprint;
+
+            return true;
+        }
+
+        private void CaptureEditSnapshot(TaskViewModel task, DataGridColumn column)
+        {
+            _editSnapshotTask = task;
+            _editSnapshotColumn = column;
+            _editSnapshotValue = GetEditValue(task, column, null);
+        }
+
+        private bool IsUnchangedEdit(DataGridColumn column, FrameworkElement? editor)
+        {
+            if (_editSnapshotTask == null || _editSnapshotColumn != column)
+                return false;
+
+            var current = GetEditValue(_editSnapshotTask, column, editor);
+            return string.Equals(current, _editSnapshotValue, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string GetEditValue(TaskViewModel task, DataGridColumn column, FrameworkElement? editor)
+        {
+            if (editor != null)
+            {
+                if (FindChild<ComboBox>(editor) is { } combo)
+                    return GetComboEditValue(combo, column);
+
+                if (FindChild<TextBox>(editor) is { } textBox)
+                    return GetTextEditValue(textBox, column);
+
+                if (editor is TextBox directTextBox)
+                    return GetTextEditValue(directTextBox, column);
+
+                if (editor is ComboBox directCombo)
+                    return GetComboEditValue(directCombo, column);
+            }
+
+            return GetModelEditValue(task, column);
+        }
+
+        private string GetModelEditValue(TaskViewModel task, DataGridColumn column)
+        {
+            if (column == NameColumn)
+                return NormalizeEditText(task.Name);
+            if (column == DurationColumn)
+                return NormalizeNumber(task.DurationHours);
+            if (column == SfpColumn)
+                return NormalizeNullableNumber(task.SfpPoints);
+            if (column == StartColumn)
+                return NormalizeDate(task.Start);
+            if (column == FinishColumn)
+                return NormalizeDate(task.Finish);
+            if (column == PercentColumn)
+                return NormalizeNumber(task.PercentComplete);
+            if (column == PredecessorColumn)
+                return NormalizeEditText(task.PredecessorsText);
+            if (column == ResourcesColumn)
+                return task.PrimaryResource?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? NormalizeEditText(task.ResourcesText);
+            if (column == SprintColumn)
+                return NormalizeEditText(task.SprintPath);
+
+            return string.Empty;
+        }
+
+        private string GetComboEditValue(ComboBox combo, DataGridColumn column)
+        {
+            if (column == SprintColumn)
+                return NormalizeEditText(combo.SelectedValue?.ToString());
+
+            if (column == ResourcesColumn)
+                return (combo.SelectedItem as Resource)?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? NormalizeEditText(combo.Text);
+
+            return NormalizeEditText(combo.SelectedValue?.ToString() ?? combo.Text);
+        }
+
+        private string GetTextEditValue(TextBox textBox, DataGridColumn column)
+        {
+            var text = NormalizeEditText(textBox.Text);
+            if ((column == StartColumn || column == FinishColumn) &&
+                DateTime.TryParse(text, out var date))
+            {
+                return NormalizeDate(date);
+            }
+
+            if ((column == DurationColumn || column == PercentColumn || column == SfpColumn) &&
+                double.TryParse(text,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    out var number))
+            {
+                return NormalizeNumber(number);
+            }
+
+            return text;
+        }
+
+        private static string NormalizeEditText(string? value) => (value ?? string.Empty).Trim();
+
+        private static string NormalizeDate(DateTime value) =>
+            value.Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+        private static string NormalizeNumber(double value) =>
+            Math.Round(value, 4).ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
+        private static string NormalizeNullableNumber(double? value) =>
+            value.HasValue ? NormalizeNumber(value.Value) : string.Empty;
 
         private void OnPredecessorCellClick(object sender, RoutedEventArgs e)
         {
@@ -570,7 +813,8 @@ namespace NXProject.Controls
 
         private void OnSprintComboDropDownOpened(object? sender, EventArgs e)
         {
-            _sprintEditOriginalSelection = (sender as ComboBox)?.SelectedItem;
+            if (sender is ComboBox { DataContext: TaskViewModel task } combo)
+                CaptureEditSnapshot(task, SprintColumn);
         }
 
         // Troca de sprint pela grade: ao fechar o dropdown, se a seleção mudou,
@@ -580,8 +824,11 @@ namespace NXProject.Controls
         {
             if (sender is not ComboBox { DataContext: TaskViewModel task } combo)
                 return;
-            if (ReferenceEquals(combo.SelectedItem, _sprintEditOriginalSelection))
+            if (IsUnchangedEdit(SprintColumn, combo))
+            {
+                CancelCurrentEdit();
                 return; // usuário não mudou a escolha
+            }
 
             var sprint = combo.SelectedItem as Sprint;
             if (sprint != null && string.IsNullOrEmpty(sprint.Path))
@@ -599,11 +846,19 @@ namespace NXProject.Controls
 
             var selected = combo.SelectedItem as Resource;
             var typed = NormalizeManualResourceName(combo.Text);
+            if (IsUnchangedEdit(ResourcesColumn, combo))
+            {
+                CancelCurrentEdit();
+                return;
+            }
 
             if (selected == null)
             {
                 if (string.IsNullOrEmpty(typed))
+                {
+                    CancelCurrentEdit();
                     return;
+                }
 
                 var existing = AvailableResources?.FirstOrDefault(r => string.Equals(r.Name, typed, StringComparison.OrdinalIgnoreCase));
                 Resource res;
@@ -629,6 +884,12 @@ namespace NXProject.Controls
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
         }
 
+        private void OnResourceComboDropDownOpened(object? sender, EventArgs e)
+        {
+            if (sender is ComboBox { DataContext: TaskViewModel task } combo)
+                CaptureEditSnapshot(task, ResourcesColumn);
+        }
+
         private void OnResourceComboKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter) return;
@@ -642,13 +903,18 @@ namespace NXProject.Controls
         private void CommitDurationEdit(TextBox tb)
         {
             if (tb.DataContext is not TaskViewModel vm) return;
+            if (IsUnchangedEdit(DurationColumn, tb))
+            {
+                CancelCurrentEdit();
+                return;
+            }
+
             vm.DurationText = tb.Text;
             // Notifica explicitamente as colunas read-only que dependem de DurationHours
             vm.RefreshDerivedDisplayProperties();
             TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render,
-                () => TaskGrid.Items.Refresh());
+            ClearEditSnapshot();
         }
 
         private void OnDurationEditKeyDown(object sender, KeyEventArgs e)
@@ -662,6 +928,9 @@ namespace NXProject.Controls
 
         private void OnDurationEditLostFocus(object sender, RoutedEventArgs e)
         {
+            if (_suppressEditorLostFocusCommit)
+                return;
+
             if (sender is TextBox tb)
                 CommitDurationEdit(tb);
         }
@@ -673,6 +942,21 @@ namespace NXProject.Controls
 
         // Guarda a VM capturada no ContextMenuOpening para usar no click (PlacementTarget pode ser null no Click)
         private TaskViewModel? _durationContextMenuVm;
+
+        private void OnFixRealizedHoursClick(object sender, RoutedEventArgs e)
+        {
+            var vm = _durationContextMenuVm;
+            if (vm == null) return;
+            if (vm.IsRealizedFixed)
+            {
+                vm.SetRealizedHours(null);
+            }
+            else if (vm.CanEditDuration && vm.DurationHours > 0)
+            {
+                vm.SetRealizedHours(vm.DurationHours);
+            }
+            GanttViewToggled?.Invoke();
+        }
 
         private void OnToggleGanttOriginalViewClick(object sender, RoutedEventArgs e)
         {
@@ -701,12 +985,38 @@ namespace NXProject.Controls
                 ganttItem.Header = vm?.UseOriginalHoursView == true
                     ? "Voltar Gantt para Estimativa Restante"
                     : "Mostrar Gantt pela Estimativa Original";
+
+            var fixRealItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "FixRealizedHoursMenuItem");
+            if (fixRealItem != null)
+            {
+                if (vm?.IsRealizedFixed == true)
+                {
+                    fixRealItem.Header = $"Remover HH Realizado fixado ({vm.RealizedHours:0.#}h)";
+                    fixRealItem.IsEnabled = true;
+                }
+                else if (vm?.CanEditDuration == true && vm.DurationHours > 0)
+                {
+                    fixRealItem.Header = $"Fixar HH Restante como HH Realizado ({vm.DurationHours:0.#}h)";
+                    fixRealItem.IsEnabled = true;
+                }
+                else
+                {
+                    fixRealItem.Header = "Fixar HH Restante como HH Realizado";
+                    fixRealItem.IsEnabled = false;
+                }
+            }
         }
 
 
         private void CommitStartEdit(TextBox tb)
         {
             if (tb.DataContext is not TaskViewModel vm) return;
+            if (IsUnchangedEdit(StartColumn, tb))
+            {
+                CancelCurrentEdit();
+                return;
+            }
+
             vm.StartText = tb.Text;
             TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
@@ -723,6 +1033,9 @@ namespace NXProject.Controls
 
         private void OnStartEditLostFocus(object sender, RoutedEventArgs e)
         {
+            if (_suppressEditorLostFocusCommit)
+                return;
+
             if (sender is TextBox tb)
                 CommitStartEdit(tb);
         }
@@ -730,9 +1043,47 @@ namespace NXProject.Controls
         private void CommitFinishEdit(TextBox tb)
         {
             if (tb.DataContext is not TaskViewModel vm) return;
+            if (IsUnchangedEdit(FinishColumn, tb))
+            {
+                CancelCurrentEdit();
+                return;
+            }
+
             vm.FinishText = tb.Text;
             TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void CancelCurrentEdit()
+        {
+            TaskGrid.CancelEdit(DataGridEditingUnit.Cell);
+            TaskGrid.CancelEdit(DataGridEditingUnit.Row);
+            ClearEditSnapshot();
+        }
+
+        private void BeginControlledEditSwitch()
+        {
+            _suppressEditorLostFocusCommit = true;
+            try
+            {
+                TaskGrid.CancelEdit(DataGridEditingUnit.Cell);
+                TaskGrid.CancelEdit(DataGridEditingUnit.Row);
+                ClearEditSnapshot();
+            }
+            finally
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
+                {
+                    _suppressEditorLostFocusCommit = false;
+                }));
+            }
+        }
+
+        private void ClearEditSnapshot()
+        {
+            _editSnapshotTask = null;
+            _editSnapshotColumn = null;
+            _editSnapshotValue = string.Empty;
         }
 
         private void OnFinishEditKeyDown(object sender, KeyEventArgs e)
@@ -746,17 +1097,53 @@ namespace NXProject.Controls
 
         private void OnFinishEditLostFocus(object sender, RoutedEventArgs e)
         {
+            if (_suppressEditorLostFocusCommit)
+                return;
+
             if (sender is TextBox tb)
                 CommitFinishEdit(tb);
+        }
+
+        private void OnIdCellPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount < 2)
+                return;
+
+            _dragSourceTask = null;
+            if (sender is FrameworkElement { DataContext: TaskViewModel task })
+            {
+                BeginControlledEditSwitch();
+                TaskGrid.SelectedItem = task;
+                TaskGrid.CurrentCell = new DataGridCellInfo(task, IdColumn);
+            }
+
+            e.Handled = true;
         }
 
         private void OnIdCellClick(object sender, RoutedEventArgs e)
         {
             _dragSourceTask = null;
+            if (_taskIdClickInProgress)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (sender is FrameworkElement { DataContext: TaskViewModel task })
             {
                 e.Handled = true;
-                TaskIdClicked?.Invoke(task);
+                _taskIdClickInProgress = true;
+                try
+                {
+                    BeginControlledEditSwitch();
+                    TaskGrid.SelectedItem = task;
+                    TaskGrid.CurrentCell = new DataGridCellInfo(task, IdColumn);
+                    TaskIdClicked?.Invoke(task);
+                }
+                finally
+                {
+                    _taskIdClickInProgress = false;
+                }
             }
         }
 

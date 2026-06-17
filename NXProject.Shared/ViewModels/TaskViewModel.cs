@@ -591,7 +591,20 @@ namespace NXProject.ViewModels
 
         public bool CanEditDuration => _task.Children.Count == 0 && !UsesSfpEstimate;
 
-        public bool IsDurationReadOnly => !CanEditDuration || _task.FinishFixed;
+        public bool IsRealizedFixed => _task.RealizedHours is > 0;
+
+        public bool IsDurationReadOnly => !CanEditDuration || (_task.FinishFixed && _task.StartFixed) || IsRealizedFixed;
+
+        public double? RealizedHours => _task.RealizedHours;
+
+        // Fixa HH Restante pelo valor atual e grava em RealizedHours; null para remover.
+        public void SetRealizedHours(double? value)
+        {
+            _task.RealizedHours = value > 0 ? value : null;
+            OnPropertyChanged(nameof(RealizedHours));
+            OnPropertyChanged(nameof(IsRealizedFixed));
+            OnPropertyChanged(nameof(IsDurationReadOnly));
+        }
 
         public void RefreshDerivedDisplayProperties()
         {
