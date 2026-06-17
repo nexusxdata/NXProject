@@ -95,14 +95,15 @@ namespace NXProject.Views
             {
                 if (e.PropertyName == nameof(vm.ShowOriginalHoursColumn))
                     TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
-                if (e.PropertyName == nameof(vm.HiddenColumns))
-                    TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns);
+                if (e.PropertyName == nameof(vm.HiddenColumns) || e.PropertyName == nameof(vm.HiddenColumnsExpanded))
+                    TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns, vm.HiddenColumnsExpanded, _expandedLayout);
             };
             TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
-            TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns);
-            TaskGridCtrl.ColumnSettingsSaved += hidden =>
+            TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns, vm.HiddenColumnsExpanded, _expandedLayout);
+            TaskGridCtrl.ColumnSettingsSaved += (hiddenDefault, hiddenExpanded) =>
             {
-                vm.HiddenColumns = hidden;
+                vm.HiddenColumns = hiddenDefault;
+                vm.HiddenColumnsExpanded = hiddenExpanded;
             };
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
@@ -420,7 +421,11 @@ namespace NXProject.Views
         {
             if (DataContext is not MainViewModel vm) return;
 
-            var dialog = new PercAlocEditWindow(task.Name, task.Model.Resources[0].AllocationPercent)
+            var maxAllocationPercent = task.Model.PercentComplete > 0 ? 120 : 100;
+            var dialog = new PercAlocEditWindow(
+                task.Name,
+                task.Model.Resources[0].AllocationPercent,
+                maxAllocationPercent)
             {
                 Owner = this
             };
@@ -677,7 +682,8 @@ namespace NXProject.Views
 
         private void OnCustomizeColumnsClick(object sender, RoutedEventArgs e)
         {
-            TaskGridCtrl.ShowColumnCustomizer();
+            if (DataContext is not MainViewModel vm) return;
+            TaskGridCtrl.ShowColumnCustomizer(vm.HiddenColumns, vm.HiddenColumnsExpanded);
         }
 
         private void OnResourceFilterClick(object sender, RoutedEventArgs e)
@@ -932,7 +938,7 @@ namespace NXProject.Views
                 AvailableSprints   = vm.SprintOptions,
                 AvailableResources = vm.Project?.Resources,
             };
-            ctrl.SetPresentationMode(expanded: true);
+            ctrl.SetPresentationMode(expanded: true, vm.HiddenColumnsExpanded, vm.HiddenColumnsExpanded);
             ctrl.SetPrintMode();
             ctrl.SetColumnHeaderHeight(headerHeight);
 
@@ -1752,7 +1758,8 @@ namespace NXProject.Views
 
             GanttPaneColumn.Width = new GridLength(1, GridUnitType.Star);
 
-            TaskGridCtrl.SetPresentationMode(expanded);
+            var vm2 = DataContext as MainViewModel;
+            TaskGridCtrl.SetPresentationMode(expanded, vm2?.HiddenColumns ?? "", vm2?.HiddenColumnsExpanded ?? "");
             LayoutToggleText.Text = expanded ? "⤡" : "⤢";
             LayoutToggleButton.ToolTip = expanded
                 ? "Voltar para a visualização compacta"

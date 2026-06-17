@@ -51,6 +51,7 @@ namespace NXProject.Models
 
         // Nomes das colunas ocultas pelo usuário (ex: "SFP,Pred.,T·E")
         public string HiddenColumns { get; set; } = "";
+        public string HiddenColumnsExpanded { get; set; } = "";
 
         // Quantos dias de duracao equivalem a 1 SFP em cada faixa
         public double LowDaysPerSfp { get; set; } = 1.0;

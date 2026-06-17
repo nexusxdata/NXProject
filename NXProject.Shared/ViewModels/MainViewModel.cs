@@ -71,6 +71,7 @@ namespace NXProject.ViewModels
         [ObservableProperty] private double _highDaysPerSfp = 1.0;
         [ObservableProperty] private bool _showOriginalHoursColumn = false;
         [ObservableProperty] private string _hiddenColumns = "";
+        [ObservableProperty] private string _hiddenColumnsExpanded = "";
 
         public ObservableCollection<string> ZoomLevels { get; } = new()
         {
@@ -473,6 +474,12 @@ namespace NXProject.ViewModels
             Project.IsDirty = true;
         }
 
+        partial void OnHiddenColumnsExpandedChanged(string value)
+        {
+            Project.HiddenColumnsExpanded = value ?? "";
+            Project.IsDirty = true;
+        }
+
         partial void OnSelectedTaskChanged(TaskViewModel? oldValue, TaskViewModel? newValue)
         {
             if (oldValue != null)
@@ -598,6 +605,8 @@ namespace NXProject.ViewModels
             // Preserva configurações de UI do projeto atual que não vêm do TFS.
             if (string.IsNullOrEmpty(project.HiddenColumns) && !string.IsNullOrEmpty(Project?.HiddenColumns))
                 project.HiddenColumns = Project.HiddenColumns;
+            if (string.IsNullOrEmpty(project.HiddenColumnsExpanded) && !string.IsNullOrEmpty(Project?.HiddenColumnsExpanded))
+                project.HiddenColumnsExpanded = Project.HiddenColumnsExpanded;
             if (!project.ShowOriginalHoursColumn && Project?.ShowOriginalHoursColumn == true)
                 project.ShowOriginalHoursColumn = Project.ShowOriginalHoursColumn;
 
@@ -1461,6 +1470,7 @@ namespace NXProject.ViewModels
                 HighDaysPerSfp = project.HighDaysPerSfp;
                 ShowOriginalHoursColumn = project.ShowOriginalHoursColumn;
                 HiddenColumns = project.HiddenColumns ?? "";
+                HiddenColumnsExpanded = project.HiddenColumnsExpanded ?? "";
             }
             finally
             {

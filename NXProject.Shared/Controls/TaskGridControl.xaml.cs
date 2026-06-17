@@ -163,40 +163,38 @@ namespace NXProject.Controls
             _suppressScrollNotification = false;
         }
 
-        // Colunas visíveis por padrão (nome = Header da coluna conforme definido no XAML)
+        // Colunas visíveis por padrão em cada modo
         private static readonly HashSet<string> DefaultVisibleColumns = new()
         {
             "ID", "T·E (DevOps)", "Dur.(h)", "Início", "Fim", "% Compl.", "Recursos", "Sprint"
         };
+        private static readonly HashSet<string> DefaultVisibleColumnsExpanded = new()
+        {
+            "ID", "T·E (DevOps)", "Dur.(h)", "SFP", "OrgH", "HH Atual", "HH Restante",
+            "Início", "Fim", "% Compl.", "Predecessoras", "Recursos", "Sprint"
+        };
 
-        /// <summary>Disparado quando o usuário salva a configuração de colunas. Arg = nomes das colunas ocultas.</summary>
-        public event Action<string>? ColumnSettingsSaved;
+        /// <summary>Disparado quando o usuário salva as configurações de colunas. Args: (hiddenDefault, hiddenExpanded).</summary>
+        public event Action<string, string>? ColumnSettingsSaved;
 
         private bool _hasCustomColumnConfig;
+        private bool _isExpandedMode;
 
-        public void ApplyHiddenColumns(string hiddenColumnsCsv)
+        public void ApplyHiddenColumns(string hiddenDefault, string hiddenExpanded, bool expanded)
         {
-            _hasCustomColumnConfig = !string.IsNullOrWhiteSpace(hiddenColumnsCsv);
+            _isExpandedMode = expanded;
+            var csv = expanded ? hiddenExpanded : hiddenDefault;
+            var defaults = expanded ? DefaultVisibleColumnsExpanded : DefaultVisibleColumns;
+
+            _hasCustomColumnConfig = !string.IsNullOrWhiteSpace(csv);
 
             HashSet<string> hidden;
             if (!_hasCustomColumnConfig)
-            {
-                // Sem configuração salva: usa defaults (colunas fora de DefaultVisibleColumns ficam ocultas).
-                hidden = new HashSet<string>(
-                    GetCustomizableColumns()
-                        .Select(x => x.Label)
-                        .Where(l => !DefaultVisibleColumns.Contains(l)));
-            }
-            else if (hiddenColumnsCsv.Trim() == "~custom~")
-            {
-                // Usuário salvou explicitamente com todas as colunas visíveis.
+                hidden = new HashSet<string>(GetCustomizableColumns().Select(x => x.Label).Where(l => !defaults.Contains(l)));
+            else if (csv.Trim() == "~custom~")
                 hidden = [];
-            }
             else
-            {
-                hidden = new HashSet<string>(
-                    hiddenColumnsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-            }
+                hidden = new HashSet<string>(csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
             foreach (var (label, col) in GetCustomizableColumns())
                 col.Visibility = hidden.Contains(label) ? Visibility.Collapsed : Visibility.Visible;
@@ -223,32 +221,56 @@ namespace NXProject.Controls
             ("Sprint",        SprintColumn),
         ];
 
-        public void ShowColumnCustomizer()
+        public void ShowColumnCustomizer(string hiddenDefault, string hiddenExpanded)
         {
             var cols = GetCustomizableColumns().ToList();
 
-            var panel = new StackPanel { Margin = new Thickness(16) };
-            panel.Children.Add(new TextBlock
+            // Reconstrói os sets de ocultas para cada modo a partir das strings salvas
+            HashSet<string> ToHiddenSet(string csv, HashSet<string> defaults) =>
+                string.IsNullOrWhiteSpace(csv) ? new HashSet<string>(cols.Select(x => x.Label).Where(l => !defaults.Contains(l)))
+                : csv.Trim() == "~custom~" ? []
+                : new HashSet<string>(csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+            var hiddenSetDefault  = ToHiddenSet(hiddenDefault,  DefaultVisibleColumns);
+            var hiddenSetExpanded = ToHiddenSet(hiddenExpanded, DefaultVisibleColumnsExpanded);
+
+            var outerPanel = new StackPanel { Margin = new Thickness(16) };
+
+            // Dois grupos lado a lado
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var panelDefault  = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+            var panelExpanded = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+            Grid.SetColumn(panelDefault, 0);
+            Grid.SetColumn(panelExpanded, 1);
+            grid.Children.Add(panelDefault);
+            grid.Children.Add(panelExpanded);
+
+            void AddHeader(Panel p, string text) => p.Children.Add(new TextBlock
             {
-                Text = "Selecione as colunas visíveis:",
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 13,
-                Margin = new Thickness(0, 0, 0, 12)
+                Text = text, FontWeight = FontWeights.SemiBold, FontSize = 12,
+                Margin = new Thickness(0, 0, 0, 8), Foreground = new SolidColorBrush(Color.FromRgb(30, 78, 161))
             });
 
-            var checks = new List<(CheckBox cb, DataGridColumn col, string label)>();
-            foreach (var (label, col) in cols)
+            AddHeader(panelDefault,  "Visão Padrão");
+            AddHeader(panelExpanded, "Visão Expandida");
+
+            var checksDefault  = new List<(CheckBox cb, string label)>();
+            var checksExpanded = new List<(CheckBox cb, string label)>();
+
+            foreach (var (label, _) in cols)
             {
-                var cb = new CheckBox
-                {
-                    Content = label,
-                    IsChecked = col.Visibility == Visibility.Visible,
-                    Margin = new Thickness(0, 4, 0, 4),
-                    FontSize = 13
-                };
-                panel.Children.Add(cb);
-                checks.Add((cb, col, label));
+                var cbD = new CheckBox { Content = label, IsChecked = !hiddenSetDefault.Contains(label),  Margin = new Thickness(0, 3, 0, 3), FontSize = 12 };
+                var cbE = new CheckBox { Content = label, IsChecked = !hiddenSetExpanded.Contains(label), Margin = new Thickness(0, 3, 0, 3), FontSize = 12 };
+                panelDefault.Children.Add(cbD);
+                panelExpanded.Children.Add(cbE);
+                checksDefault.Add((cbD, label));
+                checksExpanded.Add((cbE, label));
             }
+
+            outerPanel.Children.Add(grid);
 
             // Botões
             var btnPanel = new StackPanel
@@ -257,29 +279,17 @@ namespace NXProject.Controls
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Margin = new Thickness(0, 16, 0, 0)
             };
-
-            var btnRestore = new Button
-            {
-                Content = "Restaurar Padrão",
-                Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(0, 0, 8, 0)
-            };
-            var btnSave = new Button
-            {
-                Content = "Salvar",
-                Width = 80,
-                Padding = new Thickness(0, 6, 0, 6),
-                IsDefault = true
-            };
+            var btnRestore = new Button { Content = "Restaurar Padrão", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var btnSave    = new Button { Content = "Salvar", Width = 80, Padding = new Thickness(0, 6, 0, 6), IsDefault = true };
             btnPanel.Children.Add(btnRestore);
             btnPanel.Children.Add(btnSave);
-            panel.Children.Add(btnPanel);
+            outerPanel.Children.Add(btnPanel);
 
             var win = new Window
             {
                 Title = "Customizar colunas",
-                Content = new ScrollViewer { Content = panel },
-                Width = 300,
+                Content = new ScrollViewer { Content = outerPanel },
+                Width = 460,
                 SizeToContent = SizeToContent.Height,
                 ResizeMode = ResizeMode.NoResize,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -288,42 +298,31 @@ namespace NXProject.Controls
 
             btnRestore.Click += (_, _) =>
             {
-                foreach (var (cb, _, label) in checks)
-                    cb.IsChecked = DefaultVisibleColumns.Contains(label);
+                foreach (var (cb, label) in checksDefault)  cb.IsChecked = DefaultVisibleColumns.Contains(label);
+                foreach (var (cb, label) in checksExpanded) cb.IsChecked = DefaultVisibleColumnsExpanded.Contains(label);
             };
 
             btnSave.Click += (_, _) =>
             {
-                foreach (var (cb, col, _) in checks)
-                    col.Visibility = cb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+                string BuildCsv(List<(CheckBox cb, string label)> checks) {
+                    var h = checks.Where(x => x.cb.IsChecked != true).Select(x => x.label).ToList();
+                    return h.Count > 0 ? string.Join(",", h) : "~custom~";
+                }
+                var savedDefault  = BuildCsv(checksDefault);
+                var savedExpanded = BuildCsv(checksExpanded);
+                ColumnSettingsSaved?.Invoke(savedDefault, savedExpanded);
 
-                var orgHCheck = checks.FirstOrDefault(x => x.col == OriginalHoursColumn);
-                ShowOriginalHoursColumn = orgHCheck.cb.IsChecked == true;
-
-                var hiddenList = checks
-                    .Where(x => x.cb.IsChecked != true)
-                    .Select(x => x.label)
-                    .ToList();
-                // "~custom~" sinaliza que o usuario salvou uma configuracao explícita
-                // (mesmo que todas as colunas estejam visíveis), distinguindo de "sem configuracao".
-                var saved = hiddenList.Count > 0 ? string.Join(",", hiddenList) : "~custom~";
-                ColumnSettingsSaved?.Invoke(saved);
-
+                // Aplica imediatamente ao modo atual
+                ApplyHiddenColumns(savedDefault, savedExpanded, _isExpandedMode);
                 win.Close();
             };
 
             win.ShowDialog();
         }
 
-        public void SetPresentationMode(bool expanded)
+        public void SetPresentationMode(bool expanded, string hiddenDefault = "", string hiddenExpanded = "")
         {
-            // Só aplica visibilidade padrão de SFP/Predecessoras quando não há configuração
-            // salva pelo usuário — evita sobrescrever o Customizar Colunas ao mudar de modo.
-            if (!_hasCustomColumnConfig)
-            {
-                SfpColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-                PredecessorColumn.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            }
+            ApplyHiddenColumns(hiddenDefault, hiddenExpanded, expanded);
 
             IdColumn.Width = new DataGridLength(expanded ? 86 : 42);
             DevOpsColumn.Width = new DataGridLength(expanded ? 62 : 46);
