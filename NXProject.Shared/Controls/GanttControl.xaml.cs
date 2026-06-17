@@ -1122,8 +1122,18 @@ namespace NXProject.Controls
             }
 
             bool durationOverrun = task.StartFixed && task.CalculatedFinish.HasValue;
+
+            // Estimativa original maior que restante → overrun → barra vermelha
+            double? origHours = task.Model.OriginalEstimatedHours;
+            double? estHours  = task.Model.EstimatedHours;
+            bool origOverrun  = task.UseOriginalHoursView
+                                && origHours is > 0
+                                && estHours is > 0
+                                && estHours > origHours;
+
             var bgColor = isSelected         ? Color.FromRgb(220, 124, 0)
                         : isPredecessor      ? Color.FromRgb(200, 100, 20)
+                        : origOverrun        ? Color.FromRgb(185, 28, 28)
                         : task.HasSyncConflict || durationOverrun ? Color.FromRgb(196, 43, 43)
                         :                      Color.FromRgb(68, 114, 196);
             var bg = new Rectangle
@@ -1179,38 +1189,26 @@ namespace NXProject.Controls
                 GanttCanvas.Children.Add(progress);
             }
 
-            // Linha vertical vermelha mostrando onde termina a Estimativa Original
-            if (task.UseOriginalHoursView && task.Model.OriginalEstimatedHours is > 0)
+            // Linha vertical vermelha quando restante < original (tarefa adiantada)
+            // Marca onde a Estimativa Original termina, além do fim da barra atual
+            if (task.UseOriginalHoursView && origHours is > 0 && !origOverrun)
             {
                 var origFinish = Services.ProjectCalendarService.AddWorkingHours(
-                    task.Model.Start, task.Model.OriginalEstimatedHours!.Value);
+                    task.Model.Start, origHours!.Value);
                 var origX = LeftPadding + (origFinish - ProjectStart).TotalDays * DayWidth;
 
                 var origLine = new Line
                 {
-                    X1 = origX, Y1 = y + BarPadding - 2,
-                    X2 = origX, Y2 = y + RowHeight - BarPadding + 2,
+                    X1 = origX, Y1 = y + 2,
+                    X2 = origX, Y2 = y + RowHeight - 2,
                     Stroke = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
-                    StrokeThickness = 2.5
+                    StrokeThickness = 4
                 };
                 origLine.ToolTip = new ToolTip
                 {
-                    Content = $"Estimativa Original: {task.Model.OriginalEstimatedHours:0}h"
+                    Content = $"Estimativa Original: {origHours:0}h  (atual: {estHours ?? 0:0}h)"
                 };
                 GanttCanvas.Children.Add(origLine);
-
-                // Pequeno triângulo/seta para cima indicando o marcador
-                var tick = new Polygon
-                {
-                    Fill = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
-                    Points = new PointCollection
-                    {
-                        new(origX - 4, y + BarPadding - 2),
-                        new(origX + 4, y + BarPadding - 2),
-                        new(origX,     y + BarPadding + 4),
-                    }
-                };
-                GanttCanvas.Children.Add(tick);
             }
 
             if (!isSelected) return;
