@@ -43,7 +43,7 @@
         </DataGrid.RowStyle>
 
         <DataGrid.CellStyle>
-            <Style TargetType="DataGridCell">
+            <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
                         <Setter Property="Foreground" Value="White"/>
