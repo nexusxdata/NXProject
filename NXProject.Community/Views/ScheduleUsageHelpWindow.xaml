@@ -41,7 +41,7 @@
                                Foreground="#2B579A"
                                Margin="0,0,0,8"/>
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,12">
-A coluna Rest.(h) trabalha em horas. Digite 8 para uma atividade de 8 horas, 16 para 16 horas, e assim por diante.
+A coluna Dur.(h) trabalha em horas. Digite 8 para uma atividade de 8 horas, 16 para 16 horas, e assim por diante.
                     </TextBlock>
 
                     <TextBlock Text="2. Use dias quando for mais natural"
@@ -50,7 +50,7 @@ A coluna Rest.(h) trabalha em horas. Digite 8 para uma atividade de 8 horas, 16 
                                Foreground="#2B579A"
                                Margin="0,8,0,8"/>
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-Na mesma coluna Rest.(h), voce pode digitar o valor seguido de d para converter dias uteis em horas.
+Na mesma coluna Dur.(h), voce pode digitar o valor seguido de d para converter dias uteis em horas.
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- 1d vira 1 dia util em horas."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- 2d vira 2 dias uteis em horas."/>
@@ -62,7 +62,7 @@ Na mesma coluna Rest.(h), voce pode digitar o valor seguido de d para converter 
                                Foreground="#2B579A"
                                Margin="0,8,0,8"/>
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
-A data Fim e calculada automaticamente a partir da data Inicio + Rest.(h), respeitando o calendario configurado.
+A data Fim e calculada automaticamente a partir da data Inicio + Dur.(h), respeitando o calendario configurado.
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Se sabado e domingo nao forem dias uteis, eles sao pulados."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Feriados cadastrados no calendario tambem sao ignorados."/>
@@ -119,7 +119,7 @@ O Gantt mostra as barras das atividades, marcos, sprints e setas de dependencia.
                             Margin="0,8,0,0">
                         <TextBlock TextWrapping="Wrap"
                                    Foreground="#444"
-                                   Text="Dica rapida: informe Inicio e Rest.(h); o Fim e calculado pelo calendario. Para dependencias, clique em Pred. na atividade que depende e marque as atividades anteriores na janela de selecao."/>
+                                   Text="Dica rapida: informe Inicio e Dur.(h); o Fim e calculado pelo calendario. Para dependencias, clique em Pred. na atividade que depende e marque as atividades anteriores na janela de selecao."/>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
