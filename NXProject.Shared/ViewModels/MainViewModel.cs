@@ -893,62 +893,72 @@ namespace NXProject.ViewModels
         private void OnPrimaryResourceChanged(TaskViewModel changed, int? oldResourceId)
         {
             if (_cascading) return;
+            if (changed == null) return;
 
-            // 1. Reposicionar a tarefa no contexto do NOVO recurso:
-            //    procura o último irmão com o novo recurso antes desta tarefa.
-            if (changed.Model.PredecessorIds.Count == 0)
+            try
             {
-                var newResourceId = changed.Model.Resources.FirstOrDefault()?.ResourceId;
-                var changedIndex  = FlatTasks.IndexOf(changed);
+                var changedIndex = FlatTasks.IndexOf(changed);
+                if (changedIndex < 0) return; // tarefa não visível (filtrada)
 
-                if (newResourceId != null && changedIndex > 0)
+                // 1. Reposicionar a tarefa no contexto do NOVO recurso:
+                //    procura o último irmão com o novo recurso antes desta tarefa.
+                if (changed.Model.PredecessorIds.Count == 0)
                 {
-                    DateTime? lastFinish = null;
-                    for (int i = changedIndex - 1; i >= 0; i--)
-                    {
-                        var prev = FlatTasks[i];
-                        if (prev.Depth < changed.Depth) break;
-                        if (prev.Depth > changed.Depth) continue;
-                        if (!ReferenceEquals(prev.ParentViewModel, changed.ParentViewModel)) break;
-                        if (prev.Model.Resources.FirstOrDefault()?.ResourceId != newResourceId) continue;
+                    var newResourceId = changed.Model.Resources.FirstOrDefault()?.ResourceId;
 
-                        lastFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
-                        break;
-                    }
-
-                    if (lastFinish.HasValue)
+                    if (newResourceId != null && changedIndex > 0)
                     {
-                        var nextStart = ProjectCalendarService.AddWorkingDays(lastFinish.Value, 1);
-                        if (changed.Model.Start.Date != nextStart.Date)
+                        DateTime? lastFinish = null;
+                        for (int i = changedIndex - 1; i >= 0; i--)
                         {
-                            var durationHours = changed.DurationHours;
-                            changed.Model.Start  = nextStart;
-                            changed.Model.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
-                            changed.NotifyDatesChanged();
+                            var prev = FlatTasks[i];
+                            if (prev.Depth < changed.Depth) break;
+                            if (prev.Depth > changed.Depth) continue;
+                            if (!ReferenceEquals(prev.ParentViewModel, changed.ParentViewModel)) break;
+                            if (prev.Model.Resources.FirstOrDefault()?.ResourceId != newResourceId) continue;
+
+                            lastFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
+                            break;
+                        }
+
+                        if (lastFinish.HasValue)
+                        {
+                            var nextStart = ProjectCalendarService.AddWorkingDays(lastFinish.Value, 1);
+                            if (changed.Model.Start.Date != nextStart.Date)
+                            {
+                                var durationHours = changed.DurationHours;
+                                changed.Model.Start  = nextStart;
+                                changed.Model.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
+                                changed.NotifyDatesChanged();
+                            }
                         }
                     }
                 }
-            }
 
-            // 2. Cascatar irmãos do NOVO recurso após a tarefa alterada.
-            CascadeSuccessors(changed);
+                // 2. Cascatar irmãos do NOVO recurso após a tarefa alterada.
+                CascadeSuccessors(changed);
 
-            // 3. Cascatar irmãos do recurso ANTIGO — a lacuna deixada permite que avancem.
-            if (oldResourceId != null)
-            {
-                var changedIndex = FlatTasks.IndexOf(changed);
-                for (int i = changedIndex + 1; i < FlatTasks.Count; i++)
+                // 3. Cascatar irmãos do recurso ANTIGO — a lacuna deixada permite que avancem.
+                if (oldResourceId != null)
                 {
-                    var sibling = FlatTasks[i];
-                    if (sibling.Depth < changed.Depth) break;
-                    if (sibling.Depth > changed.Depth) continue;
-                    if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
-                    if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != oldResourceId) continue;
-                    if (sibling.Model.PredecessorIds.Count > 0) continue;
+                    for (int i = changedIndex + 1; i < FlatTasks.Count; i++)
+                    {
+                        var sibling = FlatTasks[i];
+                        if (sibling.Depth < changed.Depth) break;
+                        if (sibling.Depth > changed.Depth) continue;
+                        if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
+                        if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != oldResourceId) continue;
+                        if (sibling.Model.PredecessorIds.Count > 0) continue;
 
-                    CascadeSuccessors(sibling);
-                    break;
+                        CascadeSuccessors(sibling);
+                        break;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[OnPrimaryResourceChanged] {ex}");
+                StatusMessage = "Erro ao recalcular datas apos troca de recurso.";
             }
         }
 
