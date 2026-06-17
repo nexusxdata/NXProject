@@ -327,6 +327,8 @@ namespace NXProject.ViewModels
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     OnPropertyChanged(nameof(OriginalEstimatedHoursText));
+                    OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
+                    OnPropertyChanged(nameof(HasOriginalEstimate));
                     RecalcAncestorSummaries();
                 }
             }
