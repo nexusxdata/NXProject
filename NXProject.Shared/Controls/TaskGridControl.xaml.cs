@@ -195,6 +195,8 @@ namespace NXProject.Controls
             ("Início",        StartColumn),
             ("Fim",           FinishColumn),
             ("% Compl.",      PercentColumn),
+            ("HH Realizado",  RealizedHoursColumn),
+            ("HH Restante",   EstimatedHoursColumn),
             ("Predecessoras", PredecessorColumn),
             ("Recursos",      ResourcesColumn),
             ("Sprint",        SprintColumn),
@@ -943,21 +945,6 @@ namespace NXProject.Controls
         // Guarda a VM capturada no ContextMenuOpening para usar no click (PlacementTarget pode ser null no Click)
         private TaskViewModel? _durationContextMenuVm;
 
-        private void OnFixRealizedHoursClick(object sender, RoutedEventArgs e)
-        {
-            var vm = _durationContextMenuVm;
-            if (vm == null) return;
-            if (vm.IsRealizedFixed)
-            {
-                vm.SetRealizedHours(null);
-            }
-            else if (vm.CanEditDuration && vm.DurationHours > 0)
-            {
-                vm.SetRealizedHours(vm.DurationHours);
-            }
-            GanttViewToggled?.Invoke();
-        }
-
         private void OnToggleGanttOriginalViewClick(object sender, RoutedEventArgs e)
         {
             var vm = _durationContextMenuVm;
@@ -986,25 +973,6 @@ namespace NXProject.Controls
                     ? "Voltar Gantt para Estimativa Restante"
                     : "Mostrar Gantt pela Estimativa Original";
 
-            var fixRealItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "FixRealizedHoursMenuItem");
-            if (fixRealItem != null)
-            {
-                if (vm?.IsRealizedFixed == true)
-                {
-                    fixRealItem.Header = $"Remover HH Realizado fixado ({vm.RealizedHours:0.#}h)";
-                    fixRealItem.IsEnabled = true;
-                }
-                else if (vm?.CanEditDuration == true && vm.DurationHours > 0)
-                {
-                    fixRealItem.Header = $"Fixar HH Restante como HH Realizado ({vm.DurationHours:0.#}h)";
-                    fixRealItem.IsEnabled = true;
-                }
-                else
-                {
-                    fixRealItem.Header = "Fixar HH Restante como HH Realizado";
-                    fixRealItem.IsEnabled = false;
-                }
-            }
         }
 
 
@@ -1044,6 +1012,19 @@ namespace NXProject.Controls
         {
             if (tb.DataContext is not TaskViewModel vm) return;
             if (IsUnchangedEdit(FinishColumn, tb))
+            {
+                CancelCurrentEdit();
+                return;
+            }
+
+            var currentDur = vm.DurationHours;
+            var result = System.Windows.MessageBox.Show(
+                $"Alterar a data Fim mudará a duração (atual: {currentDur:0.#}h).\nDeseja continuar?",
+                "Alterar data Fim",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question);
+
+            if (result != System.Windows.MessageBoxResult.Yes)
             {
                 CancelCurrentEdit();
                 return;

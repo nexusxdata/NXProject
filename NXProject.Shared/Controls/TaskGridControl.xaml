@@ -214,9 +214,6 @@
                                               Click="OnToggleGanttOriginalViewClick"
                                               Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
                                     <Separator/>
-                                    <MenuItem x:Name="FixRealizedHoursMenuItem"
-                                              Click="OnFixRealizedHoursClick"/>
-                                    <Separator/>
                                     <MenuItem x:Name="ToggleOrgHMenuItem"
                                               Click="OnToggleOrgHColumnClick"/>
                                 </ContextMenu>
@@ -295,6 +292,34 @@
             <DataGridTextColumn x:Name="OriginalHoursColumn" Header="OrgH"
                                 Binding="{Binding OriginalEstimatedHoursDisplay, Mode=OneWay}"
                                 Width="50" IsReadOnly="True"
+                                Visibility="Collapsed">
+                <DataGridTextColumn.ElementStyle>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="TextAlignment" Value="Center"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="Foreground" Value="#1565C0"/>
+                        <Setter Property="FontSize" Value="11"/>
+                    </Style>
+                </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
+
+            <!-- HH Realizado (oculto por padrão) -->
+            <DataGridTextColumn x:Name="RealizedHoursColumn" Header="HH Realizado"
+                                Binding="{Binding RealizedHoursDisplay}" Width="80" IsReadOnly="True"
+                                Visibility="Collapsed">
+                <DataGridTextColumn.ElementStyle>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="TextAlignment" Value="Center"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="Foreground" Value="#4A148C"/>
+                        <Setter Property="FontSize" Value="11"/>
+                    </Style>
+                </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
+
+            <!-- HH Restante (oculto por padrão) -->
+            <DataGridTextColumn x:Name="EstimatedHoursColumn" Header="HH Restante"
+                                Binding="{Binding EstimatedHoursDisplay}" Width="80" IsReadOnly="True"
                                 Visibility="Collapsed">
                 <DataGridTextColumn.ElementStyle>
                     <Style TargetType="TextBlock">
