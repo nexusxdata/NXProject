@@ -758,6 +758,27 @@ namespace NXProject.Views
             GanttCtrl.ForceRender();
         }
 
+        private void OnGanttOriginalToggleChecked(object sender, RoutedEventArgs e)
+            => ApplyGanttOriginalView(true);
+
+        private void OnGanttOriginalToggleUnchecked(object sender, RoutedEventArgs e)
+            => ApplyGanttOriginalView(false);
+
+        private void ApplyGanttOriginalView(bool useOriginal)
+        {
+            var vm = DataContext as MainViewModel;
+            if (vm == null) return;
+
+            foreach (var task in vm.FlatTasks)
+            {
+                if (task.HasOriginalEstimate)
+                    task.SetOriginalHoursView(useOriginal);
+            }
+
+            TaskGridCtrl.RefreshRows();
+            GanttCtrl.ForceRender();
+        }
+
         private void OnDayHeaderToggled(object sender, RoutedEventArgs e)
         {
             // Cicla: 0 (off) → 1 (dia1: seg/qua/sex) → 2 (dia2: dígito compacto) → 0

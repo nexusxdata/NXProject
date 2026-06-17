@@ -213,6 +213,26 @@
                 </StackPanel>
             </Button>
             <Separator/>
+            <Separator/>
+            <ToggleButton x:Name="GanttOriginalToggle"
+                          ToolTip="Mostrar Gantt pela Estimativa Original"
+                          Width="28" Height="24" Padding="3"
+                          Checked="OnGanttOriginalToggleChecked"
+                          Unchecked="OnGanttOriginalToggleUnchecked"
+                          VerticalAlignment="Center">
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="18" Height="18">
+                        <!-- barra de fundo (estimativa original) -->
+                        <Rectangle Canvas.Left="0" Canvas.Top="5" Width="18" Height="8"
+                                   Fill="#B91C1C" RadiusX="2" RadiusY="2" Opacity="0.85"/>
+                        <!-- linha de referência vertical -->
+                        <Line X1="11" Y1="2" X2="11" Y2="16" Stroke="#B91C1C" StrokeThickness="2"/>
+                        <!-- barra restante (menor) -->
+                        <Rectangle Canvas.Left="0" Canvas.Top="7" Width="11" Height="4"
+                                   Fill="#4472C4" RadiusX="1" RadiusY="1"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
             <ToggleButton x:Name="DayHeaderToggle"
                           ToolTip="{DynamicResource Toolbar_DayView}"
                           Width="28"

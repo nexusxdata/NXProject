@@ -498,14 +498,34 @@ namespace NXProject.ViewModels
                         _task.Finish = DateTime.Today;
                     }
                     OnPropertyChanged(nameof(Finish));
+                    OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DurationHours));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
                 }
+                else if (!_task.FinishFixed)
+                {
+                    // Ao reduzir % abaixo de 100, restaura Finish a partir de EstimatedHours
+                    // para que a coluna HH Restante volte a mostrar o valor correto e seja editável.
+                    var restoreH = _task.EstimatedHours ?? 0;
+                    if (restoreH > 0)
+                    {
+                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, restoreH);
+                        OnPropertyChanged(nameof(Finish));
+                        OnPropertyChanged(nameof(FinishDisplay));
+                        OnPropertyChanged(nameof(DurationDays));
+                        OnPropertyChanged(nameof(DurationHours));
+                        OnPropertyChanged(nameof(DisplayAsMilestone));
+                        RecalcAncestorSummaries();
+                    }
+                }
 
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PercentCompleteTextBrush));
+                OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
+                OnPropertyChanged(nameof(OriginalEstimatedHoursText));
+                OnPropertyChanged(nameof(HasOriginalEstimate));
                 NotifyParentPercentChanged();
             }
         }
