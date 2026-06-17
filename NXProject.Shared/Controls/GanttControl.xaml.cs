@@ -1173,6 +1173,31 @@ namespace NXProject.Controls
             Canvas.SetTop(dot, y + RowHeight / 2 - 2.5);
             GanttCanvas.Children.Add(dot);
 
+            // Barra preta: horas realizadas proporcional à duração total
+            double? realizedH  = task.Model.RealizedHours;
+            double  durationH  = task.Model.EstimatedHours is > 0 ? task.Model.EstimatedHours.Value
+                                 : ProjectCalendarService.CountWorkingHours(task.Model.Start, task.Model.Finish);
+            if (realizedH is > 0 && durationH > 0)
+            {
+                double realizedW = Math.Min(width, width * (realizedH.Value / durationH));
+                if (realizedW > 1)
+                {
+                    var realBar = new Rectangle
+                    {
+                        Width = realizedW,
+                        Height = RowHeight - BarPadding * 2,
+                        Fill = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                        RadiusX = 2,
+                        RadiusY = 2,
+                        ToolTip = new ToolTip { Content = $"HH Realizado: {realizedH.Value:0.#}h de {durationH:0.#}h" }
+                    };
+                    AttachTaskMetadata(realBar, task);
+                    Canvas.SetLeft(realBar, x);
+                    Canvas.SetTop(realBar, y + BarPadding);
+                    GanttCanvas.Children.Add(realBar);
+                }
+            }
+
             if (percent > 0)
             {
                 var progress = new Rectangle
