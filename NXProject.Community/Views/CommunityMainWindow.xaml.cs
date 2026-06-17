@@ -91,6 +91,12 @@ namespace NXProject.Views
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
+            TaskGridCtrl.TaskModified += () =>
+            {
+                vm.Project.IsDirty = true;
+                TaskGridCtrl.RefreshRows();
+                GanttCtrl.ForceRender();
+            };
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {

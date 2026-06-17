@@ -312,6 +312,8 @@ namespace NXProject.ViewModels
             {
                 if (UsesSfpEstimate || _task.FinishFixed)
                     return;
+                if (_task.UseOriginalHoursView && _task.PercentComplete > 0.0001)
+                    return;
 
                 if (value >= 0)
                 {
@@ -527,6 +529,41 @@ namespace NXProject.ViewModels
         }
 
         public bool HasOriginalEstimate => _task.OriginalEstimatedHours is > 0;
+
+        public bool UseOriginalHoursView => _task.UseOriginalHoursView;
+
+        // Bloqueia edição quando está em modo original com % > 0.
+        public bool IsDurationReadOnly =>
+            UsesSfpEstimate ||
+            (_task.UseOriginalHoursView && _task.PercentComplete > 0.0001);
+
+        public void SetOriginalHoursView(bool useOriginal)
+        {
+            if (useOriginal == _task.UseOriginalHoursView) return;
+            if (useOriginal && !(_task.OriginalEstimatedHours is > 0)) return;
+
+            _task.UseOriginalHoursView = useOriginal;
+
+            var targetHours = useOriginal
+                ? _task.OriginalEstimatedHours!.Value
+                : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
+
+            if (targetHours > 0 && !_task.FinishFixed)
+            {
+                _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, targetHours);
+                OnPropertyChanged(nameof(Finish));
+                OnPropertyChanged(nameof(FinishDisplay));
+                OnPropertyChanged(nameof(DurationDays));
+                OnPropertyChanged(nameof(DurationHours));
+                OnPropertyChanged(nameof(DisplayAsMilestone));
+                RecalcAncestorSummaries();
+                ScheduleSuccessors?.Invoke(this);
+            }
+
+            OnPropertyChanged(nameof(UseOriginalHoursView));
+            OnPropertyChanged(nameof(IsDurationReadOnly));
+            OnPropertyChanged(nameof(OriginalEstimatedHoursText));
+        }
 
         public Brush PercentCompleteTextBrush =>
             PercentComplete <= 30

@@ -205,6 +205,34 @@
                                 <ContextMenu Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}">
                                     <MenuItem Header="{Binding OriginalEstimatedHoursText}" IsEnabled="False"
                                               FontStyle="Italic" Foreground="#555"/>
+                                    <Separator/>
+                                    <MenuItem Header="Ver HH Original no Gantt"
+                                              Tag="UseOriginal"
+                                              Click="OnToggleOriginalHoursViewClick">
+                                        <MenuItem.Style>
+                                            <Style TargetType="MenuItem">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </MenuItem.Style>
+                                    </MenuItem>
+                                    <MenuItem Header="Voltar para HH Estimado"
+                                              Tag="UseEstimated"
+                                              Click="OnToggleOriginalHoursViewClick">
+                                        <MenuItem.Style>
+                                            <Style TargetType="MenuItem">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </MenuItem.Style>
+                                    </MenuItem>
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <TextBlock Text="{Binding DurationHours, StringFormat={}{0:0}}"
@@ -232,6 +260,11 @@
                                             <Setter Property="BorderBrush" Value="#B0C4DE"/>
                                             <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding UseOriginalHoursView}" Value="True">
+                                            <Setter Property="Background" Value="#FFF3CD"/>
+                                            <Setter Property="BorderBrush" Value="#E6A817"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
@@ -244,7 +277,7 @@
                                  BorderThickness="0"
                                  TextAlignment="Center"
                                  VerticalContentAlignment="Center"
-                                 IsReadOnly="{Binding UsesSfpEstimate}"
+                                 IsReadOnly="{Binding IsDurationReadOnly}"
                                  LostFocus="OnDurationEditLostFocus"
                                  KeyDown="OnDurationEditKeyDown">
                             <TextBox.Style>
@@ -256,6 +289,12 @@
                                         <DataTrigger Binding="{Binding UsesSfpEstimate}" Value="True">
                                             <Setter Property="Background" Value="#F1F1F1"/>
                                             <Setter Property="Foreground" Value="#6E6E6E"/>
+                                            <Setter Property="IsHitTestVisible" Value="False"/>
+                                            <Setter Property="IsTabStop" Value="False"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsDurationReadOnly}" Value="True">
+                                            <Setter Property="Background" Value="#FFF3CD"/>
+                                            <Setter Property="Foreground" Value="#7A6000"/>
                                             <Setter Property="IsHitTestVisible" Value="False"/>
                                             <Setter Property="IsTabStop" Value="False"/>
                                         </DataTrigger>

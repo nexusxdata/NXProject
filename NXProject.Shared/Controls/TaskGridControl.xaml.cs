@@ -64,6 +64,9 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o DataGrid rola verticalmente.</summary>
         public event Action<double>? VerticalScrollChanged;
 
+        /// <summary>Disparado quando uma ação do usuário modifica dados (ex.: toggle de modo de horas).</summary>
+        public event Action? TaskModified;
+
         /// <summary>Disparado quando a altura real do header do DataGrid e conhecida.</summary>
         public event Action<double>? HeaderHeightMeasured;
 
@@ -509,6 +512,17 @@ namespace NXProject.Controls
         {
             if (sender is TextBox tb)
                 CommitDurationEdit(tb);
+        }
+
+        private void OnToggleOriginalHoursViewClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem { Tag: string tag } mi) return;
+            // O DataContext do ContextMenu está no PlacementTarget (o Border).
+            var ctx = ((mi.Parent as ContextMenu)?.PlacementTarget as System.Windows.FrameworkElement)?.DataContext
+                   ?? mi.DataContext;
+            if (ctx is not TaskViewModel vm) return;
+            vm.SetOriginalHoursView(tag == "UseOriginal");
+            TaskModified?.Invoke();
         }
 
         private void CommitStartEdit(TextBox tb)

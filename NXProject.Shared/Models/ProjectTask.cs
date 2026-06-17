@@ -27,6 +27,10 @@ namespace NXProject.Models
         // Nunca sobrescrita após % > 0 — serve como baseline de comparação.
         public double? OriginalEstimatedHours { get; set; }
 
+        // Quando true, o Gantt usa OriginalEstimatedHours como duração em vez de EstimatedHours.
+        // Não editável se PercentComplete > 0.
+        public bool UseOriginalHoursView { get; set; }
+
         public double? SfpPoints { get; set; }
 
         // ── Vínculo com TFS / Azure DevOps ──────────────────────────────────
