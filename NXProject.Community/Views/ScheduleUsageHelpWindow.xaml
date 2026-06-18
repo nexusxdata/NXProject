@@ -78,14 +78,17 @@ A data Fim e calculada automaticamente: Inicio + Dur.(h), respeitando o calendar
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A configuracao do calendario esta em Exibir > Calendario."/>
 
                     <!-- 5. Predecessoras -->
-                    <TextBlock Text="5. Predecessoras"
+                    <TextBlock Text="5. Predecessoras explicitas"
                                FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
 A coluna Pred. define quais atividades precisam terminar antes da atividade atual iniciar.
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Clique no campo Pred. para abrir a janela de selecao."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Use a busca para localizar por nome ou ID."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- E possivel marcar multiplas predecessoras com os checkboxes."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- E possivel marcar multiplas predecessoras com os checkboxes."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A data de inicio e calculada automaticamente como o proximo dia util apos a maior data fim entre todas as predecessoras."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Quando a data fim de uma predecessora muda, todas as dependentes sao recalculadas em cascata."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- O recalculo usa ordenacao topologica: uma atividade so e recalculada apos todas as suas predecessoras estarem posicionadas. Referencias cruzadas (A depende de B que depende de A) sao detectadas e interrompidas automaticamente."/>
 
                     <!-- 6. Gantt -->
                     <TextBlock Text="6. Gantt"
@@ -122,13 +125,15 @@ Acesse em Exibir > Progresso do Projeto e Curva S para acompanhar o andamento ge
                     <TextBlock Text="9. Predecessora Virtual (mesmo recurso e hierarquia)"
                                FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
-Atividades do mesmo nivel hierarquico e com o mesmo recurso sao automaticamente encadeadas como se tivessem predecessoras, mesmo sem predecessoras explicitas cadastradas.
+Atividades do mesmo nivel hierarquico com o mesmo recurso atribuido sao encadeadas automaticamente, como se a atividade anterior fosse predecessora da seguinte — sem necessidade de cadastrar predecessoras explicitas.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Quando a data fim de uma atividade muda, as atividades seguintes do mesmo recurso e nivel sao recalculadas."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- O recalculo ocorre ao alterar duracao, data inicio, data fim, percentual de conclusao ou predecessora."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao alterar o recurso de uma atividade, ela e reposicionada apos a ultima atividade do novo recurso no mesmo nivel."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao arrastar uma atividade para outra posicao, as datas sao recalculadas tanto na origem quanto no destino."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Atividades com predecessoras explicitas nao sao afetadas pela predecessora virtual."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- O encadeamento segue a ordem das atividades na lista dentro do mesmo nivel e mesmo pai."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Quando a data fim de uma atividade muda, as seguintes do mesmo recurso e nivel sao recalculadas em cascata."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- O recalculo ocorre ao alterar duracao, data inicio, data fim, percentual de conclusao, predecessora explicita ou recurso."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao alterar o recurso, a atividade e reposicionada apos a ultima atividade do novo recurso no mesmo nivel; as atividades do recurso anterior tambem sao reajustadas."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao arrastar uma atividade para outra posicao, as datas sao recalculadas na posicao de origem e de destino."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Atividades com predecessoras explicitas nao sao movidas pela predecessora virtual."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Ao abrir ou importar o projeto, o encadeamento virtual e as predecessoras explicitas sao aplicados automaticamente em toda a hierarquia."/>
 
                     <Border Background="#FFF7E8"
                             BorderBrush="#E8D39A"
