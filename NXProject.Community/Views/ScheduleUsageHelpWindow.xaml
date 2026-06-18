@@ -64,7 +64,10 @@ HH Atual representa o esforco ja realizado na atividade. HH Restante e o esforco
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
 Ao digitar o percentual de conclusao, o NXProject recalcula HH Atual e HH Restante proporcional a duracao total da atividade.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Com % = 100, a data Fim e ajustada para hoje e a edicao de duracao e bloqueada."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Com % = 100, a data Fim e ajustada para hoje (nunca antes da data Inicio) e a edicao de duracao e bloqueada."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao registrar o primeiro avanco (% 0 → acima de 0): se a data Inicio estiver no futuro, ela e movida para hoje, ancorando o inicio da atividade."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Depois que a atividade foi iniciada (% acima de 0), a data Inicio nao e mais alterada pela cascata — apenas as atividades seguintes do mesmo recurso sao reposicionadas."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Qualquer alteracao de % que mude a data Fim dispara a cascata de predecessora virtual para as atividades seguintes."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Atividades no estado Encerrado (Closed) com % diferente de 100 continuam com duracao editavel."/>
 
                     <!-- 4. Data Inicio e Fim -->
