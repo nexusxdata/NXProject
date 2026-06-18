@@ -516,7 +516,19 @@ namespace NXProject.ViewModels
                 if (Math.Abs(_task.PercentComplete - normalized) < 0.0001)
                     return;
 
+                var wasZero = _task.PercentComplete < 0.0001;
                 _task.PercentComplete = normalized;
+
+                // Regra: ao iniciar (% 0 → >0), ancoramos o início no dia atual se estiver no futuro.
+                // Depois do início, o Start não pode mais ser movido pela cascata.
+                if (wasZero && normalized > 0 && _task.Start.Date > DateTime.Today)
+                {
+                    _task.Start = DateTime.Today;
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(DateTime.Today,
+                        ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
+                    OnPropertyChanged(nameof(Start));
+                    OnPropertyChanged(nameof(StartDisplay));
+                }
 
                 // Recalcula HH Atual e HH Restante com base no % e na duração total fixada.
                 // Usa CountWorkingHours como fallback quando HH estão zerados (sem informação).
@@ -537,9 +549,8 @@ namespace NXProject.ViewModels
 
                 if (normalized >= 100)
                 {
-                    // Marca a tarefa como concluída hoje: só move o Finish para hoje.
-                    // O Start da tarefa atual não muda; a cascata ajusta as próximas.
-                    _task.Finish = DateTime.Today;
+                    // Finish = hoje, mas nunca antes do Start (evita duração negativa).
+                    _task.Finish = DateTime.Today >= _task.Start.Date ? DateTime.Today : _task.Start.Date;
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
@@ -918,6 +929,13 @@ namespace NXProject.ViewModels
             {
                 // Já na posição correta, mas propaga para que irmãos virtuais (mesmo recurso)
                 // sejam ajustados caso ainda não tenham sido processados.
+                ScheduleSuccessors?.Invoke(this);
+                return;
+            }
+
+            // Tarefa já iniciada (% > 0): não move o Start, mas propaga para as próximas.
+            if (_task.PercentComplete > 0)
+            {
                 ScheduleSuccessors?.Invoke(this);
                 return;
             }
