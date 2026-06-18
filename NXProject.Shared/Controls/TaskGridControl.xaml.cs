@@ -387,6 +387,8 @@ namespace NXProject.Controls
             selectedItem ??= TaskGrid.SelectedItem;
             selectedColumn ??= TaskGrid.CurrentCell.Column ?? NameColumn;
 
+            // Garante que não há transação de edição ativa antes de chamar Refresh.
+            TaskGrid.CommitEdit(DataGridEditingUnit.Row, exitEditingMode: true);
             TaskGrid.Items.Refresh();
 
             if (selectedItem == null || !TaskGrid.Items.Contains(selectedItem))
