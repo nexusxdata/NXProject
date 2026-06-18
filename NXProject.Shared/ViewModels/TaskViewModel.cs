@@ -250,6 +250,7 @@ namespace NXProject.ViewModels
                     OnPropertyChanged(nameof(DurationDays));
                     OnPropertyChanged(nameof(DurationHours));
                     RecalcAncestorSummaries();
+                    ScheduleSuccessors?.Invoke(this);
                 }
                 else if (DateTime.TryParse(raw, out var parsed))
                 {
@@ -338,6 +339,7 @@ namespace NXProject.ViewModels
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
                     RefreshAncestorCalculatedProperties();
+                    ScheduleSuccessors?.Invoke(this);
                 }
             }
         }
