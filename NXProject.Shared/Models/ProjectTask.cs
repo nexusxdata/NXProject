@@ -82,7 +82,7 @@ namespace NXProject.Models
         // Usado pelo Gantt para colorir a barra de vermelho e exibir hint.
         public DateTime? CalculatedFinish { get; set; }
 
-        // Data de fim fixada (prazo comprometido). true → envia Data_Fim + tag DT_FIM_NEG ao TFS.
+        // Data de fim fixada (prazo comprometido). true → envia Data_Fim ao TFS.
         public bool FinishFixed { get; set; } = false;
 
         // Controle de concorrência de sincronização TFS.
