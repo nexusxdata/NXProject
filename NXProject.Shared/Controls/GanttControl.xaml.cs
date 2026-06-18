@@ -363,7 +363,34 @@ namespace NXProject.Controls
             if (dayIndex >= 0 && ProjectStart != default)
             {
                 var hoverDate = ProjectStart.AddDays(dayIndex);
-                DateCoordLabel.Text = hoverDate.ToString("ddd, dd/MM/yyyy", CultureInfo.CurrentCulture);
+
+                if (_magnifierEnabled && Tasks != null)
+                {
+                    // Lupa ativa: mostra nome + duração da task sob o cursor no label de data
+                    TaskViewModel? hoverTask = null;
+                    if (_rowTops != null)
+                    {
+                        for (int i = 0; i < _rowTops.Count && i < Tasks.Count; i++)
+                        {
+                            var bot = i + 1 < _rowTops.Count ? _rowTops[i + 1] : _rowTops[i] + RowHeight;
+                            if (pos.Y >= _rowTops[i] && pos.Y < bot) { hoverTask = Tasks[i]; break; }
+                        }
+                    }
+                    else
+                    {
+                        var idx = (int)(pos.Y / RowHeight);
+                        if (idx >= 0 && idx < Tasks.Count) hoverTask = Tasks[idx];
+                    }
+
+                    DateCoordLabel.Text = hoverTask != null
+                        ? $"{hoverDate:ddd, dd/MM/yyyy}  |  {hoverTask.Name}  ({hoverTask.DurationHours:0.#}h)"
+                        : hoverDate.ToString("ddd, dd/MM/yyyy", CultureInfo.CurrentCulture);
+                }
+                else
+                {
+                    DateCoordLabel.Text = hoverDate.ToString("ddd, dd/MM/yyyy", CultureInfo.CurrentCulture);
+                }
+
                 // Posiciona o overlay próximo ao cursor, dentro dos limites do cabeçalho
                 double labelX = pos.X + scrollOffset - LeftPadding < 10 ? 4
                               : Math.Min(pos.X - 10, ActualWidth - 140);
@@ -1523,9 +1550,7 @@ namespace NXProject.Controls
 
         private void OnGanttCanvasToolTipOpening(object sender, ToolTipEventArgs e)
         {
-            // Lupa ativa: suprime tooltip para não sobrepor
-            if (_magnifierEnabled)
-                e.Handled = true;
+            if (_magnifierEnabled) e.Handled = true; // info já aparece no label de data
         }
 
         private void HideMagnifier()
