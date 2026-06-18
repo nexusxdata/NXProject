@@ -523,11 +523,45 @@ namespace NXProject.ViewModels
                 // Depois do início, o Start não pode mais ser movido pela cascata.
                 if (wasZero && normalized > 0 && _task.Start.Date > DateTime.Today)
                 {
+                    var durationH = ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
                     _task.Start = DateTime.Today;
-                    _task.Finish = ProjectCalendarService.AddWorkingHours(DateTime.Today,
-                        ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish));
+                    _task.Finish = ProjectCalendarService.AddWorkingHours(DateTime.Today, durationH);
                     OnPropertyChanged(nameof(Start));
                     OnPropertyChanged(nameof(StartDisplay));
+                }
+
+                // Ao zerar o %, restaura HH para a estimativa original (antes de qualquer andamento).
+                if (normalized < 0.0001 && !wasZero)
+                {
+                    var originalH = _task.OriginalEstimatedHours is > 0
+                        ? _task.OriginalEstimatedHours.Value
+                        : (_task.CurrentHours is > 0
+                            ? _task.CurrentHours.Value + (_task.EstimatedHours ?? 0)
+                            : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish)));
+                    _task.CurrentHours   = null;
+                    _task.EstimatedHours = originalH > 0 ? originalH : _task.EstimatedHours;
+                    OnPropertyChanged(nameof(CurrentHours));
+                    OnPropertyChanged(nameof(CurrentHoursDisplay));
+                    OnPropertyChanged(nameof(EstimatedHoursDisplay));
+                    if (!_task.FinishFixed && originalH > 0)
+                    {
+                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, originalH);
+                        OnPropertyChanged(nameof(Finish));
+                        OnPropertyChanged(nameof(FinishDisplay));
+                        OnPropertyChanged(nameof(DurationDays));
+                        OnPropertyChanged(nameof(DurationHours));
+                        OnPropertyChanged(nameof(DisplayAsMilestone));
+                        RecalcAncestorSummaries();
+                        ScheduleSuccessors?.Invoke(this);
+                    }
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PercentCompleteTextBrush));
+                    OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
+                    OnPropertyChanged(nameof(OriginalEstimatedHoursText));
+                    OnPropertyChanged(nameof(HasOriginalEstimate));
+                    OnPropertyChanged(nameof(IsDurationReadOnly));
+                    NotifyParentPercentChanged();
+                    return;
                 }
 
                 // Recalcula HH Atual e HH Restante com base no % e na duração total fixada.
