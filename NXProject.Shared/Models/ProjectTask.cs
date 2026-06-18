@@ -133,7 +133,11 @@ namespace NXProject.Models
 
             foreach (var child in Children)
             {
-                var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
+                // Para summaries (Feature, Epic): usa soma recursiva dos filhos como peso.
+                // Para tarefas folha: usa a duração efetiva (horas × alocação).
+                var weight = child.IsSummary
+                    ? Math.Max(1.0, SumDescendantHours(child))
+                    : Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
                 weightedPercent += child.PercentComplete * weight;
                 totalWeight += weight;
             }
@@ -141,6 +145,18 @@ namespace NXProject.Models
             PercentComplete = totalWeight > 0
                 ? weightedPercent / totalWeight
                 : Children.Average(c => c.PercentComplete);
+        }
+
+        private static double SumDescendantHours(ProjectTask task)
+        {
+            if (!task.IsSummary || task.Children.Count == 0)
+            {
+                var h = task.EstimatedHours is > 0
+                    ? task.EstimatedHours.Value
+                    : ProjectCalendarService.CountWorkingHours(task.Start, task.Finish);
+                return h > 0 ? h : 1.0;
+            }
+            return task.Children.Sum(SumDescendantHours);
         }
 
         public override string ToString() => $"{Id} - {Name}";
