@@ -1507,22 +1507,9 @@ namespace NXProject.Controls
             }
 
             var viewportPosition = e.GetPosition(GanttScroll);
-            var maxLeft = Math.Max(0, GanttScroll.ViewportWidth - MagnifierSize - 8);
-            var maxTop = Math.Max(0, GanttScroll.ViewportHeight - MagnifierSize - 8);
-            var left = Math.Min(maxLeft, viewportPosition.X + MagnifierOffset);
-            var top = Math.Min(maxTop, viewportPosition.Y + MagnifierOffset);
-
-            if (left < viewportPosition.X + MagnifierOffset
-                && viewportPosition.X - MagnifierSize - MagnifierOffset > 0)
-            {
-                left = viewportPosition.X - MagnifierSize - MagnifierOffset;
-            }
-
-            if (top < viewportPosition.Y + MagnifierOffset
-                && viewportPosition.Y - MagnifierSize - MagnifierOffset > 0)
-            {
-                top = viewportPosition.Y - MagnifierSize - MagnifierOffset;
-            }
+            // Centraliza a lupa no cursor
+            var left = Math.Clamp(viewportPosition.X - MagnifierSize / 2.0, 0, Math.Max(0, GanttScroll.ViewportWidth  - MagnifierSize));
+            var top  = Math.Clamp(viewportPosition.Y - MagnifierSize / 2.0, 0, Math.Max(0, GanttScroll.ViewportHeight - MagnifierSize));
 
             MagnifierBrush.Viewbox = new Rect(
                 Math.Max(0, canvasPosition.X - MagnifierSourceSize / 2.0),
@@ -1536,14 +1523,13 @@ namespace NXProject.Controls
 
         private void OnGanttCanvasToolTipOpening(object sender, ToolTipEventArgs e)
         {
-            if (!_magnifierEnabled) return;
             if (e.Source is not FrameworkElement fe || fe.ToolTip is not ToolTip tt) return;
 
-            // Ancora o tooltip no canto superior direito do GanttScroll, fora da lupa
-            tt.PlacementTarget   = GanttScroll;
-            tt.Placement         = System.Windows.Controls.Primitives.PlacementMode.Relative;
-            tt.HorizontalOffset  = GanttScroll.ViewportWidth - 230;
-            tt.VerticalOffset    = 8;
+            // Tooltip sempre fixo no canto superior direito do Gantt
+            tt.PlacementTarget  = GanttScroll;
+            tt.Placement        = System.Windows.Controls.Primitives.PlacementMode.Relative;
+            tt.HorizontalOffset = GanttScroll.ViewportWidth - 230;
+            tt.VerticalOffset   = 8;
         }
 
         private void HideMagnifier()
