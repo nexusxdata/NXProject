@@ -772,7 +772,7 @@ namespace NXProject.ViewModels
         }
 
         public Brush PercentCompleteTextBrush =>
-            PercentComplete <= 30
+            PercentComplete <= 0
                 ? Brushes.Black
                 : Brushes.White;
 
