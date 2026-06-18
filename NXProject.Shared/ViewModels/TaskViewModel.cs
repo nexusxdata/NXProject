@@ -807,7 +807,8 @@ namespace NXProject.ViewModels
             }
         }
 
-        public bool DisplayAsMilestone => IsMilestone || DurationHours == 0;
+        public bool DisplayAsMilestone => IsMilestone ||
+            (!IsSummary && (_task.CurrentHours ?? 0) == 0 && (_task.EstimatedHours ?? 0) == 0);
 
         public bool IsSummary
         {
