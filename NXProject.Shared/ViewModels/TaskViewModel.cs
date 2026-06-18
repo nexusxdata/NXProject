@@ -790,34 +790,10 @@ namespace NXProject.ViewModels
 
         private double CalculateSummaryPercent()
         {
-            if (ChildrenViewModels.Count == 0)
-            {
-                if (_task.Children.Count == 0)
-                    return _task.PercentComplete;
-
-                double modelTotalWeight = 0.0;
-                double modelWeightedPercent = 0.0;
-                foreach (var child in _task.Children)
-                {
-                    var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
-                    modelWeightedPercent += child.PercentComplete * weight;
-                    modelTotalWeight += weight;
-                }
-
-                return modelTotalWeight > 0 ? modelWeightedPercent / modelTotalWeight : 0.0;
-            }
-
-            double totalWeight = 0.0;
-            double weightedPercent = 0.0;
-
-            foreach (var childVm in ChildrenViewModels)
-            {
-                var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(childVm.Model));
-                weightedPercent += childVm.PercentComplete * weight;
-                totalWeight += weight;
-            }
-
-            return totalWeight > 0 ? weightedPercent / totalWeight : 0.0;
+            // _task.PercentComplete é mantido atualizado por RecalcSummary (via RebuildFlatTasks
+            // e RecalcAncestorSummaries). A fórmula usa HH Atual / (HH Atual + HH Restante)
+            // de todas as folhas descendentes (ver ProjectTask.RecalcPercentComplete).
+            return _task.PercentComplete;
         }
 
         public bool IsMilestone

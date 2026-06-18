@@ -155,24 +155,33 @@ namespace NXProject.Models
             }
         }
 
-        // Soma recursiva dos HH Atual e HH Total (Atual+Restante) de todas as folhas abaixo de 'task'.
+        // Soma recursiva dos HH Atual e HH Total de todas as folhas abaixo de 'task'.
+        // Quando HH Atual está disponível, o % real é derivado das horas (cur / total).
+        // Quando não há HH Atual, usa PercentComplete armazenado ponderado pelo peso planejado.
         private static void CollectLeafHours(ProjectTask task, ref double currentSum, ref double totalSum)
         {
             if (!task.IsSummary || task.Children.Count == 0)
             {
-                var cur   = task.CurrentHours   ?? 0;
-                var est   = task.EstimatedHours  ?? 0;
-                var total = cur + est;
-                if (total > 0)
+                var cur = task.CurrentHours ?? 0;
+                var est = task.EstimatedHours ?? 0;
+
+                if (cur > 0)
                 {
+                    // Temos HH Atual: % real = HH Atual / (HH Atual + HH Restante)
+                    var total = cur + est;
                     currentSum += cur;
                     totalSum   += total;
                 }
-                else if (task.OriginalEstimatedHours is > 0)
+                else
                 {
-                    // tarefa com % armazenado e sem horas de acompanhamento: usa % × OrgH
-                    currentSum += task.PercentComplete / 100.0 * task.OriginalEstimatedHours.Value;
-                    totalSum   += task.OriginalEstimatedHours.Value;
+                    // Sem HH Atual: usa % armazenado × peso (OrgH > HH Estimado > calendário)
+                    double weight = task.OriginalEstimatedHours is > 0
+                        ? task.OriginalEstimatedHours.Value
+                        : est > 0
+                            ? est
+                            : Math.Max(1.0, ProjectCalendarService.CountWorkingHours(task.Start, task.Finish));
+                    currentSum += task.PercentComplete / 100.0 * weight;
+                    totalSum   += weight;
                 }
                 return;
             }
