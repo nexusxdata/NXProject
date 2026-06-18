@@ -1539,12 +1539,11 @@ namespace NXProject.Controls
             if (!_magnifierEnabled) return;
             if (e.Source is not FrameworkElement fe || fe.ToolTip is not ToolTip tt) return;
 
-            // Ancora o tooltip no canto superior direito do Gantt, fora da área da lupa
-            var screenTopRight = GanttScroll.PointToScreen(
-                new Point(GanttScroll.ViewportWidth - 220, 4));
-            tt.Placement = System.Windows.Controls.Primitives.PlacementMode.Absolute;
-            tt.HorizontalOffset = screenTopRight.X;
-            tt.VerticalOffset    = screenTopRight.Y;
+            // Ancora o tooltip no canto superior direito do GanttScroll, fora da lupa
+            tt.PlacementTarget   = GanttScroll;
+            tt.Placement         = System.Windows.Controls.Primitives.PlacementMode.Relative;
+            tt.HorizontalOffset  = GanttScroll.ViewportWidth - 230;
+            tt.VerticalOffset    = 8;
         }
 
         private void HideMagnifier()
