@@ -1038,19 +1038,34 @@ namespace NXProject.ViewModels
                 CascadeSuccessors(task);
             }
 
-            // 2. Predecessoras explícitas: garante que tarefas com predecessor em outra hierarquia
-            //    sejam recalculadas. Cascata a partir de cada predecessora única.
-            var explicitPredIds = FlatTasks
+            // 2. Predecessoras explícitas: processa em ordem topológica.
+            //    Uma tarefa só é recalculada depois que todas as suas predecessoras já foram processadas.
+            //    Assim cada tarefa consulta todas as predecessoras e pega a maior data fim.
+            var tasksWithPred = FlatTasks
                 .Where(t => !t.IsSummary && t.Model.PredecessorIds.Count > 0)
-                .SelectMany(t => t.Model.PredecessorIds)
-                .Distinct()
                 .ToList();
 
-            foreach (var predId in explicitPredIds)
+            // IDs ainda pendentes de processamento
+            var pending = new System.Collections.Generic.HashSet<int>(tasksWithPred.Select(t => t.Model.Id));
+            var knownIds = new System.Collections.Generic.HashSet<int>(FlatTasks.Select(t => t.Model.Id));
+            int maxIterations = pending.Count + 1; // evita loop infinito em referência cruzada
+
+            while (pending.Count > 0 && maxIterations-- > 0)
             {
-                var pred = FlatTasks.FirstOrDefault(t => t.Model.Id == predId);
-                if (pred != null)
-                    CascadeSuccessors(pred);
+                // Tarefas prontas: todas as predecessoras já foram processadas (ou não estão pendentes)
+                var ready = tasksWithPred
+                    .Where(t => pending.Contains(t.Model.Id) &&
+                                t.Model.PredecessorIds.All(pid => !pending.Contains(pid)))
+                    .ToList();
+
+                if (ready.Count == 0)
+                    break; // apenas referências cruzadas restam — interrompe sem loop infinito
+
+                foreach (var task in ready)
+                {
+                    task.MoveAfterLatestPredecessor(); // consulta todas predecessoras → pega maior data fim
+                    pending.Remove(task.Model.Id);
+                }
             }
         }
 
