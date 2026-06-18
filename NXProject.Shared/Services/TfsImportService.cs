@@ -1901,6 +1901,7 @@ namespace NXProject.Services
             string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase) ||
             IsStoryType(type);
 
+        public static bool IsStoryTypePublic(string? type) => IsStoryType(type);
         private static bool IsStoryType(string? type) =>
             string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase) ||

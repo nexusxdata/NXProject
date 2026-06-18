@@ -612,6 +612,18 @@ namespace NXProject.Views
 
         private static bool ConfirmCompletedTfsState(MainViewModel vm)
         {
+            // Antes de qualquer alerta: corrige silenciosamente Closed → Active para Stories < 100%.
+            foreach (var t in vm.FlatTasks
+                .Where(t => !t.IsSummary
+                            && t.Model.TfsId is > 0
+                            && Services.TfsImportService.IsStoryTypePublic(t.Model.TfsType)
+                            && t.PercentComplete < 100
+                            && string.Equals(t.TfsState?.Trim(), "Closed", StringComparison.OrdinalIgnoreCase)))
+            {
+                t.TfsState = "Active";
+                vm.Project.IsDirty = true;
+            }
+
             var completedNotClosed = vm.FlatTasks
                 .Where(t => !t.IsSummary
                             && t.Model.TfsId.HasValue
