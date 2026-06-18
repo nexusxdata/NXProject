@@ -206,7 +206,13 @@ namespace NXProject.ViewModels
                     return null;
                 },
                 ScheduleSuccessors = source => CascadeSuccessors(source),
-                PrimaryResourceChanged = (source, oldResourceId) => OnPrimaryResourceChanged(source, oldResourceId)
+                PrimaryResourceChanged = (source, oldResourceId) => OnPrimaryResourceChanged(source, oldResourceId),
+                GetSprintFinish = path =>
+                {
+                    if (string.IsNullOrEmpty(path)) return null;
+                    var sprint = Sprints.FirstOrDefault(s => string.Equals(s.Path, path, StringComparison.OrdinalIgnoreCase));
+                    return sprint?.End;
+                }
             };
             if (parentVm != null)
                 parentVm.ChildrenViewModels.Add(vm);

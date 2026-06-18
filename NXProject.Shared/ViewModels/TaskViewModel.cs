@@ -20,6 +20,21 @@ namespace NXProject.ViewModels
         // o usuário limpa o fix (digita "0"). Retorna a data de início calculada.
         public Func<DateTime>? GetSprintStart { get; set; }
 
+        // Retorna a data fim da sprint atribuída à tarefa (null se não houver sprint ou sprint não encontrada).
+        public Func<string?, DateTime?>? GetSprintFinish { get; set; }
+
+        // True quando a data fim da tarefa ultrapassa a data fim da sprint atribuída.
+        public bool IsFinishBeyondSprint
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_task.TfsIterationPath)) return false;
+                var sprintFinish = GetSprintFinish?.Invoke(_task.TfsIterationPath);
+                if (sprintFinish == null) return false;
+                return _task.Finish.Date > sprintFinish.Value.Date;
+            }
+        }
+
         // Lookups injetados pelo MainViewModel para resolução de IDs de predecessoras.
         // FindByInternalId : Id interno → TaskViewModel (para exibir o DisplayId correto).
         // FindByDisplayId  : DisplayId digitado pelo usuário → Id interno da tarefa.
@@ -928,6 +943,7 @@ namespace NXProject.ViewModels
         {
             OnPropertyChanged(nameof(SprintDisplay));
             OnPropertyChanged(nameof(SprintPath));
+            OnPropertyChanged(nameof(IsFinishBeyondSprint));
         }
 
         public void NotifyDatesChanged()
@@ -940,6 +956,7 @@ namespace NXProject.ViewModels
             OnPropertyChanged(nameof(DurationHours));
             OnPropertyChanged(nameof(DisplayAsMilestone));
             OnPropertyChanged(nameof(StartFixed));
+            OnPropertyChanged(nameof(IsFinishBeyondSprint));
             RecalcAncestorSummaries();
         }
 

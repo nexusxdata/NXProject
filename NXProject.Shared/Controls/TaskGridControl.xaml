@@ -542,11 +542,22 @@
             <DataGridTemplateColumn x:Name="SprintColumn" Header="Sprint" Width="90">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding SprintDisplay}"
-                                   TextAlignment="Left"
-                                   Margin="3,0"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"/>
+                        <Border x:Name="SprintBorder" Background="Transparent">
+                            <TextBlock x:Name="SprintText"
+                                       Text="{Binding SprintDisplay}"
+                                       TextAlignment="Left"
+                                       Margin="3,0"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsFinishBeyondSprint}" Value="True">
+                                <Setter TargetName="SprintBorder" Property="Background" Value="#FFF3E0"/>
+                                <Setter TargetName="SprintBorder" Property="ToolTip" Value="A data fim da atividade ultrapassa o fim da sprint. Considere migrar para outra sprint ou encerrar a atividade."/>
+                                <Setter TargetName="SprintText" Property="Foreground" Value="#E65100"/>
+                                <Setter TargetName="SprintText" Property="FontWeight" Value="SemiBold"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
                 <DataGridTemplateColumn.CellEditingTemplate>
