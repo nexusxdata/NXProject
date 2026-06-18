@@ -35,7 +35,9 @@ namespace NXProject.ViewModels
                 var fmt = System.Globalization.CultureInfo.InvariantCulture;
                 var taskDay   = _task.Finish.ToString("yyyyMMdd", fmt);
                 var sprintDay = sprintFinish.Value.ToString("yyyyMMdd", fmt);
-                return string.Compare(taskDay, sprintDay, StringComparison.Ordinal) > 0;
+                var result = string.Compare(taskDay, sprintDay, StringComparison.Ordinal) > 0;
+                System.Diagnostics.Debug.WriteLine($"[SprintAlert] {_task.Name} | Finish={taskDay} | SprintEnd={sprintDay} | Paint={result} | Path={_task.TfsIterationPath}");
+                return result;
             }
         }
 
