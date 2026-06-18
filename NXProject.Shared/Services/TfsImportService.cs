@@ -676,6 +676,21 @@ namespace NXProject.Services
                         changes.Add($"sprint: {sprintName}");
                     }
 
+                    // Ajuste automático de estado para User Stories baseado no % de conclusão.
+                    if (IsStoryType(task.TfsType))
+                    {
+                        if (task.PercentComplete >= 100 &&
+                            !string.Equals(task.TfsState?.Trim(), "Closed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            task.TfsState = "Closed";
+                        }
+                        else if (task.PercentComplete < 100 &&
+                                 !string.Equals(task.TfsState?.Trim(), "Active", StringComparison.OrdinalIgnoreCase))
+                        {
+                            task.TfsState = "Active";
+                        }
+                    }
+
                     if (!string.IsNullOrWhiteSpace(task.TfsState) &&
                         !string.Equals(task.TfsState.Trim(), wi.State?.Trim() ?? string.Empty, StringComparison.Ordinal))
                     {
