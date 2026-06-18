@@ -139,7 +139,8 @@ namespace NXProject.Services
                 new XElement(EXT + "TfsIterationPath", task.TfsIterationPath ?? ""),
                 new XElement(EXT + "Description", task.Description ?? ""),
                 new XElement(EXT + "SyncVersion", task.SyncVersion?.ToString() ?? ""),
-                new XElement(EXT + "HasSyncConflict", task.HasSyncConflict)
+                new XElement(EXT + "HasSyncConflict", task.HasSyncConflict),
+                new XElement(EXT + "StartFixed", task.StartFixed)
             );
 
             // Predecessoras
@@ -313,6 +314,7 @@ namespace NXProject.Services
                 Description = string.IsNullOrWhiteSpace(el.Element(EXT + "Description")?.Value) ? null : el.Element(EXT + "Description")?.Value,
                 SyncVersion = int.TryParse(el.Element(EXT + "SyncVersion")?.Value, out var sv) ? sv : null,
                 HasSyncConflict = bool.TryParse(el.Element(EXT + "HasSyncConflict")?.Value, out var hsc) && hsc,
+                StartFixed = bool.TryParse(el.Element(EXT + "StartFixed")?.Value, out var sf) && sf,
                 Parent = parent
             };
 
