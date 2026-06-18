@@ -32,13 +32,8 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                         <Rectangle Width="28" Height="4" Fill="#1F4EA1" Margin="0,0,4,0" VerticalAlignment="Center"/>
                         <TextBlock Text="HH Original (Planejado)" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
-                        <Rectangle Width="16" Height="4" Fill="#2E7D32" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="HH Realizado" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <Line X1="0" Y1="2" X2="20" Y2="2" Stroke="#E65100" StrokeThickness="2"
-                                  StrokeDashArray="4 2" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Text="HH Restante / Tendência" VerticalAlignment="Center" FontSize="12"/>
-                        </StackPanel>
+                        <Rectangle Width="28" Height="4" Fill="#E65100" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="HH Duração (Atual + Restante)" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="12"/>
                         <TextBlock x:Name="CurveSummary" VerticalAlignment="Center"
                                    FontSize="12" Foreground="#555" FontStyle="Italic"/>
                     </StackPanel>
@@ -57,7 +52,7 @@
                                 <StackPanel>
                                     <TextBlock x:Name="TooltipSprint" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,2"/>
                                     <TextBlock x:Name="TooltipPlanned" FontSize="11" Foreground="#1F4EA1"/>
-                                    <TextBlock x:Name="TooltipActual"  FontSize="11" Foreground="#2E7D32"/>
+                                    <TextBlock x:Name="TooltipActual"  FontSize="11" Foreground="#E65100"/>
                                     <TextBlock x:Name="TooltipGap"     FontSize="11" Foreground="#B23600"/>
                                 </StackPanel>
                             </Border>

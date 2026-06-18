@@ -1798,7 +1798,6 @@ namespace NXProject.Views
                     SyncVersionFieldName = opts.SyncVersionFieldName,
                     SyncNameFieldName    = opts.SyncNameFieldName,
                     FixedStartTagName    = opts.FixedStartTagName,
-                    FixedFinishTagName   = opts.FixedFinishTagName,
                     SyncPredecessorLinks = false,
                     FutureSprintDays     = 0
                 };

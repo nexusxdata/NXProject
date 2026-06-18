@@ -127,6 +127,7 @@ namespace NXProject.Services
             if (startRef != null) requestedFields.Add(startRef);
             if (finishRef != null) requestedFields.Add(finishRef);
             if (percAlocRef != null) requestedFields.Add(percAlocRef);
+            if (percConclusaoRef != null && !requestedFields.Contains(percConclusaoRef)) requestedFields.Add(percConclusaoRef);
             if (tipoCentroCustoRef != null) requestedFields.Add(tipoCentroCustoRef);
             if (realizedHoursRef   != null) requestedFields.Add(realizedHoursRef);
             if (syncVersionRef != null) requestedFields.Add(syncVersionRef);
@@ -198,8 +199,7 @@ namespace NXProject.Services
                 ParentByChild = parentByChild,
                 Project = project,
                 ResourcesByKey = resourcesByKey,
-                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
-                FixedFinishTagName = string.IsNullOrWhiteSpace(options.FixedFinishTagName) ? "DT_FIM_NEG" : options.FixedFinishTagName.Trim()
+                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim()
             };
 
             // Filhos diretos do raiz viram ramos do cronograma quando forem
@@ -457,13 +457,23 @@ namespace NXProject.Services
                         var tfsVersion = (int)(ReadDouble(wi, syncVersionRef) ?? 0);
                         if (tfsVersion > task.SyncVersion.Value)
                         {
-                            task.HasSyncConflict = true;
-                            report.Conflicts++;
-                            var whoSaved = ReadString(wi, syncNameRef);
-                            var by = string.IsNullOrWhiteSpace(whoSaved) ? "" : $" (por {whoSaved})";
-                            report.LogError($"⚠ CONFLITO #{task.TfsId} — {task.Name}: versão TFS={tfsVersion} > local={task.SyncVersion.Value}{by}. Alterações descartadas — reimporte para atualizar.");
-                            report.Skipped++;
-                            continue;
+                            var whoSaved = ReadSyncUserName(wi, syncNameRef);
+                            if (IsCurrentSyncUser(whoSaved))
+                            {
+                                var previousLocalVersion = task.SyncVersion.Value;
+                                task.SyncVersion = tfsVersion;
+                                task.HasSyncConflict = false;
+                                report.LogWarning($"#{task.TfsId} — {task.Name}: versão TFS={tfsVersion} > local={previousLocalVersion}, mas a última gravação foi do usuário atual ({whoSaved}); sincronização liberada.");
+                            }
+                            else
+                            {
+                                task.HasSyncConflict = true;
+                                report.Conflicts++;
+                                var by = string.IsNullOrWhiteSpace(whoSaved) ? "" : $" (por {whoSaved})";
+                                report.LogError($"⚠ CONFLITO #{task.TfsId} — {task.Name}: versão TFS={tfsVersion} > local={task.SyncVersion.Value}{by}. Alterações descartadas — reimporte para atualizar.");
+                                report.Skipped++;
+                                continue;
+                            }
                         }
                     }
 
@@ -630,8 +640,9 @@ namespace NXProject.Services
                     // Tag de data fixada: presente quando StartFixed (📌), ausente quando calculado.
                     {
                         var fixedTag = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
+                        var fixedTagAliases = GetFixedStartTagAliases(fixedTag);
                         var currentTags = wi.Tags ?? string.Empty;
-                        bool hasFixedTagNow = HasTag(currentTags, fixedTag);
+                        bool hasFixedTagNow = fixedTagAliases.Any(tag => HasTag(currentTags, tag));
                         if (task.StartFixed && !hasFixedTagNow)
                         {
                             var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedTag).Trim().TrimStart(';').Trim();
@@ -642,9 +653,15 @@ namespace NXProject.Services
                         {
                             var parts = currentTags
                                 .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                .Where(t => !string.Equals(t, fixedTag, StringComparison.OrdinalIgnoreCase));
+                                .Where(t => !fixedTagAliases.Any(tag => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)));
                             ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
-                            changes.Add($"tag: -{fixedTag}");
+                            changes.Add($"tag: -{string.Join("/", fixedTagAliases)}");
+
+                            if (startRef != null && ReadDate(wi, startRef) != null)
+                            {
+                                ops.Add(PatchRemove($"/fields/{startRef}"));
+                                changes.Add("início negociado removido");
+                            }
                         }
                     }
 
@@ -1184,6 +1201,9 @@ namespace NXProject.Services
         private static object PatchAdd(string path, object? value) =>
             new { op = "add", path, value = value ?? string.Empty };
 
+        private static object PatchRemove(string path) =>
+            new { op = "remove", path };
+
         private static string[] SplitTags(string? tags) =>
             string.IsNullOrWhiteSpace(tags)
                 ? Array.Empty<string>()
@@ -1272,7 +1292,6 @@ namespace NXProject.Services
             // sprint a faz escorregar para a janela da nova sprint.
             public Dictionary<string, DateTime> CursorByLane = new();
             public string FixedStartTagName = "DT-INI-NEG";
-            public string FixedFinishTagName = "DT_FIM_NEG";
             public ImportReport Report = new();
 
             public DateTime? GetSprintStart(string? iterationPath)
@@ -1410,7 +1429,8 @@ namespace NXProject.Services
                 ? cursor
                 : sprintStart;
 
-            bool hasFixedTag = HasTag(item.Tags, ctx.FixedStartTagName);
+            bool hasFixedTag = GetFixedStartTagAliases(ctx.FixedStartTagName)
+                .Any(tag => HasTag(item.Tags, tag));
             DateTime start = (hasFixedTag && explicitStart != null) ? explicitStart.Value : baseStart;
             // HH Atual lido diretamente para usar no cálculo de duração total.
             var currentHoursRaw = ctx.CurrentHoursRef != null && ReadDouble(item, ctx.CurrentHoursRef) is { } rh2 && rh2 > 0 ? rh2 : (double?)null;
@@ -1436,6 +1456,12 @@ namespace NXProject.Services
             // proximas se sobreporiam).
             ctx.CursorByLane[laneKey] = finish > baseStart ? finish : baseStart;
 
+            var effectiveState = stateFixedToActive ? "Active" : item.State;
+            var percentComplete =
+                ctx.PercConclusaoRef != null && ReadDouble(item, ctx.PercConclusaoRef) is { } pc && pc >= 0 && pc <= 100
+                    ? pc
+                    : StateToPercent(effectiveState);
+
             var task = new ProjectTask
             {
                 Id = item.Id,
@@ -1447,14 +1473,11 @@ namespace NXProject.Services
                 Finish = finish,
                 EstimatedHours = hours,
                 OriginalEstimatedHours = ReadDouble(item, ctx.OriginalHoursRef) is { } origH && origH > 0 ? origH : null,
-                PercentComplete = stateFixedToActive ? 0
-                    : ctx.PercConclusaoRef != null && ReadDouble(item, ctx.PercConclusaoRef) is { } pc && pc >= 0 && pc <= 100
-                        ? pc
-                        : StateToPercent(item.State),
+                PercentComplete = percentComplete,
                 TfsId = item.Id,
                 TfsParentId = ctx.GetParent(item.Id),
                 TfsType = item.WorkItemType,
-                TfsState = stateFixedToActive ? "Active" : item.State,
+                TfsState = effectiveState,
                 Description = item.Description,
                 Tags = item.Tags,
                 BlockedByChild = blockedByChild,
@@ -1467,7 +1490,7 @@ namespace NXProject.Services
                 CurrentHours  = ctx.CurrentHoursRef  != null && ReadDouble(item, ctx.CurrentHoursRef)  is { } rh && rh > 0 ? rh : null,
                 SyncVersion = ctx.SyncVersionRef != null ? (int?)ReadDouble(item, ctx.SyncVersionRef).GetValueOrDefault(0) : null,
                 HasSyncConflict = false,
-                Notes = $"TFS #{item.Id} · {item.WorkItemType} · {item.State}"
+                Notes = $"TFS #{item.Id} · {item.WorkItemType} · {effectiveState}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
             };
             AssignResource(ctx, task, item, hours);
@@ -2205,6 +2228,18 @@ namespace NXProject.Services
             tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
 
+        private static string[] GetFixedStartTagAliases(string? configuredTag)
+        {
+            var primary = string.IsNullOrWhiteSpace(configuredTag)
+                ? "DT-INI-NEG"
+                : configuredTag.Trim();
+
+            return new[] { primary, "DT-INI-NEG", "DT_INI_NEG" }
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
         // Extrai o texto do bloco "Justificativa: <texto>." da descrição do DevOps.
         internal static string? ParseJustificativa(string? description)
         {
@@ -2318,6 +2353,41 @@ namespace NXProject.Services
             if (item.Fields.ValueKind != JsonValueKind.Object) return null;
             if (!item.Fields.TryGetProperty(refName, out var el)) return null;
             return el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
+        }
+
+        private static string? ReadSyncUserName(WorkItem item, string? refName)
+        {
+            if (refName == null) return null;
+            if (item.Fields.ValueKind != JsonValueKind.Object) return null;
+            if (!item.Fields.TryGetProperty(refName, out var el)) return null;
+
+            if (el.ValueKind == JsonValueKind.String)
+                return el.GetString();
+            if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("displayName", out var displayName) &&
+                    displayName.ValueKind == JsonValueKind.String)
+                    return displayName.GetString();
+                if (el.TryGetProperty("uniqueName", out var uniqueName) &&
+                    uniqueName.ValueKind == JsonValueKind.String)
+                    return uniqueName.GetString();
+            }
+
+            return el.ToString();
+        }
+
+        private static bool IsCurrentSyncUser(string? userName)
+        {
+            if (string.IsNullOrWhiteSpace(userName))
+                return false;
+
+            var current = Environment.UserName.Trim();
+            var normalized = userName.Trim();
+            if (string.Equals(normalized, current, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return normalized.Contains($"\"displayName\":\"{current}\"", StringComparison.OrdinalIgnoreCase) ||
+                   normalized.Contains($"\"uniqueName\":\"{current}\"", StringComparison.OrdinalIgnoreCase);
         }
 
         private static DateTime? ReadDate(WorkItem item, string? refName)

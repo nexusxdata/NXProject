@@ -352,6 +352,7 @@ namespace NXProject.ViewModels
                         ? Math.Max(0, value - _task.CurrentHours.Value)
                         : value;
                     _task.EstimatedHours = remaining;
+                    SyncAssignmentEstimatedHours(remaining);
                     var totalH = _task.CurrentHours is > 0 ? _task.CurrentHours.Value + remaining : remaining;
                     if (!_task.FinishFixed)
                         _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
@@ -546,6 +547,7 @@ namespace NXProject.ViewModels
                             : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish)));
                     _task.CurrentHours   = null;
                     _task.EstimatedHours = originalH > 0 ? originalH : _task.EstimatedHours;
+                    SyncAssignmentEstimatedHours(_task.EstimatedHours ?? 0);
                     OnPropertyChanged(nameof(CurrentHours));
                     OnPropertyChanged(nameof(CurrentHoursDisplay));
                     OnPropertyChanged(nameof(EstimatedHoursDisplay));
@@ -582,6 +584,7 @@ namespace NXProject.ViewModels
                     var newRemainingH = Math.Round(Math.Max(0, totalH - newCurrentH), 2);
                     _task.CurrentHours   = newCurrentH > 0 ? newCurrentH : null;
                     _task.EstimatedHours = newRemainingH > 0 ? newRemainingH : 0;
+                    SyncAssignmentEstimatedHours(_task.EstimatedHours ?? 0);
                     OnPropertyChanged(nameof(CurrentHours));
                     OnPropertyChanged(nameof(CurrentHoursDisplay));
                     OnPropertyChanged(nameof(EstimatedHoursDisplay));
@@ -674,6 +677,34 @@ namespace NXProject.ViewModels
             OnPropertyChanged(nameof(EstimatedHoursDisplay));
             OnPropertyChanged(nameof(CurrentHoursDisplay));
             RefreshOriginalEstimatedHoursProperties();
+        }
+
+        private void SyncAssignmentEstimatedHours(double remainingHours)
+        {
+            if (_task.Resources.Count == 0)
+                return;
+
+            remainingHours = Math.Max(0, Math.Round(remainingHours, 2));
+            if (_task.Resources.Count == 1)
+            {
+                _task.Resources[0].EstimatedHours = remainingHours;
+                return;
+            }
+
+            var existingTotal = _task.Resources
+                .Where(r => r.EstimatedHours is > 0)
+                .Sum(r => r.EstimatedHours!.Value);
+            var allocationTotal = _task.Resources
+                .Sum(r => Math.Max(0.0, TaskScheduleService.NormalizeAllocationPercent(r.AllocationPercent)));
+
+            foreach (var resource in _task.Resources)
+            {
+                var weight = existingTotal > 0
+                    ? Math.Max(0.0, resource.EstimatedHours ?? 0) / existingTotal
+                    : Math.Max(0.0, TaskScheduleService.NormalizeAllocationPercent(resource.AllocationPercent)) /
+                      Math.Max(0.01, allocationTotal);
+                resource.EstimatedHours = Math.Round(remainingHours * weight, 2);
+            }
         }
 
         private void RefreshOriginalEstimatedHoursProperties()

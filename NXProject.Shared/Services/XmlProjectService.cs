@@ -112,6 +112,7 @@ namespace NXProject.Services
 
         private static void SaveTaskRecursive(XElement parent, ProjectTask task)
         {
+            var percentComplete = CalculateSerializablePercentComplete(task);
             var el = new XElement(NS + "Task",
                 new XElement(NS + "UID", task.Id),
                 new XElement(NS + "Name", task.Name),
@@ -120,7 +121,7 @@ namespace NXProject.Services
                 new XElement(NS + "IsMilestone", task.IsMilestone),
                 new XElement(NS + "Start", task.Start.ToString("yyyy-MM-ddTHH:mm:ss")),
                 new XElement(NS + "Finish", task.Finish.ToString("yyyy-MM-ddTHH:mm:ss")),
-                new XElement(NS + "PercentComplete", task.PercentComplete),
+                new XElement(NS + "PercentComplete", percentComplete),
                 new XElement(NS + "SprintNumber", task.SprintNumber),
                 new XElement(NS + "Notes", task.Notes ?? ""),
                 new XElement(NS + "SfpPoints", task.SfpPoints ?? 0),
@@ -154,10 +155,11 @@ namespace NXProject.Services
             var assignments = new XElement(NS + "Assignments");
             foreach (var tr in task.Resources)
             {
+                var assignmentHours = GetSerializableAssignmentEstimatedHours(task, tr);
                 assignments.Add(new XElement(NS + "Assignment",
                     new XElement(NS + "ResourceUID", tr.ResourceId),
                     new XElement(NS + "AllocationPercent", tr.AllocationPercent),
-                    new XElement(NS + "EstimatedHours", tr.EstimatedHours ?? 0)
+                    new XElement(NS + "EstimatedHours", assignmentHours ?? 0)
                 ));
             }
             el.Add(assignments);
@@ -167,6 +169,46 @@ namespace NXProject.Services
                 SaveTaskRecursive(el, child);
 
             parent.Add(el);
+        }
+
+        private static double CalculateSerializablePercentComplete(ProjectTask task)
+        {
+            if (task.Children.Count == 0)
+                return task.PercentComplete;
+
+            double totalWeight = 0.0;
+            double weightedPercent = 0.0;
+            foreach (var child in task.Children)
+            {
+                var weight = Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
+                weightedPercent += CalculateSerializablePercentComplete(child) * weight;
+                totalWeight += weight;
+            }
+
+            return totalWeight > 0
+                ? weightedPercent / totalWeight
+                : task.Children.Average(c => c.PercentComplete);
+        }
+
+        private static double? GetSerializableAssignmentEstimatedHours(ProjectTask task, TaskResource assignment)
+        {
+            if (!(task.EstimatedHours is > 0))
+                return assignment.EstimatedHours;
+
+            if (task.Resources.Count == 1)
+                return task.EstimatedHours.Value;
+
+            var assignmentTotal = task.Resources
+                .Where(r => r.EstimatedHours is > 0)
+                .Sum(r => r.EstimatedHours!.Value);
+            if (assignmentTotal <= 0)
+                return assignment.EstimatedHours;
+
+            if (Math.Abs(assignmentTotal - task.EstimatedHours.Value) <= 0.01)
+                return assignment.EstimatedHours;
+
+            var assignmentHours = Math.Max(0, assignment.EstimatedHours ?? 0);
+            return Math.Round(assignmentHours / assignmentTotal * task.EstimatedHours.Value, 2);
         }
 
         // ── Load ─────────────────────────────────────────────────────────────
@@ -184,9 +226,9 @@ namespace NXProject.Services
                 SprintDurationDays = int.TryParse(root.Element(NS + "SprintDurationDays")?.Value, out var sd) ? sd : 14,
                 FirstSprintNumber = int.TryParse(root.Element(NS + "FirstSprintNumber")?.Value, out var fsn) ? fsn : 1,
                 SprintNumberingMode = root.Element(NS + "SprintNumberingMode")?.Value ?? "Sequencial",
-                LowDaysPerSfp = double.TryParse(root.Element(NS + "LowDaysPerSfp")?.Value, out var ldps) ? ldps : 1.0,
-                MediumDaysPerSfp = double.TryParse(root.Element(NS + "MediumDaysPerSfp")?.Value, out var mdps) ? mdps : 1.0,
-                HighDaysPerSfp = double.TryParse(root.Element(NS + "HighDaysPerSfp")?.Value, out var hdps) ? hdps : 1.0,
+                LowDaysPerSfp = ParseDouble(root.Element(NS + "LowDaysPerSfp")?.Value) ?? 1.0,
+                MediumDaysPerSfp = ParseDouble(root.Element(NS + "MediumDaysPerSfp")?.Value) ?? 1.0,
+                HighDaysPerSfp = ParseDouble(root.Element(NS + "HighDaysPerSfp")?.Value) ?? 1.0,
                 ShowOriginalHoursColumn = bool.TryParse(root.Element(NS + "ShowOriginalHoursColumn")?.Value, out var sohc) && sohc,
                 HiddenColumns = root.Element(NS + "HiddenColumns")?.Value ?? "",
                 HiddenColumnsExpanded = root.Element(NS + "HiddenColumnsExpanded")?.Value ?? "",
@@ -264,9 +306,9 @@ namespace NXProject.Services
                 SprintDurationDays = int.TryParse(sprintSettings.Element(EXT + "SprintDurationDays")?.Value, out var durationDays) ? durationDays : 14,
                 FirstSprintNumber = int.TryParse(sprintSettings.Element(EXT + "FirstSprintNumber")?.Value, out var firstSprintNumber) ? firstSprintNumber : 1,
                 SprintNumberingMode = sprintSettings.Element(EXT + "SprintNumberingMode")?.Value ?? "Sequencial",
-                LowDaysPerSfp = double.TryParse(sprintSettings.Element(EXT + "LowDaysPerSfp")?.Value, out var lowDays) ? lowDays : 1.0,
-                MediumDaysPerSfp = double.TryParse(sprintSettings.Element(EXT + "MediumDaysPerSfp")?.Value, out var mediumDays) ? mediumDays : 1.0,
-                HighDaysPerSfp = double.TryParse(sprintSettings.Element(EXT + "HighDaysPerSfp")?.Value, out var highDays) ? highDays : 1.0
+                LowDaysPerSfp = ParseDouble(sprintSettings.Element(EXT + "LowDaysPerSfp")?.Value) ?? 1.0,
+                MediumDaysPerSfp = ParseDouble(sprintSettings.Element(EXT + "MediumDaysPerSfp")?.Value) ?? 1.0,
+                HighDaysPerSfp = ParseDouble(sprintSettings.Element(EXT + "HighDaysPerSfp")?.Value) ?? 1.0
             };
         }
 
@@ -275,8 +317,8 @@ namespace NXProject.Services
             Id = int.TryParse(el.Element(NS + "UID")?.Value, out var id) ? id : 0,
             Name = el.Element(NS + "Name")?.Value ?? "",
             Type = Enum.TryParse<ResourceType>(el.Element(NS + "Type")?.Value, out var rt) ? rt : ResourceType.Work,
-            MaxUnitsPerDay = double.TryParse(el.Element(NS + "MaxUnitsPerDay")?.Value, out var mu) ? mu : 8,
-            CostPerHour = decimal.TryParse(el.Element(NS + "CostPerHour")?.Value, out var cp) ? cp : 0,
+            MaxUnitsPerDay = ParseDouble(el.Element(NS + "MaxUnitsPerDay")?.Value) ?? 8,
+            CostPerHour = ParseDecimal(el.Element(NS + "CostPerHour")?.Value) ?? 0,
             Email = el.Element(NS + "Email")?.Value,
             Notes = el.Element(NS + "Notes")?.Value,
             IsImportedFromTfs = bool.TryParse(el.Element(EXT + "IsImportedFromTfs")?.Value, out var importedFromTfs) && importedFromTfs
@@ -293,15 +335,13 @@ namespace NXProject.Services
                 IsMilestone = bool.TryParse(el.Element(NS + "IsMilestone")?.Value, out var ism) && ism,
                 Start = ParseDate(el.Element(NS + "Start")?.Value) ?? DateTime.Today,
                 Finish = ParseDate(el.Element(NS + "Finish")?.Value) ?? DateTime.Today.AddDays(1),
-                PercentComplete = double.TryParse(el.Element(NS + "PercentComplete")?.Value, out var pc) ? pc : 0,
+                PercentComplete = ParseDouble(el.Element(NS + "PercentComplete")?.Value) ?? 0,
                 SprintNumber = int.TryParse(el.Element(NS + "SprintNumber")?.Value, out var sn) ? sn : 0,
                 Notes = el.Element(NS + "Notes")?.Value,
-                SfpPoints = double.TryParse(el.Element(NS + "SfpPoints")?.Value, out var sfp) ? sfp : null,
-                EstimatedHours = double.TryParse(el.Element(NS + "EstimatedHours")?.Value, out var eh) ? eh : null,
-                OriginalEstimatedHours = double.TryParse(el.Element(EXT + "OriginalEstimatedHours")?.Value, out var oeh) && oeh > 0 ? oeh : null,
-                CurrentHours = double.TryParse(
-                    (el.Element(EXT + "CurrentHours") ?? el.Element(EXT + "RealizedHours"))?.Value,
-                    out var rh) && rh > 0 ? rh : null,
+                SfpPoints = ParseDouble(el.Element(NS + "SfpPoints")?.Value),
+                EstimatedHours = ParseDouble(el.Element(NS + "EstimatedHours")?.Value),
+                OriginalEstimatedHours = ParseDouble(el.Element(EXT + "OriginalEstimatedHours")?.Value) is { } oeh && oeh > 0 ? oeh : null,
+                CurrentHours = ParseDouble((el.Element(EXT + "CurrentHours") ?? el.Element(EXT + "RealizedHours"))?.Value) is { } rh && rh > 0 ? rh : null,
                 UseOriginalHoursView = bool.TryParse(el.Element(EXT + "UseOriginalHoursView")?.Value, out var uohv) && uohv,
                 TfsId = int.TryParse(el.Element(EXT + "TfsId")?.Value, out var tfsId) ? tfsId : null,
                 TfsParentId = int.TryParse(el.Element(EXT + "TfsParentId")?.Value, out var tfsPid) ? tfsPid : null,
@@ -310,7 +350,7 @@ namespace NXProject.Services
                 TipoCentroCusto = string.IsNullOrWhiteSpace(el.Element(EXT + "TipoCentroCusto")?.Value) ? null : el.Element(EXT + "TipoCentroCusto")?.Value,
                 Tags = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsTags")?.Value) ? null : el.Element(EXT + "TfsTags")?.Value,
                 BlockedByChild = bool.TryParse(el.Element(EXT + "BlockedByChild")?.Value, out var bbc) && bbc,
-                TfsStackRank = double.TryParse(el.Element(EXT + "TfsStackRank")?.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tsr) ? tsr : null,
+                TfsStackRank = ParseDouble(el.Element(EXT + "TfsStackRank")?.Value),
                 TfsIterationPath = string.IsNullOrWhiteSpace(el.Element(EXT + "TfsIterationPath")?.Value) ? null : el.Element(EXT + "TfsIterationPath")?.Value,
                 Description = string.IsNullOrWhiteSpace(el.Element(EXT + "Description")?.Value) ? null : el.Element(EXT + "Description")?.Value,
                 SyncVersion = int.TryParse(el.Element(EXT + "SyncVersion")?.Value, out var sv) ? sv : null,
@@ -334,8 +374,8 @@ namespace NXProject.Services
                     task.Resources.Add(new TaskResource
                     {
                         ResourceId = int.TryParse(a.Element(NS + "ResourceUID")?.Value, out var rid) ? rid : 0,
-                        AllocationPercent = double.TryParse(a.Element(NS + "AllocationPercent")?.Value, out var ap) ? ap : 100,
-                        EstimatedHours = double.TryParse(a.Element(NS + "EstimatedHours")?.Value, out var teh) ? teh : null
+                        AllocationPercent = ParseDouble(a.Element(NS + "AllocationPercent")?.Value) ?? 100,
+                        EstimatedHours = ParseDouble(a.Element(NS + "EstimatedHours")?.Value)
                     });
 
             // Filhos recursivos
@@ -349,6 +389,46 @@ namespace NXProject.Services
         {
             if (string.IsNullOrEmpty(value)) return null;
             return DateTime.TryParse(value, out var dt) ? dt : null;
+        }
+
+        private static double? ParseDouble(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return double.TryParse(
+                    value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var invariant)
+                ? invariant
+                : double.TryParse(
+                    value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    out var current)
+                    ? current
+                    : null;
+        }
+
+        private static decimal? ParseDecimal(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return decimal.TryParse(
+                    value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var invariant)
+                ? invariant
+                : decimal.TryParse(
+                    value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    out var current)
+                    ? current
+                    : null;
         }
     }
 }

@@ -467,6 +467,9 @@ namespace NXProject.Views
             if (!ConfirmKnownTfsResources(vm))
                 return;
 
+            if (!ConfirmInitialLoadCompletedHours(vm))
+                return;
+
             if (!ConfirmCompletedTfsState(vm))
                 return;
 
@@ -548,6 +551,63 @@ namespace NXProject.Views
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return false;
+        }
+
+        private static bool ConfirmInitialLoadCompletedHours(MainViewModel vm)
+        {
+            var candidates = vm.FlatTasks
+                .Where(t => t.Model.TfsId.HasValue
+                            && t.Model.TfsId.Value > 0
+                            && t.Model.Children.Count == 0
+                            && t.Model.PercentComplete >= 100
+                            && !(t.Model.CurrentHours is > 0)
+                            && t.Model.OriginalEstimatedHours is > 0)
+                .ToList();
+
+            if (candidates.Count == 0)
+                return true;
+
+            var sample = string.Join(Environment.NewLine,
+                candidates
+                    .Take(8)
+                    .Select(t => $"- #{t.Model.TfsId}: {t.Model.Name} (HH Original {t.Model.OriginalEstimatedHours:0.##}h)"));
+            var suffix = candidates.Count > 8
+                ? $"{Environment.NewLine}- ... e mais {candidates.Count - 8}"
+                : string.Empty;
+
+            var decision = MessageBox.Show(
+                "Existem atividades 100% concluídas com HH Atual vazio/zero. Isso parece uma carga inicial já concluída."
+                + Environment.NewLine + Environment.NewLine
+                + sample + suffix
+                + Environment.NewLine + Environment.NewLine
+                + "Sim = definir HH Atual = HH Original e HH Restante = 0 antes de sincronizar."
+                + Environment.NewLine
+                + "Não = sincronizar mantendo os valores atuais."
+                + Environment.NewLine
+                + "Cancelar = não sincronizar.",
+                "Sincronizar TFS/DevOps",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Warning);
+
+            if (decision == MessageBoxResult.Cancel)
+                return false;
+
+            if (decision == MessageBoxResult.Yes)
+            {
+                foreach (var task in candidates)
+                {
+                    var originalHours = task.Model.OriginalEstimatedHours!.Value;
+                    task.Model.CurrentHours = originalHours;
+                    task.Model.EstimatedHours = 0;
+                    foreach (var assignment in task.Model.Resources)
+                        assignment.EstimatedHours = 0;
+                    task.RefreshDerivedDisplayProperties();
+                }
+
+                vm.Project.IsDirty = true;
+            }
+
+            return true;
         }
 
         private static bool ConfirmCompletedTfsState(MainViewModel vm)

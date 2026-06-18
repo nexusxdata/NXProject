@@ -8,14 +8,22 @@ namespace NXProject.Views
     {
         public double? MinPercent { get; private set; }
         public double? MaxPercent { get; private set; }
+        public string? DateFilterMode { get; private set; }
+        public DateTime? ReferenceDate { get; private set; }
 
-        public PercentCompleteFilterWindow(double? minPercent, double? maxPercent)
+        public PercentCompleteFilterWindow(
+            double? minPercent,
+            double? maxPercent,
+            string? dateFilterMode = null,
+            DateTime? referenceDate = null)
         {
             InitializeComponent();
 
             MinBox.Text = FormatPercent(minPercent);
             MaxBox.Text = FormatPercent(maxPercent);
+            ReferenceDateBox.Text = (referenceDate ?? DateTime.Today).ToString("d", CultureInfo.CurrentCulture);
             ActiveOnlyCheck.IsChecked = !minPercent.HasValue && maxPercent == 99;
+            ApplyDateFilterMode(dateFilterMode);
             ApplyActiveOnlyState();
         }
 
@@ -55,6 +63,8 @@ namespace NXProject.Views
         {
             MinPercent = null;
             MaxPercent = null;
+            DateFilterMode = null;
+            ReferenceDate = null;
             DialogResult = true;
         }
 
@@ -64,8 +74,13 @@ namespace NXProject.Views
 
             if (ActiveOnlyCheck.IsChecked == true)
             {
+                if (!TryReadDateFilter(out var dateMode, out var referenceDate))
+                    return;
+
                 MinPercent = null;
                 MaxPercent = 99;
+                DateFilterMode = dateMode;
+                ReferenceDate = referenceDate;
                 DialogResult = true;
                 return;
             }
@@ -84,6 +99,11 @@ namespace NXProject.Views
 
             MinPercent = min;
             MaxPercent = max;
+            if (!TryReadDateFilter(out var selectedDateMode, out var selectedReferenceDate))
+                return;
+
+            DateFilterMode = selectedDateMode;
+            ReferenceDate = selectedReferenceDate;
             DialogResult = true;
         }
 
@@ -104,6 +124,45 @@ namespace NXProject.Views
                 MinBox.IsEnabled = true;
                 MaxBox.IsEnabled = true;
             }
+        }
+
+        private void ApplyDateFilterMode(string? mode)
+        {
+            DateAnyRadio.IsChecked = true;
+            if (mode is "StartDate" or "StartToday")
+                DateStartTodayRadio.IsChecked = true;
+            else if (mode is "FinishDate" or "FinishToday")
+                DateFinishTodayRadio.IsChecked = true;
+        }
+
+        private string? ReadDateFilterMode()
+        {
+            if (DateStartTodayRadio.IsChecked == true)
+                return "StartDate";
+            if (DateFinishTodayRadio.IsChecked == true)
+                return "FinishDate";
+            return null;
+        }
+
+        private bool TryReadDateFilter(out string? dateMode, out DateTime? referenceDate)
+        {
+            dateMode = ReadDateFilterMode();
+            referenceDate = null;
+
+            if (dateMode == null)
+                return true;
+
+            var text = ReferenceDateBox.Text?.Trim();
+            if (!DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out var parsed))
+            {
+                ErrorText.Text = "Data de referência: informe uma data válida.";
+                ReferenceDateBox.Focus();
+                ReferenceDateBox.SelectAll();
+                return false;
+            }
+
+            referenceDate = parsed.Date;
+            return true;
         }
     }
 }

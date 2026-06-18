@@ -14,6 +14,8 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
@@ -55,13 +57,38 @@
                   Checked="OnActiveOnlyChanged"
                   Unchecked="OnActiveOnlyChanged"/>
 
-        <TextBlock Grid.Row="3"
+        <GroupBox Grid.Row="3"
+                  Header="Data de referência"
+                  Margin="0,2,0,8"
+                  Padding="8,6">
+            <StackPanel>
+                <TextBox x:Name="ReferenceDateBox"
+                         Height="28"
+                         Padding="8,3"
+                         VerticalContentAlignment="Center"
+                         Margin="0,0,0,8"/>
+                <RadioButton x:Name="DateAnyRadio"
+                             Content="Não filtrar por data"
+                             GroupName="DateFilter"
+                             IsChecked="True"
+                             Margin="0,0,0,4"/>
+                <RadioButton x:Name="DateStartTodayRadio"
+                             Content="Início maior que a data de referência"
+                             GroupName="DateFilter"
+                             Margin="0,0,0,4"/>
+                <RadioButton x:Name="DateFinishTodayRadio"
+                             Content="Encerramento menor que a data de referência"
+                             GroupName="DateFilter"/>
+            </StackPanel>
+        </GroupBox>
+
+        <TextBlock Grid.Row="4"
                    x:Name="ErrorText"
                    Foreground="#B00020"
                    FontSize="11"
                    TextWrapping="Wrap"/>
 
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Limpar" Width="80" Height="30" Margin="0,0,8,0" Click="OnClearClick"/>
             <Button Content="Cancelar" Width="90" Height="30" Margin="0,0,8,0" IsCancel="True"/>
             <Button Content="Aplicar" Width="90" Height="30" IsDefault="True" Click="OnApplyClick"/>

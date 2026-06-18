@@ -82,9 +82,6 @@ namespace NXProject.Services
         /// <summary>Tag DevOps que marca data de início fixada/negociada (ex.: "DT-INI-NEG").</summary>
         public string FixedStartTagName { get; set; } = "DT-INI-NEG";
 
-        /// <summary>Tag DevOps que marca data de fim fixada/comprometida (ex.: "DT_FIM_NEG").</summary>
-        public string FixedFinishTagName { get; set; } = "DT_FIM_NEG";
-
         /// <summary>Sincroniza links de predecessora no DevOps durante Export → Sincronizar.</summary>
         public bool SyncPredecessorLinks { get; set; } = true;
 
@@ -145,7 +142,6 @@ namespace NXProject.Services
             public string SyncVersionFieldName { get; set; } = "Sync_version";
             public string SyncNameFieldName { get; set; } = "Sync_Name";
             public string FixedStartTagName { get; set; } = "DT-INI-NEG";
-            public string FixedFinishTagName { get; set; } = "DT_FIM_NEG";
             public bool SyncPredecessorLinks { get; set; } = true;
             public int FutureSprintDays { get; set; } = 90;
             public bool RememberToken { get; set; }
@@ -200,8 +196,6 @@ namespace NXProject.Services
                     ? options.SyncNameFieldName : stored.SyncNameFieldName.Trim();
                 options.FixedStartTagName = string.IsNullOrWhiteSpace(stored.FixedStartTagName)
                     ? options.FixedStartTagName : stored.FixedStartTagName.Trim();
-                options.FixedFinishTagName = string.IsNullOrWhiteSpace(stored.FixedFinishTagName)
-                    ? options.FixedFinishTagName : stored.FixedFinishTagName.Trim();
                 options.SyncPredecessorLinks = stored.SyncPredecessorLinks;
                 options.FutureSprintDays = stored.FutureSprintDays >= 0 ? stored.FutureSprintDays : 90;
                 if (stored.RememberToken)
@@ -242,7 +236,6 @@ namespace NXProject.Services
                 SyncVersionFieldName = string.IsNullOrWhiteSpace(options.SyncVersionFieldName) ? "Sync_version" : options.SyncVersionFieldName.Trim(),
                 SyncNameFieldName = string.IsNullOrWhiteSpace(options.SyncNameFieldName) ? "Sync_Name" : options.SyncNameFieldName.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
-                FixedFinishTagName = string.IsNullOrWhiteSpace(options.FixedFinishTagName) ? "DT_FIM_NEG" : options.FixedFinishTagName.Trim(),
                 SyncPredecessorLinks = options.SyncPredecessorLinks,
                 FutureSprintDays = options.FutureSprintDays,
                 RememberToken = rememberToken,

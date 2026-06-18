@@ -22,8 +22,6 @@ namespace NXProject.Views
 
         // Dados pré-calculados para tooltip da curva
         private List<SprintPoint>? _curvePoints;
-        // Pontos de tendência projetada (X relativo ao índice base, Y = % projetado)
-        private List<(double X, double Y)>? _projPoints;
         private readonly double _chartLeft   = 64;
         private readonly double _chartTop    = 20;
         private readonly double _chartRight  = 24;
@@ -323,7 +321,7 @@ namespace NXProject.Views
             int SprintNumber,
             string Label,
             double PlannedPct,   // % acumulado de HH Original
-            double ActualPct,    // % acumulado de HH Realizado (past) ou HH Restante acumulado (future)
+            double ActualPct,    // % acumulado de HH Duração (HH Atual + HH Restante)
             bool IsFuture,
             bool IsCurrent);
 
@@ -368,9 +366,6 @@ namespace NXProject.Views
             var points = BuildCurvePoints(sprints, tasksWithSprint, totalOriginalHours, currentSprintNumber);
             _curvePoints = points;
 
-            var (projPoints, projEndLabel) = BuildProjection(points, sprints);
-            _projPoints = projPoints;
-
             var pl = _chartLeft; var pt = _chartTop;
             var pr = w - _chartRight; var pb = h - _chartBottom;
             var pw = pr - pl; var ph = pb - pt;
@@ -378,54 +373,29 @@ namespace NXProject.Views
             DrawGridAndAxes(pl, pt, pr, pb, pw, ph, points);
             DrawCurrentSprintMarker(pl, pt, pb, pw, points, currentSprintNumber);
 
+            var plannedLine = points.Select(p => ToCanvasPoint(p.SprintNumber - points[0].SprintNumber,
+                                                                p.PlannedPct, points.Count, pl, pt, pw, ph)).ToList();
+            var durationLine = points.Select(p => ToCanvasPoint(p.SprintNumber - points[0].SprintNumber,
+                                                                 p.ActualPct, points.Count, pl, pt, pw, ph)).ToList();
+            SeparateOverlappingCurvePoints(plannedLine, durationLine, pt, pb);
+
             // Linha azul sólida: HH Original acumulado (baseline planejado)
-            DrawPolyline(points.Select(p => ToCanvasPoint(p.SprintNumber - points[0].SprintNumber,
-                                                           p.PlannedPct, points.Count, pl, pt, pw, ph)).ToList(),
+            DrawPolyline(plannedLine,
                          "#1F4EA1", 2.5, false);
 
-            // Linha pontilhada laranja: HH Atual (passado) + HH Restante (futuro) — deve bater com duração total
-            var lastRealizedPoint = points.LastOrDefault(p => !p.IsFuture);
-            var futurePts = points.Where(p => p.IsFuture).ToList();
-
-            // Segmento passado/atual (sólido laranja escuro)
-            var realizedPts = points.Where(p => !p.IsFuture)
-                                    .Select(p => ToCanvasPoint(p.SprintNumber - points[0].SprintNumber,
-                                                               p.ActualPct, points.Count, pl, pt, pw, ph)).ToList();
-            if (realizedPts.Count > 0)
-                DrawPolyline(realizedPts, "#E65100", 2.5, false);
-
-            // Segmento futuro (tracejado laranja claro) continuando do último ponto realizado
-            if (lastRealizedPoint != null && futurePts.Count > 0)
-            {
-                var remainingLine = new List<(double X, double Y)>
-                {
-                    (lastRealizedPoint.SprintNumber - points[0].SprintNumber, lastRealizedPoint.ActualPct)
-                };
-                remainingLine.AddRange(futurePts.Select(p =>
-                    ((double)(p.SprintNumber - points[0].SprintNumber), p.ActualPct)));
-                DrawPolyline(remainingLine.Select(p => ToCanvasPoint(p.X, p.Y, points.Count, pl, pt, pw, ph)).ToList(),
-                             "#E65100", 2.0, true);
-            }
-
-            // Tendência além das sprints existentes
-            if (projPoints.Count > 1)
-                DrawPolyline(projPoints.Select(p => ToCanvasPoint(p.X, p.Y, points.Count, pl, pt, pw, ph)).ToList(),
-                             "#FF8F00", 1.8, true);
+            // Linha laranja sólida: HH Duração acumulado (HH Atual + HH Restante)
+            DrawPolyline(durationLine,
+                         "#E65100", 2.5, false);
 
             DrawSprintLabels(pl, pb, pw, points);
 
-            if (projPoints.Count > 1)
-            {
-                var lastProj = projPoints[^1];
-                var lp = ToCanvasPoint(lastProj.X, lastProj.Y, points.Count, pl, pt, pw, ph);
-                DrawTrendEndMarker(lp, lastProj.Y);
-            }
-
-            var lastActual = points.LastOrDefault(p => !p.IsFuture);
-            var gap = lastActual != null ? lastActual.PlannedPct - lastActual.ActualPct : 0;
-            CurveSummary.Text = lastActual != null
-                ? $"HH Atual: {lastActual.ActualPct:0.#}%  |  HH Original: {lastActual.PlannedPct:0.#}%  |  " +
-                  $"Gap: {gap:0.#}%{(projEndLabel != null ? $"  |  Conclusão prevista: {projEndLabel}" : "")}"
+            var currentPoint = points.LastOrDefault(p => p.IsCurrent)
+                ?? points.LastOrDefault(p => !p.IsFuture)
+                ?? points.LastOrDefault();
+            var gap = currentPoint != null ? currentPoint.PlannedPct - currentPoint.ActualPct : 0;
+            CurveSummary.Text = currentPoint != null
+                ? $"HH Duração: {currentPoint.ActualPct:0.#}%  |  HH Original: {currentPoint.PlannedPct:0.#}%  |  " +
+                  $"Gap: {gap:0.#}%"
                 : string.Empty;
         }
 
@@ -471,24 +441,9 @@ namespace NXProject.Views
                 var isFuture  = sprint.Number > currentSprintNumber;
                 var isCurrent = sprint.Number == currentSprintNumber;
 
-                if (!isFuture)
-                {
-                    // Passado/atual: acumula HH Atual (trabalho efetivamente realizado).
-                    cumProgress += inSprint.Sum(t =>
-                        t.Model.CurrentHours is > 0
-                            ? t.Model.CurrentHours.Value
-                            : GetTotalHours(t.Model) * t.Model.PercentComplete / 100.0
-                    ) / totalDurationHours * 100.0;
-                }
-                else
-                {
-                    // Futuro: acumula HH Restante (trabalho ainda a executar).
-                    cumProgress += inSprint.Sum(t =>
-                        t.Model.CurrentHours is > 0
-                            ? (t.Model.EstimatedHours ?? 0)
-                            : GetTotalHours(t.Model) * (1.0 - t.Model.PercentComplete / 100.0)
-                    ) / totalDurationHours * 100.0;
-                }
+                // Linha laranja: HH Duração acumulado por sprint.
+                // HH Duração = HH Atual + HH Restante.
+                cumProgress += inSprint.Sum(t => GetTotalHours(t.Model)) / totalDurationHours * 100.0;
 
                 points.Add(new SprintPoint(
                     sprint.Number, sprint.Label,
@@ -516,36 +471,6 @@ namespace NXProject.Views
                 return withDates[0].Number;
             }
             return sprints.Count > 0 ? sprints[sprints.Count / 2].Number : 0;
-        }
-
-        private static (List<(double X, double Y)> Points, string? EndLabel) BuildProjection(
-            List<SprintPoint> points, List<SprintInfo> sprints)
-        {
-            var done = points.Where(p => !p.IsFuture && p.ActualPct > 0).ToList();
-            if (done.Count < 2) return ([], null);
-
-            // Velocidade = média de ganho por sprint nas últimas 3
-            var recent = done.TakeLast(3).ToList();
-            var velocityPerSprint = (recent[^1].ActualPct - recent[0].ActualPct)
-                                    / Math.Max(1, recent.Count - 1);
-            if (velocityPerSprint <= 0) return ([], null);
-
-            var last = done[^1];
-            var sprintsToComplete = (int)Math.Ceiling((100.0 - last.ActualPct) / velocityPerSprint);
-            var endSprint = last.SprintNumber + sprintsToComplete;
-
-            var base0 = points[0].SprintNumber;
-            var result = new List<(double X, double Y)>
-            {
-                (last.SprintNumber - base0, last.ActualPct)
-            };
-            for (int i = 1; i <= sprintsToComplete; i++)
-                result.Add((last.SprintNumber + i - base0,
-                            Math.Min(100, last.ActualPct + velocityPerSprint * i)));
-
-            var endLabel = sprints.FirstOrDefault(s => s.Number == endSprint)?.Label
-                           ?? $"Sprint {endSprint}";
-            return (result, endLabel);
         }
 
         // ── Desenho ──────────────────────────────────────────────────────────
@@ -639,6 +564,30 @@ namespace NXProject.Views
             }
         }
 
+        private static void SeparateOverlappingCurvePoints(
+            List<Point> plannedLine,
+            List<Point> durationLine,
+            double minY,
+            double maxY)
+        {
+            var count = Math.Min(plannedLine.Count, durationLine.Count);
+            const double overlapTolerancePx = 2.0;
+            const double visualOffsetPx = 3.0;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (Math.Abs(plannedLine[i].Y - durationLine[i].Y) > overlapTolerancePx)
+                    continue;
+
+                plannedLine[i] = new Point(
+                    plannedLine[i].X,
+                    Math.Max(minY, plannedLine[i].Y - visualOffsetPx));
+                durationLine[i] = new Point(
+                    durationLine[i].X,
+                    Math.Min(maxY, durationLine[i].Y + visualOffsetPx));
+            }
+        }
+
         private void DrawSprintLabels(double pl, double pb, double pw, List<SprintPoint> points)
         {
             if (points.Count == 0) return;
@@ -660,28 +609,6 @@ namespace NXProject.Views
                 }
                 CurveCanvas.Children.Add(lbl);
             }
-        }
-
-        private void DrawTrendEndMarker(Point pt, double pct)
-        {
-            // Círculo no ponto final da tendência
-            var e = new System.Windows.Shapes.Ellipse
-            {
-                Width = 9, Height = 9,
-                Fill = (Brush)new BrushConverter().ConvertFrom("#2E7D32")!,
-                Stroke = Brushes.White, StrokeThickness = 1.5,
-                Opacity = 0.75
-            };
-            System.Windows.Controls.Canvas.SetLeft(e, pt.X - 4.5);
-            System.Windows.Controls.Canvas.SetTop(e, pt.Y - 4.5);
-            CurveCanvas.Children.Add(e);
-
-            // Rótulo "XX% (tend.)"
-            var lbl = MakeText($"{pct:0.#}%\n(tend.)", 9, "#2E7D32");
-            lbl.Opacity = 0.85;
-            System.Windows.Controls.Canvas.SetLeft(lbl, pt.X + 6);
-            System.Windows.Controls.Canvas.SetTop(lbl, pt.Y - 14);
-            CurveCanvas.Children.Add(lbl);
         }
 
         private void DrawNoDataMessage(string msg)
@@ -802,40 +729,11 @@ namespace NXProject.Views
 
             TooltipSprint.Text = nearest.Label;
             TooltipPlanned.Text = $"HH Original: {nearest.PlannedPct:0.#}%";
-
-            double? trendPct = null;
-            if (_projPoints != null && nearest.IsFuture)
-            {
-                var base0 = _curvePoints![0].SprintNumber;
-                var relX = nearest.SprintNumber - base0;
-                var proj = _projPoints.FirstOrDefault(p => Math.Abs(p.X - relX) < 0.5);
-                if (proj != default) trendPct = proj.Y;
-            }
-
-            if (nearest.IsFuture && trendPct.HasValue)
-            {
-                TooltipActual.Text = $"Restante+Tend.: {trendPct.Value:0.#}%";
-                var tGap = nearest.PlannedPct - trendPct.Value;
-                TooltipGap.Text = tGap > 0.1  ? $"Gap tend.: -{tGap:0.#}% (atraso)"
-                                : tGap < -0.1 ? $"Gap tend.: +{-tGap:0.#}% (adiantado)"
-                                : "Tendência no prazo";
-            }
-            else if (nearest.IsFuture)
-            {
-                TooltipActual.Text = $"HH Restante: {nearest.ActualPct:0.#}% (futuro)";
-                var gap = nearest.PlannedPct - nearest.ActualPct;
-                TooltipGap.Text = gap > 0.1  ? $"Gap: -{gap:0.#}% (atraso)"
-                                : gap < -0.1 ? $"Gap: +{-gap:0.#}% (adiantado)"
-                                : "Restante dentro do planejado";
-            }
-            else
-            {
-                TooltipActual.Text = $"HH Atual: {nearest.ActualPct:0.#}%";
-                var gap = nearest.PlannedPct - nearest.ActualPct;
-                TooltipGap.Text = gap > 0.1  ? $"Gap: -{gap:0.#}% (atraso)"
-                                : gap < -0.1 ? $"Gap: +{-gap:0.#}% (adiantado)"
-                                : "No prazo";
-            }
+            TooltipActual.Text = $"HH Duração: {nearest.ActualPct:0.#}%";
+            var gap = nearest.PlannedPct - nearest.ActualPct;
+            TooltipGap.Text = gap > 0.1  ? $"Gap: -{gap:0.#}%"
+                            : gap < -0.1 ? $"Gap: +{-gap:0.#}%"
+                            : "Sem gap";
 
             CurveTooltip.Visibility = Visibility.Visible;
             var tx = pos.X + 14;
