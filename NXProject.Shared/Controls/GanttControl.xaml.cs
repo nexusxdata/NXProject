@@ -65,8 +65,8 @@ namespace NXProject.Controls
         private const double BarPadding = 4;
         private const double LeftPadding = 16;
         private const double DependencyMargin = 8;
-        private const double MagnifierSize = 168;
-        private const double MagnifierSourceSize = 84;
+        private const double MagnifierSize = 220;
+        private const double MagnifierSourceSize = 110;
         private const double MagnifierOffset = 18;
 
         private bool _renderScheduled;
@@ -83,9 +83,11 @@ namespace NXProject.Controls
             set
             {
                 _magnifierEnabled = value;
-                // Desabilita tooltips dos elementos do canvas enquanto a lupa estiver ativa
-                ToolTipService.SetIsEnabled(GanttCanvas, !value);
-                if (!value) HideMagnifier();
+                SetToolTipsEnabled(GanttCanvas, !value);
+                if (value)
+                    CloseToolTips(GanttCanvas);
+                else
+                    HideMagnifier();
             }
         }
 
@@ -1394,6 +1396,8 @@ namespace NXProject.Controls
             GanttTaskElements.SetTask(element, task);
             element.Tag = allowDrag ? "task-drag" : "task-hit";
             element.ToolTip = BuildTaskToolTip(task);
+            element.ToolTipOpening += OnGanttCanvasToolTipOpening;
+            ToolTipService.SetIsEnabled(element, !_magnifierEnabled);
             ToolTipService.SetShowDuration(element, 30000);
             ToolTipService.SetInitialShowDelay(element, 250);
         }
@@ -1537,14 +1541,17 @@ namespace NXProject.Controls
                 return;
             }
 
+            CloseToolTipFromSource(e.OriginalSource as DependencyObject);
+
             var viewportPosition = e.GetPosition(GanttScroll);
             // Centraliza a lupa no cursor
             var left = Math.Clamp(viewportPosition.X - MagnifierSize / 2.0, 0, Math.Max(0, GanttScroll.ViewportWidth  - MagnifierSize));
             var top  = Math.Clamp(viewportPosition.Y - MagnifierSize / 2.0, 0, Math.Max(0, GanttScroll.ViewportHeight - MagnifierSize));
 
+            // VisualBrush aponta para GanttScroll (viewport), portanto Viewbox em coordenadas da viewport
             MagnifierBrush.Viewbox = new Rect(
-                Math.Max(0, canvasPosition.X - MagnifierSourceSize / 2.0),
-                Math.Max(0, canvasPosition.Y - MagnifierSourceSize / 2.0),
+                Math.Clamp(viewportPosition.X - MagnifierSourceSize / 2.0, 0, Math.Max(0, GanttScroll.ViewportWidth  - MagnifierSourceSize)),
+                Math.Clamp(viewportPosition.Y - MagnifierSourceSize / 2.0, 0, Math.Max(0, GanttScroll.ViewportHeight - MagnifierSourceSize)),
                 MagnifierSourceSize,
                 MagnifierSourceSize);
 
@@ -1554,13 +1561,48 @@ namespace NXProject.Controls
 
         private void OnGanttCanvasToolTipOpening(object sender, ToolTipEventArgs e)
         {
-            if (_magnifierEnabled) e.Handled = true; // info já aparece no label de data
+            if (!_magnifierEnabled)
+                return;
+
+            CloseToolTipFromSource(e.OriginalSource as DependencyObject);
+            e.Handled = true;
         }
 
         private void HideMagnifier()
         {
             if (MagnifierOverlay.Visibility == Visibility.Visible)
                 MagnifierOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private static void SetToolTipsEnabled(DependencyObject root, bool enabled)
+        {
+            ToolTipService.SetIsEnabled(root, enabled);
+
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < childCount; i++)
+                SetToolTipsEnabled(VisualTreeHelper.GetChild(root, i), enabled);
+        }
+
+        private static void CloseToolTips(DependencyObject root)
+        {
+            if (root is FrameworkElement element && element.ToolTip is ToolTip tooltip)
+                tooltip.IsOpen = false;
+
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < childCount; i++)
+                CloseToolTips(VisualTreeHelper.GetChild(root, i));
+        }
+
+        private static void CloseToolTipFromSource(DependencyObject? source)
+        {
+            var current = source;
+            while (current != null)
+            {
+                if (current is FrameworkElement element && element.ToolTip is ToolTip tooltip)
+                    tooltip.IsOpen = false;
+
+                current = VisualTreeHelper.GetParent(current);
+            }
         }
 
         private static TaskViewModel? FindTaskFromVisual(DependencyObject source)

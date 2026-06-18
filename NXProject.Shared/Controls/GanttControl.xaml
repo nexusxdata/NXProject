@@ -50,8 +50,8 @@
 
         <Grid x:Name="MagnifierOverlay"
               Grid.Row="1"
-              Width="168"
-              Height="168"
+              Width="220"
+              Height="220"
               HorizontalAlignment="Left"
               VerticalAlignment="Top"
               IsHitTestVisible="False"
@@ -62,7 +62,7 @@
                      SnapsToDevicePixels="True">
                 <Ellipse.Fill>
                     <VisualBrush x:Name="MagnifierBrush"
-                                 Visual="{Binding ElementName=GanttCanvas}"
+                                 Visual="{Binding ElementName=GanttScroll}"
                                  ViewboxUnits="Absolute"
                                  Stretch="Fill"/>
                 </Ellipse.Fill>
