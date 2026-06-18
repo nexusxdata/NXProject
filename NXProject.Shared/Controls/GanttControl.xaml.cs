@@ -1523,13 +1523,9 @@ namespace NXProject.Controls
 
         private void OnGanttCanvasToolTipOpening(object sender, ToolTipEventArgs e)
         {
-            if (e.Source is not FrameworkElement fe || fe.ToolTip is not ToolTip tt) return;
-
-            // Tooltip sempre fixo no canto superior direito do Gantt
-            tt.PlacementTarget  = GanttScroll;
-            tt.Placement        = System.Windows.Controls.Primitives.PlacementMode.Relative;
-            tt.HorizontalOffset = GanttScroll.ViewportWidth - 230;
-            tt.VerticalOffset   = 8;
+            // Lupa ativa: suprime tooltip para não sobrepor
+            if (_magnifierEnabled)
+                e.Handled = true;
         }
 
         private void HideMagnifier()
