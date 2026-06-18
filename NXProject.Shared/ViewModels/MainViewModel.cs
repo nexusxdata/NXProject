@@ -879,6 +879,9 @@ namespace NXProject.ViewModels
 
         private void CascadeVirtualSiblings(TaskViewModel changed, System.Collections.Generic.HashSet<int> visited, System.Collections.Generic.Queue<int> queue)
         {
+            if (changed.IsSummary)
+                return;
+
             // Só propaga para irmãos sem predecessoras explícitas, mesmo pai e mesmo recurso primário
             var changedResource = changed.Model.Resources.FirstOrDefault()?.ResourceId;
             if (changedResource == null) return;
@@ -897,6 +900,7 @@ namespace NXProject.ViewModels
                     if (prev.Depth < changed.Depth) break;
                     if (prev.Depth > changed.Depth) continue;
                     if (!ReferenceEquals(prev.ParentViewModel, changed.ParentViewModel)) break;
+                    if (prev.IsSummary) continue;
                     if (prev.Model.Resources.FirstOrDefault()?.ResourceId != changedResource) continue;
 
                     var prevFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
@@ -924,6 +928,8 @@ namespace NXProject.ViewModels
                 if (sibling.Depth > changed.Depth) continue;
                 // Deve ser do mesmo pai
                 if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
+                // Predecessor virtual só vale entre tarefas folha, nunca agrupadores/features.
+                if (sibling.IsSummary) continue;
                 // Deve ter o mesmo recurso primário
                 if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != changedResource) continue;
                 // Não reprocessar
@@ -978,6 +984,7 @@ namespace NXProject.ViewModels
         {
             if (_cascading) return;
             if (changed == null) return;
+            if (changed.IsSummary) return;
 
             try
             {
@@ -999,6 +1006,7 @@ namespace NXProject.ViewModels
                             if (prev.Depth < changed.Depth) break;
                             if (prev.Depth > changed.Depth) continue;
                             if (!ReferenceEquals(prev.ParentViewModel, changed.ParentViewModel)) break;
+                            if (prev.IsSummary) continue;
                             if (prev.Model.Resources.FirstOrDefault()?.ResourceId != newResourceId) continue;
 
                             lastFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
@@ -1031,6 +1039,7 @@ namespace NXProject.ViewModels
                         if (sibling.Depth < changed.Depth) break;
                         if (sibling.Depth > changed.Depth) continue;
                         if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
+                        if (sibling.IsSummary) continue;
                         if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != oldResourceId) continue;
                         if (sibling.Model.PredecessorIds.Count > 0) continue;
 
@@ -1050,6 +1059,7 @@ namespace NXProject.ViewModels
         // e cascata os irmãos afetados (origem e destino).
         private void RescheduleAfterDrop(TaskViewModel moved)
         {
+            if (moved.IsSummary) return;
             if (moved.Model.PredecessorIds.Count > 0) return;
 
             var resourceId = moved.Model.Resources.FirstOrDefault()?.ResourceId;
@@ -1066,6 +1076,7 @@ namespace NXProject.ViewModels
                 if (prev.Depth < moved.Depth) break;
                 if (prev.Depth > moved.Depth) continue;
                 if (!ReferenceEquals(prev.ParentViewModel, moved.ParentViewModel)) break;
+                if (prev.IsSummary) continue;
                 if (prev.Model.Resources.FirstOrDefault()?.ResourceId != resourceId) continue;
 
                 lastFinishBefore = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
@@ -1092,6 +1103,7 @@ namespace NXProject.ViewModels
             for (int i = 0; i < FlatTasks.Count; i++)
             {
                 var t = FlatTasks[i];
+                if (t.IsSummary) continue;
                 if (t.Depth != moved.Depth) continue;
                 if (!ReferenceEquals(t.ParentViewModel, moved.ParentViewModel)) continue;
                 if (t.Model.Resources.FirstOrDefault()?.ResourceId != resourceId) continue;

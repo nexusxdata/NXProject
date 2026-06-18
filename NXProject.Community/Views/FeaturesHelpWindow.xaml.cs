@@ -115,7 +115,8 @@ namespace NXProject.Views
                 {
                     ("O que o NXProject faz",
                      "O NXProject importa a hierarquia do Azure DevOps (Project → Epic → Feature → Story) e transforma esses dados em um cronograma com datas, dependências, alocação de recursos e Gantt.\n" +
-                     "A equipe técnica continua no Azure DevOps como sempre. O NXProject é uma camada de leitura e planejamento sobre esses dados."),
+                     "A equipe técnica continua no Azure DevOps como sempre. O NXProject é uma camada de leitura e planejamento sobre esses dados.\n" +
+                     "O objetivo da Nexus Xdata é transparência: deixar claro por que cada data, duração, percentual e alerta aparece no cronograma."),
                     ("Quem usa e para quê",
                      "• Gerente de Projeto: cronograma integrado ao backlog, alertas de atraso, visão de dependências.\n" +
                      "• Scrum Master / RTE: capacidade por sprint, conflito de alocação, impacto de mudanças de data.\n" +
@@ -149,6 +150,47 @@ namespace NXProject.Views
                      "• Se a data Fim estiver no passado e o percentual for menor que 100, o sistema alerta automaticamente no Health Check.")
                 },
                 "Informe Início e Dur.(h) — o Fim é calculado pelo calendário. Para dependências, use a coluna Pred."
+            ),
+            (
+                "Datas da Atividade",
+                "As datas de uma atividade são calculadas a partir do Início, da duração em horas, do calendário de trabalho, do percentual de conclusão e das regras de cascata. Em linha com o objetivo de transparência da Nexus Xdata, esta seção explicita as regras usadas pelo cronograma.",
+                new()
+                {
+                    ("Início, duração e fim",
+                     "• Início é a data em que a atividade começa no cronograma.\n" +
+                     "• Dur.(h) é a duração total de trabalho: HH Atual + HH Restante.\n" +
+                     "• Fim é calculado por Início + Dur.(h), respeitando dias úteis, feriados e horas úteis por dia.\n" +
+                     "• A data mostrada na coluna Fim é a data de término visível para o usuário; internamente o cálculo usa o limite final do período de trabalho."),
+                    ("Início fixado",
+                     "• Ao digitar uma data no campo Início, o Início fica fixado e aparece com o ícone de fixação.\n" +
+                     "• Uma atividade com Início fixado não é recuada automaticamente por cascata de recurso ou predecessora virtual.\n" +
+                     "• Para remover a fixação do Início, digite 0 no campo Início.\n" +
+                     "• Se o Início fixado estiver no futuro e a atividade for marcada como 100%, o Fim fica igual ao Início fixado, para evitar Fim antes do Início."),
+                    ("Fim fixado",
+                     "• Ao editar a coluna Fim ou arrastar a borda direita da barra no Gantt com o botão direito, o Fim fica fixado.\n" +
+                     "• Com Fim fixado, alterações de duração ou percentual não recalculam automaticamente a data Fim.\n" +
+                     "• Use a fixação de Fim para registrar uma data negociada que pode ser diferente da duração calculada por horas e alocação.\n" +
+                     "• Se houver diferença entre duração negociada e duração calculada, o Gantt pode indicar conflito visual."),
+                    ("Percentual 0%",
+                     "• Ao voltar % Compl. para 0%, o NXProject considera que nenhum trabalho foi realizado.\n" +
+                     "• HH Atual fica igual a 0.\n" +
+                     "• HH Restante volta para HH Original.\n" +
+                     "• A data Fim é recalculada por Início + HH Restante, desde que o Fim não esteja fixado.\n" +
+                     "• A cascata pode reposicionar atividades seguintes do mesmo recurso, mas não deve usar Features ou agrupadores como referência de fila."),
+                    ("Percentual 100%",
+                     "• Ao marcar % Compl. como 100%, o NXProject considera a atividade encerrada.\n" +
+                     "• HH Atual recebe a duração total da atividade.\n" +
+                     "• HH Restante fica igual a 0.\n" +
+                     "• O Fim calculado é Início + duração total. Se esse Fim cair no futuro, o Fim é limitado a hoje, pois não é possível encerrar uma atividade no futuro.\n" +
+                     "• Exceção: se o Início estiver fixado em uma data futura, o Fim fica igual ao Início fixado."),
+                    ("Cascata por predecessoras e recurso",
+                     "• Predecessoras explícitas movem a atividade para o próximo dia útil após o fim visível da predecessora.\n" +
+                     "• A cascata usa o padrão de ordenação topológica: uma atividade dependente só é recalculada depois que suas predecessoras já foram processadas.\n" +
+                     "• A predecessora virtual organiza atividades do mesmo recurso, mesmo pai e mesmo nível, para evitar sobreposição de trabalho.\n" +
+                     "• A referência da predecessora virtual deve ser outra atividade folha, como Story/Task, nunca uma Feature, Epic ou agrupador.\n" +
+                     "• Agrupadores continuam sendo recalculados para refletir datas, duração e percentual dos filhos.")
+                },
+                "Regra prática: edite Início e Dur.(h) para planejar; use % Compl. para registrar progresso. Fixações são exceções conscientes ao cálculo automático."
             ),
             (
                 "Gráfico Gantt",

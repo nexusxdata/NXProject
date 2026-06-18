@@ -542,7 +542,7 @@ namespace NXProject.Services
                     }
 
                     // HH Atual: grava sempre que o valor local difere do TFS.
-                    if (realizedHoursRef != null && task.CurrentHours is > 0)
+                    if (realizedHoursRef != null && task.CurrentHours.HasValue)
                     {
                         var currentH    = task.CurrentHours.Value;
                         var currentTfsH = ReadDouble(wi, realizedHoursRef);
@@ -1400,9 +1400,14 @@ namespace NXProject.Services
                         ?? ReadDouble(item, ctx.HoursRef);
             var explicitStart = ReadDate(item, ctx.StartRef);
             var explicitFinish = ReadDate(item, ctx.FinishRef);
+            // HH Atual lido diretamente para usar no cálculo de duração total.
+            var currentHoursRaw = ctx.CurrentHoursRef != null && ReadDouble(item, ctx.CurrentHoursRef) is { } rh2 && rh2 > 0 ? rh2 : (double?)null;
 
-            // HH ausente/vazia -> 1 dia util. HH == 0 -> milestone (duracao 0).
-            bool isMilestone = hours.HasValue && hours.Value == 0;
+            // HH ausente/vazia -> 1 dia util. Milestone real exige duração total 0:
+            // HH Atual + HH Restante == 0. Uma atividade concluída costuma ter
+            // HH Restante = 0, mas HH Atual > 0, e não deve virar milestone.
+            var totalRawHours = (currentHoursRaw ?? 0) + (hours ?? 0);
+            bool isMilestone = hours.HasValue && totalRawHours <= 0.0001;
             int workDays = hours.HasValue && hours.Value > 0
                 ? Math.Max(1, (int)Math.Ceiling(hours.Value / ctx.HoursPerDay))
                 : 1;
@@ -1447,9 +1452,6 @@ namespace NXProject.Services
             bool hasFixedTag = GetFixedStartTagAliases(ctx.FixedStartTagName)
                 .Any(tag => HasTag(item.Tags, tag));
             DateTime start = (hasFixedTag && explicitStart != null) ? explicitStart.Value : baseStart;
-            // HH Atual lido diretamente para usar no cálculo de duração total.
-            var currentHoursRaw = ctx.CurrentHoursRef != null && ReadDouble(item, ctx.CurrentHoursRef) is { } rh2 && rh2 > 0 ? rh2 : (double?)null;
-
             var durationHours = hours.HasValue
                 ? Math.Max(0.0, hours.Value)
                 : ctx.HoursPerDay > 0

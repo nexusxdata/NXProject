@@ -543,10 +543,8 @@ namespace NXProject.ViewModels
                 {
                     var originalH = _task.OriginalEstimatedHours is > 0
                         ? _task.OriginalEstimatedHours.Value
-                        : (_task.CurrentHours is > 0
-                            ? _task.CurrentHours.Value + (_task.EstimatedHours ?? 0)
-                            : (_task.EstimatedHours ?? ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish)));
-                    _task.CurrentHours   = null;
+                        : ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
+                    _task.CurrentHours   = 0;
                     _task.EstimatedHours = originalH > 0 ? originalH : _task.EstimatedHours;
                     SyncAssignmentEstimatedHours(_task.EstimatedHours ?? 0);
                     OnPropertyChanged(nameof(CurrentHours));
@@ -593,15 +591,22 @@ namespace NXProject.ViewModels
 
                 if (normalized >= 100)
                 {
-                    // Finish = hoje, mas nunca antes do Start (evita duração negativa).
-                    _task.Finish = DateTime.Today >= _task.Start.Date ? DateTime.Today : _task.Start.Date;
-                    OnPropertyChanged(nameof(Finish));
-                    OnPropertyChanged(nameof(FinishDisplay));
-                    OnPropertyChanged(nameof(DurationDays));
-                    OnPropertyChanged(nameof(DurationHours));
-                    OnPropertyChanged(nameof(DisplayAsMilestone));
-                    RecalcAncestorSummaries();
-                    ScheduleSuccessors?.Invoke(this);
+                    if (!_task.FinishFixed && totalH > 0)
+                    {
+                        var calculatedFinish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
+                        _task.Finish = _task.StartFixed && _task.Start.Date > DateTime.Today
+                            ? _task.Start.Date
+                            : calculatedFinish.Date > DateTime.Today
+                            ? DateTime.Today
+                            : calculatedFinish;
+                        OnPropertyChanged(nameof(Finish));
+                        OnPropertyChanged(nameof(FinishDisplay));
+                        OnPropertyChanged(nameof(DurationDays));
+                        OnPropertyChanged(nameof(DurationHours));
+                        OnPropertyChanged(nameof(DisplayAsMilestone));
+                        RecalcAncestorSummaries();
+                        ScheduleSuccessors?.Invoke(this);
+                    }
                 }
                 else if (!_task.FinishFixed)
                 {
@@ -668,7 +673,7 @@ namespace NXProject.ViewModels
         public double? EstimatedHoursValue => _task.EstimatedHours;
 
         public string CurrentHoursDisplay =>
-            _task.CurrentHours is > 0 ? _task.CurrentHours.Value.ToString("0.#") : "";
+            _task.CurrentHours.HasValue ? _task.CurrentHours.Value.ToString("0.#") : "";
         public string EstimatedHoursDisplay =>
             _task.EstimatedHours is > 0 ? _task.EstimatedHours.Value.ToString("0.#") : "";
 
@@ -808,10 +813,21 @@ namespace NXProject.ViewModels
             }
         }
 
-        public bool DisplayAsMilestone => IsMilestone ||
-            (!IsSummary && _task.PercentComplete < 100
-             && (_task.CurrentHours ?? 0) == 0 && (_task.EstimatedHours ?? 0) == 0
-             && !(_task.OriginalEstimatedHours is > 0));
+        public bool DisplayAsMilestone
+        {
+            get
+            {
+                if (IsSummary)
+                    return false;
+
+                var totalTrackedHours = (_task.CurrentHours ?? 0) + (_task.EstimatedHours ?? 0);
+                var hasZeroTrackedHours = totalTrackedHours <= 0.0001;
+
+                return hasZeroTrackedHours &&
+                    (IsMilestone ||
+                     (_task.PercentComplete < 100 && !(_task.OriginalEstimatedHours is > 0)));
+            }
+        }
 
         public bool IsSummary
         {
