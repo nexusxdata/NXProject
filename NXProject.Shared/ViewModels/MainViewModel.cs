@@ -886,6 +886,32 @@ namespace NXProject.ViewModels
             var changedIndex = FlatTasks.IndexOf(changed);
             if (changedIndex < 0) return;
 
+            // Quando a task voltou a % = 0 e não tem data fixa, reposiciona após o irmão anterior
+            // do mesmo recurso (caso o Start tenha sido ancorado em Today quando % foi definido).
+            if (changed.Model.PercentComplete < 0.0001 && !changed.Model.StartFixed &&
+                changed.Model.PredecessorIds.Count == 0)
+            {
+                for (int i = changedIndex - 1; i >= 0; i--)
+                {
+                    var prev = FlatTasks[i];
+                    if (prev.Depth < changed.Depth) break;
+                    if (prev.Depth > changed.Depth) continue;
+                    if (!ReferenceEquals(prev.ParentViewModel, changed.ParentViewModel)) break;
+                    if (prev.Model.Resources.FirstOrDefault()?.ResourceId != changedResource) continue;
+
+                    var prevFinish = ProjectCalendarService.GetInclusiveFinishDate(prev.Model.Start, prev.Model.Finish);
+                    var newStart   = ProjectCalendarService.AddWorkingDays(prevFinish, 1);
+                    if (changed.Model.Start.Date != newStart.Date)
+                    {
+                        var dur = changed.DurationHours;
+                        changed.Model.Start  = newStart;
+                        changed.Model.Finish = ProjectCalendarService.AddWorkingHours(newStart, dur);
+                        changed.NotifyDatesChanged();
+                    }
+                    break;
+                }
+            }
+
             var changedFinish = ProjectCalendarService.GetInclusiveFinishDate(changed.Model.Start, changed.Model.Finish);
 
             for (int i = changedIndex + 1; i < FlatTasks.Count; i++)
