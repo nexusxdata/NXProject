@@ -1428,7 +1428,7 @@ namespace NXProject.Services
                 {
                     stateFixedToActive = true;
                     ctx.Report.StoriesStateFixed++;
-                    ctx.Report.LogWarning(
+                    ctx.Report.LogInfo(
                         $"[ESTADO CORRIGIDO] Story #{item.Id} \"{item.Title}\" estava {item.State} mas tem Tasks em aberto → ajustado para Active.");
                 }
             }
