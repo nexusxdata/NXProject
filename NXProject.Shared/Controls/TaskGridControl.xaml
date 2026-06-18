@@ -415,7 +415,9 @@
                             <ProgressBar Value="{Binding PercentComplete}" Maximum="100" Height="12"
                                          Background="#C9D8E8" Foreground="#217346"/>
                             <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0.#}%}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       HorizontalAlignment="{Binding PercentCompleteTextAlignment}"
+                                       Margin="{Binding PercentCompleteTextMargin}"
+                                       VerticalAlignment="Center"
                                        FontSize="9" FontWeight="SemiBold"
                                        Foreground="{Binding PercentCompleteTextBrush}"/>
                         </Grid>

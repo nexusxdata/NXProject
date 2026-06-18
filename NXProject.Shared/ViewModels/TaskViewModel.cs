@@ -563,6 +563,8 @@ namespace NXProject.ViewModels
                     }
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(PercentCompleteTextBrush));
+                    OnPropertyChanged(nameof(PercentCompleteTextAlignment));
+                    OnPropertyChanged(nameof(PercentCompleteTextMargin));
                     OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
                     OnPropertyChanged(nameof(OriginalEstimatedHoursText));
                     OnPropertyChanged(nameof(HasOriginalEstimate));
@@ -627,6 +629,8 @@ namespace NXProject.ViewModels
 
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PercentCompleteTextBrush));
+                OnPropertyChanged(nameof(PercentCompleteTextAlignment));
+                OnPropertyChanged(nameof(PercentCompleteTextMargin));
                 OnPropertyChanged(nameof(OriginalEstimatedHoursDisplay));
                 OnPropertyChanged(nameof(OriginalEstimatedHoursText));
                 OnPropertyChanged(nameof(HasOriginalEstimate));
@@ -778,9 +782,19 @@ namespace NXProject.ViewModels
         }
 
         public Brush PercentCompleteTextBrush =>
-            PercentComplete < 45
-                ? new SolidColorBrush(Color.FromRgb(31, 41, 55))
-                : Brushes.White;
+            PercentComplete > 30
+                ? Brushes.White
+                : new SolidColorBrush(Color.FromRgb(31, 41, 55));
+
+        public HorizontalAlignment PercentCompleteTextAlignment =>
+            PercentComplete <= 30 || PercentComplete >= 60
+                ? HorizontalAlignment.Center
+                : HorizontalAlignment.Left;
+
+        public Thickness PercentCompleteTextMargin =>
+            PercentComplete <= 30 || PercentComplete >= 60
+                ? new Thickness(0)
+                : new Thickness(4, 0, 0, 0);
 
         private void NotifyParentPercentChanged()
         {
@@ -791,6 +805,8 @@ namespace NXProject.ViewModels
         {
             OnPropertyChanged(nameof(PercentComplete));
             OnPropertyChanged(nameof(PercentCompleteTextBrush));
+            OnPropertyChanged(nameof(PercentCompleteTextAlignment));
+            OnPropertyChanged(nameof(PercentCompleteTextMargin));
             ParentViewModel?.OnSummaryPercentChanged();
         }
 
