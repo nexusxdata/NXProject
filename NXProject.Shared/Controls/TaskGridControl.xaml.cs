@@ -649,6 +649,14 @@ namespace NXProject.Controls
                     return;
                 }
 
+                // NameColumn usa UpdateSourceTrigger=PropertyChanged — já está atualizado.
+                // Items.Refresh() causaria desalinhamento visual; basta sair do modo de edição.
+                if (e.Column == NameColumn)
+                {
+                    ClearEditSnapshot();
+                    return;
+                }
+
                 var selectedItem = e.Row?.Item ?? TaskGrid.SelectedItem;
                 var selectedColumn = e.Column;
                 Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
