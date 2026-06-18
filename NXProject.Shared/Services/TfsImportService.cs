@@ -1798,7 +1798,9 @@ namespace NXProject.Services
                         DateTime.TryParse(fd.GetString(), CultureInfo.InvariantCulture,
                             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var finish))
                     {
-                        end = finish.Date;
+                        // DevOps retorna finishDate como dia seguinte exclusivo; subtrai 1 para o último dia inclusivo.
+                        var finishDay = finish.Date;
+                        end = finishDay > start.Date ? finishDay.AddDays(-1) : finishDay;
                     }
 
                     acc.Add(new Sprint
