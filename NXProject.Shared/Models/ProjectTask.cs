@@ -151,10 +151,15 @@ namespace NXProject.Models
         {
             if (!task.IsSummary || task.Children.Count == 0)
             {
-                var h = task.EstimatedHours is > 0
-                    ? task.EstimatedHours.Value
-                    : ProjectCalendarService.CountWorkingHours(task.Start, task.Finish);
-                return h > 0 ? h : 1.0;
+                // Prioridade: HH Original (não muda com progresso) → HH Atual+Restante → calendário
+                if (task.OriginalEstimatedHours is > 0)
+                    return task.OriginalEstimatedHours.Value;
+                var cur = task.CurrentHours ?? 0;
+                var est = task.EstimatedHours ?? 0;
+                if (cur > 0 || est > 0)
+                    return cur + est;
+                var cal = ProjectCalendarService.CountWorkingHours(task.Start, task.Finish);
+                return cal > 0 ? cal : 1.0;
             }
             return task.Children.Sum(SumDescendantHours);
         }
