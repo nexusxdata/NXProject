@@ -413,7 +413,7 @@
                     <DataTemplate>
                         <Grid Margin="2,1">
                             <ProgressBar Value="{Binding PercentComplete}" Maximum="100" Height="12"
-                                         Background="#E0E0E0" Foreground="#217346"/>
+                                         Background="#C9D8E8" Foreground="#217346"/>
                             <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0.#}%}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontSize="9" FontWeight="SemiBold"
