@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -108,7 +109,7 @@ namespace NXProject.Views
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {
-                vm.ApplyTaskSprintChange(task, sprint);
+                vm.ApplyTaskSprintChange(task, sprint, () => TaskGridCtrl.ScrollToSelected());
                 GanttCtrl.ForceRender();
             };
             TaskGridCtrl.GanttViewToggled += () =>
@@ -714,14 +715,20 @@ namespace NXProject.Views
 
             var dlg = new PercentCompleteFilterWindow(
                 vm.PercentCompleteFilterMin,
-                vm.PercentCompleteFilterMax)
+                vm.PercentCompleteFilterMax,
+                vm.ProgressDateFilterMode,
+                vm.ProgressDateFilterReference)
             {
                 Owner = this
             };
 
             if (dlg.ShowDialog() == true)
             {
-                vm.SetPercentCompleteFilter(dlg.MinPercent, dlg.MaxPercent);
+                vm.SetPercentCompleteFilter(
+                    dlg.MinPercent,
+                    dlg.MaxPercent,
+                    dlg.DateFilterMode,
+                    dlg.ReferenceDate);
                 UpdatePercentFilterLabel(vm);
             }
         }
@@ -734,9 +741,22 @@ namespace NXProject.Views
                 return;
             }
 
-            var min = vm.PercentCompleteFilterMin?.ToString("0") ?? "0";
-            var max = vm.PercentCompleteFilterMax?.ToString("0") ?? "100";
-            PercentFilterLabel.Text = $"({min}-{max})";
+            var parts = new List<string>();
+            if (vm.PercentCompleteFilterMin.HasValue || vm.PercentCompleteFilterMax.HasValue)
+            {
+                var min = vm.PercentCompleteFilterMin?.ToString("0") ?? "0";
+                var max = vm.PercentCompleteFilterMax?.ToString("0") ?? "100";
+                parts.Add($"{min}-{max}");
+            }
+
+            var referenceDate = (vm.ProgressDateFilterReference ?? DateTime.Today)
+                .ToString("dd/MM", CultureInfo.CurrentCulture);
+            if (vm.ProgressDateFilterMode == "StartDate")
+                parts.Add($"início > {referenceDate}");
+            else if (vm.ProgressDateFilterMode == "FinishDate")
+                parts.Add($"fim < {referenceDate}");
+
+            PercentFilterLabel.Text = $"({string.Join(", ", parts)})";
         }
 
         private void OnZoomMenuClick(object sender, RoutedEventArgs e)

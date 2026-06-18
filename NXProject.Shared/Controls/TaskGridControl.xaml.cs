@@ -32,6 +32,15 @@ namespace NXProject.Controls
 
         public void RefreshRows() => TaskGrid.Items.Refresh();
 
+        public void ScrollToSelected()
+        {
+            var selected = TaskGrid.SelectedItem;
+            if (selected == null) return;
+            TaskGrid.ScrollIntoView(selected);
+            if (TaskGrid.ItemContainerGenerator.ContainerFromItem(selected) is DataGridRow row)
+                row.IsSelected = true;
+        }
+
         public static readonly DependencyProperty AvailableSprintsProperty =
             DependencyProperty.Register(nameof(AvailableSprints), typeof(ObservableCollection<Sprint>),
                 typeof(TaskGridControl), new PropertyMetadata(null));

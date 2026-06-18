@@ -369,7 +369,7 @@ namespace NXProject.ViewModels
         /// duração) e marca o projeto como alterado, para sincronizar de volta ao
         /// DevOps no próximo Export → Sincronizar.
         /// </summary>
-        public void ApplyTaskSprintChange(TaskViewModel vm, Sprint? sprint)
+        public void ApplyTaskSprintChange(TaskViewModel vm, Sprint? sprint, Action? afterRebuild = null)
         {
             if (vm == null) return;
             var task = vm.Model;
@@ -407,6 +407,7 @@ namespace NXProject.ViewModels
             System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 RebuildFlatTasks();
+                afterRebuild?.Invoke();
                 StatusMessage = sprint != null
                     ? $"Sprint da tarefa alterada para \"{sprint.Name}\" (sincronize para aplicar no DevOps)."
                     : "Sprint removida da tarefa.";
