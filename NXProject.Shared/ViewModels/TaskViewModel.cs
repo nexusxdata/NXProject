@@ -36,7 +36,7 @@ namespace NXProject.ViewModels
                 var taskDay   = _task.Finish.ToString("yyyyMMdd", fmt);
                 var sprintDay = sprintFinish.Value.ToString("yyyyMMdd", fmt);
                 var result = string.Compare(taskDay, sprintDay, StringComparison.Ordinal) > 0;
-                System.Diagnostics.Debug.WriteLine($"[SprintAlert] {_task.Name} | Finish={taskDay} | SprintEnd={sprintDay} | Paint={result} | Path={_task.TfsIterationPath}");
+                SprintAlertLog.Write(_task.Name, taskDay, sprintDay, result, _task.TfsIterationPath);
                 return result;
             }
         }

@@ -28,8 +28,9 @@ namespace NXProject.Views
         private void LoadCurrentSettings()
         {
             var opts = TfsConnectionStore.Load();
-            CompanyNameBox.Text = opts.CompanyName ?? string.Empty;
-            _logoBase64         = opts.CompanyLogoBase64 ?? string.Empty;
+            CompanyNameBox.Text    = opts.CompanyName ?? string.Empty;
+            _logoBase64            = opts.CompanyLogoBase64 ?? string.Empty;
+            DebugLogCheck.IsChecked = opts.DebugLogEnabled;
 
             if (!string.IsNullOrEmpty(_logoBase64))
                 ShowLogoPreview(_logoBase64);
@@ -163,11 +164,21 @@ namespace NXProject.Views
             opts.Language          = _selectedLanguage;
             opts.CompanyName       = CompanyNameBox.Text.Trim();
             opts.CompanyLogoBase64 = _logoBase64;
+            opts.DebugLogEnabled   = DebugLogCheck.IsChecked == true;
+
+            SprintAlertLog.Enabled = opts.DebugLogEnabled;
 
             var rememberToken = !string.IsNullOrEmpty(opts.PersonalAccessToken);
             TfsConnectionStore.Save(opts, rememberToken);
 
             DialogResult = true;
+        }
+
+        private void OnOpenLogFolderClick(object sender, RoutedEventArgs e)
+        {
+            var folder = Path.GetDirectoryName(SprintAlertLog.LogFilePath)!;
+            Directory.CreateDirectory(folder);
+            System.Diagnostics.Process.Start("explorer.exe", folder);
         }
 
         private void OnCancelClick(object sender, RoutedEventArgs e)

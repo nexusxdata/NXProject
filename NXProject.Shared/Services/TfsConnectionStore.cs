@@ -106,6 +106,9 @@ namespace NXProject.Services
         /// <summary>Logo da empresa em Base64 PNG (normalizado 300×80px) para cabeçalho do PDF. Vazio = sem logo.</summary>
         public string CompanyLogoBase64 { get; set; } = string.Empty;
 
+        /// <summary>Habilita log de diagnóstico em %LocalAppData%\NXProject.Community\sprint_alert_debug.log.</summary>
+        public bool DebugLogEnabled { get; set; } = false;
+
         /// <summary>Mapeamentos customizados de estado TFS → label do gráfico de status.</summary>
         public List<StoryStatusMapping> StoryStatusMappings { get; set; } = [];
 
@@ -154,6 +157,7 @@ namespace NXProject.Services
             public List<StoryStatusMapping> StoryStatusMappings { get; set; } = [];
             public List<string> PortfolioProjectPaths { get; set; } = [];
             public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
+            public bool DebugLogEnabled { get; set; } = false;
         }
 
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
@@ -209,6 +213,7 @@ namespace NXProject.Services
                 options.StoryStatusMappings = stored.StoryStatusMappings ?? [];
                 options.PortfolioProjectPaths = stored.PortfolioProjectPaths ?? [];
                 options.PortfolioProjectConfigs = stored.PortfolioProjectConfigs ?? [];
+                options.DebugLogEnabled = stored.DebugLogEnabled;
             }
             catch
             {
@@ -250,7 +255,8 @@ namespace NXProject.Services
                 CompanyLogoBase64 = options.CompanyLogoBase64 ?? string.Empty,
                 StoryStatusMappings = options.StoryStatusMappings ?? [],
                 PortfolioProjectPaths = options.PortfolioProjectPaths ?? [],
-                PortfolioProjectConfigs = options.PortfolioProjectConfigs ?? []
+                PortfolioProjectConfigs = options.PortfolioProjectConfigs ?? [],
+                DebugLogEnabled = options.DebugLogEnabled
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });

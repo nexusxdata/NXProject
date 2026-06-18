@@ -608,6 +608,7 @@ namespace NXProject.ViewModels
         [RelayCommand]
         private void OpenProject()
         {
+            SprintAlertLog.Clear();
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
                 Filter = "Projeto NXProject (*.xml)|*.xml|Todos os arquivos (*.*)|*.*",
@@ -666,6 +667,7 @@ namespace NXProject.ViewModels
         public void ApplyImportedProject(Project project, string? statusMessage = null)
         {
             if (project == null) return;
+            SprintAlertLog.Clear();
 
             var existingAllocations       = CaptureAllocationPercentByDevOpsTask();
             var existingAvailability      = CaptureAvailabilityByResourceKey();

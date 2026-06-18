@@ -75,6 +75,18 @@
                        FontSize="10" Foreground="#6B4B00" TextWrapping="Wrap"/>
         </Border>
 
+        <!-- ══ DIAGNÓSTICO ══ -->
+        <TextBlock Text="Diagnóstico" FontSize="13" FontWeight="Bold"
+                   Foreground="#2B579A" Margin="0,0,0,8"/>
+        <CheckBox x:Name="DebugLogCheck" Content="Habilitar log de diagnóstico"
+                  Margin="0,0,0,4" FontSize="12"/>
+        <TextBlock TextWrapping="Wrap" FontSize="10" Foreground="#666" Margin="20,0,0,4"
+                   Text="Grava detalhes de alertas de sprint em %LocalAppData%\NXProject.Community\sprint_alert_debug.log. Ative somente quando solicitado pelo suporte e envie o arquivo gerado."/>
+        <Button x:Name="OpenLogBtn" Content="Abrir pasta do log"
+                HorizontalAlignment="Left" Height="24" Padding="10,0"
+                FontSize="11" Margin="20,0,0,20"
+                Click="OnOpenLogFolderClick"/>
+
         <!-- ══ BOTÕES ══ -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="{DynamicResource Settings_Save}" Width="90" Height="30" Margin="0,0,8,0"

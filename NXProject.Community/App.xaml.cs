@@ -41,6 +41,9 @@ namespace NXProject
 
             // Carrega idioma salvo; se vazio, detecta pelo Windows
             var saved = TfsConnectionStore.Load();
+
+            SprintAlertLog.Enabled = saved.DebugLogEnabled;
+
             var lang = string.IsNullOrWhiteSpace(saved.Language)
                 ? LanguageService.DetectFromWindows()
                 : saved.Language;
