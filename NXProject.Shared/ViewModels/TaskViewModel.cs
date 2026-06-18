@@ -349,7 +349,7 @@ namespace NXProject.ViewModels
                     var totalH = _task.CurrentHours is > 0 ? _task.CurrentHours.Value + remaining : remaining;
                     if (!_task.FinishFixed)
                         _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
-                    if (_task.PercentComplete < 100)
+                    if (_task.PercentComplete < 0.0001)
                     {
                         _task.OriginalEstimatedHours = remaining;
                         RefreshOriginalEstimatedHoursProperties();
