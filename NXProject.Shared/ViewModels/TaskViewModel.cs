@@ -537,23 +537,9 @@ namespace NXProject.ViewModels
 
                 if (normalized >= 100)
                 {
-                    // Se a tarefa ainda não começou (start no futuro) e o start não é fixo,
-                    // move o start para hoje preservando as horas estimadas — evita zerar a duração.
-                    var estimatedH = _task.EstimatedHours ?? (_task.DurationHours > 0 ? _task.DurationHours : 0);
-                    if (!_task.StartFixed && _task.Start.Date > DateTime.Today)
-                    {
-                        _task.Start = DateTime.Today;
-                        if (estimatedH > 0)
-                            _task.Finish = ProjectCalendarService.AddWorkingHours(DateTime.Today, estimatedH);
-                        else
-                            _task.Finish = DateTime.Today;
-                        OnPropertyChanged(nameof(Start));
-                        OnPropertyChanged(nameof(StartDisplay));
-                    }
-                    else
-                    {
-                        _task.Finish = DateTime.Today;
-                    }
+                    // Marca a tarefa como concluída hoje: só move o Finish para hoje.
+                    // O Start da tarefa atual não muda; a cascata ajusta as próximas.
+                    _task.Finish = DateTime.Today;
                     OnPropertyChanged(nameof(Finish));
                     OnPropertyChanged(nameof(FinishDisplay));
                     OnPropertyChanged(nameof(DurationDays));
