@@ -141,6 +141,8 @@ namespace NXProject.ViewModels
         public void RebuildFlatTasks()
         {
             SyncOriginalHoursWhenZeroPercent(Project.Tasks);
+            foreach (var root in Project.Tasks)
+                root.RecalcSummary();
             var selectedModel = SelectedTask?.Model;
             FlatTasks.Clear();
             foreach (var task in Project.Tasks)
@@ -796,10 +798,14 @@ namespace NXProject.ViewModels
         {
             foreach (var task in tasks)
             {
-                if (task.PercentComplete < 0.0001 && !(task.OriginalEstimatedHours is > 0) && !task.IsSummary)
+                if (!task.IsSummary && !(task.OriginalEstimatedHours is > 0))
                 {
-                    var h = task.EstimatedHours is > 0
-                        ? task.EstimatedHours.Value
+                    // Para % = 0: EstimatedHours é a duração total planejada.
+                    // Para % > 0: usa CurrentHours + EstimatedHours (total = atual + restante).
+                    var cur = task.CurrentHours ?? 0;
+                    var est = task.EstimatedHours ?? 0;
+                    var h = (cur > 0 || est > 0)
+                        ? cur + est
                         : ProjectCalendarService.CountWorkingHours(task.Start, task.Finish);
                     if (h > 0) task.OriginalEstimatedHours = h;
                 }
