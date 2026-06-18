@@ -212,6 +212,13 @@
                     <TextBlock x:Name="ZoomLabel" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
+            <ToggleButton x:Name="MagnifierToggle"
+                          Style="{StaticResource ToolbarToggleButtonStyle}"
+                          Click="OnMagnifierToggleClick"
+                          ToolTip="Lupa do Gantt (amplia área sob o cursor)"
+                          Padding="6,2">
+                <TextBlock Text="&#x1F50E;" FontSize="13"/>
+            </ToggleButton>
             <Separator/>
             <Separator/>
             <ToggleButton x:Name="GanttOriginalToggle"

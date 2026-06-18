@@ -819,6 +819,11 @@ namespace NXProject.Views
             PercentFilterLabel.Text = $"({string.Join(", ", parts)})";
         }
 
+        private void OnMagnifierToggleClick(object sender, RoutedEventArgs e)
+        {
+            GanttCtrl.MagnifierEnabled = MagnifierToggle.IsChecked == true;
+        }
+
         private void OnZoomMenuClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
@@ -1403,11 +1408,11 @@ namespace NXProject.Views
                 }
                 else if (task.IsSummary)
                 {
-                    DrawPrintBar(body, x, y, barWidth, rowHeight, Color.FromRgb(43, 87, 154), 0, true);
+                    DrawPrintBar(body, x, y, barWidth, rowHeight, Color.FromRgb(148, 163, 184), 0, true);
                 }
                 else
                 {
-                    DrawPrintBar(body, x, y, barWidth, rowHeight, Color.FromRgb(68, 114, 196), task.PercentComplete, false);
+                    DrawPrintBar(body, x, y, barWidth, rowHeight, Color.FromRgb(91, 155, 213), task.PercentComplete, false);
                 }
             }
         }
@@ -1429,16 +1434,19 @@ namespace NXProject.Views
 
             if (percent > 0)
             {
+                var progressHeight = Math.Min(4, Math.Max(2, rect.Height / 2.0));
                 var progress = new Rectangle
                 {
                     Width = Math.Max(1, width * Math.Min(100, percent) / 100.0),
-                    Height = rect.Height,
-                    Fill = new SolidColorBrush(Color.FromRgb(33, 115, 70)),
-                    RadiusX = 2,
-                    RadiusY = 2
+                    Height = progressHeight,
+                    Fill = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+                    StrokeThickness = 0.5,
+                    RadiusX = 1,
+                    RadiusY = 1
                 };
                 Canvas.SetLeft(progress, x);
-                Canvas.SetTop(progress, y + padding);
+                Canvas.SetTop(progress, y + padding + (rect.Height - progressHeight) / 2.0);
                 canvas.Children.Add(progress);
             }
 

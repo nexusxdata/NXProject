@@ -65,6 +65,9 @@ namespace NXProject.Controls
         private const double BarPadding = 4;
         private const double LeftPadding = 16;
         private const double DependencyMargin = 8;
+        private const double MagnifierSize = 168;
+        private const double MagnifierSourceSize = 84;
+        private const double MagnifierOffset = 18;
 
         private bool _renderScheduled;
         private bool _resetScrollOnNextRender;
@@ -72,6 +75,17 @@ namespace NXProject.Controls
         private IReadOnlyList<double>? _rowTops;
         private TaskDragState? _dragState;
         private TaskResizeState? _resizeState;
+        private bool _magnifierEnabled = false;
+
+        public bool MagnifierEnabled
+        {
+            get => _magnifierEnabled;
+            set
+            {
+                _magnifierEnabled = value;
+                if (!value) HideMagnifier();
+            }
+        }
 
         public event Action<TaskViewModel>? TaskClicked;
         public event Action<double>? VerticalScrollChanged;
@@ -342,6 +356,8 @@ namespace NXProject.Controls
         {
             // Atualiza coordenada de data no overlay do cabeçalho
             var pos = e.GetPosition(GanttCanvas);
+            UpdateMagnifier(e, pos);
+
             var scrollOffset = GanttScroll.HorizontalOffset;
             var dayIndex = (int)Math.Floor((pos.X + scrollOffset - LeftPadding) / DayWidth);
             if (dayIndex >= 0 && ProjectStart != default)
@@ -412,6 +428,7 @@ namespace NXProject.Controls
         private void OnCanvasMouseLeave(object sender, MouseEventArgs e)
         {
             DateCoordBorder.Visibility = Visibility.Collapsed;
+            HideMagnifier();
 
             if (_dragState == null || e.LeftButton == MouseButtonState.Pressed)
                 return;
@@ -1135,7 +1152,7 @@ namespace NXProject.Controls
                         : isPredecessor      ? Color.FromRgb(200, 100, 20)
                         : task.UseOriginalHoursView && origHours is > 0 ? Color.FromRgb(185, 28, 28)
                         : task.HasSyncConflict || durationOverrun ? Color.FromRgb(196, 43, 43)
-                        :                      Color.FromRgb(68, 114, 196);
+                        :                      Color.FromRgb(91, 155, 213);
             var bg = new Rectangle
             {
                 Width = width,
@@ -1173,7 +1190,7 @@ namespace NXProject.Controls
             Canvas.SetTop(dot, y + RowHeight / 2 - 2.5);
             GanttCanvas.Children.Add(dot);
 
-            // Barra preta: HH Atual proporcional à duração total (HH Atual + HH Restante)
+            // Linha discreta: HH Atual proporcional à duração total (HH Atual + HH Restante).
             double? realizedH = task.Model.CurrentHours;
             double  totalH    = task.Model.CurrentHours is > 0
                                 ? task.Model.CurrentHours.Value + (task.Model.EstimatedHours ?? 0)
@@ -1186,32 +1203,34 @@ namespace NXProject.Controls
                     var realBar = new Rectangle
                     {
                         Width = realizedW,
-                        Height = RowHeight - BarPadding * 2,
-                        Fill = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-                        RadiusX = 2,
-                        RadiusY = 2,
+                        Height = 2,
+                        Fill = new SolidColorBrush(Color.FromRgb(55, 65, 81)),
+                        Opacity = 0.9,
                         ToolTip = new ToolTip { Content = $"HH Atual: {realizedH.Value:0.#}h | HH Restante: {(task.Model.EstimatedHours ?? 0):0.#}h | Total: {totalH:0.#}h" }
                     };
                     AttachTaskMetadata(realBar, task);
                     Canvas.SetLeft(realBar, x);
-                    Canvas.SetTop(realBar, y + BarPadding);
+                    Canvas.SetTop(realBar, y + RowHeight - BarPadding - 3);
                     GanttCanvas.Children.Add(realBar);
                 }
             }
 
             if (percent > 0)
             {
+                var barHeight = RowHeight - BarPadding * 2;
                 var progress = new Rectangle
                 {
                     Width = width * percent / 100.0,
-                    Height = RowHeight - BarPadding * 2,
-                    Fill = new SolidColorBrush(Color.FromRgb(33, 115, 70)),
-                    RadiusX = 2,
-                    RadiusY = 2
+                    Height = 4,
+                    Fill = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+                    StrokeThickness = 0.5,
+                    RadiusX = 1,
+                    RadiusY = 1
                 };
                 AttachTaskMetadata(progress, task);
                 Canvas.SetLeft(progress, x);
-                Canvas.SetTop(progress, y + BarPadding);
+                Canvas.SetTop(progress, y + BarPadding + (barHeight - progress.Height) / 2.0);
                 GanttCanvas.Children.Add(progress);
             }
 
@@ -1268,7 +1287,7 @@ namespace NXProject.Controls
             var barColor = isSelected           ? Color.FromRgb(220, 124, 0)
                          : isPredecessor        ? Color.FromRgb(200, 100, 20)
                          : task.HasSyncConflict ? Color.FromRgb(180, 30, 30)
-                         :                        Color.FromRgb(43, 87, 154);
+                         :                        Color.FromRgb(148, 163, 184);
             var bar = new Rectangle
             {
                 Width = width,
@@ -1473,6 +1492,52 @@ namespace NXProject.Controls
                 return _rowTops[Tasks.Count - 1] + RowHeight;
 
             return Tasks.Count * RowHeight;
+        }
+
+        private void UpdateMagnifier(MouseEventArgs e, Point canvasPosition)
+        {
+            if (!_magnifierEnabled
+                || _dragState != null
+                || _resizeState != null
+                || GanttCanvas.ActualWidth <= 0
+                || GanttCanvas.ActualHeight <= 0)
+            {
+                HideMagnifier();
+                return;
+            }
+
+            var viewportPosition = e.GetPosition(GanttScroll);
+            var maxLeft = Math.Max(0, GanttScroll.ViewportWidth - MagnifierSize - 8);
+            var maxTop = Math.Max(0, GanttScroll.ViewportHeight - MagnifierSize - 8);
+            var left = Math.Min(maxLeft, viewportPosition.X + MagnifierOffset);
+            var top = Math.Min(maxTop, viewportPosition.Y + MagnifierOffset);
+
+            if (left < viewportPosition.X + MagnifierOffset
+                && viewportPosition.X - MagnifierSize - MagnifierOffset > 0)
+            {
+                left = viewportPosition.X - MagnifierSize - MagnifierOffset;
+            }
+
+            if (top < viewportPosition.Y + MagnifierOffset
+                && viewportPosition.Y - MagnifierSize - MagnifierOffset > 0)
+            {
+                top = viewportPosition.Y - MagnifierSize - MagnifierOffset;
+            }
+
+            MagnifierBrush.Viewbox = new Rect(
+                Math.Max(0, canvasPosition.X - MagnifierSourceSize / 2.0),
+                Math.Max(0, canvasPosition.Y - MagnifierSourceSize / 2.0),
+                MagnifierSourceSize,
+                MagnifierSourceSize);
+
+            MagnifierOverlay.Margin = new Thickness(left, top, 0, 0);
+            MagnifierOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void HideMagnifier()
+        {
+            if (MagnifierOverlay.Visibility == Visibility.Visible)
+                MagnifierOverlay.Visibility = Visibility.Collapsed;
         }
 
         private static TaskViewModel? FindTaskFromVisual(DependencyObject source)

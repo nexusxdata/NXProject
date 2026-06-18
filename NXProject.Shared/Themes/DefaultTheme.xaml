@@ -45,6 +45,27 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Padding" Value="6,3"/>
+        <Setter Property="Margin" Value="1,0"/>
+        <Setter Property="MinWidth" Value="28"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#E0E0E0"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="#D0E4F7"/>
+                <Setter Property="BorderBrush" Value="#2B579A"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Estilo do DataGrid -->
     <Style TargetType="DataGrid">
         <Setter Property="GridLinesVisibility" Value="Horizontal"/>
