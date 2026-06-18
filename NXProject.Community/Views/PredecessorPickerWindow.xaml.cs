@@ -114,6 +114,12 @@ namespace NXProject.Views
             CountText.Text = $"{total} marcada(s)";
         }
 
+        private void OnClearPredecessorsClick(object sender, RoutedEventArgs e)
+        {
+            SelectedPredecessorsText = string.Empty;
+            DialogResult = true;
+        }
+
         private void OnOkClick(object sender, RoutedEventArgs e)
         {
             // IDs externos restantes (os que o usuário não removeu)
