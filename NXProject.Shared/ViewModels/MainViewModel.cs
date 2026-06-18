@@ -1023,7 +1023,7 @@ namespace NXProject.ViewModels
         // Chamado ao abrir ou importar projeto para garantir consistência inicial.
         public void ApplyVirtualPredecessorsToAll()
         {
-            // Coleta o primeiro item de cada grupo (pai + recurso) e cascata a partir dele.
+            // 1. Cascata virtual: primeiro de cada grupo (pai + recurso) propaga para os irmãos seguintes.
             var processed = new System.Collections.Generic.HashSet<(int parentId, int resourceId)>();
             foreach (var task in FlatTasks)
             {
@@ -1035,8 +1035,22 @@ namespace NXProject.ViewModels
                 var key = (parentId, resourceId.Value);
                 if (!processed.Add(key)) continue;
 
-                // Encontra o primeiro irmão do grupo no FlatTasks e cascata a partir dele
                 CascadeSuccessors(task);
+            }
+
+            // 2. Predecessoras explícitas: garante que tarefas com predecessor em outra hierarquia
+            //    sejam recalculadas. Cascata a partir de cada predecessora única.
+            var explicitPredIds = FlatTasks
+                .Where(t => !t.IsSummary && t.Model.PredecessorIds.Count > 0)
+                .SelectMany(t => t.Model.PredecessorIds)
+                .Distinct()
+                .ToList();
+
+            foreach (var predId in explicitPredIds)
+            {
+                var pred = FlatTasks.FirstOrDefault(t => t.Model.Id == predId);
+                if (pred != null)
+                    CascadeSuccessors(pred);
             }
         }
 
