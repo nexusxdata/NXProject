@@ -337,9 +337,10 @@ namespace NXProject.ViewModels
                     return SumTaskHours(_task);
                 var cur = _task.CurrentHours ?? 0;
                 var est = _task.EstimatedHours ?? 0;
-                return (cur > 0 || est > 0)
-                    ? cur + est
-                    : ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
+                if (cur > 0 || est > 0) return cur + est;
+                // Fallback 1: horas originais estimadas (preservadas antes de zerar pelo %)
+                if (_task.OriginalEstimatedHours is > 0) return _task.OriginalEstimatedHours.Value;
+                return ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
             }
             set
             {
@@ -808,7 +809,8 @@ namespace NXProject.ViewModels
         }
 
         public bool DisplayAsMilestone => IsMilestone ||
-            (!IsSummary && (_task.CurrentHours ?? 0) == 0 && (_task.EstimatedHours ?? 0) == 0);
+            (!IsSummary && (_task.CurrentHours ?? 0) == 0 && (_task.EstimatedHours ?? 0) == 0
+             && !(_task.OriginalEstimatedHours is > 0));
 
         public bool IsSummary
         {
