@@ -383,7 +383,9 @@ namespace NXProject.Controls
                     }
 
                     DateCoordLabel.Text = hoverTask != null
-                        ? $"{hoverDate:ddd, dd/MM/yyyy}  |  {hoverTask.Name}  ({hoverTask.DurationHours:0.#}h)"
+                        ? $"{hoverDate:ddd, dd/MM/yyyy}  |  {hoverTask.Name}  " +
+                          $"{hoverTask.Model.Start:dd/MM/yy}–{ProjectCalendarService.GetInclusiveFinishDate(hoverTask.Model.Start, hoverTask.Model.Finish):dd/MM/yy}  " +
+                          $"{hoverTask.DurationHours:0.#}h  {hoverTask.PercentComplete:0.#}%"
                         : hoverDate.ToString("ddd, dd/MM/yyyy", CultureInfo.CurrentCulture);
                 }
                 else
