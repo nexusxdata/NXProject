@@ -1798,10 +1798,7 @@ namespace NXProject.Services
                         DateTime.TryParse(fd.GetString(), CultureInfo.InvariantCulture,
                             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var finish))
                     {
-                        // O DevOps retorna finishDate como meia-noite UTC do dia seguinte (exclusivo).
-                        // Subtrai 1 dia para obter o último dia inclusivo da sprint.
-                        var finishDay = finish.Date;
-                        end = finishDay > start.Date ? finishDay.AddDays(-1) : finishDay;
+                        end = finish.Date;
                     }
 
                     acc.Add(new Sprint

@@ -24,6 +24,7 @@ namespace NXProject.ViewModels
         public Func<string?, DateTime?>? GetSprintFinish { get; set; }
 
         // True quando a data fim da tarefa ultrapassa a data fim da sprint atribuída.
+        // Comparação por string dd/MM/yyyy para evitar problemas de fuso/hora.
         public bool IsFinishBeyondSprint
         {
             get
@@ -31,7 +32,10 @@ namespace NXProject.ViewModels
                 if (string.IsNullOrEmpty(_task.TfsIterationPath)) return false;
                 var sprintFinish = GetSprintFinish?.Invoke(_task.TfsIterationPath);
                 if (sprintFinish == null) return false;
-                return _task.Finish.Date > sprintFinish.Value.Date;
+                var fmt = System.Globalization.CultureInfo.InvariantCulture;
+                var taskDay   = _task.Finish.ToString("yyyyMMdd", fmt);
+                var sprintDay = sprintFinish.Value.ToString("yyyyMMdd", fmt);
+                return string.Compare(taskDay, sprintDay, StringComparison.Ordinal) > 0;
             }
         }
 
