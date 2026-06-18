@@ -331,10 +331,14 @@ namespace NXProject.ViewModels
 
         public double DurationHours
         {
-            // Duração total = HH Atual + HH Restante quando HH Atual > 0; caso contrário, baseada em datas.
-            get => _task.CurrentHours is > 0
-                ? _task.CurrentHours.Value + (_task.EstimatedHours ?? 0)
-                : ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
+            // Duração = HH Atual + HH Restante quando qualquer um tem valor; senão, baseada em datas.
+            get {
+                var cur = _task.CurrentHours ?? 0;
+                var est = _task.EstimatedHours ?? 0;
+                return (cur > 0 || est > 0)
+                    ? cur + est
+                    : ProjectCalendarService.CountWorkingHours(_task.Start, _task.Finish);
+            }
             set
             {
                 if (!CanEditDuration) return;

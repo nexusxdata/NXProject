@@ -111,15 +111,20 @@ namespace NXProject.Models
             var minStart = DateTime.MaxValue;
             var maxFinish = DateTime.MinValue;
 
+            double sumCurrent = 0, sumEstimated = 0;
             foreach (var child in Children)
             {
                 child.RecalcSummary();
                 if (child.Start < minStart) minStart = child.Start;
                 if (child.Finish > maxFinish) maxFinish = child.Finish;
+                sumCurrent   += child.CurrentHours   ?? 0;
+                sumEstimated += child.EstimatedHours ?? 0;
             }
 
             Start = minStart;
             Finish = maxFinish;
+            CurrentHours   = sumCurrent   > 0 ? sumCurrent   : (double?)null;
+            EstimatedHours = sumEstimated > 0 ? sumEstimated : (double?)null;
             RecalcPercentComplete();
         }
 
