@@ -33,7 +33,9 @@ namespace NXProject.ViewModels
                 var sprintFinish = GetSprintFinish?.Invoke(_task.TfsIterationPath);
                 if (sprintFinish == null) return false;
                 var fmt = System.Globalization.CultureInfo.InvariantCulture;
-                var taskDay   = _task.Finish.ToString("yyyyMMdd", fmt);
+                // Usa a data inclusiva (igual ao FinishDisplay) para comparar com o fim da sprint.
+                var inclusiveFinish = ProjectCalendarService.GetInclusiveFinishDate(_task.Start, _task.Finish);
+                var taskDay   = inclusiveFinish.ToString("yyyyMMdd", fmt);
                 var sprintDay = sprintFinish.Value.ToString("yyyyMMdd", fmt);
                 var result = string.Compare(taskDay, sprintDay, StringComparison.Ordinal) > 0;
                 SprintAlertLog.Write(_task.Name, taskDay, sprintDay, result, _task.TfsIterationPath);
