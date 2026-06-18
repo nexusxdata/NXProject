@@ -560,6 +560,7 @@ namespace NXProject.ViewModels
                     OnPropertyChanged(nameof(DurationHours));
                     OnPropertyChanged(nameof(DisplayAsMilestone));
                     RecalcAncestorSummaries();
+                    ScheduleSuccessors?.Invoke(this);
                 }
                 else if (!_task.FinishFixed)
                 {
@@ -574,6 +575,7 @@ namespace NXProject.ViewModels
                         OnPropertyChanged(nameof(DurationHours));
                         OnPropertyChanged(nameof(DisplayAsMilestone));
                         RecalcAncestorSummaries();
+                        ScheduleSuccessors?.Invoke(this);
                     }
                 }
 
