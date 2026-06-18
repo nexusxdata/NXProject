@@ -403,10 +403,18 @@ namespace NXProject.ViewModels
 
             Project.IsDirty = true;
 
-            // Reconstrói fora do commit de edição da célula para evitar reentrância.
+            // Atualiza apenas as propriedades afetadas — sem reconstruir FlatTasks para não perder scroll.
             System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
-                RebuildFlatTasks();
+                // Notifica a task e seus ancestrais sem reconstruir a coleção inteira.
+                vm.NotifyDatesChanged();
+                vm.NotifySprintChanged();
+
+                // Atualiza agrupamentos de sprint/recurso sem tocar em FlatTasks.
+                RecalcSprints();
+                RebuildSprintGroups();
+                RebuildResourceGroups();
+
                 afterRebuild?.Invoke();
                 StatusMessage = sprint != null
                     ? $"Sprint da tarefa alterada para \"{sprint.Name}\" (sincronize para aplicar no DevOps)."

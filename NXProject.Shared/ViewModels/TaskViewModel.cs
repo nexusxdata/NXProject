@@ -924,6 +924,12 @@ namespace NXProject.ViewModels
         }
 
         // Dispara notificações de data/duração após alteração direta no Model (sem passar pelo setter).
+        public void NotifySprintChanged()
+        {
+            OnPropertyChanged(nameof(SprintDisplay));
+            OnPropertyChanged(nameof(SprintPath));
+        }
+
         public void NotifyDatesChanged()
         {
             OnPropertyChanged(nameof(Start));
