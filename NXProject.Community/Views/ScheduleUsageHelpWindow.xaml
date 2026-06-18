@@ -99,8 +99,11 @@ A coluna Pred. define quais atividades precisam terminar antes da atividade atua
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
 O Gantt exibe barras de duracao, marcos, sprints e setas de dependencia.
                     </TextBlock>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A barra azul representa a duracao total planejada da atividade."/>
-                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A faixa preta dentro da barra representa o HH Atual (esforco ja realizado)."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A barra azul clara representa a duracao total planejada da atividade."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A faixa escura central representa o % completo, em uma leitura parecida com o MS Project."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A linha escura discreta na base representa o HH Atual proporcional ao total de HH Atual + HH Restante."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- A barra cinza-azulada clara representa agrupamentos como Feature ou Epic."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ative o botao de lupa na toolbar e mova o mouse sobre o Gantt para analisar o grafico de perto."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Ao mover uma atividade no Gantt, as dependentes podem acompanhar o deslocamento."/>
 
                     <!-- 7. Colunas e modos de exibicao -->

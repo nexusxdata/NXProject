@@ -417,11 +417,7 @@
                             <TextBlock Text="{Binding PercentComplete, StringFormat={}{0:0.#}%}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontSize="9" FontWeight="SemiBold"
-                                       Foreground="White">
-                                <TextBlock.Effect>
-                                    <DropShadowEffect Color="Black" BlurRadius="3" ShadowDepth="0" Opacity="0.85"/>
-                                </TextBlock.Effect>
-                            </TextBlock>
+                                       Foreground="{Binding PercentCompleteTextBrush}"/>
                         </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>

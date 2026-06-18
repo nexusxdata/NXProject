@@ -144,6 +144,7 @@ namespace NXProject.Views
                      "• Para remover fixação de Início, digite 0 no campo Início."),
                     ("Percentual de conclusão",
                      "• O campo % Compl. registra o avanço da tarefa (0 a 100).\n" +
+                     "• Na grade, percentuais baixos usam texto escuro sobre o fundo claro; percentuais maiores usam texto branco sobre a área preenchida.\n" +
                      "• Tarefas agrupamento calculam o percentual como média ponderada das horas dos filhos.\n" +
                      "• Se a data Fim estiver no passado e o percentual for menor que 100, o sistema alerta automaticamente no Health Check.")
                 },
@@ -157,6 +158,7 @@ namespace NXProject.Views
                     ("Navegação e zoom",
                      "• Use o botão de zoom na toolbar para alternar entre Dia, Semana, Sprint, Mês, Trimestre e Semestre.\n" +
                      "• Role horizontalmente para navegar no tempo.\n" +
+                     "• Ative o botão de lupa na toolbar e mova o mouse sobre o Gantt para analisar datas, barras e dependências de perto.\n" +
                      "• A linha vermelha vertical indica a data de hoje."),
                     ("Visões de cabeçalho por dia",
                      "O botão de calendário (📅) na toolbar cicla entre três modos:\n" +
@@ -168,11 +170,13 @@ namespace NXProject.Views
                      "• Botão direito + arrastar (na barra já selecionada): ajusta a data de Fim sem alterar a estimativa de horas. Ao soltar, a data Fim fica fixada (📌).\n" +
                      "• Atividades dependentes se deslocam automaticamente ao mover uma predecessora."),
                     ("Barras e cores",
-                     "• Barra azul: atividade normal.\n" +
+                     "• Barra azul claro: atividade normal.\n" +
                      "• Barra laranja: atividade selecionada.\n" +
-                     "• Barra verde interna: percentual de conclusão.\n" +
+                     "• Faixa escura central: percentual de conclusão, no estilo MS Project.\n" +
+                     "• Linha escura discreta na base: HH Atual proporcional ao total de HH Atual + HH Restante.\n" +
                      "• Losango dourado: marco (milestone).\n" +
-                     "• Barra azul escuro: agrupamento (Feature/Epic).")
+                     "• Barra cinza-azulada clara: agrupamento (Feature/Epic).\n" +
+                     "• Bordas ou realces em vermelho indicam conflito, atraso ou duração negociada diferente da calculada.")
                 },
                 "Clique em uma barra para selecionar a tarefa na grade. As setas de dependência mostram o caminho crítico visualmente."
             ),

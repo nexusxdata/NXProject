@@ -772,8 +772,8 @@ namespace NXProject.ViewModels
         }
 
         public Brush PercentCompleteTextBrush =>
-            PercentComplete <= 0
-                ? Brushes.Black
+            PercentComplete < 45
+                ? new SolidColorBrush(Color.FromRgb(31, 41, 55))
                 : Brushes.White;
 
         private void NotifyParentPercentChanged()
