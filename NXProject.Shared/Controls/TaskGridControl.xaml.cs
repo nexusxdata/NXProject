@@ -1003,6 +1003,16 @@ namespace NXProject.Controls
             if (tb.DataContext is not TaskViewModel vm) return;
             if (IsUnchangedEdit(DurationColumn, tb))
             {
+                // Mesmo sem mudança de duração, sincroniza HH Original se ainda não estiver definido
+                if (vm.Model.PercentComplete < 0.0001 && !(vm.Model.OriginalEstimatedHours is > 0))
+                {
+                    var h = vm.DurationHours;
+                    if (h > 0)
+                    {
+                        vm.Model.OriginalEstimatedHours = h;
+                        vm.RefreshDerivedDisplayProperties();
+                    }
+                }
                 CancelCurrentEdit();
                 return;
             }

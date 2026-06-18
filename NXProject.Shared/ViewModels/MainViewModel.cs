@@ -796,8 +796,13 @@ namespace NXProject.ViewModels
         {
             foreach (var task in tasks)
             {
-                if (task.PercentComplete < 0.0001 && task.EstimatedHours is > 0)
-                    task.OriginalEstimatedHours = task.EstimatedHours;
+                if (task.PercentComplete < 0.0001 && !(task.OriginalEstimatedHours is > 0) && !task.IsSummary)
+                {
+                    var h = task.EstimatedHours is > 0
+                        ? task.EstimatedHours.Value
+                        : ProjectCalendarService.CountWorkingHours(task.Start, task.Finish);
+                    if (h > 0) task.OriginalEstimatedHours = h;
+                }
                 SyncOriginalHoursWhenZeroPercent(task.Children);
             }
         }
