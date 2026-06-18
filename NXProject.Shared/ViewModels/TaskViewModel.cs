@@ -331,8 +331,10 @@ namespace NXProject.ViewModels
 
         public double DurationHours
         {
-            // Duração = HH Atual + HH Restante quando qualquer um tem valor; senão, baseada em datas.
+            // Duração = HH Atual + HH Restante; para summaries agrega filhos sem modificar o modelo.
             get {
+                if (_task.IsSummary)
+                    return SumTaskHours(_task);
                 var cur = _task.CurrentHours ?? 0;
                 var est = _task.EstimatedHours ?? 0;
                 return (cur > 0 || est > 0)
@@ -1171,6 +1173,19 @@ namespace NXProject.ViewModels
             _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, calculatedHours);
             OnPropertyChanged(nameof(FinishDisplay));
             RecalcAncestorSummaries();
+        }
+
+        private static double SumTaskHours(Models.ProjectTask task)
+        {
+            if (!task.IsSummary || task.Children.Count == 0)
+            {
+                var cur = task.CurrentHours ?? 0;
+                var est = task.EstimatedHours ?? 0;
+                return (cur > 0 || est > 0)
+                    ? cur + est
+                    : ProjectCalendarService.CountWorkingHours(task.Start, task.Finish);
+            }
+            return task.Children.Sum(SumTaskHours);
         }
     }
 }
