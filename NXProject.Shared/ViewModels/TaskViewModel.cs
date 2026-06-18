@@ -967,8 +967,8 @@ namespace NXProject.ViewModels
                 return;
             }
 
-            // Tarefa já iniciada (% > 0): não move o Start, mas propaga para as próximas.
-            if (_task.PercentComplete > 0)
+            // Data fixada pelo usuário (📌) ou tarefa já iniciada: não move o Start.
+            if (_task.StartFixed || _task.PercentComplete > 0)
             {
                 ScheduleSuccessors?.Invoke(this);
                 return;

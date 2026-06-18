@@ -913,8 +913,8 @@ namespace NXProject.ViewModels
                     continue;
                 }
 
-                // Tarefa já iniciada: não move o Start, mas usa o fim atual para encadear as próximas.
-                if (sibling.Model.PercentComplete > 0)
+                // Data fixada (📌) ou tarefa já iniciada: não move o Start, encadeia a partir do fim atual.
+                if (sibling.Model.StartFixed || sibling.Model.PercentComplete > 0)
                 {
                     changedFinish = ProjectCalendarService.GetInclusiveFinishDate(sibling.Model.Start, sibling.Model.Finish);
                     continue;
