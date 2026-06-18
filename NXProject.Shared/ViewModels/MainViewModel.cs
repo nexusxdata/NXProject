@@ -138,7 +138,7 @@ namespace NXProject.ViewModels
             NewProject();
         }
 
-        private void RebuildFlatTasks()
+        public void RebuildFlatTasks()
         {
             SyncOriginalHoursWhenZeroPercent(Project.Tasks);
             var selectedModel = SelectedTask?.Model;

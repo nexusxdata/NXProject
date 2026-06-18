@@ -1520,7 +1520,8 @@ namespace NXProject.Views
             if (DataContext is not MainViewModel vm)
                 return;
 
-            vm.RecalculateScheduleRespectingAssignments();
+            vm.RebuildFlatTasks();
+            vm.ApplyVirtualPredecessorsToAll();
             GanttCtrl.ForceRender();
         }
 
