@@ -927,7 +927,12 @@ namespace NXProject.ViewModels
                 .Max();
             var nextStart = ProjectCalendarService.AddWorkingDays(latestFinish, 1);
             if (_task.Start.Date == nextStart.Date)
+            {
+                // Já na posição correta, mas propaga para que irmãos virtuais (mesmo recurso)
+                // sejam ajustados caso ainda não tenham sido processados.
+                ScheduleSuccessors?.Invoke(this);
                 return;
+            }
 
             var durationHours = DurationHours;
             _task.Start = nextStart;

@@ -889,12 +889,23 @@ namespace NXProject.ViewModels
                 if (!ReferenceEquals(sibling.ParentViewModel, changed.ParentViewModel)) break;
                 // Deve ter o mesmo recurso primário
                 if (sibling.Model.Resources.FirstOrDefault()?.ResourceId != changedResource) continue;
-                // Só irmãos sem predecessoras explícitas (predecessor virtual não se sobrepõe ao explícito)
-                if (sibling.Model.PredecessorIds.Count > 0) continue;
                 // Não reprocessar
                 if (!visited.Add(sibling.Model.Id)) continue;
 
                 var nextStart = ProjectCalendarService.AddWorkingDays(changedFinish, 1);
+
+                // Tarefas com predecessoras explícitas: aplica restrição de recurso só se o virtual
+                // empurrar para frente (nunca recua uma data já fixada pela predecessora explícita).
+                if (sibling.Model.PredecessorIds.Count > 0)
+                {
+                    if (nextStart.Date <= sibling.Model.Start.Date)
+                    {
+                        changedFinish = ProjectCalendarService.GetInclusiveFinishDate(sibling.Model.Start, sibling.Model.Finish);
+                        continue;
+                    }
+                    // nextStart > sibling.Start → conflito de recurso: empurra para frente
+                }
+
                 if (sibling.Model.Start.Date == nextStart.Date)
                 {
                     // Já na posição correta; encadeia a partir do fim deste
