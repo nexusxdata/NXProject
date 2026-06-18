@@ -1534,6 +1534,19 @@ namespace NXProject.Controls
             MagnifierOverlay.Visibility = Visibility.Visible;
         }
 
+        private void OnGanttCanvasToolTipOpening(object sender, ToolTipEventArgs e)
+        {
+            if (!_magnifierEnabled) return;
+            if (e.Source is not FrameworkElement fe || fe.ToolTip is not ToolTip tt) return;
+
+            // Ancora o tooltip no canto superior direito do Gantt, fora da área da lupa
+            var screenTopRight = GanttScroll.PointToScreen(
+                new Point(GanttScroll.ViewportWidth - 220, 4));
+            tt.Placement = System.Windows.Controls.Primitives.PlacementMode.Absolute;
+            tt.HorizontalOffset = screenTopRight.X;
+            tt.VerticalOffset    = screenTopRight.Y;
+        }
+
         private void HideMagnifier()
         {
             if (MagnifierOverlay.Visibility == Visibility.Visible)

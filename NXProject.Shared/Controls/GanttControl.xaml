@@ -35,6 +35,7 @@
                       CanContentScroll="False"
                       ScrollChanged="OnScrollChanged">
             <Canvas x:Name="GanttCanvas"
+                    Background="Transparent"
                     ClipToBounds="True"
                     VerticalAlignment="Top"
                     HorizontalAlignment="Left"
@@ -43,8 +44,34 @@
                     MouseUp="OnCanvasMouseUp"
                     MouseLeave="OnCanvasMouseLeave"
                     MouseRightButtonDown="OnCanvasRightMouseDown"
-                    MouseRightButtonUp="OnCanvasRightMouseUp"/>
+                    MouseRightButtonUp="OnCanvasRightMouseUp"
+                    ToolTipOpening="OnGanttCanvasToolTipOpening"/>
         </ScrollViewer>
+
+        <Grid x:Name="MagnifierOverlay"
+              Grid.Row="1"
+              Width="168"
+              Height="168"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top"
+              IsHitTestVisible="False"
+              Visibility="Collapsed"
+              Panel.ZIndex="20">
+            <Ellipse Stroke="#F59E0B"
+                     StrokeThickness="2"
+                     SnapsToDevicePixels="True">
+                <Ellipse.Fill>
+                    <VisualBrush x:Name="MagnifierBrush"
+                                 Visual="{Binding ElementName=GanttCanvas}"
+                                 ViewboxUnits="Absolute"
+                                 Stretch="Fill"/>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Stroke="#FFFFFFFF"
+                     StrokeThickness="1"
+                     Margin="3"
+                     Opacity="0.75"/>
+        </Grid>
 
     </Grid>
 </UserControl>
