@@ -907,7 +907,7 @@ namespace NXProject.ViewModels
             var durationHours = DurationHours;
             _task.Start = nextStart;
             _task.Finish = ProjectCalendarService.AddWorkingHours(nextStart, durationHours);
-            _task.StartFixed = true;
+            // Não marca StartFixed: o início é calculado pela predecessora, não fixo pelo usuário.
 
             OnPropertyChanged(nameof(Start));
             OnPropertyChanged(nameof(StartDisplay));
