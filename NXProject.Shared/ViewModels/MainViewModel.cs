@@ -382,10 +382,22 @@ namespace NXProject.ViewModels
 
             if (sprint != null && !task.IsSummary)
             {
-                task.Start = sprint.Start;
-                task.Finish = task.IsMilestone
-                    ? sprint.Start
-                    : ProjectCalendarService.AddWorkingHours(sprint.Start, Math.Max(0.0, vm.DurationHours));
+                // Só reposiciona o início se a tarefa ainda não foi iniciada (% = 0).
+                // Se já tiver progresso, mantém a data de início original.
+                if (task.PercentComplete == 0)
+                {
+                    task.Start = sprint.Start;
+                    task.Finish = task.IsMilestone
+                        ? sprint.Start
+                        : ProjectCalendarService.AddWorkingHours(sprint.Start, Math.Max(0.0, vm.DurationHours));
+                }
+                else
+                {
+                    // Apenas garante que o Fim não caia antes do Início ao trocar de sprint.
+                    task.Finish = task.IsMilestone
+                        ? task.Start
+                        : ProjectCalendarService.AddWorkingHours(task.Start, Math.Max(0.0, vm.DurationHours));
+                }
                 RecalcSummaryChain(task.Parent);
             }
 
