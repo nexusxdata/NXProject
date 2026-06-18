@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="% de Alocação"
         Width="340"
-        Height="200"
+        Height="250"
         MinWidth="300"
-        MinHeight="180"
+        MinHeight="230"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="White"
@@ -13,6 +13,7 @@
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -34,7 +35,32 @@
                    TextTrimming="CharacterEllipsis"
                    Margin="0,0,0,14"/>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal">
+        <!-- HH/dia → Calcular -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBox x:Name="HhDiaBox"
+                     Width="60"
+                     Height="30"
+                     FontSize="13"
+                     TextAlignment="Center"
+                     Padding="4,4"
+                     VerticalContentAlignment="Center"
+                     PreviewTextInput="OnPreviewDecimalInput"
+                     ToolTip="Horas por dia para calcular o % de alocação"/>
+            <TextBlock Text=" h/dia"
+                       FontSize="12"
+                       Foreground="#444"
+                       VerticalAlignment="Center"
+                       Margin="2,0,8,0"/>
+            <Button Content="Calcular →"
+                    Height="30"
+                    Padding="10,0"
+                    FontSize="12"
+                    Click="OnCalculatePercent"
+                    ToolTip="Converte HH/dia em % de alocação"/>
+        </StackPanel>
+
+        <!-- % direto -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal">
             <TextBox x:Name="PercAlocBox"
                      Width="80"
                      Height="32"
@@ -55,14 +81,14 @@
                        VerticalAlignment="Center"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="3"
+        <TextBlock Grid.Row="4"
                    x:Name="ErrorText"
                    Foreground="#B00020"
                    FontSize="11"
                    Margin="0,6,0,0"
                    Visibility="Collapsed"/>
 
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Cancelar"
                     Width="80" Height="30"
                     Margin="0,0,8,0"
