@@ -135,6 +135,17 @@ Atividades do mesmo nivel hierarquico com o mesmo recurso atribuido sao encadead
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Atividades com predecessoras explicitas nao sao movidas pela predecessora virtual."/>
                     <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- Ao abrir ou importar o projeto, o encadeamento virtual e as predecessoras explicitas sao aplicados automaticamente em toda a hierarquia."/>
 
+                    <!-- 10. Sprint -->
+                    <TextBlock Text="10. Sprint"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2B579A" Margin="0,8,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+A coluna Sprint associa a atividade a uma iteracao do Azure DevOps (ou a um numero sintetico de sprint do cronograma).
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao trocar a sprint de uma atividade sem progresso (% = 0), a data de inicio e movida para o inicio da sprint selecionada e o fim e recalculado pela duracao."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Se a atividade ja tiver progresso (% > 0), a data de inicio e preservada; apenas o fim e recalculado mantendo a duracao atual."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,4" Text="- Ao alterar a sprint, as datas dos ancestrais (Feature, Epic, Projeto) sao recalculadas automaticamente para refletir o novo intervalo do conjunto de atividades filhas."/>
+                    <TextBlock TextWrapping="Wrap" Margin="18,0,0,12" Text="- A troca de sprint nao causa refresh geral da grade: apenas a linha da atividade e os ancestrais sao atualizados, preservando posicao de scroll e selecao."/>
+
                     <Border Background="#FFF7E8"
                             BorderBrush="#E8D39A"
                             BorderThickness="1"
