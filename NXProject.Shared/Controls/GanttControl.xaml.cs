@@ -83,6 +83,8 @@ namespace NXProject.Controls
             set
             {
                 _magnifierEnabled = value;
+                // Desabilita tooltips dos elementos do canvas enquanto a lupa estiver ativa
+                ToolTipService.SetIsEnabled(GanttCanvas, !value);
                 if (!value) HideMagnifier();
             }
         }
