@@ -128,23 +128,56 @@ namespace NXProject.Models
             if (!IsSummary || Children.Count == 0)
                 return;
 
-            double totalWeight = 0.0;
-            double weightedPercent = 0.0;
+            double totalHoursAll   = 0.0;
+            double currentHoursAll = 0.0;
+            CollectLeafHours(this, ref currentHoursAll, ref totalHoursAll);
 
-            foreach (var child in Children)
+            if (totalHoursAll > 0)
             {
-                // Para summaries (Feature, Epic): usa soma recursiva dos filhos como peso.
-                // Para tarefas folha: usa a duração efetiva (horas × alocação).
-                var weight = child.IsSummary
-                    ? Math.Max(1.0, SumDescendantHours(child))
-                    : Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
-                weightedPercent += child.PercentComplete * weight;
-                totalWeight += weight;
+                PercentComplete = currentHoursAll / totalHoursAll * 100.0;
             }
+            else
+            {
+                // Fallback: média ponderada do PercentComplete armazenado
+                double totalWeight    = 0.0;
+                double weightedPercent = 0.0;
+                foreach (var child in Children)
+                {
+                    var weight = child.IsSummary
+                        ? Math.Max(1.0, SumDescendantHours(child))
+                        : Math.Max(1.0, TaskScheduleService.GetEffectiveDurationHours(child));
+                    weightedPercent += child.PercentComplete * weight;
+                    totalWeight     += weight;
+                }
+                PercentComplete = totalWeight > 0
+                    ? weightedPercent / totalWeight
+                    : Children.Average(c => c.PercentComplete);
+            }
+        }
 
-            PercentComplete = totalWeight > 0
-                ? weightedPercent / totalWeight
-                : Children.Average(c => c.PercentComplete);
+        // Soma recursiva dos HH Atual e HH Total (Atual+Restante) de todas as folhas abaixo de 'task'.
+        private static void CollectLeafHours(ProjectTask task, ref double currentSum, ref double totalSum)
+        {
+            if (!task.IsSummary || task.Children.Count == 0)
+            {
+                var cur   = task.CurrentHours   ?? 0;
+                var est   = task.EstimatedHours  ?? 0;
+                var total = cur + est;
+                if (total > 0)
+                {
+                    currentSum += cur;
+                    totalSum   += total;
+                }
+                else if (task.OriginalEstimatedHours is > 0)
+                {
+                    // tarefa com % armazenado e sem horas de acompanhamento: usa % × OrgH
+                    currentSum += task.PercentComplete / 100.0 * task.OriginalEstimatedHours.Value;
+                    totalSum   += task.OriginalEstimatedHours.Value;
+                }
+                return;
+            }
+            foreach (var child in task.Children)
+                CollectLeafHours(child, ref currentSum, ref totalSum);
         }
 
         private static double SumDescendantHours(ProjectTask task)
