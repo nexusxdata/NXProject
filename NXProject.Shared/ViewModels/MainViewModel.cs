@@ -1632,16 +1632,8 @@ namespace NXProject.ViewModels
                 return;
             }
 
-            // Tarefa DevOps real: delega à View para abrir confirmação + exclusão no DevOps
-            if (!IsNoDevOpsType(SelectedTask.Model.TfsType) && SelectedTask.Model.TfsId is > 0)
-            {
-                RequestDevOpsDeleteDialog?.Invoke(SelectedTask);
-                return;
-            }
-
-            // No DevOps (ou sem vínculo): exclui apenas localmente
-            DeleteTaskViewModel(SelectedTask);
-            StatusMessage = "Tarefa excluida.";
+            // Sempre delega à View para mostrar a confirmação (No DevOps = local, DevOps = no DevOps)
+            RequestDevOpsDeleteDialog?.Invoke(SelectedTask);
         }
 
         [RelayCommand]

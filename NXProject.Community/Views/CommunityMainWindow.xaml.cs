@@ -89,7 +89,7 @@ namespace NXProject.Views
             };
 
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
-            vm.RequestDevOpsDeleteDialog += OnTaskIdClicked;
+            vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
@@ -419,6 +419,83 @@ namespace NXProject.Views
                 vm.DeleteTaskViewModel(task);
             else if (dialog.ShouldImport)
                 OpenTfsImport();
+        }
+
+        private async void OnConfirmDeleteTask(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm) return;
+
+            bool isNoDevOps = string.Equals(task.Model.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase);
+            bool hasDevOpsId = task.TfsId is > 0;
+
+            // Monta janela de confirmação
+            var confirm = new Window
+            {
+                Title = "Confirmar Exclusão",
+                Width = 480, Height = 240,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                Background = System.Windows.Media.Brushes.White
+            };
+            bool confirmed = false;
+            var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+            var titulo = isNoDevOps
+                ? $"⚠ Excluir tarefa \"{task.Name}\"?"
+                : $"⚠ Excluir Story #{task.TfsId} do Azure DevOps?";
+            panel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = titulo,
+                FontSize = 15, FontWeight = FontWeights.Bold,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
+            });
+            var detalhe = isNoDevOps
+                ? "A tarefa será removida do cronograma."
+                : $"\"{task.Name}\"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps.";
+            panel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = detalhe,
+                FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 16)
+            });
+            var btnPanel = new System.Windows.Controls.StackPanel
+                { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var btnConfirm = new System.Windows.Controls.Button
+            {
+                Content = isNoDevOps ? "Excluir" : "Excluir permanentemente",
+                Width = isNoDevOps ? 90 : 180, Height = 30,
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
+                Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(0),
+                FontWeight = FontWeights.SemiBold, Cursor = System.Windows.Input.Cursors.Hand
+            };
+            var btnCancel = new System.Windows.Controls.Button
+                { Content = "Cancelar", Width = 90, Height = 30, Margin = new Thickness(10, 0, 0, 0), IsCancel = true };
+            btnConfirm.Click += (_, _) => { confirmed = true; confirm.Close(); };
+            btnCancel.Click  += (_, _) => confirm.Close();
+            btnPanel.Children.Add(btnConfirm);
+            btnPanel.Children.Add(btnCancel);
+            panel.Children.Add(btnPanel);
+            confirm.Content = panel;
+            confirm.ShowDialog();
+
+            if (!confirmed) return;
+
+            if (!isNoDevOps && hasDevOpsId)
+            {
+                try
+                {
+                    var options = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+                    await NXProject.Services.TfsImportService.DeleteWorkItemAsync(options, task.TfsId!.Value);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Erro ao excluir no DevOps:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            vm.DeleteTaskViewModel(task);
         }
 
         private void OnEditPercAloc(TaskViewModel task)
