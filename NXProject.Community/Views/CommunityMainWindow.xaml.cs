@@ -440,9 +440,9 @@ namespace NXProject.Views
             };
             bool confirmed = false;
             var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(24, 20, 24, 20) };
-            var titulo = isNoDevOps
-                ? $"⚠ Excluir tarefa \"{task.Name}\"?"
-                : $"⚠ Excluir Story #{task.TfsId} do Azure DevOps?";
+            var titulo = hasDevOpsId
+                ? $"⚠ Excluir Story #{task.TfsId} do Azure DevOps?"
+                : $"⚠ Excluir tarefa \"{task.Name}\"?";
             panel.Children.Add(new System.Windows.Controls.TextBlock
             {
                 Text = titulo,
@@ -450,9 +450,9 @@ namespace NXProject.Views
                 Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
             });
-            var detalhe = isNoDevOps
-                ? "A tarefa será removida do cronograma."
-                : $"\"{task.Name}\"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps.";
+            var detalhe = hasDevOpsId
+                ? $"\"{task.Name}\"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps."
+                : "A tarefa será removida do cronograma.";
             panel.Children.Add(new System.Windows.Controls.TextBlock
             {
                 Text = detalhe,
@@ -463,8 +463,8 @@ namespace NXProject.Views
                 { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var btnConfirm = new System.Windows.Controls.Button
             {
-                Content = isNoDevOps ? "Excluir" : "Excluir permanentemente",
-                Width = isNoDevOps ? 90 : 180, Height = 30,
+                Content = hasDevOpsId ? "Excluir permanentemente" : "Excluir",
+                Width = hasDevOpsId ? 180 : 90, Height = 30,
                 Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
                 Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(0),
                 FontWeight = FontWeights.SemiBold, Cursor = System.Windows.Input.Cursors.Hand
