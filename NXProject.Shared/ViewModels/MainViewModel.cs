@@ -140,6 +140,7 @@ namespace NXProject.ViewModels
 
         public void RebuildFlatTasks()
         {
+            NormalizeNoDevOpsType(Project.Tasks);
             SyncOriginalHoursWhenZeroPercent(Project.Tasks);
             foreach (var root in Project.Tasks)
                 root.RecalcSummary();
@@ -860,6 +861,18 @@ namespace NXProject.ViewModels
         }
 
         // Quando % = 0, nenhum trabalho foi feito: OrgH deve espelhar HH Restante.
+        // Tarefas sem tipo definido (TfsType nulo) são classificadas como "No DevOps"
+        // para garantir que nunca sejam enviadas ao TFS acidentalmente.
+        private static void NormalizeNoDevOpsType(IEnumerable<Models.ProjectTask> tasks)
+        {
+            foreach (var t in tasks)
+            {
+                if (!t.IsSummary && string.IsNullOrWhiteSpace(t.TfsType))
+                    t.TfsType = "No DevOps";
+                NormalizeNoDevOpsType(t.Children);
+            }
+        }
+
         private static void SyncOriginalHoursWhenZeroPercent(IEnumerable<Models.ProjectTask> tasks)
         {
             foreach (var task in tasks)

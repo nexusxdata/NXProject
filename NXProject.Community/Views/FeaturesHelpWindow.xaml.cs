@@ -147,7 +147,18 @@ namespace NXProject.Views
                      "• O campo % Compl. registra o avanço da tarefa (0 a 100).\n" +
                      "• Na grade, percentuais baixos usam texto escuro sobre o fundo claro; percentuais maiores usam texto branco sobre a área preenchida.\n" +
                      "• Tarefas agrupamento calculam o percentual como média ponderada das horas dos filhos.\n" +
-                     "• Se a data Fim estiver no passado e o percentual for menor que 100, o sistema alerta automaticamente no Health Check.")
+                     "• Se a data Fim estiver no passado e o percentual for menor que 100, o sistema alerta automaticamente no Health Check."),
+                    ("Criação de Atividade",
+                     "Ao adicionar uma nova atividade (botão + ou Editar → Adicionar Atividade):\n" +
+                     "• O Tipo, o Recurso e a Sprint são copiados automaticamente da atividade selecionada no momento do clique.\n" +
+                     "• O ID DevOps é definido como 0, indicando que a atividade será criada no Azure DevOps na próxima sincronização (Export → Sincronizar).\n" +
+                     "• Atividades com Tipo = 'No DevOps' nunca são enviadas ao Azure DevOps — servem apenas para controle local no cronograma.\n" +
+                     "• Atividades sem Tipo definido são automaticamente classificadas como 'No DevOps' para evitar criação acidental no DevOps."),
+                    ("Atualização de Atividade no DevOps",
+                     "• Atividades com ID DevOps > 0 são atualizadas no Azure DevOps ao executar Export → Sincronizar.\n" +
+                     "• Atividades com ID DevOps = 0 (e Tipo diferente de 'No DevOps') são criadas como novos work items no Azure DevOps, e o ID retornado é gravado no cronograma.\n" +
+                     "• Atividades com Tipo 'No DevOps' são ignoradas pela sincronização, mesmo que tenham ID = 0.\n" +
+                     "• No Import: se um work item do Azure DevOps tiver o mesmo nome que uma atividade 'No DevOps' local, o NXProject vincula automaticamente a atividade local ao item importado, atualizando seu Tipo para o tipo do DevOps.")
                 },
                 "Informe Início e Dur.(h) — o Fim é calculado pelo calendário. Para dependências, use a coluna Pred."
             ),
