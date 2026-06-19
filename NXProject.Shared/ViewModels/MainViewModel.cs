@@ -1518,7 +1518,8 @@ namespace NXProject.ViewModels
                 TfsId = (selected?.Model.TfsType != null &&
                          !string.Equals(selected.Model.TfsType.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
                         ? 0 : (int?)null,
-                TfsState = "New"
+                TfsState = !string.Equals(selected?.Model.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase)
+                           ? "New" : null
             };
             // Copia o primeiro recurso da tarefa selecionada
             if (selected?.Model.Resources.Count > 0)
