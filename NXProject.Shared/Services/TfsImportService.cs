@@ -689,7 +689,7 @@ namespace NXProject.Services
                             task.TfsState = "Closed";
                         }
                         else if (task.PercentComplete < 100 &&
-                                 !string.Equals(task.TfsState?.Trim(), "Active", StringComparison.OrdinalIgnoreCase))
+                                 string.Equals(task.TfsState?.Trim(), "Closed", StringComparison.OrdinalIgnoreCase))
                         {
                             task.TfsState = "Active";
                         }
