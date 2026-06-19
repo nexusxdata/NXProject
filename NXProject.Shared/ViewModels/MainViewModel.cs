@@ -674,6 +674,7 @@ namespace NXProject.ViewModels
             var existingAllocations       = CaptureAllocationPercentByDevOpsTask();
             var existingAvailability      = CaptureAvailabilityByResourceKey();
             var existingOriginalHours     = CaptureOriginalEstimatedHoursByTfsId();
+            var noDevOpsTasks             = CaptureNoDevOpsTasks();
 
             // Preserva configurações de UI do projeto atual que não vêm do TFS.
             if (string.IsNullOrEmpty(project.HiddenColumns) && !string.IsNullOrEmpty(Project?.HiddenColumns))
@@ -687,12 +688,77 @@ namespace NXProject.ViewModels
             RestoreAllocationPercentByDevOpsTask(Project.Tasks, existingAllocations);
             RestoreAvailabilityByResourceKey(Project.Resources, existingAvailability);
             RestoreOriginalEstimatedHours(Project.Tasks, existingOriginalHours);
+            RestoreNoDevOpsTasks(noDevOpsTasks);
             ApplyProjectSprintSettingsToViewModel(project);
             _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
             RebuildFlatTasks();
             ApplyVirtualPredecessorsToAll();
             Project.IsDirty = true;
             StatusMessage = statusMessage ?? "Projeto importado.";
+        }
+
+        private List<(Models.ProjectTask task, int? parentTfsId)> CaptureNoDevOpsTasks()
+        {
+            var result = new List<(Models.ProjectTask, int?)>();
+            if (Project == null) return result;
+            void Collect(IEnumerable<Models.ProjectTask> tasks)
+            {
+                foreach (var t in tasks)
+                {
+                    if (string.Equals(t.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
+                        result.Add((t, t.Parent?.TfsId));
+                    Collect(t.Children);
+                }
+            }
+            Collect(Project.Tasks);
+            return result;
+        }
+
+        private void RestoreNoDevOpsTasks(List<(Models.ProjectTask task, int? parentTfsId)> noDevOpsTasks)
+        {
+            if (noDevOpsTasks.Count == 0) return;
+
+            // Mapa nome → tarefa importada do TFS (para detectar coincidências)
+            var byName = new System.Collections.Generic.Dictionary<string, Models.ProjectTask>(StringComparer.OrdinalIgnoreCase);
+            void IndexByName(IEnumerable<Models.ProjectTask> tasks)
+            {
+                foreach (var t in tasks) { byName[t.Name] = t; IndexByName(t.Children); }
+            }
+            IndexByName(Project.Tasks);
+
+            // Mapa TfsId → tarefa importada (para encontrar o pai)
+            var byTfsId = new System.Collections.Generic.Dictionary<int, Models.ProjectTask>();
+            void IndexByTfsId(IEnumerable<Models.ProjectTask> tasks)
+            {
+                foreach (var t in tasks)
+                {
+                    if (t.TfsId is > 0) byTfsId[t.TfsId.Value] = t;
+                    IndexByTfsId(t.Children);
+                }
+            }
+            IndexByTfsId(Project.Tasks);
+
+            foreach (var (task, parentTfsId) in noDevOpsTasks)
+            {
+                // Se o TFS importado já tem uma tarefa com o mesmo nome, ela é o vínculo — não re-adiciona
+                if (byName.ContainsKey(task.Name))
+                    continue;
+
+                // Re-insere sob o mesmo pai (por TfsId) ou na raiz
+                if (parentTfsId.HasValue && byTfsId.TryGetValue(parentTfsId.Value, out var parent))
+                {
+                    task.Parent = parent;
+                    task.Level = parent.Level + 1;
+                    parent.Children.Add(task);
+                    parent.IsSummary = true;
+                }
+                else
+                {
+                    task.Parent = null;
+                    task.Level = 0;
+                    Project.Tasks.Add(task);
+                }
+            }
         }
 
         private Dictionary<(int taskId, string resourceKey), double> CaptureAllocationPercentByDevOpsTask()
@@ -1426,13 +1492,32 @@ namespace NXProject.ViewModels
             var start = selected?.Start
                 ?? AllTasks().Select(t => t.Start).DefaultIfEmpty(Project.StartDate).Min();
 
+            // Copia tipo, recurso e sprint da tarefa selecionada
             var task = new ProjectTask
             {
                 Id = _nextId++,
                 Name = "Nova Tarefa",
                 Start = start,
-                Finish = ProjectCalendarService.AddWorkingHours(start, ProjectCalendarService.WorkingHoursPerDay)
+                Finish = ProjectCalendarService.AddWorkingHours(start, ProjectCalendarService.WorkingHoursPerDay),
+                TfsType = selected?.Model.TfsType,
+                TfsIterationPath = selected?.Model.TfsIterationPath,
+                // TfsId=0 indica "criar no TFS na próxima sincronização"; "No DevOps" fica sem ID
+                TfsId = (selected?.Model.TfsType != null &&
+                         !string.Equals(selected.Model.TfsType.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
+                        ? 0 : (int?)null
             };
+            // Copia o primeiro recurso da tarefa selecionada
+            if (selected?.Model.Resources.Count > 0)
+            {
+                var srcRes = selected.Model.Resources[0];
+                task.Resources.Add(new Models.TaskResource
+                {
+                    ResourceId       = srcRes.ResourceId,
+                    Resource         = srcRes.Resource,
+                    AllocationPercent = srcRes.AllocationPercent,
+                    EstimatedHours   = null
+                });
+            }
 
             if (selected == null)
             {

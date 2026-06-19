@@ -410,6 +410,10 @@ namespace NXProject.Services
                     // Pai desejado = pai na hierarquia do NXProject; raiz = work item do projeto.
                     int desiredParent = task.Parent?.TfsId ?? options.RootWorkItemId;
 
+                    // Tarefas marcadas como "No DevOps" nunca são criadas/atualizadas no TFS.
+                    if (string.Equals(task.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
                     if (!task.TfsId.HasValue || task.TfsId.Value == 0)
                     {
                         // CRIAR no DevOps.

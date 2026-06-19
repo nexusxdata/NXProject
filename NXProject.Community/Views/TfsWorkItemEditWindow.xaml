@@ -85,6 +85,7 @@
                     <ComboBoxItem>Epic</ComboBoxItem>
                     <ComboBoxItem>Feature</ComboBoxItem>
                     <ComboBoxItem>Story</ComboBoxItem>
+                    <ComboBoxItem>No DevOps</ComboBoxItem>
                 </ComboBox>
 
                 <TextBlock Text="Estado DevOps" FontWeight="SemiBold" Margin="0,12,0,4"/>
