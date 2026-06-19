@@ -89,6 +89,7 @@ namespace NXProject.Views
             };
 
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
+            vm.RequestDevOpsDeleteDialog += OnTaskIdClicked;
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;

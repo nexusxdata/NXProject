@@ -129,6 +129,9 @@ namespace NXProject.ViewModels
         private int _nextId = 1;
         private int _nextNoDevOpsId = -1; // IDs negativos para tarefas No DevOps
 
+        /// <summary>Chamado pela View quando a tarefa selecionada é DevOps e o usuário clicou em Excluir.</summary>
+        public Action<TaskViewModel>? RequestDevOpsDeleteDialog { get; set; }
+
         public MainViewModel(string sprintSettingsStorageKey = "NXProject.Community")
         {
             _sprintSettingsStorageKey = string.IsNullOrWhiteSpace(sprintSettingsStorageKey)
@@ -1620,6 +1623,7 @@ namespace NXProject.ViewModels
             RebuildFlatTasks();
         }
 
+        [RelayCommand]
         private void DeleteTask()
         {
             if (SelectedTask == null)
@@ -1628,28 +1632,16 @@ namespace NXProject.ViewModels
                 return;
             }
 
-            var task = SelectedTask.Model;
-            var removedTasks = FlattenTask(task).ToList();
-
-            if (task.Parent != null)
+            // Tarefa DevOps real: delega à View para abrir confirmação + exclusão no DevOps
+            if (!IsNoDevOpsType(SelectedTask.Model.TfsType) && SelectedTask.Model.TfsId is > 0)
             {
-                task.Parent.Children.Remove(task);
-                if (task.Parent.Children.Count == 0)
-                    task.Parent.IsSummary = false;
-            }
-            else
-            {
-                Project.Tasks.Remove(task);
+                RequestDevOpsDeleteDialog?.Invoke(SelectedTask);
+                return;
             }
 
-            foreach (var removedTask in removedTasks)
-                _collapsedTaskIds.Remove(removedTask.Id);
-
-            Project.IsDirty = true;
-            RebuildFlatTasks();
-            StatusMessage = removedTasks.Count > 1
-                ? "Tarefa e subtarefas excluidas."
-                : "Tarefa excluida.";
+            // No DevOps (ou sem vínculo): exclui apenas localmente
+            DeleteTaskViewModel(SelectedTask);
+            StatusMessage = "Tarefa excluida.";
         }
 
         [RelayCommand]
