@@ -69,6 +69,10 @@ namespace NXProject.Views
                         _devOpsItemUrl = $"{org}/{proj}/_workitems/edit/{task.TfsId}";
                         OpenInDevOpsButton.Visibility = Visibility.Visible;
                         LoadOnlineTasksButton.Visibility = Visibility.Visible;
+
+                        // Botão de exclusão apenas para Stories com ID real
+                        if (TfsImportService.IsStoryTypePublic(task.TfsType))
+                            DeleteStoryButton.Visibility = Visibility.Visible;
                     }
                 }
                 catch { }
@@ -83,6 +87,79 @@ namespace NXProject.Views
             {
                 ChildTasksList.ItemsSource = children;
                 ChildTasksPanel.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async void OnDeleteStoryClick(object sender, RoutedEventArgs e)
+        {
+            if (_task.TfsId is not > 0) return;
+
+            // Confirmação com destaque visual
+            var confirm = new Window
+            {
+                Title = "Confirmar Exclusão",
+                Width = 440, Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                Background = System.Windows.Media.Brushes.White
+            };
+            var result = false;
+            var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"⚠ Excluir Story #{_task.TfsId} do Azure DevOps?",
+                FontSize = 15, FontWeight = FontWeights.Bold,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
+            });
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"\"{_task.Name}\"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps.",
+                FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x44, 0x00, 0x00)),
+                Margin = new Thickness(0, 0, 0, 16)
+            });
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var btnConfirm = new Button
+            {
+                Content = "Excluir permanentemente", Width = 180, Height = 30,
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
+                Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(0),
+                FontWeight = FontWeights.SemiBold, Cursor = System.Windows.Input.Cursors.Hand
+            };
+            var btnCancel = new Button { Content = "Cancelar", Width = 90, Height = 30, Margin = new Thickness(10, 0, 0, 0), IsCancel = true };
+            btnConfirm.Click += (_, _) => { result = true; confirm.Close(); };
+            btnCancel.Click  += (_, _) => confirm.Close();
+            btnPanel.Children.Add(btnConfirm);
+            btnPanel.Children.Add(btnCancel);
+            panel.Children.Add(btnPanel);
+            confirm.Content = panel;
+            confirm.ShowDialog();
+
+            if (!result) return;
+
+            try
+            {
+                DeleteStoryButton.IsEnabled = false;
+                StatusText.Text = "Excluindo Story no DevOps...";
+                StatusText.Visibility = Visibility.Visible;
+                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x44, 0x44, 0x44));
+
+                var options = TfsConnectionStore.Load("NXProject.Community");
+                await TfsImportService.DeleteWorkItemAsync(options, _task.TfsId.Value);
+
+                // Desvincula localmente após excluir no DevOps
+                _task.TfsId = null;
+                DialogResult = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                DeleteStoryButton.IsEnabled = true;
+                StatusText.Text = $"Erro ao excluir: {ex.Message}";
+                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xB0, 0x00, 0x20));
+                StatusText.Visibility = Visibility.Visible;
             }
         }
 

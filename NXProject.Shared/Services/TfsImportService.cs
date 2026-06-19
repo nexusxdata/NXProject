@@ -1908,6 +1908,27 @@ namespace NXProject.Services
             IsStoryType(type);
 
         public static bool IsStoryTypePublic(string? type) => IsStoryType(type);
+
+        public static async Task DeleteWorkItemAsync(TfsConnectionOptions options, int workItemId, CancellationToken ct = default)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var auth = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            // DELETE /wit/workitems/{id}?destroy=true remove permanentemente (sem lixeira)
+            var url = $"{orgBase}/_apis/wit/workitems/{workItemId}?destroy=true&{ApiVersion}";
+            using var req = new HttpRequestMessage(HttpMethod.Delete, url);
+            req.Headers.Authorization = auth;
+            req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var resp = await Http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                throw new InvalidOperationException($"Falha ao excluir #{workItemId}: {resp.StatusCode} — {body}");
+            }
+        }
         private static bool IsStoryType(string? type) =>
             string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase) ||
