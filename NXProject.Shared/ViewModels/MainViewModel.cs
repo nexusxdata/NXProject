@@ -1541,24 +1541,18 @@ namespace NXProject.ViewModels
 
             if (selected == null)
             {
-                var prev = Project.Tasks.LastOrDefault();
-                if (prev != null) task.PredecessorIds.Add(prev.Id);
                 Project.Tasks.Add(task);
             }
             else if (selected.Model.Parent == null)
             {
-                // Raiz: insere imediatamente após a selecionada
-                task.PredecessorIds.Add(selected.Model.Id);
                 var idx = Project.Tasks.IndexOf(selected.Model);
                 Project.Tasks.Insert(idx + 1, task);
             }
             else
             {
-                // Filho: insere como irmão logo após a selecionada
                 var parent = selected.Model.Parent;
                 task.Level = selected.Model.Level;
                 task.Parent = parent;
-                task.PredecessorIds.Add(selected.Model.Id);
                 var idx = parent.Children.IndexOf(selected.Model);
                 parent.Children.Insert(idx + 1, task);
                 parent.RecalcSummary();
@@ -1588,9 +1582,6 @@ namespace NXProject.ViewModels
                 TfsType  = "No DevOps",
                 TfsId    = _nextNoDevOpsId--
             };
-
-            if (previousSibling != null)
-                task.PredecessorIds.Add(previousSibling.Id);
 
             parent.Children.Add(task);
             parent.IsSummary = true;
