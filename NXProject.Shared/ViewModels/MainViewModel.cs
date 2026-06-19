@@ -127,6 +127,7 @@ namespace NXProject.ViewModels
         public ObservableCollection<ResourceAllocationGroup> ResourceAllocationGroups { get; } = new();
 
         private int _nextId = 1;
+        private int _nextNoDevOpsId = -1; // IDs negativos para tarefas No DevOps
 
         public MainViewModel(string sprintSettingsStorageKey = "NXProject.Community")
         {
@@ -627,7 +628,7 @@ namespace NXProject.ViewModels
                     SyncOriginalHoursWhenZeroPercent(project.Tasks);
                     Project = project;
                     ApplyProjectSprintSettingsToViewModel(project);
-                    _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
+                    RecalcIdCounters();
                     RebuildFlatTasks();
                     ApplyVirtualPredecessorsToAll();
                     StatusMessage = $"Projeto aberto: {dlg.FileName}";
@@ -653,7 +654,7 @@ namespace NXProject.ViewModels
                 var project = OpenProjImportService.Import(dlg.FileName);
                 Project = project;
                 ApplyProjectSprintSettingsToViewModel(project);
-                _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
+                RecalcIdCounters();
                 RebuildFlatTasks();
                 StatusMessage = $"OpenProj importado: {dlg.FileName}";
             }
@@ -863,12 +864,15 @@ namespace NXProject.ViewModels
         // Quando % = 0, nenhum trabalho foi feito: OrgH deve espelhar HH Restante.
         // Tarefas sem tipo definido (TfsType nulo) são classificadas como "No DevOps"
         // para garantir que nunca sejam enviadas ao TFS acidentalmente.
-        private static void NormalizeNoDevOpsType(IEnumerable<Models.ProjectTask> tasks)
+        private void NormalizeNoDevOpsType(IEnumerable<Models.ProjectTask> tasks)
         {
             foreach (var t in tasks)
             {
                 if (!t.IsSummary && string.IsNullOrWhiteSpace(t.TfsType))
                     t.TfsType = "No DevOps";
+                // Garante TfsId negativo único para tarefas No DevOps sem ID negativo
+                if (IsNoDevOpsType(t.TfsType) && !(t.TfsId < 0))
+                    t.TfsId = _nextNoDevOpsId--;
                 NormalizeNoDevOpsType(t.Children);
             }
         }
@@ -1295,7 +1299,7 @@ namespace NXProject.ViewModels
                 var project = MspdiImportService.Import(dlg.FileName);
                 Project = project;
                 ApplyProjectSprintSettingsToViewModel(project);
-                _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
+                RecalcIdCounters();
                 RebuildFlatTasks();
                 StatusMessage = $"MS Project importado: {dlg.FileName}";
             }
@@ -1319,7 +1323,7 @@ namespace NXProject.ViewModels
                 var project = ExcelXmlService.Import(dlg.FileName);
                 Project = project;
                 ApplyProjectSprintSettingsToViewModel(project);
-                _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
+                RecalcIdCounters();
                 RebuildFlatTasks();
                 StatusMessage = $"Excel importado: {dlg.FileName}";
             }
@@ -1514,12 +1518,10 @@ namespace NXProject.ViewModels
                 Finish = ProjectCalendarService.AddWorkingHours(start, ProjectCalendarService.WorkingHoursPerDay),
                 TfsType = selected?.Model.TfsType,
                 TfsIterationPath = selected?.Model.TfsIterationPath,
-                // TfsId=0 indica "criar no TFS na próxima sincronização"; "No DevOps" fica sem ID
-                TfsId = (selected?.Model.TfsType != null &&
-                         !string.Equals(selected.Model.TfsType.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
-                        ? 0 : (int?)null,
-                TfsState = !string.Equals(selected?.Model.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase)
-                           ? "New" : null
+                // TfsId=0 indica "criar no TFS"; negativo = No DevOps (local, único para predecessoras)
+                TfsId = IsNoDevOpsType(selected?.Model.TfsType)
+                        ? _nextNoDevOpsId-- : 0,
+                TfsState = IsNoDevOpsType(selected?.Model.TfsType) ? null : "New"
             };
             // Copia o primeiro recurso da tarefa selecionada
             if (selected?.Model.Resources.Count > 0)
@@ -1574,12 +1576,14 @@ namespace NXProject.ViewModels
             var previousSibling = parent.Children.LastOrDefault();
             var task = new ProjectTask
             {
-                Id = _nextId++,
-                Name = "Nova Subtarefa",
-                Start = parent.Start,
-                Finish = ProjectCalendarService.AddWorkingHours(parent.Start, ProjectCalendarService.WorkingHoursPerDay * 3.0),
-                Level = parent.Level + 1,
-                Parent = parent
+                Id       = _nextId++,
+                Name     = "Nova Subtarefa",
+                Start    = parent.Start,
+                Finish   = ProjectCalendarService.AddWorkingHours(parent.Start, ProjectCalendarService.WorkingHoursPerDay * 3.0),
+                Level    = parent.Level + 1,
+                Parent   = parent,
+                TfsType  = "No DevOps",
+                TfsId    = _nextNoDevOpsId--
             };
 
             if (previousSibling != null)
@@ -2053,6 +2057,20 @@ namespace NXProject.ViewModels
             }
 
             return null;
+        }
+
+        private static bool IsNoDevOpsType(string? type) =>
+            string.Equals(type?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase);
+
+        private void RecalcIdCounters()
+        {
+            _nextId = AllTasks().Select(t => t.Id).DefaultIfEmpty(0).Max() + 1;
+            var minNoDevOps = AllTasks()
+                .Where(t => t.TfsId.HasValue && t.TfsId.Value < 0)
+                .Select(t => t.TfsId!.Value)
+                .DefaultIfEmpty(0)
+                .Min();
+            _nextNoDevOpsId = Math.Min(minNoDevOps - 1, -1);
         }
 
         private void RemoveTaskFromCurrentCollection(ProjectTask task)
