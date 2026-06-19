@@ -1017,6 +1017,10 @@ namespace NXProject.Services
 
             foreach (var storedId in task.PredecessorIds)
             {
+                // IDs negativos são internos de tarefas "No DevOps" — nunca enviar ao DevOps.
+                if (storedId < 0)
+                    continue;
+
                 // 1. Tarefa interna (Id interno) com TfsId resolvível.
                 if (tasksById.TryGetValue(storedId, out var predecessor) &&
                     ShouldSyncPredecessors(predecessor) &&
