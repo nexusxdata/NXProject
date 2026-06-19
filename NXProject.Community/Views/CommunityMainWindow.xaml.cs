@@ -414,6 +414,8 @@ namespace NXProject.Views
             var dialog = new TfsWorkItemEditWindow(task) { Owner = this };
             if (dialog.ShowDialog() == true)
                 vm.Project.IsDirty = true;
+            else if (dialog.ShouldDelete)
+                vm.DeleteTaskViewModel(task);
             else if (dialog.ShouldImport)
                 OpenTfsImport();
         }

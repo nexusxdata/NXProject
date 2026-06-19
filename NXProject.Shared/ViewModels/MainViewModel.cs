@@ -1596,6 +1596,26 @@ namespace NXProject.ViewModels
         }
 
         [RelayCommand]
+        public void DeleteTaskViewModel(TaskViewModel vm)
+        {
+            var task = vm.Model;
+            var removedTasks = FlattenTask(task).ToList();
+            if (task.Parent != null)
+            {
+                task.Parent.Children.Remove(task);
+                if (task.Parent.Children.Count == 0)
+                    task.Parent.IsSummary = false;
+            }
+            else
+            {
+                Project.Tasks.Remove(task);
+            }
+            foreach (var removedTask in removedTasks)
+                _collapsedTaskIds.Remove(removedTask.Id);
+            Project.IsDirty = true;
+            RebuildFlatTasks();
+        }
+
         private void DeleteTask()
         {
             if (SelectedTask == null)

@@ -170,8 +170,6 @@
                         Content="🗑 Excluir Story no DevOps"
                         Height="30" Padding="12,0"
                         Visibility="Collapsed"
-                        Background="#C62828" Foreground="White"
-                        BorderThickness="0" FontWeight="SemiBold"
                         Cursor="Hand"
                         Click="OnDeleteStoryClick"/>
                 <Button Grid.Column="2" Content="OK" Width="90" Height="30" IsDefault="True" Click="OnOkClick"/>

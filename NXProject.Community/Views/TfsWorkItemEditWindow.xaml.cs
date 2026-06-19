@@ -15,6 +15,7 @@ namespace NXProject.Views
         private string? _devOpsItemUrl;
 
         public bool ShouldImport { get; private set; }
+        public bool ShouldDelete { get; private set; }
 
         public TfsWorkItemEditWindow(TaskViewModel task)
         {
@@ -98,7 +99,7 @@ namespace NXProject.Views
             var confirm = new Window
             {
                 Title = "Confirmar Exclusão",
-                Width = 440, Height = 200,
+                Width = 480, Height = 240,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this,
                 ResizeMode = ResizeMode.NoResize,
@@ -149,9 +150,8 @@ namespace NXProject.Views
                 var options = TfsConnectionStore.Load("NXProject.Community");
                 await TfsImportService.DeleteWorkItemAsync(options, _task.TfsId.Value);
 
-                // Desvincula localmente após excluir no DevOps
-                _task.TfsId = null;
-                DialogResult = true;
+                ShouldDelete = true;
+                DialogResult = false;
                 Close();
             }
             catch (Exception ex)
