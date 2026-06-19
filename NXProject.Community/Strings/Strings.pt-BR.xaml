@@ -27,7 +27,7 @@
     <sys:String x:Key="Menu_Edit_AddTask">Adicionar _Tarefa</sys:String>
     <sys:String x:Key="Menu_Edit_AddSubtask">Adicionar _Subtarefa</sys:String>
     <sys:String x:Key="Menu_Edit_DeleteTask">E_xcluir Tarefa</sys:String>
-    <sys:String x:Key="Menu_Edit_Link">Encadear _Atividades</sys:String>
+    <sys:String x:Key="Menu_Edit_Link">Encadear na mesma _hierarquia</sys:String>
     <sys:String x:Key="Menu_Edit_MoveUp">Mover Tarefa para _Cima</sys:String>
     <sys:String x:Key="Menu_Edit_MoveDown">Mover Tarefa para _Baixo</sys:String>
     <sys:String x:Key="Menu_Edit_Indent">Criar _Subtarefa</sys:String>
@@ -75,7 +75,7 @@
     <sys:String x:Key="Toolbar_AddTask">Adicionar Tarefa</sys:String>
     <sys:String x:Key="Toolbar_AddSubtask">Adicionar subtarefa</sys:String>
     <sys:String x:Key="Toolbar_DeleteTask">Excluir Tarefa</sys:String>
-    <sys:String x:Key="Toolbar_LinkTasks">Encadear atividades</sys:String>
+    <sys:String x:Key="Toolbar_LinkTasks">Encadear na mesma hierarquia a partir da selecionada</sys:String>
     <sys:String x:Key="Toolbar_Indent">Criar subtarefa da tarefa selecionada</sys:String>
     <sys:String x:Key="Toolbar_Outdent">Promover tarefa para o nivel superior</sys:String>
     <sys:String x:Key="Toolbar_MoveUp">Mover tarefa para cima</sys:String>

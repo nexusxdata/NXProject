@@ -1778,18 +1778,38 @@ namespace NXProject.ViewModels
         [RelayCommand]
         private void LinkTasksSequentially()
         {
-            var orderedTasks = AllTasks()
-                .Where(task => !task.IsSummary)
+            if (SelectedTask == null)
+            {
+                StatusMessage = "Selecione uma atividade para encadear a partir dela.";
+                return;
+            }
+
+            var selectedModel = SelectedTask.Model;
+            var selectedParent = selectedModel.Parent;
+
+            // Coleta apenas irmãos não-summary do mesmo pai, na ordem, a partir da selecionada inclusive
+            var siblings = (selectedParent == null
+                    ? Project.Tasks.AsEnumerable()
+                    : selectedParent.Children.AsEnumerable())
+                .Where(t => !t.IsSummary)
                 .ToList();
 
-            if (orderedTasks.Count < 2)
+            var startIdx = siblings.IndexOf(selectedModel);
+            if (startIdx < 0)
             {
-                StatusMessage = "Adicione pelo menos duas atividades para encadear.";
+                StatusMessage = "Atividade selecionada não encontrada na hierarquia.";
+                return;
+            }
+
+            var toChain = siblings.Skip(startIdx).ToList();
+            if (toChain.Count < 2)
+            {
+                StatusMessage = "Não há atividades seguintes na mesma hierarquia para encadear.";
                 return;
             }
 
             ProjectTask? previousTask = null;
-            foreach (var task in orderedTasks)
+            foreach (var task in toChain)
             {
                 task.PredecessorIds.Clear();
                 if (previousTask != null)
@@ -1811,7 +1831,7 @@ namespace NXProject.ViewModels
 
             Project.IsDirty = true;
             RebuildFlatTasks();
-            StatusMessage = "Atividades encadeadas em sequência.";
+            StatusMessage = $"Encadeadas {toChain.Count} atividades na mesma hierarquia.";
         }
 
         [RelayCommand] private void Undo() { StatusMessage = "Desfazer (em desenvolvimento)"; }
