@@ -1791,7 +1791,7 @@ namespace NXProject.ViewModels
             var siblings = (selectedParent == null
                     ? Project.Tasks.AsEnumerable()
                     : selectedParent.Children.AsEnumerable())
-                .Where(t => !t.IsSummary)
+                .Where(t => !t.IsSummary && t.TfsId != 0)
                 .ToList();
 
             var startIdx = siblings.IndexOf(selectedModel);
