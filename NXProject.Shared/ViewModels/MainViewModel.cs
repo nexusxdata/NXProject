@@ -1517,7 +1517,10 @@ namespace NXProject.ViewModels
                 // TfsId=0 indica "criar no TFS na próxima sincronização"; "No DevOps" fica sem ID
                 TfsId = (selected?.Model.TfsType != null &&
                          !string.Equals(selected.Model.TfsType.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
-                        ? 0 : (int?)null
+                        ? 0 : (int?)null,
+                // Tipo No DevOps começa com estado "New"
+                TfsState = string.Equals(selected?.Model.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase)
+                           ? "New" : null
             };
             // Copia o primeiro recurso da tarefa selecionada
             if (selected?.Model.Resources.Count > 0)
