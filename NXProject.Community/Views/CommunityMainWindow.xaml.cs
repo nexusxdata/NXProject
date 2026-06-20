@@ -426,7 +426,19 @@ namespace NXProject.Views
             if (DataContext is not MainViewModel vm) return;
 
             bool isNoDevOps = string.Equals(task.Model.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase);
+            bool isStory = NXProject.Services.TfsImportService.IsStoryTypePublic(task.Model.TfsType);
             bool hasDevOpsId = task.TfsId is > 0;
+            bool canDeleteInDevOps = hasDevOpsId && isStory;
+
+            // Tipo com ID real mas não é Story: protege exclusão no DevOps
+            if (hasDevOpsId && !isStory)
+            {
+                MessageBox.Show(
+                    $"A atividade \"{task.Name}\" é do tipo \"{task.Model.TfsType}\" e não pode ser excluída pelo NXProject.\n\n" +
+                    "Para excluir apenas do cronograma, altere o ID DevOps para 0 primeiro.",
+                    "Exclusão protegida", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             // Monta janela de confirmação
             var confirm = new Window
@@ -440,7 +452,7 @@ namespace NXProject.Views
             };
             bool confirmed = false;
             var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(24, 20, 24, 20) };
-            var titulo = hasDevOpsId
+            var titulo = canDeleteInDevOps
                 ? $"⚠ Excluir Story #{task.TfsId} do Azure DevOps?"
                 : $"⚠ Excluir tarefa \"{task.Name}\"?";
             panel.Children.Add(new System.Windows.Controls.TextBlock
@@ -450,7 +462,7 @@ namespace NXProject.Views
                 Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
             });
-            var detalhe = hasDevOpsId
+            var detalhe = canDeleteInDevOps
                 ? $"\"{task.Name}\"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps."
                 : "A tarefa será removida do cronograma.";
             panel.Children.Add(new System.Windows.Controls.TextBlock
@@ -463,8 +475,8 @@ namespace NXProject.Views
                 { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var btnConfirm = new System.Windows.Controls.Button
             {
-                Content = hasDevOpsId ? "Excluir permanentemente" : "Excluir",
-                Width = hasDevOpsId ? 180 : 90, Height = 30,
+                Content = canDeleteInDevOps ? "Excluir permanentemente" : "Excluir",
+                Width = canDeleteInDevOps ? 180 : 90, Height = 30,
                 Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
                 Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(0),
                 FontWeight = FontWeights.SemiBold, Cursor = System.Windows.Input.Cursors.Hand
@@ -481,7 +493,7 @@ namespace NXProject.Views
 
             if (!confirmed) return;
 
-            if (!isNoDevOps && hasDevOpsId)
+            if (canDeleteInDevOps)
             {
                 try
                 {
