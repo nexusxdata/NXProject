@@ -113,6 +113,10 @@ namespace NXProject.Views
                 "O NXProject é um gerenciador de projetos de TI que une o rigor técnico do Azure DevOps com a visão de cronograma que gestores e líderes precisam para tomar decisões.",
                 new()
                 {
+                    ("Filosofia de planejamento",
+                     "O NXProject planeja até o nível de Story, permitindo que o Desenvolvedor tenha liberdade para detalhar e criar as tarefas durante a execução.\n\n" +
+                     "Inspirado no conceito matemático de grau de liberdade — utilizado para modelar sistemas complexos — o NXProject aplica o mesmo princípio ao planejamento: estrutura a complexidade da tecnologia sem engessar o processo de desenvolvimento.\n\n" +
+                     "Assim como em um sistema físico onde os graus de liberdade definem o espaço de movimento possível, o NXProject define os limites (datas, recursos, dependências) e preserva o espaço necessário para que o time técnico navegue com autonomia dentro deles."),
                     ("O que o NXProject faz",
                      "O NXProject importa a hierarquia do Azure DevOps (Project → Epic → Feature → Story) e transforma esses dados em um cronograma com datas, dependências, alocação de recursos e Gantt.\n" +
                      "A equipe técnica continua no Azure DevOps como sempre. O NXProject é uma camada de leitura e planejamento sobre esses dados.\n" +
