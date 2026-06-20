@@ -213,7 +213,8 @@
                                                Foreground="#7A5200" VerticalAlignment="Center"
                                                ToolTip="Bloqueado por Task filha"/>
                                 </Border>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                           ContextMenuOpening="OnNameContextMenuOpening">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Style.Triggers>
@@ -224,8 +225,8 @@
                                         </Style>
                                     </TextBlock.Style>
                                     <TextBlock.ContextMenu>
-                                        <ContextMenu ContextMenuOpening="OnNameContextMenuOpening">
-                                            <MenuItem x:Name="ToggleBlockMenuItem" Header="Adicionar Block na Story" Click="OnToggleStoryBlockClick"/>
+                                        <ContextMenu>
+                                            <MenuItem Header="Adicionar Block na Story" Click="OnToggleStoryBlockClick"/>
                                         </ContextMenu>
                                     </TextBlock.ContextMenu>
                                 </TextBlock>

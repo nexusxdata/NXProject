@@ -118,6 +118,9 @@
             <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding DeleteTaskCommand}" ToolTip="{DynamicResource Toolbar_DeleteTask}">
                 <TextBlock Text="&#x1F5D1;" FontSize="14"/>
             </Button>
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnOpenSelectedTaskInDevOpsClick" ToolTip="Abrir no DevOps ↗">
+                <TextBlock Text="&#x1F517;" FontSize="14"/>
+            </Button>
             <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding LinkTasksSequentiallyCommand}" ToolTip="{DynamicResource Toolbar_LinkTasks}">
                 <TextBlock Text="&#x26D3;" FontSize="14"/>
             </Button>

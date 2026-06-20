@@ -1090,11 +1090,12 @@ namespace NXProject.Controls
 
         private void OnNameContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
-            if (sender is not ContextMenu cm) return;
-            var target = cm.PlacementTarget as System.Windows.FrameworkElement;
-            var vm = target?.DataContext as TaskViewModel;
-            var item = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleBlockMenuItem");
-            if (item != null && vm != null)
+            if (sender is not System.Windows.FrameworkElement el) return;
+            var vm = el.DataContext as TaskViewModel;
+            var cm = el.ContextMenu;
+            if (cm == null || vm == null) return;
+            var item = cm.Items.OfType<MenuItem>().FirstOrDefault();
+            if (item != null)
                 item.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
         }
 
