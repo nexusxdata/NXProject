@@ -158,7 +158,16 @@ namespace NXProject.Views
                      "• Atividades com ID DevOps > 0 são atualizadas no Azure DevOps ao executar Export → Sincronizar.\n" +
                      "• Atividades com ID DevOps = 0 (e Tipo diferente de 'No DevOps') são criadas como novos work items no Azure DevOps, e o ID retornado é gravado no cronograma.\n" +
                      "• Atividades com Tipo 'No DevOps' são ignoradas pela sincronização, mesmo que tenham ID = 0.\n" +
-                     "• No Import: se um work item do Azure DevOps tiver o mesmo nome que uma atividade 'No DevOps' local, o NXProject vincula automaticamente a atividade local ao item importado, atualizando seu Tipo para o tipo do DevOps.")
+                     "• No Import: se um work item do Azure DevOps tiver o mesmo nome que uma atividade 'No DevOps' local, o NXProject vincula automaticamente a atividade local ao item importado, atualizando seu Tipo para o tipo do DevOps."),
+                    ("Bloqueio (tag BLOCK)",
+                     "O NXProject diferencia dois tipos de bloqueio visíveis na coluna Nome:\n" +
+                     "• ⛔ BLOCK (vermelho) — a própria Story/atividade tem a tag 'Block'. Quando ambos existem, apenas este ícone é exibido.\n" +
+                     "• 🔴 BLOCK (amarelo) — bloqueio herdado de uma Task filha no DevOps que tem a tag 'Block'.\n\n" +
+                     "Para adicionar ou retirar o Block da Story, clique com o botão direito no nome da atividade e use o menu 'Adicionar/Retirar Block da Story'.\n\n" +
+                     "Sincronização da tag Block:\n" +
+                     "• Se a Story no NXProject tem Block e o DevOps não tem → a tag é adicionada no DevOps ao sincronizar.\n" +
+                     "• Se a Story no NXProject não tem Block e o DevOps tem → a tag é removida do DevOps ao sincronizar.\n\n" +
+                     "Na importação, o NXProject lê a tag Block tanto da própria Story (registrada nas tags da atividade) quanto das Tasks filhas (refletida como bloqueio herdado).")
                 },
                 "Informe Início e Dur.(h) — o Fim é calculado pelo calendário. Para dependências, use a coluna Pred."
             ),
