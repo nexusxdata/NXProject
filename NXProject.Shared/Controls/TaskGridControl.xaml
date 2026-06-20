@@ -170,12 +170,48 @@
 
                             <!-- Nome (+ selo BLOCK quando bloqueado) -->
                             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- BLOCK de Story (⛔) tem prioridade; se só Task (🔴) mostra Task -->
                                 <Border Margin="0,0,5,0" Padding="4,0" CornerRadius="3"
-                                        Background="#FDE7E9" BorderBrush="#D13438" BorderThickness="1"
                                         VerticalAlignment="Center"
-                                        Visibility="{Binding IsBlocked, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding IsBlockedByStory, Converter={StaticResource BoolToVis}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#FDE7E9"/>
+                                            <Setter Property="BorderBrush" Value="#D13438"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                        </Style>
+                                    </Border.Style>
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Retirar Block da Story"
+                                                      Click="OnToggleStoryBlockClick"/>
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <TextBlock Text="⛔ BLOCK" FontSize="9" FontWeight="SemiBold"
-                                               Foreground="#A4262C" VerticalAlignment="Center"/>
+                                               Foreground="#A4262C" VerticalAlignment="Center"
+                                               ToolTip="Bloqueado (tag Block na Story)"/>
+                                </Border>
+                                <!-- BLOCK de Task filha — só mostra se Story NÃO tem Block -->
+                                <Border Margin="0,0,5,0" Padding="4,0" CornerRadius="3"
+                                        Background="#FFF4CE" BorderBrush="#C8A600" BorderThickness="1"
+                                        VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsBlockedByTask}"  Value="True"/>
+                                                        <Condition Binding="{Binding IsBlockedByStory}" Value="False"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="🔴 BLOCK" FontSize="9" FontWeight="SemiBold"
+                                               Foreground="#7A5200" VerticalAlignment="Center"
+                                               ToolTip="Bloqueado por Task filha"/>
                                 </Border>
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
                                     <TextBlock.Style>
@@ -187,6 +223,11 @@
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
+                                    <TextBlock.ContextMenu>
+                                        <ContextMenu ContextMenuOpening="OnNameContextMenuOpening">
+                                            <MenuItem x:Name="ToggleBlockMenuItem" Header="Adicionar Block na Story" Click="OnToggleStoryBlockClick"/>
+                                        </ContextMenu>
+                                    </TextBlock.ContextMenu>
                                 </TextBlock>
                             </StackPanel>
                         </Grid>

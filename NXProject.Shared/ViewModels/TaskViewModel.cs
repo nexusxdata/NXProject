@@ -215,13 +215,43 @@ namespace NXProject.ViewModels
             }
         }
 
-        // Conveniência: item bloqueado — tag "Block" própria OU rollup de Task filha
-        // bloqueada (este último é só visão, não sincroniza).
-        public bool IsBlocked =>
-            _task.BlockedByChild ||
-            (_task.Tags ?? string.Empty)
+        private static bool HasBlockTag(string? tags) =>
+            (tags ?? string.Empty)
                 .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Any(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
+
+        // Block próprio da Story (tag na própria atividade)
+        public bool IsBlockedByStory => HasBlockTag(_task.Tags);
+
+        // Block herdado de Task filha (rollup)
+        public bool IsBlockedByTask => _task.BlockedByChild;
+
+        // Conveniência: item bloqueado — tag "Block" própria OU rollup de Task filha
+        public bool IsBlocked => IsBlockedByStory || IsBlockedByTask;
+
+        // Ícone a exibir: Story tem prioridade sobre Task
+        public string BlockIcon => IsBlockedByStory ? "⛔ BLOCK" : "🔴 BLOCK";
+
+        public bool ToggleBlockCommand_CanExecute => true;
+
+        public void ToggleStoryBlock()
+        {
+            var tags = (_task.Tags ?? string.Empty)
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
+            if (IsBlockedByStory)
+                tags.RemoveAll(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
+            else
+                tags.Add("Block");
+
+            _task.Tags = string.Join("; ", tags);
+            OnPropertyChanged(nameof(Tags));
+            OnPropertyChanged(nameof(IsBlocked));
+            OnPropertyChanged(nameof(IsBlockedByStory));
+            OnPropertyChanged(nameof(IsBlockedByTask));
+            OnPropertyChanged(nameof(BlockIcon));
+        }
 
         public bool HasSyncConflict => _task.HasSyncConflict;
 

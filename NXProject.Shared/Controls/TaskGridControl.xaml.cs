@@ -1088,6 +1088,34 @@ namespace NXProject.Controls
         }
 
 
+        private void OnNameContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is not ContextMenu cm) return;
+            var target = cm.PlacementTarget as System.Windows.FrameworkElement;
+            var vm = target?.DataContext as TaskViewModel;
+            var item = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleBlockMenuItem");
+            if (item != null && vm != null)
+                item.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
+        }
+
+        private void OnToggleStoryBlockClick(object sender, RoutedEventArgs e)
+        {
+            // Sobe pela árvore visual para encontrar a DataContext (TaskViewModel)
+            var el = sender as System.Windows.FrameworkElement;
+            // ContextMenu não está na árvore visual normal; usa PlacementTarget
+            if (el?.Parent is ContextMenu cm)
+                el = cm.PlacementTarget as System.Windows.FrameworkElement;
+
+            var vm = el?.DataContext as TaskViewModel
+                  ?? (el?.TemplatedParent as System.Windows.FrameworkElement)?.DataContext as TaskViewModel;
+
+            if (vm == null) return;
+            vm.ToggleStoryBlock();
+            // Marca projeto como dirty
+            if (DataContext is ViewModels.MainViewModel mainVm)
+                mainVm.Project.IsDirty = true;
+        }
+
         private void CommitStartEdit(TextBox tb)
         {
             if (tb.DataContext is not TaskViewModel vm) return;
