@@ -27,6 +27,14 @@
               CellEditEnding="OnTaskGridCellEditEnding"
               SelectionChanged="OnTaskGridSelectionChanged">
 
+        <DataGrid.Resources>
+            <!-- Seleção inativa (grid sem foco): laranja em vez do cinza padrão -->
+            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                             Color="#E07B20"/>
+            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                             Color="White"/>
+        </DataGrid.Resources>
+
         <DataGrid.RowStyle>
             <Style TargetType="DataGridRow">
                 <Setter Property="Background" Value="{Binding HierarchyBackground}"/>
