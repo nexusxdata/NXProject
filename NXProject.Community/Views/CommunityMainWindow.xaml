@@ -45,6 +45,7 @@
                 <MenuItem Header="{DynamicResource Menu_Edit_AddTask}" Command="{Binding AddTaskCommand}"/>
                 <MenuItem Header="{DynamicResource Menu_Edit_AddSubtask}" Command="{Binding AddSubtaskCommand}"/>
                 <MenuItem Header="{DynamicResource Menu_Edit_DeleteTask}" Command="{Binding DeleteTaskCommand}"/>
+                <MenuItem Header="Abrir no DevOps ↗" Click="OnOpenSelectedTaskInDevOpsClick"/>
                 <MenuItem Header="{DynamicResource Menu_Edit_Link}" Command="{Binding LinkTasksSequentiallyCommand}"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Edit_MoveUp}"

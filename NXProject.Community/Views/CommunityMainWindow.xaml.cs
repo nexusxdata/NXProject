@@ -407,6 +407,22 @@ namespace NXProject.Views
             aiWindow.ShowDialog();
         }
 
+        private void OnOpenSelectedTaskInDevOpsClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var task = vm.SelectedTask;
+            if (task?.TfsId is not > 0) return;
+
+            try
+            {
+                var conn = NXProject.Services.TfsConnectionStore.Load();
+                if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)) return;
+                var url = $"{conn.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(conn.TeamProject.Trim())}/_workitems/edit/{task.TfsId}";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch { }
+        }
+
         private void OnTaskIdClicked(TaskViewModel task)
         {
             if (DataContext is not MainViewModel vm)
