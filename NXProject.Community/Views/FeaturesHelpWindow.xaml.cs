@@ -144,9 +144,10 @@ namespace NXProject.Views
                     ("Duração e datas",
                      "• Coluna Dur.(h): informe em horas (ex: 8) ou em dias úteis com d (ex: 2d = 2 dias úteis).\n" +
                      "• A data Fim é calculada automaticamente: Início + Dur.(h) respeitando o calendário de trabalho.\n" +
-                     "• Para fixar a data de Início, digite a data no campo — ela fica marcada com 📌.\n" +
+                     "• Para fixar a data de Início, digite a data no campo — ela fica marcada com 📌. Se a data digitada diferir da calculada, um calendário é aberto para confirmação visual.\n" +
+                     "• Use Ctrl + Clique na célula de Início para abrir o calendário diretamente sem precisar digitar.\n" +
                      "• Para fixar a data de Fim, informe a data no campo Fim ou arraste a borda direita da barra no Gantt com o botão direito do mouse (na barra já selecionada).\n" +
-                     "• Para remover fixação de Início, digite 0 no campo Início."),
+                     "• Para remover fixação de Início, digite 0 no campo Início — o cronograma recalcula a data automaticamente."),
                     ("Percentual de conclusão",
                      "• O campo % Compl. registra o avanço da tarefa (0 a 100).\n" +
                      "• Na grade, percentuais baixos usam texto escuro sobre o fundo claro; percentuais maiores usam texto branco sobre a área preenchida.\n" +
@@ -188,8 +189,17 @@ namespace NXProject.Views
                     ("Início fixado",
                      "• Ao digitar uma data no campo Início, o Início fica fixado e aparece com o ícone de fixação.\n" +
                      "• Uma atividade com Início fixado não é recuada automaticamente por cascata de recurso ou predecessora virtual.\n" +
-                     "• Para remover a fixação do Início, digite 0 no campo Início.\n" +
+                     "• Para remover a fixação do Início, digite 0 no campo Início — o cronograma recalcula automaticamente a data.\n" +
                      "• Se o Início fixado estiver no futuro e a atividade for marcada como 100%, o Fim fica igual ao Início fixado, para evitar Fim antes do Início."),
+                    ("Calendário visual para edição do Início",
+                     "Um calendário é aberto automaticamente para auxiliar na escolha da data de Início em dois cenários:\n\n" +
+                     "• Ctrl + Clique na célula de Início: abre o calendário pré-posicionado na data atual da atividade. Útil para trocar a data sem precisar digitar.\n\n" +
+                     "• Data digitada diferente da data calculada: se o valor digitado não coincidir com a data válida do cronograma, o calendário abre pré-selecionado no próximo dia útil mais próximo da data digitada, para confirmar visualmente antes de aplicar.\n\n" +
+                     "• Data inválida digitada: se o texto digitado não for uma data reconhecível, o calendário abre pré-posicionado na data calculada atual da atividade.\n\n" +
+                     "No calendário:\n" +
+                     "• Clique no dia desejado para confirmar imediatamente.\n" +
+                     "• Pressione Enter para confirmar a data já selecionada (útil ao digitar uma data válida e apenas conferir).\n" +
+                     "• Pressione Escape para cancelar sem alterar a data."),
                     ("Fim fixado",
                      "• Ao editar a coluna Fim ou arrastar a borda direita da barra no Gantt com o botão direito, o Fim fica fixado.\n" +
                      "• Com Fim fixado, alterações de duração ou percentual não recalculam automaticamente a data Fim.\n" +

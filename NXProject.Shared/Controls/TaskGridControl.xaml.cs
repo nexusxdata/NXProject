@@ -72,6 +72,7 @@ namespace NXProject.Controls
         private bool _suppressEditorLostFocusCommit;
         private bool _taskIdClickInProgress;
 
+
         public static readonly DependencyProperty ShowOriginalHoursColumnProperty =
             DependencyProperty.Register(nameof(ShowOriginalHoursColumn), typeof(bool),
                 typeof(TaskGridControl), new PropertyMetadata(false, OnShowOriginalHoursColumnChanged));
@@ -489,6 +490,19 @@ namespace NXProject.Controls
                 return;
             }
 
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                var source = e.OriginalSource as DependencyObject;
+                var cell = FindParent<DataGridCell>(source);
+                if (cell?.Column == StartColumn && cell.DataContext is TaskViewModel vmCtrl)
+                {
+                    e.Handled = true;
+                    TaskGrid.SelectedItem = vmCtrl;
+                    ShowStartCalendar(vmCtrl.Start, vmCtrl, cellEditInProgress: false, placementTarget: cell);
+                    return;
+                }
+            }
+
             if (e.ClickCount >= 2 && TryHandleComboDoubleClick(e, SprintColumn))
                 return;
 
@@ -504,6 +518,7 @@ namespace NXProject.Controls
             _dragStartPoint = e.GetPosition(TaskGrid);
             _dragSourceTask = FindTaskViewModel(e.OriginalSource as DependencyObject);
         }
+
 
         private bool TryHandleComboDoubleClick(MouseButtonEventArgs e, DataGridColumn comboColumn)
         {
@@ -1126,9 +1141,34 @@ namespace NXProject.Controls
                 return;
             }
 
-            vm.StartText = tb.Text;
-            TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-            TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            var raw = tb.Text?.Trim() ?? string.Empty;
+            var calculatedDate = vm.Start.Date;
+            bool parsed = DateTime.TryParse(raw, out var typed);
+
+            if (parsed && typed.Date == calculatedDate)
+            {
+                vm.StartText = raw;
+                TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            }
+            else
+            {
+                // Se digitou data válida, pré-seleciona o próximo dia útil a partir do que foi digitado.
+                // Se digitou inválido (incluindo "0"), usa a data calculada atual.
+                DateTime calDate;
+                if (parsed)
+                {
+                    var candidate = typed.Date;
+                    while (!NXProject.Services.ProjectCalendarService.IsWorkingDay(candidate))
+                        candidate = candidate.AddDays(1);
+                    calDate = candidate;
+                }
+                else
+                {
+                    calDate = calculatedDate;
+                }
+                ShowStartCalendar(calDate, vm, cellEditInProgress: true);
+            }
         }
 
         private void OnStartEditKeyDown(object sender, KeyEventArgs e)
@@ -1147,6 +1187,116 @@ namespace NXProject.Controls
 
             if (sender is TextBox tb)
                 CommitStartEdit(tb);
+        }
+
+
+
+        private void ShowStartCalendar(DateTime selectedDate, TaskViewModel vm, bool cellEditInProgress, UIElement? placementTarget = null)
+        {
+            _suppressEditorLostFocusCommit = true;
+
+            var calendar = new Calendar
+            {
+                SelectedDate = selectedDate,
+                DisplayDate = selectedDate
+            };
+
+            var win = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                ShowInTaskbar = false,
+                Topmost = true,
+                AllowsTransparency = true,
+                Background = System.Windows.Media.Brushes.Transparent,
+                Owner = Window.GetWindow(this),
+                Content = new Border
+                {
+                    Background = System.Windows.Media.Brushes.White,
+                    BorderBrush = System.Windows.Media.Brushes.Gray,
+                    BorderThickness = new Thickness(1),
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    {
+                        BlurRadius = 8,
+                        ShadowDepth = 2,
+                        Opacity = 0.3
+                    },
+                    Child = calendar
+                }
+            };
+
+            // Posicionar abaixo do elemento alvo (célula ou grid), corrigindo DPI
+            var target = placementTarget ?? GetCurrentStartCell() ?? (UIElement)TaskGrid;
+            var screenPt = target.PointToScreen(new Point(0, ((FrameworkElement)target).ActualHeight));
+            var source = PresentationSource.FromVisual(target);
+            var dpiX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+            var dpiY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+            win.Left = screenPt.X / dpiX;
+            win.Top  = screenPt.Y / dpiY;
+
+            DateTime? chosen = null;
+            bool ignoreFirstChange = true;
+
+            calendar.SelectedDatesChanged += (s, e) =>
+            {
+                if (ignoreFirstChange) return;
+                chosen = calendar.SelectedDate;
+                win.Close();
+            };
+
+            calendar.PreviewKeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    e.Handled = true;
+                    chosen = calendar.SelectedDate;
+                    win.Close();
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    e.Handled = true;
+                    win.Close();
+                }
+            };
+
+            win.Loaded += (s, e) =>
+            {
+                ignoreFirstChange = false;
+                calendar.Focus();
+                Keyboard.Focus(calendar);
+            };
+
+            win.ShowDialog();
+
+            _suppressEditorLostFocusCommit = false;
+
+            if (chosen == null)
+            {
+                if (cellEditInProgress)
+                    CancelCurrentEdit();
+                return;
+            }
+
+            // Tirar foco sai do modo de edição sem commitar o texto antigo do TextBox;
+            // depois aplica a data e devolve o foco para o grid.
+            Keyboard.ClearFocus();
+            vm.Start = chosen.Value;
+            TaskGrid.Focus();
+        }
+
+        private DataGridCell? GetCurrentStartCell()
+        {
+            var row = TaskGrid.ItemContainerGenerator.ContainerFromItem(TaskGrid.CurrentItem) as DataGridRow;
+            if (row == null) return null;
+            var presenter = FindChild<System.Windows.Controls.Primitives.DataGridCellsPresenter>(row);
+            if (presenter == null) return null;
+            for (int i = 0; i < TaskGrid.Columns.Count; i++)
+            {
+                if (TaskGrid.Columns[i] == StartColumn)
+                    return presenter.ItemContainerGenerator.ContainerFromIndex(i) as DataGridCell;
+            }
+            return null;
         }
 
         private void CommitFinishEdit(TextBox tb)
