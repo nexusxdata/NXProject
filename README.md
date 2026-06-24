@@ -33,13 +33,33 @@ The development team keeps using Azure DevOps as the single source of truth: lin
 
 ## The story behind NXProject
 
-After more than 20 years technically leading data products and managing software engineering projects, I kept running into the same silent conflict: technical tools were great for the development team but didn't deliver the visibility management needed. Management tools gave executives the reports and Gantt charts they asked for, but penalized the technical team with parallel processes, rework, and lost traceability.
+NXProject wasn't born as a product. It was born to solve a real problem.
 
-The solution was always an unsatisfying compromise — either the team suffered, or management stayed in the dark.
+At the time, my wife was pursuing a Master's degree in Education Management and needed to build a project schedule for a school ramp renovation. The need seemed simple: organize tasks, dependencies, and track the plan visually.
 
-After a long time searching for a way out, I decided to build something different: a tool that doesn't force anyone to choose between technical rigor and management visibility. One that respects the team's Azure DevOps workflow while giving the manager the schedule, dependencies, and alerts needed to make decisions with confidence.
+We looked for free tools, but the open-source options we found were outdated, and commercial alternatives required licenses I didn't have at that moment — I was between jobs.
 
-That's how NXProject was born — a new way to manage IT projects, where the technical and the managerial work together, without friction and without trade-offs.
+So one weekend, I decided to build a simple alternative to turn tasks into a visual schedule and make it easier to track the project.
+
+The initial goal was just to solve that one problem.
+
+But as I built it, I realized the challenge was much bigger.
+
+After more than 20 years working in technical leadership in data and software engineering, I kept seeing the same conflict in technology projects: technical tools worked great for development and data engineering teams, while management tools delivered schedules and reports — but often at the cost of parallel processes, rework, and lost traceability.
+
+Technical teams needed to keep working in their day-to-day tools.
+
+Managers needed to understand deadlines, capacity, dependencies, and risks.
+
+Usually, someone had to give something up.
+
+That's when the project stopped being just a schedule generator and evolved into NXProject.
+
+Months later, as the idea matured and AI-assisted development tools advanced — after going deeper into environments like Codex and Claude Code — the product evolved quickly. What started as a simple prototype gained new capabilities in planning, visualization, and integration, allowing me to accelerate the vision that had existed from the beginning.
+
+Later, when I integrated with Azure DevOps, I realized the same concept also helped real software and data engineering teams: teams kept working in their established flow — backlog, code, pipelines, automations, and traceability — while leaders and managers finally gained an integrated view of schedule, dependencies, capacity, and impact.
+
+Today NXProject turns Azure DevOps data into a management view of planning and execution, allowing the technical and the managerial to work together — without friction, without parallel processes, and without giving up traceability.
 
 ---
 

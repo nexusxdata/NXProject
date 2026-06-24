@@ -33,13 +33,33 @@ A equipe de desenvolvimento segue usando o Azure DevOps como fonte da verdade: c
 
 ## A motivação por trás do NXProject
 
-Depois de mais de 20 anos liderando tecnicamente produtos de dados e gerenciando projetos de engenharia de software, percebi que sempre existia um conflito silencioso: as ferramentas técnicas eram ótimas para a equipe de desenvolvimento, mas não entregavam a visibilidade que a gestão precisava. As ferramentas de gestão, por sua vez, davam os relatórios e o Gantt que os executivos pediam, mas penalizavam a equipe técnica com processos paralelos, retrabalho e perda de rastreabilidade.
+O NXProject não nasceu como um produto. Nasceu para resolver um problema real.
 
-A solução que eu encontrava era sempre um meio-termo insatisfatório — ou a equipe sofria, ou a gestão ficava no escuro.
+Na época, minha esposa estava cursando mestrado em Gestão da Educação e precisava elaborar o cronograma de um projeto relacionado à reforma de uma rampa em uma escola. A necessidade parecia simples: organizar atividades, dependências e acompanhar o planejamento de forma visual.
 
-Depois de muito tempo buscando uma saída, decidi criar algo diferente: uma ferramenta que não obriga ninguém a escolher entre rigor técnico e visibilidade gerencial. Que respeite o fluxo da equipe no Azure DevOps e, ao mesmo tempo, entregue ao gestor o cronograma, as dependências e os alertas que ele precisa para tomar decisões com confiança.
+Procuramos ferramentas gratuitas para isso, mas as opções open source que encontramos estavam desatualizadas e as alternativas comerciais exigiam licenças que eu não tinha naquele momento — eu estava em transição entre empresas.
 
-Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o técnico e o gerencial caminham juntos, sem atrito e sem concessões.
+Então, em um fim de semana, decidi criar uma alternativa simples para transformar tarefas em um cronograma visual e facilitar o acompanhamento do projeto.
+
+O objetivo inicial era apenas resolver aquele problema.
+
+Mas durante o desenvolvimento percebi que o desafio era muito maior.
+
+Depois de mais de 20 anos atuando com liderança técnica em dados e engenharia de software, percebi que o mesmo conflito aparecia repetidamente em projetos de tecnologia: ferramentas técnicas funcionavam muito bem para equipes de desenvolvimento e engenharia de dados, enquanto ferramentas de gestão entregavam cronogramas e relatórios — mas frequentemente à custa de processos paralelos, retrabalho e perda de rastreabilidade.
+
+Equipes técnicas precisavam continuar trabalhando nas ferramentas do dia a dia.
+
+Gestores precisavam entender prazo, capacidade, dependências e riscos.
+
+Normalmente alguém precisava abrir mão de alguma coisa.
+
+Foi quando o projeto deixou de ser apenas um gerador de cronogramas e evoluiu para o NXProject.
+
+Meses depois, com o amadurecimento da ideia e o avanço das ferramentas modernas de desenvolvimento assistido por IA, após aprofundar o uso de ambientes como Codex e Claude Code, o produto evoluiu rapidamente. O que começou como um protótipo simples ganhou novas capacidades de planejamento, visualização e integração, permitindo acelerar a construção da visão que existia desde o início.
+
+Mais tarde, ao integrar com Azure DevOps, percebi que o mesmo conceito também ajudava equipes reais de engenharia de software e engenharia de dados: os times continuavam trabalhando no fluxo já estabelecido — backlog, código, pipelines, automações e rastreabilidade — enquanto líderes e gestores finalmente ganhavam uma visão integrada de cronograma, dependências, capacidade e impacto.
+
+Hoje o NXProject transforma dados do Azure DevOps em uma visão gerencial de planejamento e execução, permitindo que técnico e gestão trabalhem juntos — sem atrito, sem processos paralelos e sem abrir mão da rastreabilidade.
 
 ---
 
