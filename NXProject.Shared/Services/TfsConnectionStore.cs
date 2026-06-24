@@ -38,6 +38,15 @@ namespace NXProject.Services
         public string CostCenterSource { get; set; } = string.Empty;
     }
 
+    /// <summary>Campo fixo extra enviado na criação de work items.</summary>
+    public sealed class ExtraWorkItemField
+    {
+        /// <summary>Referência do campo no DevOps, ex.: "Custom.Type".</summary>
+        public string Ref { get; set; } = string.Empty;
+        /// <summary>Valor fixo a ser enviado, ex.: "Atividade".</summary>
+        public string Value { get; set; } = string.Empty;
+    }
+
     /// <summary>
     /// Dados de conexao com o Azure DevOps / TFS usados pelo import.
     /// </summary>
@@ -114,6 +123,13 @@ namespace NXProject.Services
 
         /// <summary>Configuração por projeto do portfólio (OPEX/CAPEX, centro de custo).</summary>
         public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
+
+        /// <summary>
+        /// Campos fixos enviados em toda criação de work item (útil para campos obrigatórios
+        /// do processo do cliente que o NXProject não gerencia).
+        /// Exemplo: [{ "ref": "Custom.Type", "value": "Atividade" }]
+        /// </summary>
+        public List<ExtraWorkItemField> ExtraCreateFields { get; set; } = [];
 
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&

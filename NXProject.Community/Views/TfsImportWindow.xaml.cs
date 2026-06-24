@@ -15,6 +15,7 @@ namespace NXProject.Views
         private bool _isImporting;
         private string _devOpsProjectListPath = string.Empty;
         private List<DevOpsProject> _devOpsProjects = new();
+        private readonly System.Collections.ObjectModel.ObservableCollection<ExtraWorkItemField> _extraFields = new();
 
         /// <summary>Projeto importado quando o diálogo retorna true.</summary>
         public Project? ImportedProject { get; private set; }
@@ -35,6 +36,10 @@ namespace NXProject.Views
             FixedStartTagBox.Text = saved.FixedStartTagName;
             SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
             FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
+
+            foreach (var f in saved.ExtraCreateFields)
+                _extraFields.Add(new ExtraWorkItemField { Ref = f.Ref, Value = f.Value });
+            ExtraFieldsList.ItemsSource = _extraFields;
 
             if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
             {
@@ -129,7 +134,8 @@ namespace NXProject.Views
                 FixedStartTagName = string.IsNullOrWhiteSpace(FixedStartTagBox.Text) ? "DT-INI-NEG" : FixedStartTagBox.Text.Trim(),
                 SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
                 FutureSprintDays = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90,
-                DevOpsProjectListPath = _devOpsProjectListPath
+                DevOpsProjectListPath = _devOpsProjectListPath,
+                ExtraCreateFields = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))]
             };
 
             SetImporting(true);
@@ -203,6 +209,15 @@ namespace NXProject.Views
         private void HideStatus()
         {
             StatusText.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnAddExtraField(object sender, RoutedEventArgs e)
+            => _extraFields.Add(new ExtraWorkItemField());
+
+        private void OnRemoveExtraField(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is ExtraWorkItemField field)
+                _extraFields.Remove(field);
         }
     }
 }

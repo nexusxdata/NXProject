@@ -438,7 +438,7 @@ namespace NXProject.Services
                             task.TfsType = createType;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef, originalHoursRef, remainingHoursRef, realizedHoursRef);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -1128,12 +1128,19 @@ namespace NXProject.Services
             string? percAlocRef = null,
             string? originalHoursRef = null,
             string? remainingHoursRef = null,
-            string? realizedHoursRef = null)
+            string? realizedHoursRef = null,
+            IEnumerable<ExtraWorkItemField>? extraFields = null)
         {
             var ops = new List<object>
             {
                 PatchAdd("/fields/System.Title", task.Name ?? "Novo item")
             };
+
+            // Campos fixos obrigatórios do processo do cliente (ex.: Custom.Type).
+            if (extraFields != null)
+                foreach (var f in extraFields)
+                    if (!string.IsNullOrWhiteSpace(f.Ref) && f.Value != null)
+                        ops.Add(PatchAdd($"/fields/{f.Ref}", f.Value));
 
             if (!string.IsNullOrWhiteSpace(task.Description))
                 ops.Add(PatchAdd("/fields/System.Description", task.Description!));
@@ -2247,6 +2254,48 @@ namespace NXProject.Services
             return await SendAsync(req, ct);
         }
 
+        private static string ParseTfsError(int statusCode, string content)
+        {
+            if (statusCode == 400)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(content);
+                    var root = doc.RootElement;
+
+                    // Tenta extrair erros de validação de campo obrigatório
+                    if (root.TryGetProperty("customProperties", out var cp) &&
+                        cp.TryGetProperty("RuleValidationErrors", out var errs) &&
+                        errs.ValueKind == JsonValueKind.Array)
+                    {
+                        var missingFields = new List<string>();
+                        foreach (var err in errs.EnumerateArray())
+                        {
+                            if (err.TryGetProperty("fieldReferenceName", out var fieldRef) &&
+                                err.TryGetProperty("fieldStatusFlags", out var flags))
+                            {
+                                var flagStr = flags.GetString() ?? "";
+                                if (flagStr.Contains("required") || flagStr.Contains("invalidEmpty"))
+                                    missingFields.Add(fieldRef.GetString() ?? "");
+                            }
+                        }
+
+                        if (missingFields.Count > 0)
+                        {
+                            var fields = string.Join(", ", missingFields.Where(f => !string.IsNullOrEmpty(f)));
+                            return $"O DevOps rejeitou a criação porque o(s) campo(s) obrigatório(s) não foram preenchidos: {fields}.\n\n" +
+                                   $"Para corrigir: em Arquivo → Configurações do Azure DevOps → Campos extras na criação, " +
+                                   $"adicione uma entrada para cada campo com o valor padrão que o DevOps exige.\n\n" +
+                                   $"Exemplo: campo \"{missingFields[0]}\" com o valor que o processo do seu DevOps aceita (ex.: \"Atividade\", \"Development\", etc.).";
+                        }
+                    }
+                }
+                catch { /* JSON inválido: cai no fallback abaixo */ }
+            }
+
+            return $"Erro do TFS ({statusCode}): {Truncate(content, 500)}";
+        }
+
         private static async Task<JsonDocument> SendAsync(HttpRequestMessage req, CancellationToken ct)
         {
             using var resp = await Http.SendAsync(req, ct);
@@ -2259,8 +2308,7 @@ namespace NXProject.Services
                     throw new InvalidOperationException(
                         $"Falha de autenticação ({(int)resp.StatusCode}). Verifique o PAT e a URL da organização.");
 
-                throw new InvalidOperationException(
-                    $"Erro do TFS ({(int)resp.StatusCode}): {Truncate(content, 500)}");
+                throw new InvalidOperationException(ParseTfsError((int)resp.StatusCode, content));
             }
 
             if (content.TrimStart().StartsWith("<", StringComparison.Ordinal))

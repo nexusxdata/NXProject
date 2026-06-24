@@ -150,6 +150,42 @@
                                            Foreground="#888" VerticalAlignment="Center"/>
                             </StackPanel>
                         </StackPanel>
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,4" TextWrapping="Wrap"
+                                       Text="Campos obrigatórios na criação (use quando o DevOps exige campos que o NXProject não preenche automaticamente):"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Referência do campo (ex.: Custom.Type)" FontSize="10" Foreground="#888" Margin="0,0,0,2"/>
+                                <TextBlock Grid.Column="2" Text="Valor padrão (ex.: Atividade)" FontSize="10" Foreground="#888" Margin="0,0,0,2"/>
+                            </Grid>
+                            <ItemsControl x:Name="ExtraFieldsList" Margin="0,2,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Height="26" Padding="6,3" Text="{Binding Ref, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <TextBox Grid.Column="2" Height="26" Padding="6,3" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <Button Grid.Column="4" Content="✕" Width="26" Height="26" Padding="0"
+                                                    Tag="{Binding}" Click="OnRemoveExtraField"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ Adicionar campo" HorizontalAlignment="Left" Padding="8,4"
+                                    Margin="0,4,0,0" Click="OnAddExtraField"/>
+                        </StackPanel>
                     </StackPanel>
                 </Expander>
 
