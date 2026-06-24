@@ -57,6 +57,46 @@ Assim nasceu o NXProject — uma nova forma de gerenciar projetos de TI, onde o 
 
 ---
 
+## Se o Windows bloquear o .exe
+
+O Windows pode recusar a abertura do `NXProject.Community.exe` com a tela azul do SmartScreen ("O Windows protegeu seu computador") ou simplesmente não fazer nada ao clicar duas vezes. Isso acontece porque o binário não é assinado digitalmente e foi baixado da internet.
+
+### Opção 1 — Desbloquear via Propriedades (mais simples, não precisa de administrador)
+
+1. Clique com o botão direito em `NXProject.Community.exe` → **Propriedades**
+2. Na aba **Geral**, marque a caixa **Desbloquear** (parte inferior)
+3. Clique em **OK** e abra o `.exe` novamente
+
+Se a caixa não aparecer, o arquivo já está desbloqueado (ou seu sistema tem uma política mais restritiva — veja as opções abaixo).
+
+### Opção 2 — Assinar com certificado de desenvolvedor local (recomendado para organizações)
+
+Execute o script abaixo **como Administrador** uma vez. Ele cria um certificado autoassinado de code signing, instala como publisher confiável na máquina e assina todos os `.exe`/`.dll` do build:
+
+```powershell
+# Executar como Administrador na raiz do projeto
+.\sign-nxproject.ps1
+```
+
+Depois disso, rode normalmente com `.\run-community.ps1` ou clicando duas vezes no `.exe`. **Não é necessário passar nenhum parâmetro** — o certificado fica instalado no store da máquina e o Windows o reconhece automaticamente.
+
+> O certificado tem validade de 10 anos e cobre builds futuros — basta re-executar `sign-nxproject.ps1` após cada nova versão.
+
+### Opção 3 — Política WDAC suplementar (para ambientes corporativos com controle de execução rígido)
+
+Se sua organização usa Windows Defender Application Control (WDAC) e as opções acima não resolvem, execute o script WDAC como Administrador para liberar a pasta do NXProject:
+
+```powershell
+# Executar como Administrador
+.\allow-nxproject-wdac.ps1
+```
+
+Isso cria uma política WDAC suplementar que permite executáveis da pasta do NXProject. Pode ser necessário reiniciar o computador.
+
+> Esta opção só é necessária em ambientes corporativos com controle de execução rígido. A maioria dos usuários resolve com a Opção 1 ou 2.
+
+---
+
 ## Capturas de tela
 
 ![Tela principal do NXProject Community](ScreenShot/Tela01.png)

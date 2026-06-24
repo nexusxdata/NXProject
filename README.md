@@ -57,6 +57,46 @@ That's how NXProject was born — a new way to manage IT projects, where the tec
 
 ---
 
+## If Windows blocks the .exe
+
+Windows may refuse to run `NXProject.Community.exe` with a "Windows protected your PC" SmartScreen dialog, or simply do nothing when you double-click it. This happens because the binary is unsigned and was downloaded from the internet.
+
+### Option 1 — Unblock via Properties (simplest, no admin required)
+
+1. Right-click `NXProject.Community.exe` → **Properties**
+2. At the bottom of the **General** tab, check **Unblock**
+3. Click **OK** and double-click the `.exe` again
+
+If the checkbox is not there, the file was already unblocked (or your system uses a stricter policy — see options below).
+
+### Option 2 — Sign with a local developer certificate (recommended for organizations)
+
+Run the script below **as Administrator** once. It creates a self-signed code-signing certificate, installs it as a trusted publisher on the machine, and signs all `.exe`/`.dll` files in the build output:
+
+```powershell
+# Run as Administrator in the project root
+.\sign-nxproject.ps1
+```
+
+After that, run normally with `.\run-community.ps1` or double-click the `.exe`. **No parameter is needed** — the certificate is installed in the machine store and Windows picks it up automatically.
+
+> The certificate is valid for 10 years and covers all future builds as long as you re-run `sign-nxproject.ps1` after each new release.
+
+### Option 3 — WDAC supplemental policy (for corporate environments with strict execution policy)
+
+If your organization enforces Windows Defender Application Control (WDAC) and neither option above works, run the WDAC script as Administrator to allow the NXProject folder:
+
+```powershell
+# Run as Administrator
+.\allow-nxproject-wdac.ps1
+```
+
+This creates a supplemental WDAC policy that allows executables from the NXProject folder. A reboot may be required.
+
+> This option is only needed in tightly locked corporate environments. Most users only need Option 1 or 2.
+
+---
+
 ## Screenshots
 
 ![NXProject Community main screen](ScreenShot/Tela01.png)
