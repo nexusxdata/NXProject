@@ -89,6 +89,8 @@ namespace NXProject.Views
             };
 
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
+            TaskGridCtrl.ViewOnlineChildrenRequested += OnViewOnlineChildren;
+            TaskGridCtrl.EditDescriptionRequested += OnEditDescription;
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
@@ -99,6 +101,8 @@ namespace NXProject.Views
                     TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
                 if (e.PropertyName == nameof(vm.HiddenColumns) || e.PropertyName == nameof(vm.HiddenColumnsExpanded))
                     TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns, vm.HiddenColumnsExpanded, _expandedLayout);
+                if (e.PropertyName == nameof(vm.SelectedTask))
+                    ViewOnlineChildrenBtn.IsEnabled = vm.SelectedTask?.Model.TfsId is > 0;
             };
             TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
             TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns, vm.HiddenColumnsExpanded, _expandedLayout);
@@ -107,6 +111,11 @@ namespace NXProject.Views
                 vm.HiddenColumns = hiddenDefault;
                 vm.HiddenColumnsExpanded = hiddenExpanded;
             };
+
+            vm.PrepareTaskInsertionScroll = TaskGridCtrl.PreserveVerticalOffsetOnNextReset;
+            vm.RequestScrollToSelected = () =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                    () => TaskGridCtrl.ScrollToSelected());
 
             TaskGridCtrl.TaskSprintChangeRequested += (task, sprint) =>
             {
@@ -435,6 +444,32 @@ namespace NXProject.Views
                 vm.DeleteTaskViewModel(task);
             else if (dialog.ShouldImport)
                 OpenTfsImport();
+        }
+
+        private void OnViewOnlineChildrenToolbarClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            if (vm.SelectedTask != null)
+                OnViewOnlineChildren(vm.SelectedTask);
+        }
+
+        private void OnViewOnlineChildren(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            if (task.Model.TfsId is not > 0) return;
+
+            var win = new TfsOnlineChildTasksWindow(task.Model, vm) { Owner = this };
+            win.ShowDialog();
+            if (win.HasChanges)
+                GanttCtrl.ForceRender();
+        }
+
+        private void OnEditDescription(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var win = new TaskDescriptionEditWindow(task.Model) { Owner = this };
+            if (win.ShowDialog() == true)
+                vm.Project.IsDirty = true;
         }
 
         private async void OnConfirmDeleteTask(TaskViewModel task)

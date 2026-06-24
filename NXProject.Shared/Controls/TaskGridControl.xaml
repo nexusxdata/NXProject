@@ -21,7 +21,6 @@
               BorderThickness="0"
               RowHeight="22"
               ColumnHeaderHeight="40"
-              PreviewMouseLeftButtonDown="OnTaskGridPreviewMouseLeftButtonDown"
               PreviewMouseMove="OnTaskGridPreviewMouseMove"
               DragOver="OnTaskGridDragOver"
               Drop="OnTaskGridDrop"
@@ -237,6 +236,12 @@
                                     <TextBlock.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Adicionar Block na Story" Click="OnToggleStoryBlockClick"/>
+                                            <Separator/>
+                                            <MenuItem x:Name="ViewOnlineChildrenMenuItem"
+                                                      Header="Ver Atividades Online..."
+                                                      Click="OnViewOnlineChildrenClick"/>
+                                            <MenuItem Header="Editar Descrição..."
+                                                      Click="OnEditDescriptionClick"/>
                                         </ContextMenu>
                                     </TextBlock.ContextMenu>
                                 </TextBlock>
@@ -417,7 +422,10 @@
             <DataGridTemplateColumn x:Name="StartColumn" Header="Início" Width="110" SortMemberPath="Start">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding StartDisplay}" VerticalAlignment="Center" Margin="3,0">
+                        <TextBlock Text="{Binding StartDisplay}"
+                                   VerticalAlignment="Center"
+                                   Margin="3,0"
+                                   PreviewMouseLeftButtonDown="OnStartDisplayPreviewMouseLeftButtonDown">
                             <TextBlock.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Retirar data fixa"
@@ -434,6 +442,7 @@
                                  Text="{Binding Start, StringFormat=dd/MM/yyyy, UpdateSourceTrigger=Explicit}"
                                  VerticalAlignment="Center"
                                  GotFocus="OnEditTextBoxGotFocus"
+                                 PreviewMouseLeftButtonDown="OnStartEditPreviewMouseLeftButtonDown"
                                  KeyDown="OnStartEditKeyDown"
                                  LostFocus="OnStartEditLostFocus"/>
                     </DataTemplate>

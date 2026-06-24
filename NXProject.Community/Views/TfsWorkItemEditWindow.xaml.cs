@@ -185,11 +185,9 @@ namespace NXProject.Views
             try
             {
                 SetOnlineTaskLoading(true, "Buscando Tasks online...");
-                var options = TfsConnectionStore.Load("NXProject.Community");
-                var rows = await TfsImportService.LoadOnlineChildTasksAsync(options, _task.TfsId.Value);
                 SetOnlineTaskLoading(false);
 
-                new TfsOnlineChildTasksWindow(_task.TfsId.Value, _task.Name, rows)
+                new TfsOnlineChildTasksWindow(_task.Model)
                 {
                     Owner = this
                 }.ShowDialog();

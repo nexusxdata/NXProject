@@ -1,32 +1,39 @@
 <Window x:Class="NXProject.Views.TfsOnlineChildTasksWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Tasks online da Story"
-        Width="980" Height="560"
-        MinWidth="760" MinHeight="420"
+        Title="Atividades Online"
+        Width="1020" Height="600"
+        MinWidth="800" MinHeight="440"
         WindowStartupLocation="CenterOwner"
         Background="White">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
 
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Cabeçalho -->
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock x:Name="TitleText"
                        FontSize="18"
                        FontWeight="SemiBold"
                        Foreground="#2B579A"/>
-            <TextBlock x:Name="CountText"
+            <TextBlock x:Name="StatusText"
                        FontSize="11"
                        Foreground="#666"
                        Margin="0,4,0,0"/>
         </StackPanel>
 
+        <!-- Grid de atividades -->
         <DataGrid Grid.Row="1"
-                  x:Name="TasksGrid"
+                  x:Name="ItemsGrid"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   CanUserAddRows="False"
@@ -37,16 +44,85 @@
                   SelectionMode="Single"
                   TextElement.FontSize="12">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Width="70" Binding="{Binding IdText}"/>
-                <DataGridTextColumn Header="Nome" Width="220" Binding="{Binding Name}"/>
-                <DataGridTextColumn Header="Status" Width="100" Binding="{Binding State}"/>
-                <DataGridTextColumn Header="Tags" Width="160" Binding="{Binding Tags}"/>
-                <DataGridTextColumn Header="Descricao" Width="240" Binding="{Binding Description}"/>
-                <DataGridTextColumn Header="Ultimo tramite" Width="*" Binding="{Binding LastHistory}"/>
+                <DataGridTextColumn Header="ID" Width="80" Binding="{Binding IdDisplay}"/>
+                <DataGridTextColumn Header="Tipo" Width="90" Binding="{Binding Type}"/>
+                <DataGridTextColumn Header="Nome" Width="240" Binding="{Binding Name}"/>
+                <DataGridTextColumn Header="Status" Width="110" Binding="{Binding State}"/>
+                <DataGridTextColumn Header="Tags" Width="140" Binding="{Binding Tags}"/>
+                <DataGridTextColumn Header="Descrição" Width="200" Binding="{Binding Description}"/>
+                <DataGridTextColumn Header="Último trâmite" Width="*" Binding="{Binding LastHistory}"/>
+                <DataGridTemplateColumn Header="Ações" Width="130">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
+                                <Button Content="Editar"
+                                        Width="56" Height="22"
+                                        Margin="2,0"
+                                        Click="OnEditPendingClick"
+                                        Tag="{Binding}"/>
+                                <Button Content="Excluir"
+                                        Width="56" Height="22"
+                                        Margin="2,0"
+                                        Foreground="#A4262C"
+                                        Click="OnDeletePendingClick"
+                                        Tag="{Binding}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPending}" Value="True">
+                            <Setter Property="Background" Value="#FFF8E1"/>
+                            <Setter Property="FontStyle" Value="Italic"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
         </DataGrid>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+        <!-- Barra de criação -->
+        <Border Grid.Row="2"
+                BorderBrush="#DCDCDC"
+                BorderThickness="0,1,0,0"
+                Margin="0,10,0,0"
+                Padding="0,8,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="Nova atividade:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox x:Name="NewNameBox"
+                         Grid.Column="1"
+                         Height="26"
+                         VerticalContentAlignment="Center"
+                         Padding="4,0"
+                         KeyDown="OnNewNameKeyDown"/>
+                <Button Grid.Column="2"
+                        Content="+ Adicionar (pendente)"
+                        Height="28"
+                        Margin="8,0,0,0"
+                        Padding="10,0"
+                        Click="OnAddPendingClick"/>
+            </Grid>
+        </Border>
+
+        <!-- Rodapé -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="LegendText"
+                       Text="⬜ Online   🟡 Pendente (será criado/excluído na próxima sincronização)"
+                       VerticalAlignment="Center"
+                       FontSize="10"
+                       Foreground="#666"
+                       Margin="0,0,16,0"/>
             <Button Content="Fechar" Width="90" Height="30" IsCancel="True"/>
         </StackPanel>
     </Grid>

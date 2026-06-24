@@ -31,6 +31,7 @@ namespace NXProject.Services
         public sealed record OnlineChildTaskInfo(
             int Id,
             string Name,
+            string Type,
             string State,
             string Tags,
             string Description,
@@ -1628,6 +1629,26 @@ namespace NXProject.Services
 
         // ── Chamadas REST ────────────────────────────────────────────────────
 
+        public static async Task<string> LoadWorkItemDescriptionAsync(
+            TfsConnectionOptions options,
+            int workItemId,
+            CancellationToken cancellationToken = default)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var authHeader = new AuthenticationHeaderValue(
+                "Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            var fields = new List<string> { "System.Description" };
+            var items = await LoadWorkItemsAsync(orgBase, authHeader, new[] { workItemId }, fields, cancellationToken, expandRelations: false);
+
+            if (!items.TryGetValue(workItemId, out var item))
+                return string.Empty;
+
+            return ToPlainText(item.Description);
+        }
+
         public static async Task<List<OnlineChildTaskInfo>> LoadOnlineChildTasksAsync(
             TfsConnectionOptions options,
             int parentWorkItemId,
@@ -1685,12 +1706,11 @@ namespace NXProject.Services
             {
                 if (!items.TryGetValue(id, out var item))
                     continue;
-                if (!IsType(item, "Task"))
-                    continue;
 
                 rows.Add(new OnlineChildTaskInfo(
                     item.Id,
                     item.Title,
+                    item.WorkItemType,
                     item.State,
                     item.Tags,
                     ToPlainText(item.Description),

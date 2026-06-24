@@ -129,8 +129,16 @@ namespace NXProject.ViewModels
         private int _nextId = 1;
         private int _nextNoDevOpsId = -1; // IDs negativos para tarefas No DevOps
 
+        public int NextId() => _nextId++;
+
         /// <summary>Chamado pela View quando a tarefa selecionada é DevOps e o usuário clicou em Excluir.</summary>
         public Action<TaskViewModel>? RequestDevOpsDeleteDialog { get; set; }
+
+        /// <summary>Chamado após AddTask/AddSubtask para a View rolar até a nova tarefa.</summary>
+        public Action? RequestScrollToSelected { get; set; }
+
+        /// <summary>Chamado antes de reconstruir a grade ao inserir uma tarefa.</summary>
+        public Action? PrepareTaskInsertionScroll { get; set; }
 
         public MainViewModel(string sprintSettingsStorageKey = "NXProject.Community")
         {
@@ -1559,9 +1567,11 @@ namespace NXProject.ViewModels
             }
 
             Project.IsDirty = true;
+            PrepareTaskInsertionScroll?.Invoke();
             RebuildFlatTasks();
             SelectedTask = FlatTasks.FirstOrDefault(t => t.Id == task.Id);
             StatusMessage = "Tarefa adicionada abaixo da selecionada.";
+            RequestScrollToSelected?.Invoke();
         }
 
         [RelayCommand]
@@ -1571,26 +1581,41 @@ namespace NXProject.ViewModels
 
             var parent = SelectedTask.Model;
             var previousSibling = parent.Children.LastOrDefault();
+
+            // Deriva o tipo da sub-atividade com base no tipo do pai:
+            // Epic → Feature, Feature → Story, qualquer outro → No DevOps
+            var childType = parent.TfsType?.Trim() switch
+            {
+                "Epic"    => "Feature",
+                "Feature" => "Story",
+                _         => "No DevOps"
+            };
+            var isDevOps = !IsNoDevOpsType(childType);
             var task = new ProjectTask
             {
                 Id       = _nextId++,
-                Name     = "Nova Subtarefa",
+                Name     = isDevOps ? "Nova Tarefa" : "Nova Subtarefa",
                 Start    = parent.Start,
                 Finish   = ProjectCalendarService.AddWorkingHours(parent.Start, ProjectCalendarService.WorkingHoursPerDay * 3.0),
                 Level    = parent.Level + 1,
                 Parent   = parent,
-                TfsType  = "No DevOps",
-                TfsId    = _nextNoDevOpsId--
+                TfsType  = childType,
+                TfsIterationPath = parent.TfsIterationPath,
+                TfsId    = isDevOps ? 0 : _nextNoDevOpsId--,
+                TfsState = isDevOps ? "New" : null
             };
 
             parent.Children.Add(task);
             parent.IsSummary = true;
             parent.RecalcSummary();
             Project.IsDirty = true;
+            PrepareTaskInsertionScroll?.Invoke();
             RebuildFlatTasks();
+            SelectedTask = FlatTasks.FirstOrDefault(t => t.Id == task.Id);
             StatusMessage = previousSibling != null
                 ? "Subtarefa adicionada com predecessora da subtarefa anterior."
                 : "Subtarefa adicionada";
+            RequestScrollToSelected?.Invoke();
         }
 
         [RelayCommand]

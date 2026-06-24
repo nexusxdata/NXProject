@@ -36,9 +36,73 @@ namespace NXProject.Controls
         {
             var selected = TaskGrid.SelectedItem;
             if (selected == null) return;
+
+            // Se o item já está totalmente visível, não faz nada.
+            if (IsItemFullyVisible(selected)) return;
+
+            // Em listas grandes, ScrollIntoView seguido de centralização gera dois saltos visíveis.
+            // Como as linhas têm altura fixa, calculamos o destino antes e rolamos uma vez só.
+            if (ScrollNearItemCenter(selected))
+            {
+                TaskGrid.UpdateLayout();
+                if (IsItemFullyVisible(selected))
+                    return;
+            }
+
+            // Fallback para realizar o container virtualizado quando a estimativa não bastar.
             TaskGrid.ScrollIntoView(selected);
-            if (TaskGrid.ItemContainerGenerator.ContainerFromItem(selected) is DataGridRow row)
-                row.IsSelected = true;
+            TaskGrid.UpdateLayout();
+        }
+
+        private bool IsItemFullyVisible(object item)
+        {
+            if (_scrollViewer == null || _scrollViewer.ViewportHeight <= 0) return false;
+
+            // Container realizado: posição exata via transform.
+            var row = TaskGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
+            if (row != null)
+            {
+                try
+                {
+                    var transform = row.TransformToAncestor(_scrollViewer);
+                    var rect = transform.TransformBounds(new Rect(0, 0, row.ActualWidth, row.ActualHeight));
+                    return rect.Top >= 0 && rect.Bottom <= _scrollViewer.ViewportHeight;
+                }
+                catch { }
+            }
+
+            // Container ainda não realizado (virtualização): estima pela posição do índice.
+            var index = TaskGrid.Items.IndexOf(item);
+            if (index < 0) return false;
+            var rowHeight = TaskGrid.RowHeight;
+            if (double.IsNaN(rowHeight) || rowHeight <= 0) rowHeight = 22.0;
+            var itemTop    = index * rowHeight - _scrollViewer.VerticalOffset;
+            var itemBottom = itemTop + rowHeight;
+            return itemTop >= 0 && itemBottom <= _scrollViewer.ViewportHeight;
+        }
+
+        private bool ScrollNearItemCenter(object item)
+        {
+            if (_scrollViewer == null || _scrollViewer.ViewportHeight <= 0)
+                return false;
+
+            var index = TaskGrid.Items.IndexOf(item);
+            if (index < 0)
+                return false;
+
+            var rowHeight = TaskGrid.RowHeight;
+            if (double.IsNaN(rowHeight) || rowHeight <= 0)
+                rowHeight = 22.0;
+
+            var targetOffset = (index * rowHeight)
+                - (_scrollViewer.ViewportHeight / 2)
+                + (rowHeight / 2);
+            targetOffset = Math.Max(0, targetOffset);
+            if (_scrollViewer.ScrollableHeight > 0)
+                targetOffset = Math.Min(targetOffset, _scrollViewer.ScrollableHeight);
+
+            _scrollViewer.ScrollToVerticalOffset(targetOffset);
+            return true;
         }
 
         public static readonly DependencyProperty AvailableSprintsProperty =
@@ -111,9 +175,16 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário quer editar o % de alocação de uma tarefa via menu de contexto.</summary>
         public event Action<TaskViewModel>? EditPercAlocRequested;
 
+        /// <summary>Disparado quando o usuário clica em "Ver Atividades Online..." no menu de contexto do nome.</summary>
+        public event Action<TaskViewModel>? ViewOnlineChildrenRequested;
+
+        /// <summary>Disparado quando o usuário clica em "Editar Descrição..." no menu de contexto do nome.</summary>
+        public event Action<TaskViewModel>? EditDescriptionRequested;
+
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
         private bool _suppressScrollNotification;
+        private double? _pendingVerticalOffset;
         private string? _lastRowLayoutSignature;
         private Point _dragStartPoint;
         private TaskViewModel? _dragSourceTask;
@@ -151,6 +222,14 @@ namespace NXProject.Controls
             _scrollViewer = FindChild<ScrollViewer>(TaskGrid);
             if (_scrollViewer == null) return;
 
+            // Registra com handledEventsToo=true para garantir que o Ctrl+Click
+            // na coluna de data de início funcione mesmo quando CanContentScroll=False
+            // faz o DataGrid marcar PreviewMouseLeftButtonDown como handled internamente.
+            TaskGrid.AddHandler(
+                UIElement.PreviewMouseLeftButtonDownEvent,
+                new MouseButtonEventHandler(OnTaskGridPreviewMouseLeftButtonDown),
+                handledEventsToo: true);
+
             _scrollViewer.ScrollChanged += (_, args) =>
             {
                 if (_suppressScrollNotification) return;
@@ -167,10 +246,26 @@ namespace NXProject.Controls
         public void SyncVerticalOffset(double offset)
         {
             if (_scrollViewer == null) return;
-            
+
+            var wasSuppressed = _suppressScrollNotification;
             _suppressScrollNotification = true;
-            _scrollViewer.ScrollToVerticalOffset(offset);
-            _suppressScrollNotification = false;
+            try
+            {
+                _scrollViewer.ScrollToVerticalOffset(offset);
+            }
+            finally
+            {
+                _suppressScrollNotification = wasSuppressed;
+            }
+        }
+
+        public void PreserveVerticalOffsetOnNextReset()
+        {
+            if (_scrollViewer != null)
+            {
+                _pendingVerticalOffset = _scrollViewer.VerticalOffset;
+                _suppressScrollNotification = true;
+            }
         }
 
         // Colunas visíveis por padrão em cada modo
@@ -370,9 +465,19 @@ namespace NXProject.Controls
                 if (item == null) return;
 
                 TaskGrid.SelectedItem = item;
+
+                if (IsItemFullyVisible(item))
+                {
+                    // Item já visível: só foca sem mexer no scroll.
+                    // Setar CurrentCell aqui dispararia scroll automático do DataGrid.
+                    var visRow = TaskGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
+                    if (visRow != null) { visRow.Focus(); Keyboard.Focus(visRow); }
+                    else { TaskGrid.Focus(); Keyboard.Focus(TaskGrid); }
+                    return;
+                }
+
                 TaskGrid.ScrollIntoView(item);
                 TaskGrid.CurrentCell = new DataGridCellInfo(item, NameColumn);
-
                 TaskGrid.UpdateLayout();
 
                 var row = TaskGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
@@ -410,7 +515,8 @@ namespace NXProject.Controls
                 return;
 
             TaskGrid.SelectedItem = selectedItem;
-            TaskGrid.ScrollIntoView(selectedItem, selectedColumn);
+            if (!IsItemFullyVisible(selectedItem))
+                TaskGrid.ScrollIntoView(selectedItem, selectedColumn);
             TaskGrid.CurrentCell = new DataGridCellInfo(selectedItem, selectedColumn);
             TaskGrid.UpdateLayout();
 
@@ -473,13 +579,51 @@ namespace NXProject.Controls
         {
             var ctrl = (TaskGridControl)d;
             ctrl._lastRowLayoutSignature = null;
-            // Agendar recalcular RowTops após o layout ser atualizado
+
+            // Desinscreve da coleção antiga
+            if (e.OldValue is System.Collections.Specialized.INotifyCollectionChanged oldCol)
+                oldCol.CollectionChanged -= ctrl.OnTasksCollectionChanged;
+
+            // Inscreve na nova coleção para capturar Reset e preservar scroll
+            if (e.NewValue is System.Collections.Specialized.INotifyCollectionChanged newCol)
+                newCol.CollectionChanged += ctrl.OnTasksCollectionChanged;
+
             ctrl.Dispatcher.BeginInvoke(() =>
             {
                 var header = FindChild<DataGridColumnHeadersPresenter>(ctrl.TaskGrid);
                 if (header != null && header.ActualHeight > 0)
                     ctrl.PublishRowTops(header.ActualHeight);
             });
+        }
+
+        private void OnTasksCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset
+                && _scrollViewer != null)
+            {
+                // O offset explícito foi capturado antes do Clear. No evento Reset o DataGrid
+                // pode já tê-lo zerado, dependendo da ordem dos handlers da coleção.
+                var savedOffset = _pendingVerticalOffset ?? _scrollViewer.VerticalOffset;
+                _pendingVerticalOffset = null;
+                if (savedOffset <= 0)
+                {
+                    _suppressScrollNotification = false;
+                    return;
+                }
+
+                Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(() =>
+                {
+                    if (_scrollViewer != null)
+                        _scrollViewer.ScrollToVerticalOffset(savedOffset);
+
+                    Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+                    {
+                        _suppressScrollNotification = false;
+                        if (_scrollViewer != null)
+                            VerticalScrollChanged?.Invoke(_scrollViewer.VerticalOffset);
+                    }));
+                }));
+            }
         }
 
         private void OnTaskGridPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1109,9 +1253,16 @@ namespace NXProject.Controls
             var vm = el.DataContext as TaskViewModel;
             var cm = el.ContextMenu;
             if (cm == null || vm == null) return;
-            var item = cm.Items.OfType<MenuItem>().FirstOrDefault();
-            if (item != null)
-                item.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
+
+            var blockItem = cm.Items.OfType<MenuItem>().FirstOrDefault();
+            if (blockItem != null)
+                blockItem.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
+
+            var onlineItem = cm.Items.OfType<MenuItem>()
+                .FirstOrDefault(m => m.Name == "ViewOnlineChildrenMenuItem");
+            if (onlineItem != null)
+                onlineItem.Visibility = (vm.Model.TfsId is > 0)
+                    ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void OnToggleStoryBlockClick(object sender, RoutedEventArgs e)
@@ -1130,6 +1281,29 @@ namespace NXProject.Controls
             // Marca projeto como dirty
             if (DataContext is ViewModels.MainViewModel mainVm)
                 mainVm.Project.IsDirty = true;
+        }
+
+        private TaskViewModel? GetTaskViewModelFromContextSender(object sender)
+        {
+            var el = sender as System.Windows.FrameworkElement;
+            if (el?.Parent is ContextMenu cm)
+                el = cm.PlacementTarget as System.Windows.FrameworkElement;
+            return el?.DataContext as TaskViewModel
+                ?? (el?.TemplatedParent as System.Windows.FrameworkElement)?.DataContext as TaskViewModel;
+        }
+
+        private void OnViewOnlineChildrenClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                ViewOnlineChildrenRequested?.Invoke(vm);
+        }
+
+        private void OnEditDescriptionClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                EditDescriptionRequested?.Invoke(vm);
         }
 
         private void CommitStartEdit(TextBox tb)
@@ -1169,6 +1343,34 @@ namespace NXProject.Controls
                 }
                 ShowStartCalendar(calDate, vm, cellEditInProgress: true);
             }
+        }
+
+        private void OnStartDisplayPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == 0)
+                return;
+
+            if (sender is not FrameworkElement { DataContext: TaskViewModel vm })
+                return;
+
+            e.Handled = true;
+            TaskGrid.SelectedItem = vm;
+            var cell = FindParent<DataGridCell>(sender as DependencyObject);
+            ShowStartCalendar(vm.Start, vm, cellEditInProgress: false, placementTarget: cell);
+        }
+
+        private void OnStartEditPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == 0)
+                return;
+
+            if (sender is not TextBox { DataContext: TaskViewModel vm } tb)
+                return;
+
+            e.Handled = true;
+            TaskGrid.SelectedItem = vm;
+            var cell = FindParent<DataGridCell>(tb);
+            ShowStartCalendar(vm.Start, vm, cellEditInProgress: true, placementTarget: cell is UIElement target ? target : tb);
         }
 
         private void OnStartEditKeyDown(object sender, KeyEventArgs e)
@@ -1269,18 +1471,19 @@ namespace NXProject.Controls
 
             win.ShowDialog();
 
-            _suppressEditorLostFocusCommit = false;
-
             if (chosen == null)
             {
+                _suppressEditorLostFocusCommit = false;
                 if (cellEditInProgress)
                     CancelCurrentEdit();
                 return;
             }
 
-            // Tirar foco sai do modo de edição sem commitar o texto antigo do TextBox;
-            // depois aplica a data e devolve o foco para o grid.
-            Keyboard.ClearFocus();
+            // Cancela o edit do TextBox (evita CommitStartEdit sobrescrever a data do calendário)
+            // e aplica a data diretamente no ViewModel.
+            if (cellEditInProgress)
+                CancelCurrentEdit();
+            _suppressEditorLostFocusCommit = false;
             vm.Start = chosen.Value;
             TaskGrid.Focus();
         }
