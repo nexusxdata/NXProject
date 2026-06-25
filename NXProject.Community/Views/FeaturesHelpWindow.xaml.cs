@@ -380,6 +380,47 @@ namespace NXProject.Views
                 "A sincronização respeita somente os campos configurados. A rastreabilidade de código, pull requests e pipelines do Azure DevOps não são afetados."
             ),
             (
+                "Sincronizar com DevOps",
+                "Para que o NXProject troque informações com o Azure DevOps, alguns campos personalizados precisam existir nos work items. Esta seção explica quais são, como criá-los e como ajustar os nomes caso a sua organização já use nomes diferentes.",
+                new()
+                {
+                    ("Campos obrigatórios no Azure DevOps",
+                     "O NXProject lê e escreve três campos personalizados nas Stories e Features:\n\n" +
+                     "• HH Estimado — horas estimadas para a atividade. Usado como duração no cronograma.\n" +
+                     "• Data_Inicio — data de início planejada. Preenchida pelo NXProject ao sincronizar.\n" +
+                     "• Data_Fim — data de término planejada. Preenchida pelo NXProject ao sincronizar.\n\n" +
+                     "Esses campos são do tipo Inteiro (HH Estimado) e Data e Hora (Data_Inicio e Data_Fim). Eles precisam existir no processo do seu projeto no Azure DevOps antes de importar ou sincronizar."),
+                    ("Como criar os campos no Azure DevOps",
+                     "Acesse: Configurações da Organização → Boards → Tipos de trabalho → selecione Story (e Feature, se quiser sincronizar Features).\n\n" +
+                     "1. Clique em Novo campo.\n" +
+                     "2. Informe o nome (ex: 'HH Estimado'), selecione o tipo (Inteiro ou Data e Hora).\n" +
+                     "3. Salve e repita para os outros dois campos.\n" +
+                     "4. Adicione os campos ao layout do formulário se quiser que apareçam visíveis na tela de edição do work item.\n\n" +
+                     "Os campos ficam disponíveis para todos os projetos da organização que usam o mesmo processo (Agile, Scrum, CMMI ou personalizado)."),
+                    ("Personalizar os nomes dos campos",
+                     "Se sua organização já usa nomes diferentes para esses campos (ex: 'Estimativa_Horas' em vez de 'HH Estimado'), você pode ajustar os nomes que o NXProject usa sem mexer no Azure DevOps.\n\n" +
+                     "Na tela de importação (Arquivo → Importar → TFS / Azure DevOps), expanda a seção Campos (avançado). Lá você encontra três campos de configuração:\n\n" +
+                     "• Nome do campo Horas Estimadas → padrão: 'Esforço Estimado' (referência interna: HH Estimado)\n" +
+                     "• Nome do campo Data de Início → padrão: 'Data_Inicio'\n" +
+                     "• Nome do campo Data de Fim → padrão: 'Data_Fim'\n\n" +
+                     "Digite o nome exato do campo como cadastrado no Azure DevOps (o Reference Name, não o rótulo de exibição). As configurações são salvas em config_nxproject.json na pasta do usuário e reusadas nas próximas importações."),
+                    ("Verificar o nome de referência de um campo",
+                     "Para descobrir o Reference Name de um campo existente no Azure DevOps:\n\n" +
+                     "1. Acesse Configurações da Organização → Boards → Campos.\n" +
+                     "2. Localize o campo e clique nele.\n" +
+                     "3. O Reference Name aparece no detalhe — geralmente no formato 'Custom.NomeDoCampo'.\n\n" +
+                     "É esse valor (ex: 'Custom.HHEstimado') que deve ser digitado na seção Campos (avançado) da tela de importação."),
+                    ("Processo recomendado para novos projetos",
+                     "1. Crie os três campos no processo da organização no Azure DevOps.\n" +
+                     "2. No NXProject, abra Arquivo → Importar → TFS / Azure DevOps.\n" +
+                     "3. Informe URL da organização, nome do projeto, PAT e ID do work item raiz.\n" +
+                     "4. Se os nomes dos campos forem diferentes dos padrões, expanda Campos (avançado) e ajuste.\n" +
+                     "5. Clique em Importar — o cronograma é gerado automaticamente.\n" +
+                     "6. Planeje no NXProject e use Exportar → Sincronizar para enviar as datas de volta ao DevOps.")
+                },
+                "Os nomes dos campos são sensíveis a maiúsculas e minúsculas. Use o Reference Name exato do Azure DevOps, não o rótulo de exibição."
+            ),
+            (
                 "Exportação",
                 "Exporte o cronograma para outros formatos para compartilhar com stakeholders ou integrar com outras ferramentas.",
                 new()
@@ -726,6 +767,47 @@ namespace NXProject.Views
                      "When done, a window shows the summary: updated, created, unchanged, warnings and errors. Use filters to focus on issues and copy the log if you need to record it.")
                 },
                 "Sync respects only the configured fields. Azure DevOps code traceability, pull requests and pipelines are not affected."
+            ),
+            (
+                "Sync with DevOps",
+                "For NXProject to exchange data with Azure DevOps, a few custom fields must exist on the work items. This section explains which ones, how to create them, and how to adjust their names if your organization already uses different names.",
+                new()
+                {
+                    ("Required fields in Azure DevOps",
+                     "NXProject reads and writes three custom fields on Stories and Features:\n\n" +
+                     "• Estimated HH — estimated hours for the activity. Used as duration in the schedule.\n" +
+                     "• Data_Inicio — planned start date. Written by NXProject when syncing.\n" +
+                     "• Data_Fim — planned finish date. Written by NXProject when syncing.\n\n" +
+                     "These fields are of type Integer (Estimated HH) and Date and Time (Data_Inicio and Data_Fim). They must exist in your project's process in Azure DevOps before importing or syncing."),
+                    ("How to create the fields in Azure DevOps",
+                     "Go to: Organization Settings → Boards → Process → select your process → open Story (and Feature, if you want to sync Features).\n\n" +
+                     "1. Click New field.\n" +
+                     "2. Enter the name (e.g. 'Estimated HH'), select the type (Integer or Date and Time).\n" +
+                     "3. Save and repeat for the other two fields.\n" +
+                     "4. Add the fields to the form layout if you want them visible when editing a work item.\n\n" +
+                     "The fields become available to all projects in the organization that use the same process (Agile, Scrum, CMMI or custom)."),
+                    ("Customizing field names",
+                     "If your organization already uses different names for these fields (e.g. 'Est_Hours' instead of 'Estimated HH'), you can adjust the names NXProject uses without changing Azure DevOps.\n\n" +
+                     "On the import screen (File → Import → TFS / Azure DevOps), expand the Fields (advanced) section. There you will find three configuration fields:\n\n" +
+                     "• Estimated Hours field name → default: 'Esforço Estimado' (label: Estimated HH)\n" +
+                     "• Start Date field name → default: 'Data_Inicio'\n" +
+                     "• Finish Date field name → default: 'Data_Fim'\n\n" +
+                     "Enter the exact field name as registered in Azure DevOps (the Reference Name, not the display label). Settings are saved to config_nxproject.json in the user folder and reused on future imports."),
+                    ("Finding a field's Reference Name",
+                     "To discover the Reference Name of an existing field in Azure DevOps:\n\n" +
+                     "1. Go to Organization Settings → Boards → Fields.\n" +
+                     "2. Locate the field and click on it.\n" +
+                     "3. The Reference Name appears in the detail panel — usually in the format 'Custom.FieldName'.\n\n" +
+                     "That value (e.g. 'Custom.EstimatedHH') is what you enter in the Fields (advanced) section of the import screen."),
+                    ("Recommended setup for new projects",
+                     "1. Create the three fields in the organization process in Azure DevOps.\n" +
+                     "2. In NXProject, open File → Import → TFS / Azure DevOps.\n" +
+                     "3. Enter the organization URL, project name, PAT and root work item ID.\n" +
+                     "4. If the field names differ from the defaults, expand Fields (advanced) and adjust them.\n" +
+                     "5. Click Import — the schedule is generated automatically.\n" +
+                     "6. Plan in NXProject and use Export → Sync to send dates back to DevOps.")
+                },
+                "Field names are case-sensitive. Use the exact Reference Name from Azure DevOps, not the display label."
             ),
             (
                 "Export",

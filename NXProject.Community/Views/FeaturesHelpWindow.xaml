@@ -55,6 +55,7 @@
                     <ListBoxItem Content="{DynamicResource Help_Topic_DevOps}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_ProjectList}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Sync}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_DevOpsSetup}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Export}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_HealthCheck}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_AI}"/>

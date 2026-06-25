@@ -148,6 +148,7 @@
     <sys:String x:Key="Help_Topic_DevOps">☁  Azure DevOps</sys:String>
     <sys:String x:Key="Help_Topic_ProjectList">📋  Project List</sys:String>
     <sys:String x:Key="Help_Topic_Sync">🔄  Sync</sys:String>
+    <sys:String x:Key="Help_Topic_DevOpsSetup">⚙  Sync with DevOps</sys:String>
     <sys:String x:Key="Help_Topic_Export">📤  Export</sys:String>
     <sys:String x:Key="Help_Topic_HealthCheck">❤  Health Check</sys:String>
     <sys:String x:Key="Help_Topic_AI">🤖  AI Assistant</sys:String>
