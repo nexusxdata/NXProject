@@ -171,26 +171,28 @@ Gerencie múltiplos projetos DevOps em um arquivo compartilhado entre toda a equ
 
 ---
 
-### Campos customizados obrigatórios no tipo Story
+### Campos customizados obrigatórios (Story, Feature e Epic)
 
-O NXProject lê e grava sete campos customizados nas Stories do Azure DevOps. É necessário criá-los no template de processo em **Configurações da Organização → Processo → [Seu Processo] → Story → Campos**.
+O NXProject lê e grava campos customizados em **Stories, Features e Epics** do Azure DevOps. É necessário criá-los no template de processo em **Configurações da Organização → Processo → [Seu Processo]** e adicioná-los a cada tipo de work item que você quer sincronizar (Story, Feature, Epic).
 
-| Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Finalidade |
-|---|---|---|---|---|
-| `HH Estimado` | `Custom.HHEstimado` *(exemplo)* | Inteiro ou Decimal | `HH Estimado` | Esforço estimado em horas |
-| `Data_Inicio` | `Custom.DataInicio` *(exemplo)* | Data/Hora | `Data_Inicio` | Data de início planejada |
-| `Data_Fim` | `Custom.DataFim` *(exemplo)* | Data/Hora | `Data_Fim` | Data de fim planejada |
-| `Perc_Alocação` | `Custom.PercAlocacao` *(exemplo)* | Inteiro (1–100) | `Perc_Alocação` | % do dia da pessoa dedicado a esta Story |
-| `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | % de conclusão da Story (lido no import, gravado no sync) |
-| `Sync_version` | `Custom.Syncversion` *(exemplo)* | Inteiro | `Sync_version` | Contador de versão de concorrência (gerenciado automaticamente) |
-| `Sync_Name` | `Custom.SyncName` *(exemplo)* | Texto *(texto simples, não Identity)* | `Sync_Name` | Quem realizou a última sincronização (gerenciado automaticamente) |
+| Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Usado em | Finalidade |
+|---|---|---|---|---|---|
+| `HH Estimado` | `Custom.HHEstimado` *(exemplo)* | Inteiro ou Decimal | `HH Estimado` | Story, Feature, Epic | Esforço estimado em horas |
+| `Data_Inicio` | `Custom.DataInicio` *(exemplo)* | Data/Hora | `Data_Inicio` | Story, Feature, Epic | Data de início planejada |
+| `Data_Fim` | `Custom.DataFim` *(exemplo)* | Data/Hora | `Data_Fim` | Story, Feature, Epic | Data de fim planejada |
+| `Perc_Alocação` | `Custom.PercAlocacao` *(exemplo)* | Inteiro (1–100) | `Perc_Alocação` | Story | % do dia da pessoa dedicado a esta Story |
+| `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | Story | % de conclusão (lido no import, gravado no sync) |
+| `Sync_version` | `Custom.Syncversion` *(exemplo)* | Inteiro | `Sync_version` | Story, Feature, Epic | Contador de versão de concorrência (gerenciado automaticamente) |
+| `Sync_Name` | `Custom.SyncName` *(exemplo)* | Texto *(texto simples, não Identity)* | `Sync_Name` | Story, Feature, Epic | Quem realizou a última sincronização (gerenciado automaticamente) |
 
 > Os nomes de referência acima são exemplos — o Azure DevOps os gera automaticamente a partir do nome de exibição e do prefixo da sua organização.  
 > Se os seus campos tiverem nomes de exibição diferentes, ajuste-os no NXProject em **Arquivo → Importar TFS / Azure DevOps → expansor "Campos (avançado)"**.
 
+> **Dica:** crie os campos uma vez no nível do processo e adicione-os a Story, Feature e Epic — todos os tipos compartilham a mesma definição de campo.
+
 #### Controle de concorrência (`Sync_version` / `Sync_Name`)
 
-Quando dois usuários sincronizam alterações simultaneamente, a última gravação poderia sobrescrever a primeira. O NXProject evita isso:
+Quando dois usuários sincronizam alterações simultaneamente, a última gravação poderia sobrescrever a primeira. O NXProject evita isso com o par `Sync_version` / `Sync_Name`, que deve existir em todos os tipos de work item sincronizados (Story, Feature e Epic):
 
 - A cada sincronização que grava ao menos uma alteração real, `Sync_version` é incrementado em 1 e `Sync_Name` recebe o usuário Windows atual.
 - Ao sincronizar, o NXProject compara a versão que leu no import com a versão atual no DevOps. Se a versão do DevOps for maior, outro usuário gravou mais recentemente — o item é **ignorado** e marcado em **vermelho** no cronograma.
