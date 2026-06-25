@@ -28,7 +28,7 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
             <Button x:Name="PreviewModeBtn" Content="Visualizar" Height="26" Padding="10,0"
                     Click="OnPreviewMode"/>
-            <Button x:Name="EditModeBtn" Content="Editar HTML" Height="26" Padding="10,0"
+            <Button x:Name="EditModeBtn" Content="Editar" Height="26" Padding="10,0"
                     Margin="6,0,0,0" Click="OnEditMode"/>
         </StackPanel>
 
@@ -37,17 +37,8 @@
             <wv2:WebView2 x:Name="WebView" DefaultBackgroundColor="White"/>
         </Border>
 
-        <!-- Edição raw HTML -->
-        <TextBox Grid.Row="2" x:Name="DescriptionBox"
-                 Visibility="Collapsed"
-                 AcceptsReturn="True"
-                 TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto"
-                 Padding="6"
-                 FontFamily="Consolas"
-                 FontSize="12"/>
 
-        <!-- Barra inferior esquerda -->
+<!-- Barra inferior esquerda -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
             <Button x:Name="FetchBtn"
                     Content="⬇ Buscar Descrição Atualizada"

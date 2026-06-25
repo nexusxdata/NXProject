@@ -207,9 +207,16 @@ namespace NXProject.Controls
 
         public void SyncVerticalOffset(double offset)
         {
+            var wasSuppressed = _suppressScrollNotification;
             _suppressScrollNotification = true;
-            GanttScroll.ScrollToVerticalOffset(offset);
-            _suppressScrollNotification = false;
+            try
+            {
+                GanttScroll.ScrollToVerticalOffset(offset);
+            }
+            finally
+            {
+                _suppressScrollNotification = wasSuppressed;
+            }
         }
 
         public void ScrollToProjectStart() => ScheduleRender(resetScroll: true);
@@ -287,7 +294,11 @@ namespace NXProject.Controls
                 SubscribeTaskEvents(tasks);
             }
 
-            ScheduleRender(resetScroll: e.Action == NotifyCollectionChangedAction.Reset);
+            // RebuildFlatTasks limpa e repopula a mesma coleção. Resetar o scroll aqui
+            // faz o Gantt ir ao topo e sincronizar esse salto com a grade antes de voltar
+            // para a tarefa selecionada. A troca completa de projeto continua resetando
+            // pelo OnTasksChanged; mudanças na coleção preservam a posição atual.
+            ScheduleRender();
         }
 
         private void OnTaskPropertyChanged(object? sender, PropertyChangedEventArgs e)

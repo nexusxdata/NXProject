@@ -16,6 +16,37 @@ function Get-ExePath($configuration) {
     return $null
 }
 
+function Invoke-UserCertificateSetup {
+    param(
+        [switch]$Recreate
+    )
+
+    Write-Host ""
+    if ($Recreate) {
+        Write-Host "A chave local esta ausente ou quebrada. Recriando automaticamente..." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "Preparando assinatura local do usuario..." -ForegroundColor Cyan
+    }
+
+    $arguments = @()
+    if ($Recreate) {
+        $arguments += "-RecreateCertificate"
+    }
+
+    $signScript = Join-Path $PSScriptRoot "sign-nxproject.ps1"
+    $processArguments = @(
+        "-NoProfile"
+        "-ExecutionPolicy"
+        "Bypass"
+        "-File"
+        $signScript
+    ) + $arguments
+
+    & powershell.exe @processArguments
+    return $LASTEXITCODE -eq 0
+}
+
 if ($PSBoundParameters.ContainsKey('Configuration')) {
     $exe = Get-ExePath $Configuration
     if ($null -eq $exe) {
@@ -40,32 +71,62 @@ else {
 # Assina os binarios com certificado local para contornar Smart App Control / WDAC
 function Invoke-SignBinaries($exePath) {
     $certSubject = "CN=NXProject Dev Local"
-    $cert = Get-ChildItem Cert:\LocalMachine\My -CodeSigningCert -ErrorAction SilentlyContinue |
+    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
             Where-Object { $_.Subject -eq $certSubject } |
             Select-Object -First 1
 
     if (-not $cert) {
-        Write-Host ""
-        Write-Host "AVISO: Certificado de assinatura nao encontrado." -ForegroundColor Yellow
-        Write-Host "Se o aplicativo for bloqueado pelo Windows, rode o comando abaixo" -ForegroundColor Yellow
-        Write-Host "em um Terminal como ADMINISTRADOR:" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "  powershell -ExecutionPolicy Bypass -File `"$PSScriptRoot\sign-nxproject.ps1`"" -ForegroundColor Cyan
-        Write-Host ""
-        return
+        if (-not (Invoke-UserCertificateSetup)) {
+            return $false
+        }
+
+        $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
+                Where-Object { $_.Subject -eq $certSubject } |
+                Select-Object -First 1
+
+        if (-not $cert) {
+            return $false
+        }
     }
 
     $dir = Split-Path $exePath
     $files = Get-ChildItem $dir -Include "*.exe","*.dll" -Recurse -ErrorAction SilentlyContinue
     foreach ($f in $files) {
         $sig = Get-AuthenticodeSignature $f.FullName -ErrorAction SilentlyContinue
-        # Só assina se não tiver assinatura válida ou for mais novo que a assinatura
         if ($sig.Status -ne "Valid") {
-            Set-AuthenticodeSignature -FilePath $f.FullName -Certificate $cert -ErrorAction SilentlyContinue | Out-Null
+            try {
+                $result = Set-AuthenticodeSignature -FilePath $f.FullName -Certificate $cert -ErrorAction Stop
+                if ($result.Status -ne "Valid") {
+                    if (-not (Invoke-UserCertificateSetup -Recreate)) {
+                        return $false
+                    }
+                    break
+                }
+            }
+            catch {
+                if (-not (Invoke-UserCertificateSetup -Recreate)) {
+                    return $false
+                }
+                break
+            }
         }
     }
+
+    $exeSignature = Get-AuthenticodeSignature $exePath -ErrorAction SilentlyContinue
+    if ($exeSignature.Status -ne "Valid") {
+        Write-Host "O executavel permaneceu sem uma assinatura valida." -ForegroundColor Red
+        return $false
+    }
+
+    return $true
 }
 
-Invoke-SignBinaries $exe
+if (-not (Invoke-SignBinaries $exe)) {
+    Write-Host "O executavel nao sera iniciado enquanto a assinatura nao estiver valida." -ForegroundColor Red
+    Write-Host "A assinatura local nao exige permissao de administrador." -ForegroundColor Yellow
+    Write-Host "Para tentar manualmente:" -ForegroundColor Yellow
+    Write-Host "  powershell -ExecutionPolicy Bypass -File `"$PSScriptRoot\sign-nxproject.ps1`" -RecreateCertificate" -ForegroundColor Cyan
+    exit 1
+}
 
 Start-Process $exe

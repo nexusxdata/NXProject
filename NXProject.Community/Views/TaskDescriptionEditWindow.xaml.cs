@@ -1,7 +1,5 @@
 using System;
-using System.Net.Http.Headers;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using NXProject.Models;
@@ -15,6 +13,7 @@ namespace NXProject.Views
         private bool _webViewReady;
         private bool _pendingPreview;
         private string _html = string.Empty;
+        private bool _editingInWebView;
 
         public TaskDescriptionEditWindow(ProjectTask task)
         {
@@ -22,12 +21,10 @@ namespace NXProject.Views
             _task = task;
             TitleText.Text = $"Descrição — {task.Name}";
             _html = task.Description ?? string.Empty;
-            DescriptionBox.Text = _html;
 
             if (task.TfsId is not > 0)
                 FetchBtn.IsEnabled = false;
 
-            // Começa no modo preview se houver conteúdo
             if (!string.IsNullOrWhiteSpace(_html))
                 _pendingPreview = true;
 
@@ -45,14 +42,12 @@ namespace NXProject.Views
                 if (_pendingPreview)
                     ShowPreview();
                 else
-                    ShowEdit();
+                    ShowEditWysiwyg();
             }
             catch
             {
-                // WebView2 runtime ausente: cai direto no modo texto
-                PreviewPanel.Visibility = Visibility.Collapsed;
-                DescriptionBox.Visibility = Visibility.Visible;
                 PreviewModeBtn.IsEnabled = false;
+                EditModeBtn.IsEnabled = false;
             }
         }
 
@@ -68,7 +63,6 @@ namespace NXProject.Views
                 var authValue = Convert.ToBase64String(
                     Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken));
 
-                // Intercepta requisições para URLs do Azure DevOps e adiciona o PAT
                 WebView.CoreWebView2.AddWebResourceRequestedFilter(
                     "https://*.visualstudio.com/*", CoreWebView2WebResourceContext.All);
                 WebView.CoreWebView2.AddWebResourceRequestedFilter(
@@ -79,17 +73,18 @@ namespace NXProject.Views
                     e.Request.Headers.SetHeader("Authorization", "Basic " + authValue);
                 };
             }
-            catch { /* auth opcional — imagens sem PAT simplesmente não carregam */ }
+            catch { }
         }
 
-        private void ShowPreview()
+        private async void ShowPreview()
         {
-            // Sincroniza texto da caixa de edição (caso o usuário tenha editado antes)
-            if (DescriptionBox.Visibility == Visibility.Visible)
-                _html = DescriptionBox.Text;
+            if (_editingInWebView && _webViewReady)
+            {
+                var result = await WebView.ExecuteScriptAsync("document.body.innerHTML");
+                _html = System.Text.Json.JsonSerializer.Deserialize<string>(result) ?? _html;
+            }
 
-            PreviewPanel.Visibility = Visibility.Visible;
-            DescriptionBox.Visibility = Visibility.Collapsed;
+            _editingInWebView = false;
             PreviewModeBtn.FontWeight = FontWeights.Bold;
             EditModeBtn.FontWeight = FontWeights.Normal;
 
@@ -97,36 +92,45 @@ namespace NXProject.Views
                 LoadHtmlInWebView(_html);
         }
 
-        private void ShowEdit()
+        private void ShowEditWysiwyg()
         {
-            DescriptionBox.Text = _html;
-            PreviewPanel.Visibility = Visibility.Collapsed;
-            DescriptionBox.Visibility = Visibility.Visible;
+            _editingInWebView = true;
             EditModeBtn.FontWeight = FontWeights.Bold;
             PreviewModeBtn.FontWeight = FontWeights.Normal;
+
+            if (_webViewReady)
+                LoadHtmlInWebViewEditable(_html);
         }
+
+        private static string BuildCss(bool editable = false) =>
+            $"body{{font-family:Segoe UI,sans-serif;font-size:13px;color:#1f1f1f;background:#ffffff;padding:16px;margin:0;line-height:1.5{(editable ? ";outline:none" : "")}}}" +
+            "img{max-width:100%;height:auto}" +
+            "table{border-collapse:collapse}" +
+            "td,th{border:1px solid #ccc;padding:4px 8px}" +
+            "th{background:#f0f0f0}" +
+            "code{background:#f4f4f4;padding:1px 4px;border-radius:3px}" +
+            "p{margin:0 0 8px 0}";
 
         private void LoadHtmlInWebView(string html)
         {
-            // Envolve o HTML em uma página completa com estilos básicos
-            const string css =
-                "body{font-family:Segoe UI,sans-serif;font-size:13px;color:#1f1f1f;padding:16px;margin:0;line-height:1.5}" +
-                "img{max-width:100%;height:auto}" +
-                "table{border-collapse:collapse}" +
-                "td,th{border:1px solid #ccc;padding:4px 8px}" +
-                "th{background:#f0f0f0}" +
-                "code{background:#f4f4f4;padding:1px 4px;border-radius:3px}" +
-                "p{margin:0 0 8px 0}";
-
             var page = string.IsNullOrWhiteSpace(html)
-                ? "<html><body style='font-family:Segoe UI,sans-serif;color:#666;padding:16px'><i>Sem descrição.</i></body></html>"
-                : $"<html><head><meta charset='utf-8'/><style>{css}</style></head><body>{html}</body></html>";
+                ? "<html><body style='font-family:Segoe UI,sans-serif;color:#666;background:#ffffff;padding:16px'><i>Sem descrição.</i></body></html>"
+                : $"<html><head><meta charset='utf-8'/><style>{BuildCss()}</style></head><body>{html}</body></html>";
+
+            WebView.CoreWebView2.NavigateToString(page);
+        }
+
+        private void LoadHtmlInWebViewEditable(string html)
+        {
+            var body = string.IsNullOrWhiteSpace(html) ? "" : html;
+            var page = $"<html><head><meta charset='utf-8'/><style>{BuildCss(editable: true)}</style></head>" +
+                       $"<body contenteditable='true'>{body}</body></html>";
 
             WebView.CoreWebView2.NavigateToString(page);
         }
 
         private void OnPreviewMode(object sender, RoutedEventArgs e) => ShowPreview();
-        private void OnEditMode(object sender, RoutedEventArgs e) => ShowEdit();
+        private void OnEditMode(object sender, RoutedEventArgs e) => ShowEditWysiwyg();
 
         private async void OnFetchFromDevOpsClick(object sender, RoutedEventArgs e)
         {
@@ -135,17 +139,20 @@ namespace NXProject.Views
             try
             {
                 var options = TfsConnectionStore.Load("NXProject.Community");
-                // Busca o HTML original (sem converter para plain text)
                 var html = await TfsImportService.LoadWorkItemDescriptionHtmlAsync(
                     options, _task.TfsId!.Value);
                 _html = html ?? string.Empty;
-                DescriptionBox.Text = _html;
                 FetchStatus.Text = string.IsNullOrWhiteSpace(_html)
                     ? "Descrição vazia no DevOps."
                     : "Descrição carregada do DevOps.";
 
-                if (_webViewReady && PreviewPanel.Visibility == Visibility.Visible)
-                    LoadHtmlInWebView(_html);
+                if (_webViewReady)
+                {
+                    if (_editingInWebView)
+                        LoadHtmlInWebViewEditable(_html);
+                    else
+                        LoadHtmlInWebView(_html);
+                }
             }
             catch (Exception ex)
             {
@@ -157,12 +164,15 @@ namespace NXProject.Views
             }
         }
 
-        private void OnSaveClick(object sender, RoutedEventArgs e)
+        private async void OnSaveClick(object sender, RoutedEventArgs e)
         {
-            // Se estiver no modo edição, pega o texto da caixa; senão usa _html
-            _task.Description = DescriptionBox.Visibility == Visibility.Visible
-                ? DescriptionBox.Text.Trim()
-                : _html.Trim();
+            if (_editingInWebView && _webViewReady)
+            {
+                var result = await WebView.ExecuteScriptAsync("document.body.innerHTML");
+                _html = System.Text.Json.JsonSerializer.Deserialize<string>(result) ?? _html;
+            }
+
+            _task.Description = _html.Trim();
             DialogResult = true;
             Close();
         }
