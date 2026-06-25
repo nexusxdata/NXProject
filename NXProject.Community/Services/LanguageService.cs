@@ -19,6 +19,12 @@ namespace NXProject.Community.Services
                 : EnUS;
         }
 
+        public static string Str(string key, params object[] args)
+        {
+            var val = Application.Current?.TryFindResource(key) as string ?? key;
+            return args.Length > 0 ? string.Format(val, args) : val;
+        }
+
         public static void Apply(string languageCode)
         {
             var code = languageCode == EnUS ? EnUS : PtBR;

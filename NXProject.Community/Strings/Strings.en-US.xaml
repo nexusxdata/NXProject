@@ -36,7 +36,7 @@
     <!-- Management Menu -->
     <sys:String x:Key="Menu_Manage">_Management</sys:String>
     <sys:String x:Key="Menu_Manage_Resources">_Resource Allocation...</sys:String>
-    <sys:String x:Key="Menu_Manage_HealthCheck">_Progresso do Projeto e Curva S...</sys:String>
+    <sys:String x:Key="Menu_Manage_HealthCheck">_Project Progress and S-Curve...</sys:String>
     <sys:String x:Key="Menu_Manage_StoryStatusChart">_Story Status Chart...</sys:String>
     <sys:String x:Key="Menu_Manage_AllocationMap">Project _Allocation Map...</sys:String>
 
@@ -48,7 +48,7 @@
     <sys:String x:Key="Menu_View_Calendar">_Calendar...</sys:String>
     <sys:String x:Key="Menu_View_Resources">_Resource Allocation...</sys:String>
     <sys:String x:Key="Menu_View_DevOpsList">Project _Portfolio...</sys:String>
-    <sys:String x:Key="Menu_View_HealthCheck">_Progresso do Projeto e Curva S...</sys:String>
+    <sys:String x:Key="Menu_View_HealthCheck">_Project Progress and S-Curve...</sys:String>
     <sys:String x:Key="Menu_View_StoryStatusChart">_Story Status Chart...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">Project _Allocation Map...</sys:String>
     <sys:String x:Key="Menu_View_People">_People...</sys:String>
@@ -134,5 +134,123 @@
     <sys:String x:Key="Settings_LogoErrorTitle">Error</sys:String>
     <sys:String x:Key="Settings_BrowseTitle">Select company logo</sys:String>
     <sys:String x:Key="Settings_BrowseFilter">Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|PNG|*.png|JPEG|*.jpg;*.jpeg|BMP|*.bmp</sys:String>
+
+    <!-- FeaturesHelpWindow -->
+    <sys:String x:Key="Help_WindowTitle">Features Guide — NXProject Community</sys:String>
+    <sys:String x:Key="Help_Subtitle">Features Guide</sys:String>
+    <sys:String x:Key="Help_Topic_Overview">🗂  Overview</sys:String>
+    <sys:String x:Key="Help_Topic_Schedule">📅  Schedule</sys:String>
+    <sys:String x:Key="Help_Topic_ActivityDates">📆  Activity Dates</sys:String>
+    <sys:String x:Key="Help_Topic_Gantt">📊  Gantt Chart</sys:String>
+    <sys:String x:Key="Help_Topic_Predecessors">🔗  Predecessors</sys:String>
+    <sys:String x:Key="Help_Topic_Resources">👥  Resources</sys:String>
+    <sys:String x:Key="Help_Topic_Sprints">🏃  Sprints</sys:String>
+    <sys:String x:Key="Help_Topic_DevOps">☁  Azure DevOps</sys:String>
+    <sys:String x:Key="Help_Topic_ProjectList">📋  Project List</sys:String>
+    <sys:String x:Key="Help_Topic_Sync">🔄  Sync</sys:String>
+    <sys:String x:Key="Help_Topic_Export">📤  Export</sys:String>
+    <sys:String x:Key="Help_Topic_HealthCheck">❤  Health Check</sys:String>
+    <sys:String x:Key="Help_Topic_AI">🤖  AI Assistant</sys:String>
+    <sys:String x:Key="Help_Topic_Settings">⚙  Settings</sys:String>
+
+    <!-- Toolbar — hierarchy buttons -->
+    <sys:String x:Key="Toolbar_ExpandSelected">Expand one level: expands all tasks at the same level as the selected</sys:String>
+    <sys:String x:Key="Toolbar_CollapseAll">Collapse entire hierarchy</sys:String>
+    <sys:String x:Key="Toolbar_ExpandAll">Expand entire hierarchy</sys:String>
+
+    <!-- Column headers -->
+    <sys:String x:Key="Col_TaskName">Task Name</sys:String>
+    <sys:String x:Key="Col_Duration">Dur.(h)</sys:String>
+    <sys:String x:Key="Col_Start">Start</sys:String>
+    <sys:String x:Key="Col_Finish">Finish</sys:String>
+    <sys:String x:Key="Col_PercentComplete">% Compl.</sys:String>
+    <sys:String x:Key="Col_Predecessors">Pred.</sys:String>
+    <sys:String x:Key="Col_Resources">Resources</sys:String>
+    <sys:String x:Key="Col_OrgH">OrgH</sys:String>
+    <sys:String x:Key="Col_HHAtual">Curr. HH</sys:String>
+    <sys:String x:Key="Col_HHRestante">Rem. HH</sys:String>
+
+    <!-- Context menus — task name cell -->
+    <sys:String x:Key="Ctx_AddStoryBlock">Add Story Block</sys:String>
+    <sys:String x:Key="Ctx_ViewOnlineActivities">View Online Activities...</sys:String>
+    <sys:String x:Key="Ctx_EditDescription">Edit Description...</sys:String>
+
+    <!-- Context menus — start date cell -->
+    <sys:String x:Key="Ctx_FixStartDate">Fix start date</sys:String>
+    <sys:String x:Key="Ctx_ClearFixedDate">Clear fixed date</sys:String>
+
+    <!-- Context menus — predecessor cell -->
+    <sys:String x:Key="Ctx_HighlightPred">Highlight predecessors</sys:String>
+    <sys:String x:Key="Ctx_ClearPredHighlight">Clear predecessor highlight</sys:String>
+
+    <!-- Context menus — resources cell -->
+    <sys:String x:Key="Ctx_EditAllocPerc">Edit allocation %...</sys:String>
+
+    <!-- Predecessor tooltip -->
+    <sys:String x:Key="Tooltip_PredClick">Click to choose predecessors&#x0a;Right-click to highlight on Gantt</sys:String>
+
+    <!-- ID column tooltip -->
+    <sys:String x:Key="Tooltip_IdCell">Click to edit DevOps link (ID, type, state)</sys:String>
+
+    <!-- Status messages -->
+    <sys:String x:Key="Status_SelectTaskToDelete">Select a task to delete.</sys:String>
+    <sys:String x:Key="Status_SelectTaskToChain">Select a task to start chaining.</sys:String>
+    <sys:String x:Key="Status_NoNextTaskToChain">No next tasks in the same hierarchy to chain.</sys:String>
+    <sys:String x:Key="Status_SelectTaskForHierarchy">Select a task to change its hierarchy.</sys:String>
+    <sys:String x:Key="Status_FirstTaskCannotIndent">The first task cannot become a subtask.</sys:String>
+    <sys:String x:Key="Status_NoParentForIndent">No previous task at the required level to indent further.</sys:String>
+    <sys:String x:Key="Status_SelectTaskToMove">Select a task to move.</sys:String>
+    <sys:String x:Key="Status_CannotMoveUp">Task is already at the top.</sys:String>
+    <sys:String x:Key="Status_CannotMoveDown">Task is already at the bottom.</sys:String>
+    <sys:String x:Key="Status_TaskNotFoundInHierarchy">Selected task not found in hierarchy.</sys:String>
+    <sys:String x:Key="Status_PrintSent">Document sent to printer.</sys:String>
+    <sys:String x:Key="Status_PdfStarted">PDF generation flow started.</sys:String>
+    <sys:String x:Key="Msg_ClearProjectTitle">Clear project</sys:String>
+    <sys:String x:Key="Msg_ClearProjectBody">Remove all tasks and resources from the current project?</sys:String>
+    <sys:String x:Key="Status_NewProject">New project created.</sys:String>
+    <sys:String x:Key="Status_ProjectAlreadyClean">Project is already empty.</sys:String>
+    <sys:String x:Key="Status_ProjectClearCancelled">Project clear cancelled.</sys:String>
+    <sys:String x:Key="Status_ProjectCleared">Project cleared.</sys:String>
+    <sys:String x:Key="Status_RecalcError">Error recalculating dates after resource change.</sys:String>
+    <sys:String x:Key="Status_DatesRecalculated">Dates recalculated considering allocation and availability.</sys:String>
+    <sys:String x:Key="Status_CalendarApplied">Calendar applied to the schedule.</sys:String>
+    <sys:String x:Key="Status_SprintSaved">Sprint configuration saved for new projects.</sys:String>
+    <sys:String x:Key="Status_TaskAdded">Task added below the selected one.</sys:String>
+    <sys:String x:Key="Status_SelectParentTask">Select a parent task first.</sys:String>
+    <sys:String x:Key="Status_TaskIndented">Task indented one level.</sys:String>
+    <sys:String x:Key="Status_TaskAlreadyRoot">Task is already at root level.</sys:String>
+    <sys:String x:Key="Status_TaskPromoted">Task promoted one level.</sys:String>
+    <sys:String x:Key="Status_TaskMovedUp">Task moved up.</sys:String>
+    <sys:String x:Key="Status_TaskMovedDown">Task moved down.</sys:String>
+    <sys:String x:Key="Status_CannotMoveInsideOwn">Cannot move a task into its own hierarchy.</sys:String>
+    <sys:String x:Key="Status_DragSameLevel">Drag can only reorder tasks within the same level.</sys:String>
+    <sys:String x:Key="Status_TaskReordered">Task reordered.</sys:String>
+    <sys:String x:Key="Status_SelectTaskToChainFrom">Select an activity to chain from.</sys:String>
+    <sys:String x:Key="Status_Undo">Undo (coming soon)</sys:String>
+    <sys:String x:Key="Status_Redo">Redo (coming soon)</sys:String>
+    <sys:String x:Key="Status_ProjectInfo">Project info (coming soon)</sys:String>
+    <sys:String x:Key="Status_EditCalendar">Calendar editor (coming soon)</sys:String>
+    <sys:String x:Key="Status_SprintSettings">Open Sprint Settings from the Project menu.</sys:String>
+    <sys:String x:Key="Status_ManageResources">Manage resources (coming soon)</sys:String>
+    <sys:String x:Key="Status_ReportTasks">Task report (coming soon)</sys:String>
+    <sys:String x:Key="Status_ReportResources">Resource report (coming soon)</sys:String>
+    <sys:String x:Key="Status_AIGenerateTasks">AI task generation (coming soon)</sys:String>
+    <sys:String x:Key="Status_AISuggestAllocation">AI allocation suggestion (coming soon)</sys:String>
+    <sys:String x:Key="Status_AISettings">AI settings (coming soon)</sys:String>
+
+    <!-- Delete dialog -->
+    <sys:String x:Key="Delete_ProtectedTitle">Protected deletion</sys:String>
+    <sys:String x:Key="Delete_ProtectedMsg">The activity "{0}" is of type "{1}" and cannot be deleted by NXProject.\n\nTo delete, access DevOps directly.\n\nDo you want to open the item in DevOps now?</sys:String>
+    <sys:String x:Key="Delete_ConfirmTitle">Confirm Deletion</sys:String>
+    <sys:String x:Key="Delete_DevOpsTitle">⚠ Delete Story #{0} from Azure DevOps?</sys:String>
+    <sys:String x:Key="Delete_LocalTitle">⚠ Delete task "{0}"?</sys:String>
+    <sys:String x:Key="Delete_DevOpsDetail">"{0}"\n\nThis action is irreversible. The item will be permanently deleted from DevOps.</sys:String>
+    <sys:String x:Key="Delete_LocalDetail">The task will be removed from the schedule.</sys:String>
+    <sys:String x:Key="Delete_BtnConfirm">Delete</sys:String>
+    <sys:String x:Key="Delete_BtnCancel">Cancel</sys:String>
+
+    <!-- Sync / Export -->
+    <sys:String x:Key="Sync_NoConnection">No DevOps connection configured.</sys:String>
+    <sys:String x:Key="Sync_Title">Sync Azure DevOps</sys:String>
 
 </ResourceDictionary>

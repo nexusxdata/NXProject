@@ -435,14 +435,17 @@ namespace NXProject.Controls
             NameColumn.Width = expanded
                 ? new DataGridLength(2.2, DataGridLengthUnitType.Star)
                 : new DataGridLength(1, DataGridLengthUnitType.Star);
-            DurationColumn.Width = new DataGridLength(expanded ? 70 : 52);
-            SfpColumn.Width = new DataGridLength(expanded ? 64 : 52);
-            StartColumn.Width = new DataGridLength(expanded ? 96 : 76);
-            FinishColumn.Width = new DataGridLength(expanded ? 96 : 76);
-            PercentColumn.Width = new DataGridLength(expanded ? 82 : 62);
+            DurationColumn.Width = new DataGridLength(expanded ? 72 : 52);
+            SfpColumn.Width = new DataGridLength(expanded ? 56 : 52);
+            OriginalHoursColumn.Width = new DataGridLength(expanded ? 58 : 50);
+            RealizedHoursColumn.Width = new DataGridLength(expanded ? 72 : 80);
+            EstimatedHoursColumn.Width = new DataGridLength(expanded ? 80 : 80);
+            StartColumn.Width = new DataGridLength(expanded ? 118 : 76);
+            FinishColumn.Width = new DataGridLength(expanded ? 118 : 76);
+            PercentColumn.Width = new DataGridLength(expanded ? 76 : 62);
             PredecessorColumn.Width = new DataGridLength(expanded ? 110 : 80);
-            ResourcesColumn.Width = new DataGridLength(expanded ? 190 : 88);
-            SprintColumn.Width = new DataGridLength(expanded ? 150 : 118);
+            ResourcesColumn.Width = new DataGridLength(expanded ? 160 : 88);
+            SprintColumn.Width = new DataGridLength(expanded ? 148 : 118);
         }
 
         public void SetPrintMode()
@@ -1321,9 +1324,8 @@ namespace NXProject.Controls
 
             if (parsed && typed.Date == calculatedDate)
             {
-                vm.StartText = raw;
-                TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-                TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                CancelCurrentEdit();
+                return;
             }
             else
             {
@@ -1389,6 +1391,25 @@ namespace NXProject.Controls
 
             if (sender is TextBox tb)
                 CommitStartEdit(tb);
+        }
+
+        private void OnStartContextMenuOpened(object sender, RoutedEventArgs e)
+        {
+            if (sender is ContextMenu menu)
+            {
+                var vm = (menu.PlacementTarget as FrameworkElement)?.DataContext as TaskViewModel;
+                if (menu.Items[0] is MenuItem fixItem)
+                    fixItem.IsEnabled = vm != null && !vm.StartFixed;
+            }
+        }
+
+        private void OnFixStartClick(object sender, RoutedEventArgs e)
+        {
+            var vm = ((sender as MenuItem)?.Parent as ContextMenu)
+                ?.PlacementTarget is FrameworkElement fe ? fe.DataContext as TaskViewModel : null;
+            if (vm == null) return;
+
+            vm.StartFixed = true;
         }
 
 

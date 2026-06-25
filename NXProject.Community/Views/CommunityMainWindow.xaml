@@ -301,6 +301,65 @@
                     </Canvas>
                 </Viewbox>
             </ToggleButton>
+
+            <Separator/>
+
+            <!-- Expandir um nível (todas as do mesmo nível da selecionada) -->
+            <Button Style="{StaticResource ToolbarButtonStyle}"
+                    Command="{Binding ExpandSelectedCommand}"
+                    ToolTip="{DynamicResource Toolbar_ExpandSelected}">
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="20" Height="18">
+                        <!-- linha raiz -->
+                        <Line X1="1" Y1="3" X2="10" Y2="3" Stroke="#444" StrokeThickness="1.5"/>
+                        <!-- linha do meio (nível expandido) -->
+                        <Line X1="4" Y1="10" X2="13" Y2="10" Stroke="#444" StrokeThickness="1.5"/>
+                        <!-- conector vertical -->
+                        <Line X1="4" Y1="3" X2="4" Y2="10" Stroke="#444" StrokeThickness="1.2"/>
+                        <!-- "+1" indicando um nível -->
+                        <TextBlock Text="+1" FontSize="7" FontWeight="Bold" Foreground="#2B579A"
+                                   Canvas.Left="12" Canvas.Top="0"/>
+                        <!-- seta para baixo saindo da raiz -->
+                        <Polyline Points="4,10 2,7 6,7" Stroke="#444" StrokeThickness="1.2" Fill="#444"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
+
+            <Separator/>
+
+            <!-- Contrair toda a hierarquia -->
+            <Button Style="{StaticResource ToolbarButtonStyle}"
+                    Command="{Binding CollapseAllCommand}"
+                    ToolTip="{DynamicResource Toolbar_CollapseAll}">
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="18" Height="18">
+                        <!-- três linhas convergindo para a raiz (colapsar tudo) -->
+                        <Line X1="2" Y1="3"  X2="16" Y2="3"  Stroke="#444" StrokeThickness="1.5"/>
+                        <Line X1="5" Y1="9"  X2="16" Y2="9"  Stroke="#888" StrokeThickness="1.2"/>
+                        <Line X1="8" Y1="15" X2="16" Y2="15" Stroke="#888" StrokeThickness="1.2"/>
+                        <!-- setas para cima indicando contração -->
+                        <Polyline Points="2,9 5,6 8,9"   Stroke="#444" StrokeThickness="1.2" Fill="Transparent"/>
+                        <Polyline Points="2,15 5,12 8,15" Stroke="#444" StrokeThickness="1.2" Fill="Transparent"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
+
+            <!-- Expandir toda a hierarquia -->
+            <Button Style="{StaticResource ToolbarButtonStyle}"
+                    Command="{Binding ExpandAllCommand}"
+                    ToolTip="{DynamicResource Toolbar_ExpandAll}">
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="18" Height="18">
+                        <!-- três linhas divergindo da raiz (expandir tudo) -->
+                        <Line X1="2" Y1="3"  X2="16" Y2="3"  Stroke="#444" StrokeThickness="1.5"/>
+                        <Line X1="5" Y1="9"  X2="16" Y2="9"  Stroke="#888" StrokeThickness="1.2"/>
+                        <Line X1="8" Y1="15" X2="16" Y2="15" Stroke="#888" StrokeThickness="1.2"/>
+                        <!-- setas para baixo indicando expansão -->
+                        <Polyline Points="2,6 5,9 8,6"   Stroke="#444" StrokeThickness="1.2" Fill="Transparent"/>
+                        <Polyline Points="2,12 5,15 8,12" Stroke="#444" StrokeThickness="1.2" Fill="Transparent"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
         </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom" Background="{StaticResource PrimaryBrush}" Foreground="White" Height="22">
@@ -325,6 +384,7 @@
                 <TextBlock Text="🔗 Projeto DevOps: " FontSize="12" Foreground="#2B579A" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 <TextBlock x:Name="DevOpsProjectNameLabel" FontSize="12" Foreground="#2B579A" VerticalAlignment="Center"/>
                 <TextBlock x:Name="DevOpsProjectIdLabel" FontSize="11" Foreground="#888" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                <TextBlock x:Name="DevOpsEpicHoursLabel" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="16,0,0,0"/>
             </StackPanel>
         </Border>
 

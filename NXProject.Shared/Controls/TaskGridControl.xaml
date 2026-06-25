@@ -70,7 +70,7 @@
                         <Button Content="{Binding DisplayId}"
                                 PreviewMouseLeftButtonDown="OnIdCellPreviewMouseLeftButtonDown"
                                 Click="OnIdCellClick"
-                                ToolTip="Clique para editar o vínculo DevOps (ID, tipo, estado)"
+                                ToolTip="{DynamicResource Tooltip_IdCell}"
                                 Cursor="Hand"
                                 BorderThickness="0"
                                 Background="Transparent"
@@ -110,7 +110,7 @@
             </DataGridTemplateColumn>
 
             <!-- Nome (com indentação) -->
-            <DataGridTemplateColumn x:Name="NameColumn" Header="Nome da Tarefa" Width="*" MinWidth="120">
+            <DataGridTemplateColumn x:Name="NameColumn" Header="{DynamicResource Col_TaskName}" Width="*" MinWidth="120">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Grid>
@@ -235,12 +235,12 @@
                                     </TextBlock.Style>
                                     <TextBlock.ContextMenu>
                                         <ContextMenu>
-                                            <MenuItem Header="Adicionar Block na Story" Click="OnToggleStoryBlockClick"/>
+                                            <MenuItem Header="{DynamicResource Ctx_AddStoryBlock}" Click="OnToggleStoryBlockClick"/>
                                             <Separator/>
                                             <MenuItem x:Name="ViewOnlineChildrenMenuItem"
-                                                      Header="Ver Atividades Online..."
+                                                      Header="{DynamicResource Ctx_ViewOnlineActivities}"
                                                       Click="OnViewOnlineChildrenClick"/>
-                                            <MenuItem Header="Editar Descrição..."
+                                            <MenuItem Header="{DynamicResource Ctx_EditDescription}"
                                                       Click="OnEditDescriptionClick"/>
                                         </ContextMenu>
                                     </TextBlock.ContextMenu>
@@ -265,7 +265,7 @@
             </DataGridTemplateColumn>
 
             <!-- Duração -->
-            <DataGridTemplateColumn x:Name="DurationColumn" Header="Dur.(h)" Width="60">
+            <DataGridTemplateColumn x:Name="DurationColumn" Header="{DynamicResource Col_Duration}" Width="60">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Border Padding="2,0"
@@ -361,7 +361,7 @@
             </DataGridTextColumn>
 
             <!-- Estimativa Original (OrgH) — visível quando ShowOriginalHoursColumn = true -->
-            <DataGridTextColumn x:Name="OriginalHoursColumn" Header="OrgH"
+            <DataGridTextColumn x:Name="OriginalHoursColumn" Header="{DynamicResource Col_OrgH}"
                                 Binding="{Binding OriginalEstimatedHoursDisplay, Mode=OneWay}"
                                 Width="50" IsReadOnly="True"
                                 Visibility="Collapsed">
@@ -381,7 +381,7 @@
             </DataGridTextColumn>
 
             <!-- HH Atual (oculto por padrão) -->
-            <DataGridTextColumn x:Name="RealizedHoursColumn" Header="HH Atual"
+            <DataGridTextColumn x:Name="RealizedHoursColumn" Header="{DynamicResource Col_HHAtual}"
                                 Binding="{Binding CurrentHoursDisplay}" Width="80" IsReadOnly="True"
                                 Visibility="Collapsed">
                 <DataGridTextColumn.ElementStyle>
@@ -400,7 +400,7 @@
             </DataGridTextColumn>
 
             <!-- HH Restante (oculto por padrão) -->
-            <DataGridTextColumn x:Name="EstimatedHoursColumn" Header="HH Restante"
+            <DataGridTextColumn x:Name="EstimatedHoursColumn" Header="{DynamicResource Col_HHRestante}"
                                 Binding="{Binding EstimatedHoursDisplay}" Width="80" IsReadOnly="True"
                                 Visibility="Collapsed">
                 <DataGridTextColumn.ElementStyle>
@@ -419,7 +419,7 @@
             </DataGridTextColumn>
 
             <!-- Início -->
-            <DataGridTemplateColumn x:Name="StartColumn" Header="Início" Width="110" SortMemberPath="Start">
+            <DataGridTemplateColumn x:Name="StartColumn" Header="{DynamicResource Col_Start}" Width="110" SortMemberPath="Start">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding StartDisplay}"
@@ -427,8 +427,10 @@
                                    Margin="3,0"
                                    PreviewMouseLeftButtonDown="OnStartDisplayPreviewMouseLeftButtonDown">
                             <TextBlock.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Retirar data fixa"
+                                <ContextMenu Opened="OnStartContextMenuOpened">
+                                    <MenuItem Header="{DynamicResource Ctx_FixStartDate}"
+                                              Click="OnFixStartClick"/>
+                                    <MenuItem Header="{DynamicResource Ctx_ClearFixedDate}"
                                               Command="{Binding ClearStartFixedCommand}"
                                               IsEnabled="{Binding StartFixed}"/>
                                 </ContextMenu>
@@ -450,7 +452,7 @@
             </DataGridTemplateColumn>
 
             <!-- Fim -->
-            <DataGridTemplateColumn x:Name="FinishColumn" Header="Fim" Width="110" SortMemberPath="Finish">
+            <DataGridTemplateColumn x:Name="FinishColumn" Header="{DynamicResource Col_Finish}" Width="110" SortMemberPath="Finish">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding FinishDisplay}" VerticalAlignment="Center" Margin="3,0"/>
@@ -469,7 +471,7 @@
             </DataGridTemplateColumn>
 
             <!-- % Completo -->
-            <DataGridTemplateColumn x:Name="PercentColumn" Header="% Compl." Width="70">
+            <DataGridTemplateColumn x:Name="PercentColumn" Header="{DynamicResource Col_PercentComplete}" Width="70">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Grid Margin="2,1">
@@ -515,12 +517,12 @@
             </DataGridTemplateColumn>
 
             <!-- Predecessoras -->
-            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="Pred." Width="80" SortMemberPath="PredecessorsText">
+            <DataGridTemplateColumn x:Name="PredecessorColumn" Header="{DynamicResource Col_Predecessors}" Width="80" SortMemberPath="PredecessorsText">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Button Content="{Binding PredecessorsText}"
                                 Click="OnPredecessorCellClick"
-                                ToolTip="Clique para escolher predecessoras&#x0a;Botão direito para destacar no Gantt"
+                                ToolTip="{DynamicResource Tooltip_PredClick}"
                                 BorderThickness="0"
                                 Background="Transparent"
                                 Padding="3,0"
@@ -528,8 +530,8 @@
                                 VerticalContentAlignment="Center">
                             <Button.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Destacar predecessoras" Click="OnHighlightPredecessorsClick"/>
-                                    <MenuItem Header="Desmarcar predecessoras" Click="OnClearPredecessorHighlightClick"
+                                    <MenuItem Header="{DynamicResource Ctx_HighlightPred}" Click="OnHighlightPredecessorsClick"/>
+                                    <MenuItem Header="{DynamicResource Ctx_ClearPredHighlight}" Click="OnClearPredecessorHighlightClick"
                                               Visibility="{Binding IsHighlightSource, Converter={StaticResource BoolToVis}}"/>
                                 </ContextMenu>
                             </Button.ContextMenu>
@@ -540,7 +542,7 @@
                     <DataTemplate>
                         <Button Content="{Binding PredecessorsText}"
                                 Click="OnPredecessorCellClick"
-                                ToolTip="Clique para escolher predecessoras&#x0a;Botão direito para destacar no Gantt"
+                                ToolTip="{DynamicResource Tooltip_PredClick}"
                                 BorderThickness="0"
                                 Background="Transparent"
                                 Padding="3,0"
@@ -548,8 +550,8 @@
                                 VerticalContentAlignment="Center">
                             <Button.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Destacar predecessoras" Click="OnHighlightPredecessorsClick"/>
-                                    <MenuItem Header="Desmarcar predecessoras" Click="OnClearPredecessorHighlightClick"
+                                    <MenuItem Header="{DynamicResource Ctx_HighlightPred}" Click="OnHighlightPredecessorsClick"/>
+                                    <MenuItem Header="{DynamicResource Ctx_ClearPredHighlight}" Click="OnClearPredecessorHighlightClick"
                                               Visibility="{Binding IsHighlightSource, Converter={StaticResource BoolToVis}}"/>
                                 </ContextMenu>
                             </Button.ContextMenu>
@@ -559,7 +561,7 @@
             </DataGridTemplateColumn>
 
             <!-- Recursos (editável: ComboBox com criação rápida) -->
-            <DataGridTemplateColumn x:Name="ResourcesColumn" Header="Recursos" Width="100">
+            <DataGridTemplateColumn x:Name="ResourcesColumn" Header="{DynamicResource Col_Resources}" Width="100">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding ResourcesText, Mode=OneWay}"
@@ -567,7 +569,7 @@
                                    Margin="3,0">
                             <TextBlock.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Editar % de alocação..."
+                                    <MenuItem Header="{DynamicResource Ctx_EditAllocPerc}"
                                               Click="OnEditPercAlocClick"/>
                                 </ContextMenu>
                             </TextBlock.ContextMenu>

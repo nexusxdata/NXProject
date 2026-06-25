@@ -48,12 +48,13 @@ namespace NXProject.Views
             var vm = new MainViewModel("NXProject.Community");
             DataContext = vm;
 
-            // Atualiza o banner quando um projeto é aberto/carregado
+            // Atualiza o banner quando um projeto é aberto/carregado ou FlatTasks muda
             vm.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(vm.Project))
                     UpdateDevOpsProjectBanner(vm.Project.DevOpsProjectName, vm.Project.DevOpsRootWorkItemId);
             };
+            vm.FlatTasks.CollectionChanged += (_, _) => UpdateEpicHours(vm);
 
             var syncingVerticalScroll = false;
 
@@ -419,9 +420,13 @@ namespace NXProject.Views
         private void OnOpenSelectedTaskInDevOpsClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
-            var task = vm.SelectedTask;
-            if (task?.TfsId is not > 0) return;
+            if (vm.SelectedTask?.Model is { } m)
+                OpenTaskInDevOps(m);
+        }
 
+        private void OpenTaskInDevOps(NXProject.Models.ProjectTask task)
+        {
+            if (task.TfsId is not > 0) return;
             try
             {
                 var conn = NXProject.Services.TfsConnectionStore.Load();
@@ -481,20 +486,21 @@ namespace NXProject.Views
             bool hasDevOpsId = task.TfsId is > 0;
             bool canDeleteInDevOps = hasDevOpsId && isStory;
 
-            // Tipo com ID real mas não é Story: protege exclusão no DevOps
+            // Tipo com ID real mas não é Story (Epic/Feature): não pode excluir aqui, oferece abrir no DevOps
             if (hasDevOpsId && !isStory)
             {
-                MessageBox.Show(
-                    $"A atividade \"{task.Name}\" é do tipo \"{task.Model.TfsType}\" e não pode ser excluída pelo NXProject.\n\n" +
-                    "Para excluir apenas do cronograma, altere o ID DevOps para 0 primeiro.",
-                    "Exclusão protegida", MessageBoxButton.OK, MessageBoxImage.Information);
+                var result = MessageBox.Show(
+                    LanguageService.Str("Delete_ProtectedMsg", task.Name, task.Model.TfsType ?? ""),
+                    LanguageService.Str("Delete_ProtectedTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (result == MessageBoxResult.Yes)
+                    OpenTaskInDevOps(task.Model);
                 return;
             }
 
             // Monta janela de confirmação
             var confirm = new Window
             {
-                Title = "Confirmar Exclusão",
+                Title = LanguageService.Str("Delete_ConfirmTitle"),
                 Width = 480, Height = 240,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this,
@@ -504,8 +510,8 @@ namespace NXProject.Views
             bool confirmed = false;
             var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(24, 20, 24, 20) };
             var titulo = canDeleteInDevOps
-                ? $"⚠ Excluir Story #{task.TfsId} do Azure DevOps?"
-                : $"⚠ Excluir tarefa \"{task.Name}\"?";
+                ? LanguageService.Str("Delete_DevOpsTitle", task.TfsId)
+                : LanguageService.Str("Delete_LocalTitle", task.Name);
             panel.Children.Add(new System.Windows.Controls.TextBlock
             {
                 Text = titulo,
@@ -514,8 +520,8 @@ namespace NXProject.Views
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
             });
             var detalhe = canDeleteInDevOps
-                ? $"\"{task.Name}\"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps."
-                : "A tarefa será removida do cronograma.";
+                ? LanguageService.Str("Delete_DevOpsDetail", task.Name)
+                : LanguageService.Str("Delete_LocalDetail");
             panel.Children.Add(new System.Windows.Controls.TextBlock
             {
                 Text = detalhe,
@@ -526,14 +532,14 @@ namespace NXProject.Views
                 { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var btnConfirm = new System.Windows.Controls.Button
             {
-                Content = canDeleteInDevOps ? "Excluir permanentemente" : "Excluir",
-                Width = canDeleteInDevOps ? 180 : 90, Height = 30,
+                Content = LanguageService.Str("Delete_BtnConfirm"),
+                Width = 120, Height = 30,
                 Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0x28, 0x28)),
                 Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(0),
                 FontWeight = FontWeights.SemiBold, Cursor = System.Windows.Input.Cursors.Hand
             };
             var btnCancel = new System.Windows.Controls.Button
-                { Content = "Cancelar", Width = 90, Height = 30, Margin = new Thickness(10, 0, 0, 0), IsCancel = true };
+                { Content = LanguageService.Str("Delete_BtnCancel"), Width = 90, Height = 30, Margin = new Thickness(10, 0, 0, 0), IsCancel = true };
             btnConfirm.Click += (_, _) => { confirmed = true; confirm.Close(); };
             btnCancel.Click  += (_, _) => confirm.Close();
             btnPanel.Children.Add(btnConfirm);
@@ -845,6 +851,20 @@ namespace NXProject.Views
             }
         }
 
+        private void UpdateEpicHours(MainViewModel vm)
+        {
+            if (DevOpsProjectBanner.Visibility != Visibility.Visible) return;
+
+            // Usa FlatTasks (depth=0) para ter o DurationHours correto (SumTaskHours)
+            var epicHours = vm.FlatTasks
+                .Where(t => t.Depth == 0 && t.IsSummary)
+                .Sum(t => t.DurationHours);
+
+            DevOpsEpicHoursLabel.Text = epicHours > 0
+                ? $"| {epicHours:0.#} HH (Epics)"
+                : string.Empty;
+        }
+
         private void UpdateDevOpsProjectBanner(string? name, int id)
         {
             if (!string.IsNullOrWhiteSpace(name))
@@ -861,6 +881,7 @@ namespace NXProject.Views
             }
             else
             {
+                DevOpsEpicHoursLabel.Text = string.Empty;
                 DevOpsProjectBanner.Visibility = Visibility.Collapsed;
             }
         }

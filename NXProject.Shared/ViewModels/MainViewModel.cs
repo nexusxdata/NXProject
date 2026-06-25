@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -586,7 +586,7 @@ namespace NXProject.ViewModels
             _collapsedTaskIds.Clear();
             SelectedTask = null;
             FlatTasks.Clear();
-            StatusMessage = "Novo projeto criado";
+            StatusMessage = AppStrings.Get("Status_NewProject");
         }
 
         [RelayCommand]
@@ -594,19 +594,19 @@ namespace NXProject.ViewModels
         {
             if (Project.Tasks.Count == 0 && Project.Resources.Count == 0)
             {
-                StatusMessage = "O projeto ja esta limpo";
+                StatusMessage = AppStrings.Get("Status_ProjectAlreadyClean");
                 return;
             }
 
             var confirm = MessageBox.Show(
-                "Deseja remover todas as tarefas e recursos do projeto atual?",
-                "Limpar projeto",
+                AppStrings.Get("Msg_ClearProjectBody"),
+                AppStrings.Get("Msg_ClearProjectTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
             if (confirm != MessageBoxResult.Yes)
             {
-                StatusMessage = "Limpeza do projeto cancelada";
+                StatusMessage = AppStrings.Get("Status_ProjectClearCancelled");
                 return;
             }
 
@@ -617,7 +617,7 @@ namespace NXProject.ViewModels
             _collapsedTaskIds.Clear();
             SelectedTask = null;
             RebuildFlatTasks();
-            StatusMessage = "Projeto limpo";
+            StatusMessage = AppStrings.Get("Status_ProjectCleared");
         }
 
         [RelayCommand]
@@ -1145,7 +1145,7 @@ namespace NXProject.ViewModels
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[OnPrimaryResourceChanged] {ex}");
-                StatusMessage = "Erro ao recalcular datas apos troca de recurso.";
+                StatusMessage = AppStrings.Get("Status_RecalcError");
             }
         }
 
@@ -1269,7 +1269,7 @@ namespace NXProject.ViewModels
 
             Project.IsDirty = true;
             RebuildFlatTasks();
-            StatusMessage = "Datas recalculadas considerando alocacao e disponibilidade.";
+            StatusMessage = AppStrings.Get("Status_DatesRecalculated");
         }
 
         public void RecalculateScheduleFromCalendar(Dictionary<int, double> durationByTaskId)
@@ -1293,7 +1293,7 @@ namespace NXProject.ViewModels
 
             Project.IsDirty = true;
             RebuildFlatTasks();
-            StatusMessage = "Calendario aplicado ao cronograma.";
+            StatusMessage = AppStrings.Get("Status_CalendarApplied");
         }
 
         [RelayCommand]
@@ -1475,7 +1475,7 @@ namespace NXProject.ViewModels
             try
             {
                 SprintSettingsStore.Save(Project.GetSprintSettingsProfile(), _sprintSettingsStorageKey);
-                StatusMessage = "Configuracao de sprint gravada para novos projetos";
+                StatusMessage = AppStrings.Get("Status_SprintSaved");
             }
             catch (Exception ex)
             {
@@ -1490,7 +1490,7 @@ namespace NXProject.ViewModels
             try
             {
                 if (PrintService.PrintProject(Project, FlatTasks, pdfMode: false))
-                    StatusMessage = "Documento enviado para impressão";
+                    StatusMessage = AppStrings.Get("Status_PrintSent");
             }
             catch (Exception ex)
             {
@@ -1504,7 +1504,7 @@ namespace NXProject.ViewModels
             try
             {
                 if (PrintService.PrintProject(Project, FlatTasks, pdfMode: true))
-                    StatusMessage = "Fluxo de geração de PDF iniciado";
+                    StatusMessage = AppStrings.Get("Status_PdfStarted");
             }
             catch (Exception ex)
             {
@@ -1570,14 +1570,14 @@ namespace NXProject.ViewModels
             PrepareTaskInsertionScroll?.Invoke();
             RebuildFlatTasks();
             SelectedTask = FlatTasks.FirstOrDefault(t => t.Id == task.Id);
-            StatusMessage = "Tarefa adicionada abaixo da selecionada.";
+            StatusMessage = AppStrings.Get("Status_TaskAdded");
             RequestScrollToSelected?.Invoke();
         }
 
         [RelayCommand]
         private void AddSubtask()
         {
-            if (SelectedTask == null) { StatusMessage = "Selecione uma tarefa pai primeiro"; return; }
+            if (SelectedTask == null) { StatusMessage = AppStrings.Get("Status_SelectParentTask"); return; }
 
             var parent = SelectedTask.Model;
             var previousSibling = parent.Children.LastOrDefault();
@@ -1644,7 +1644,7 @@ namespace NXProject.ViewModels
         {
             if (SelectedTask == null)
             {
-                StatusMessage = "Selecione uma tarefa para excluir.";
+                StatusMessage = AppStrings.Get("Status_SelectTaskToDelete");
                 return;
             }
 
@@ -1657,7 +1657,7 @@ namespace NXProject.ViewModels
         {
             if (SelectedTask == null)
             {
-                StatusMessage = "Selecione uma tarefa para alterar a hierarquia.";
+                StatusMessage = AppStrings.Get("Status_SelectTaskForHierarchy");
                 return;
             }
 
@@ -1666,7 +1666,7 @@ namespace NXProject.ViewModels
             var idx = allFlat.IndexOf(task);
             if (idx <= 0)
             {
-                StatusMessage = "A primeira tarefa nao pode virar subtarefa.";
+                StatusMessage = AppStrings.Get("Status_FirstTaskCannotIndent");
                 return;
             }
 
@@ -1674,7 +1674,7 @@ namespace NXProject.ViewModels
             var newParent = FindPreviousTaskAtLevel(allFlat, idx - 1, targetParentLevel);
             if (newParent == null)
             {
-                StatusMessage = "Nao existe tarefa anterior no nivel necessario para identar mais um nivel.";
+                StatusMessage = AppStrings.Get("Status_NoParentForIndent");
                 return;
             }
 
@@ -1689,7 +1689,7 @@ namespace NXProject.ViewModels
             RecalcSummaryChain(newParent);
             Project.IsDirty = true;
             RebuildFlatTasks();
-            StatusMessage = "Tarefa identada um nivel.";
+            StatusMessage = AppStrings.Get("Status_TaskIndented");
         }
 
         [RelayCommand]
@@ -1697,14 +1697,14 @@ namespace NXProject.ViewModels
         {
             if (SelectedTask == null)
             {
-                StatusMessage = "Selecione uma tarefa para alterar a hierarquia.";
+                StatusMessage = AppStrings.Get("Status_SelectTaskForHierarchy");
                 return;
             }
 
             var task = SelectedTask.Model;
             if (task.Parent == null)
             {
-                StatusMessage = "A tarefa ja esta no nivel raiz.";
+                StatusMessage = AppStrings.Get("Status_TaskAlreadyRoot");
                 return;
             }
 
@@ -1727,7 +1727,7 @@ namespace NXProject.ViewModels
             RecalcSummaryChain(grandParent);
             Project.IsDirty = true;
             RebuildFlatTasks();
-            StatusMessage = "Tarefa promovida um nivel.";
+            StatusMessage = AppStrings.Get("Status_TaskPromoted");
         }
 
         [RelayCommand]
@@ -1738,7 +1738,7 @@ namespace NXProject.ViewModels
                 return;
 
             if (MoveTaskByOffset(task, -1))
-                StatusMessage = "Tarefa movida para cima";
+                StatusMessage = AppStrings.Get("Status_TaskMovedUp");
         }
 
         [RelayCommand]
@@ -1749,7 +1749,7 @@ namespace NXProject.ViewModels
                 return;
 
             if (MoveTaskByOffset(task, 1))
-                StatusMessage = "Tarefa movida para baixo";
+                StatusMessage = AppStrings.Get("Status_TaskMovedDown");
         }
 
         public bool MoveTaskByDrop(TaskViewModel sourceVm, TaskViewModel targetVm, bool insertAfter)
@@ -1760,14 +1760,14 @@ namespace NXProject.ViewModels
             var sourceCollection = GetTaskCollection(sourceVm.Model);
             if (IsTaskInSubtree(sourceVm.Model, targetVm.Model))
             {
-                StatusMessage = "Nao e possivel mover uma tarefa para dentro da propria hierarquia.";
+                StatusMessage = AppStrings.Get("Status_CannotMoveInsideOwn");
                 return false;
             }
 
             var targetTask = FindTaskInCollectionHierarchy(targetVm.Model, sourceCollection);
             if (targetTask == null)
             {
-                StatusMessage = "O arrasto so pode reordenar tarefas dentro do mesmo nivel.";
+                StatusMessage = AppStrings.Get("Status_DragSameLevel");
                 return false;
             }
 
@@ -1787,7 +1787,7 @@ namespace NXProject.ViewModels
 
             MoveTask(sourceCollection, currentIndex, targetIndex);
             RescheduleAfterDrop(sourceVm);
-            StatusMessage = "Tarefa reordenada";
+            StatusMessage = AppStrings.Get("Status_TaskReordered");
             return true;
         }
 
@@ -1796,7 +1796,7 @@ namespace NXProject.ViewModels
         {
             if (SelectedTask == null)
             {
-                StatusMessage = "Selecione uma atividade para encadear a partir dela.";
+                StatusMessage = AppStrings.Get("Status_SelectTaskToChainFrom");
                 return;
             }
 
@@ -1813,23 +1813,23 @@ namespace NXProject.ViewModels
             var startIdx = siblings.IndexOf(selectedModel);
             if (startIdx < 0)
             {
-                StatusMessage = "Atividade selecionada não encontrada na hierarquia.";
+                StatusMessage = AppStrings.Get("Status_TaskNotFoundInHierarchy");
                 return;
             }
 
             var toChain = siblings.Skip(startIdx).ToList();
             if (toChain.Count < 2)
             {
-                StatusMessage = "Não há atividades seguintes na mesma hierarquia para encadear.";
+                StatusMessage = AppStrings.Get("Status_NoNextTaskToChain");
                 return;
             }
 
             ProjectTask? previousTask = null;
             foreach (var task in toChain)
             {
-                task.PredecessorIds.Clear();
                 if (previousTask != null)
                 {
+                    task.PredecessorIds.Clear();
                     task.PredecessorIds.Add(previousTask.Id);
                     var start = ProjectCalendarService.AddWorkingDays(
                         ProjectCalendarService.GetInclusiveFinishDate(previousTask.Start, previousTask.Finish),
@@ -1839,7 +1839,7 @@ namespace NXProject.ViewModels
                     task.Finish = durationHours <= 0
                         ? start
                         : ProjectCalendarService.AddWorkingHours(start, durationHours);
-                    task.StartFixed = true;
+                    task.StartFixed = false;
                 }
 
                 previousTask = task;
@@ -1850,22 +1850,63 @@ namespace NXProject.ViewModels
             StatusMessage = $"Encadeadas {toChain.Count} atividades na mesma hierarquia.";
         }
 
-        [RelayCommand] private void Undo() { StatusMessage = "Desfazer (em desenvolvimento)"; }
-        [RelayCommand] private void Redo() { StatusMessage = "Refazer (em desenvolvimento)"; }
+        [RelayCommand]
+        private void ExpandSelected()
+        {
+            if (SelectedTask == null) return;
+            var targetDepth = SelectedTask.Depth;
+
+            // Expande todas as summaries no mesmo nível da selecionada (um nível abaixo)
+            foreach (var vm in FlatTasks)
+            {
+                if (vm.Depth == targetDepth && vm.IsSummary)
+                    _collapsedTaskIds.Remove(vm.Model.Id);
+            }
+            RebuildFlatTasks();
+        }
+
+        [RelayCommand]
+        private void CollapseAll()
+        {
+            CollapseRecursive(Project.Tasks);
+            RebuildFlatTasks();
+        }
+
+        private void CollapseRecursive(IEnumerable<ProjectTask> tasks)
+        {
+            foreach (var task in tasks)
+            {
+                if (task.IsSummary)
+                {
+                    _collapsedTaskIds.Add(task.Id);
+                    CollapseRecursive(task.Children);
+                }
+            }
+        }
+
+        [RelayCommand]
+        private void ExpandAll()
+        {
+            _collapsedTaskIds.Clear();
+            RebuildFlatTasks();
+        }
+
+        [RelayCommand] private void Undo() { StatusMessage = AppStrings.Get("Status_Undo"); }
+        [RelayCommand] private void Redo() { StatusMessage = AppStrings.Get("Status_Redo"); }
         [RelayCommand] private void ShowGantt() { SelectedViewIndex = 0; }
 #if !COMMUNITY
         [RelayCommand] private void ShowSprints() { SelectedViewIndex = 1; }
         [RelayCommand] private void ShowResourceUsage() { SelectedViewIndex = 2; }
         [RelayCommand] private void ShowPert() { SelectedViewIndex = 3; }
-        [RelayCommand] private void ProjectInfo() { StatusMessage = "Informações do projeto (em desenvolvimento)"; }
-        [RelayCommand] private void EditCalendar() { StatusMessage = "Editor de calendário (em desenvolvimento)"; }
-        [RelayCommand] private void SprintSettings() { StatusMessage = "Abra Configurações de Sprint pelo menu Projeto."; }
-        [RelayCommand] private void ManageResources() { StatusMessage = "Gerenciar recursos (em desenvolvimento)"; }
-        [RelayCommand] private void ReportTasks() { StatusMessage = "Relatório de tarefas (em desenvolvimento)"; }
-        [RelayCommand] private void ReportResources() { StatusMessage = "Relatório de recursos (em desenvolvimento)"; }
-        [RelayCommand] private void AIGenerateTasks() { StatusMessage = "Geração de tarefas com IA (em desenvolvimento)"; }
-        [RelayCommand] private void AISuggestAllocation() { StatusMessage = "Sugestão de alocação com IA (em desenvolvimento)"; }
-        [RelayCommand] private void AISettings() { StatusMessage = "Configurações de IA (em desenvolvimento)"; }
+        [RelayCommand] private void ProjectInfo() { StatusMessage = AppStrings.Get("Status_ProjectInfo"); }
+        [RelayCommand] private void EditCalendar() { StatusMessage = AppStrings.Get("Status_EditCalendar"); }
+        [RelayCommand] private void SprintSettings() { StatusMessage = AppStrings.Get("Status_SprintSettings"); }
+        [RelayCommand] private void ManageResources() { StatusMessage = AppStrings.Get("Status_ManageResources"); }
+        [RelayCommand] private void ReportTasks() { StatusMessage = AppStrings.Get("Status_ReportTasks"); }
+        [RelayCommand] private void ReportResources() { StatusMessage = AppStrings.Get("Status_ReportResources"); }
+        [RelayCommand] private void AIGenerateTasks() { StatusMessage = AppStrings.Get("Status_AIGenerateTasks"); }
+        [RelayCommand] private void AISuggestAllocation() { StatusMessage = AppStrings.Get("Status_AISuggestAllocation"); }
+        [RelayCommand] private void AISettings() { StatusMessage = AppStrings.Get("Status_AISettings"); }
 #endif
 
         private void RebuildSprintGroups()

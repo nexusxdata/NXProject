@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using NXProject.Community.Services;
 
 namespace NXProject.Views
 {
@@ -13,7 +14,7 @@ namespace NXProject.Views
         public FeaturesHelpWindow()
         {
             InitializeComponent();
-            _topics = BuildTopics();
+            _topics = LanguageService.CurrentLanguage == "en-US" ? BuildTopicsEn() : BuildTopics();
             TopicList.SelectedIndex = 0;
         }
 
@@ -451,6 +452,354 @@ namespace NXProject.Views
                      "O último zoom selecionado é salvo no arquivo .nxp e restaurado ao reabrir o projeto.")
                 },
                 "O calendário é o coração do cálculo de prazos — configure os feriados do seu país e da empresa antes de começar o planejamento."
+            )
+        };
+
+        private static List<(string, string, List<(string, string)>, string?)> BuildTopicsEn() => new()
+        {
+            (
+                "Overview",
+                "NXProject is an IT project management tool that combines Azure DevOps rigor with the schedule view that managers and leaders need to make decisions.",
+                new()
+                {
+                    ("Planning philosophy",
+                     "NXProject plans down to the Story level, allowing Developers to freely detail and create tasks during execution.\n\n" +
+                     "Inspired by the mathematical concept of degrees of freedom — used to model complex systems — NXProject applies the same principle to planning: it structures the complexity of technology without constraining the development process.\n\n" +
+                     "Just as in a physical system where degrees of freedom define the space of possible movement, NXProject defines the boundaries (dates, resources, dependencies) and preserves the space the technical team needs to navigate autonomously within them."),
+                    ("What NXProject does",
+                     "NXProject imports the Azure DevOps hierarchy (Project → Epic → Feature → Story) and transforms that data into a schedule with dates, dependencies, resource allocation and a Gantt chart.\n" +
+                     "The technical team stays in Azure DevOps as usual. NXProject is a reading and planning layer on top of that data.\n" +
+                     "Nexus Xdata's goal is transparency: making it clear why each date, duration, percentage and alert appears in the schedule."),
+                    ("Who uses it and for what",
+                     "• Project Manager: schedule integrated with the backlog, delay alerts, dependency overview.\n" +
+                     "• Scrum Master / RTE: sprint capacity, allocation conflicts, impact of date changes.\n" +
+                     "• Tech Lead: view of Features and Stories with predecessors and hour estimates.\n" +
+                     "• PMO: export to MS Project / Excel, consolidated project view."),
+                    ("Project file (.nxp)",
+                     "The schedule is saved in an .nxp file that can be shared. It stores all tasks, dates, dependencies, resources, sprint settings and the Azure DevOps link.")
+                },
+                "Use File → Import → TFS / Azure DevOps to create the schedule from your existing backlog."
+            ),
+            (
+                "Schedule",
+                "The task grid is where you view and edit the project structure: hierarchy, dates, duration, resources, percent complete and dependencies.",
+                new()
+                {
+                    ("Task hierarchy",
+                     "The project is organized in levels: Feature → Story → Task or any grouping that makes sense. Child tasks are indented below the parent.\n" +
+                     "• Use Edit → Create Subtask to indent a task.\n" +
+                     "• Use Edit → Promote Task to move up one level.\n" +
+                     "• Summary tasks (with children) calculate dates and duration automatically from their children."),
+                    ("Duration and dates",
+                     "• Dur.(h) column: enter in hours (e.g. 8) or in working days with d (e.g. 2d = 2 working days).\n" +
+                     "• The Finish date is calculated automatically: Start + Dur.(h) respecting the work calendar.\n" +
+                     "• To fix the Start date, type the date in the field — it is marked with 📌. If the typed date differs from the calculated one, a calendar opens for visual confirmation.\n" +
+                     "• Use Ctrl + Click on the Start cell to open the calendar directly without typing.\n" +
+                     "• To fix the Finish date, enter a date in the Finish field or drag the right edge of the Gantt bar with the right mouse button (on an already selected bar).\n" +
+                     "• To remove the Start fix, type 0 in the Start field — the schedule recalculates the date automatically."),
+                    ("Percent complete",
+                     "• The % Compl. field records task progress (0 to 100).\n" +
+                     "• In the grid, low percentages use dark text on a light background; higher percentages use white text over the filled area.\n" +
+                     "• Summary tasks calculate percent as a weighted average of children's hours.\n" +
+                     "• If the Finish date is in the past and the percentage is less than 100, the system alerts automatically in Health Check."),
+                    ("Creating an activity",
+                     "When adding a new activity (+ button or Edit → Add Task):\n" +
+                     "• Type, Resource and Sprint are automatically copied from the selected activity at the time of the click.\n" +
+                     "• The DevOps ID is set to 0, indicating the activity will be created in Azure DevOps on the next sync (Export → Sync).\n" +
+                     "• Activities with Type = 'No DevOps' are never sent to Azure DevOps — they exist only for local schedule control.\n" +
+                     "• Activities without a defined Type are automatically classified as 'No DevOps' to prevent accidental creation in DevOps."),
+                    ("Updating an activity in DevOps",
+                     "• Activities with DevOps ID > 0 are updated in Azure DevOps when running Export → Sync.\n" +
+                     "• Activities with DevOps ID = 0 (and Type other than 'No DevOps') are created as new work items in Azure DevOps, and the returned ID is saved in the schedule.\n" +
+                     "• Activities with Type 'No DevOps' are ignored by sync even if their ID = 0.\n" +
+                     "• On Import: if an Azure DevOps work item has the same name as a local 'No DevOps' activity, NXProject automatically links the local activity to the imported item, updating its Type to match the DevOps type."),
+                    ("Block tag",
+                     "NXProject distinguishes two types of blocking visible in the Name column:\n" +
+                     "• ⛔ BLOCK (red) — the Story/activity itself has the 'Block' tag. When both exist, only this icon is shown.\n" +
+                     "• 🔴 BLOCK (yellow) — blocking inherited from a child Task in DevOps that has the 'Block' tag.\n\n" +
+                     "To add or remove the Block on the Story, right-click the activity name and use the context menu.\n\n" +
+                     "Block tag sync:\n" +
+                     "• If the Story in NXProject has Block and DevOps does not → the tag is added in DevOps on sync.\n" +
+                     "• If the Story in NXProject does not have Block and DevOps does → the tag is removed from DevOps on sync.\n\n" +
+                     "On import, NXProject reads the Block tag from the Story itself and from child Tasks (reflected as inherited blocking).")
+                },
+                "Enter Start and Dur.(h) — Finish is calculated from the calendar. For dependencies, use the Pred. column."
+            ),
+            (
+                "Activity Dates",
+                "An activity's dates are calculated from Start, duration in hours, work calendar, percent complete and cascade rules. In line with Nexus Xdata's transparency goal, this section details the rules used by the schedule.",
+                new()
+                {
+                    ("Start, duration and finish",
+                     "• Start is the date the activity begins in the schedule.\n" +
+                     "• Dur.(h) is the total work duration: Current HH + Remaining HH.\n" +
+                     "• Finish is calculated as Start + Dur.(h), respecting working days, holidays and daily hours.\n" +
+                     "• The date shown in the Finish column is the visible end date; internally the calculation uses the end of the working period."),
+                    ("Fixed start",
+                     "• When you type a date in the Start field, the Start is fixed and shown with the pin icon.\n" +
+                     "• An activity with a fixed Start is not automatically shifted back by resource or virtual predecessor cascade.\n" +
+                     "• To remove the Start fix, type 0 in the Start field — the schedule recalculates automatically.\n" +
+                     "• If the fixed Start is in the future and the activity is marked 100%, Finish equals the fixed Start to avoid Finish before Start."),
+                    ("Visual calendar for Start editing",
+                     "A calendar opens automatically in two scenarios:\n\n" +
+                     "• Ctrl + Click on the Start cell: opens the calendar positioned on the current activity date. Useful for changing the date without typing.\n\n" +
+                     "• Typed date differs from calculated date: if the entered value doesn't match the valid schedule date, the calendar opens pre-selected on the nearest working day, for visual confirmation before applying.\n\n" +
+                     "• Invalid date typed: if the text is not a recognizable date, the calendar opens positioned on the current calculated date.\n\n" +
+                     "In the calendar:\n" +
+                     "• Click the desired day to confirm immediately.\n" +
+                     "• Press Enter to confirm the already-selected date.\n" +
+                     "• Press Escape to cancel without changing the date."),
+                    ("Fixed finish",
+                     "• When editing the Finish column or dragging the right edge of the Gantt bar with the right button, Finish is fixed.\n" +
+                     "• With fixed Finish, changes to duration or percent do not automatically recalculate the Finish date.\n" +
+                     "• Use fixed Finish to record a negotiated date that may differ from the calculated duration.\n" +
+                     "• If there is a difference between negotiated and calculated duration, the Gantt may indicate a visual conflict."),
+                    ("0% complete",
+                     "• When resetting % Compl. to 0%, NXProject considers no work has been done.\n" +
+                     "• Current HH becomes 0.\n" +
+                     "• Remaining HH reverts to Original HH.\n" +
+                     "• Finish is recalculated as Start + Remaining HH, unless Finish is fixed.\n" +
+                     "• Cascade may reposition following activities of the same resource, but should not use Features or summary tasks as queue references."),
+                    ("100% complete",
+                     "• When marking % Compl. as 100%, NXProject considers the activity closed.\n" +
+                     "• Current HH receives the total activity duration.\n" +
+                     "• Remaining HH becomes 0.\n" +
+                     "• Calculated Finish is Start + total duration. If this Finish falls in the future, it is capped to today, since an activity cannot close in the future.\n" +
+                     "• Exception: if Start is fixed to a future date, Finish equals the fixed Start."),
+                    ("Predecessor and resource cascade",
+                     "• Explicit predecessors move the activity to the next working day after the predecessor's visible end.\n" +
+                     "• Cascade uses topological sort: a dependent activity is only recalculated after its predecessors are processed.\n" +
+                     "• The virtual predecessor organizes activities of the same resource, parent and level to avoid work overlap.\n" +
+                     "• Virtual predecessor reference must be another leaf activity (Story/Task), never a Feature, Epic or summary task.\n" +
+                     "• Summary tasks are always recalculated to reflect children's dates, duration and percent.")
+                },
+                "Practical rule: edit Start and Dur.(h) to plan; use % Compl. to record progress. Fixes are deliberate exceptions to automatic calculation."
+            ),
+            (
+                "Gantt Chart",
+                "The Gantt displays bars for each activity in time, with milestones, dependency arrows, sprints and today's line.",
+                new()
+                {
+                    ("Navigation and zoom",
+                     "• Use the zoom button in the toolbar to switch between Day, Week, Sprint, Month, Quarter and Semester.\n" +
+                     "• Scroll horizontally to navigate in time.\n" +
+                     "• Enable the magnifier button in the toolbar and move the mouse over the Gantt to inspect dates, bars and dependencies up close.\n" +
+                     "• The vertical red line indicates today."),
+                    ("Day header modes",
+                     "The calendar button (📅) in the toolbar cycles between three modes:\n" +
+                     "• Off: default header by sprint and month.\n" +
+                     "• Day 1: highlights Monday with the day number; Wednesday and Friday in brighter blue.\n" +
+                     "• Day 2: shows the unit digit of each day. Days 10, 20 and 30 are highlighted in blue, orange and green respectively — making it easier to read dates without cluttering the header."),
+                    ("Dragging bars",
+                     "• Left button + drag: moves the activity's Start date (only for activities not yet started).\n" +
+                     "• Right button + drag (on the already-selected bar): adjusts the Finish date without changing the hour estimate. On release, Finish is fixed (📌).\n" +
+                     "• Dependent activities shift automatically when a predecessor is moved."),
+                    ("Bars and colors",
+                     "• Light blue bar: normal activity.\n" +
+                     "• Orange bar: selected activity.\n" +
+                     "• Dark central strip: percent complete, MS Project style.\n" +
+                     "• Subtle dark line at the base: Current HH proportional to total Current + Remaining HH.\n" +
+                     "• Golden diamond: milestone.\n" +
+                     "• Light blue-grey bar: summary (Feature/Epic).\n" +
+                     "• Red borders or highlights indicate conflict, delay or negotiated duration differing from calculated.")
+                },
+                "Click a bar to select the task in the grid. Dependency arrows show the critical path visually."
+            ),
+            (
+                "Predecessors",
+                "Predecessors define that an activity can only start after another finishes, creating the dependency chain of the project.",
+                new()
+                {
+                    ("How to set up",
+                     "Click the Pred. field of the activity that depends on another. A selection window opens with all available leaf activities.\n" +
+                     "• Use search to find by name or code.\n" +
+                     "• Check one or more activities with the checkbox.\n" +
+                     "• The top panel shows already-checked predecessors before confirming."),
+                    ("Predecessors outside the list",
+                     "When an activity imported from DevOps has predecessors pointing to items outside the imported scope, they appear in yellow in the selector labeled 'outside filtered list'.\n" +
+                     "• Each external predecessor can be removed individually with the ✕ Remove button.\n" +
+                     "• Predecessors inside the list are checked normally via checkbox."),
+                    ("Effect on the schedule",
+                     "When you move an activity in the Gantt, all activities that depend on it (directly or indirectly) shift automatically by the same number of days.")
+                },
+                "To chain activities in sequence at once, select several and use Edit → Link Tasks Sequentially."
+            ),
+            (
+                "Resources",
+                "Resources are the people allocated to activities. NXProject imports assignees from Azure DevOps and lets you manage workload per person.",
+                new()
+                {
+                    ("Register resources",
+                     "Go to View → People to manage the project's resource list. Each person can have a name and email.\n" +
+                     "When importing from Azure DevOps, the System.AssignedTo field is automatically imported as a resource."),
+                    ("Resource allocation",
+                     "View → Resource Allocation shows the workload per person in each period (sprint or week), allowing you to identify overloads before they become problems.\n" +
+                     "• Red cells indicate overload (more than 100% of daily capacity).\n" +
+                     "• Green cells indicate available capacity."),
+                    ("Resource filter",
+                     "The 👤 button in the toolbar filters the Gantt and the grid to show only the activities of a specific person — useful in individual status meetings.")
+                },
+                "Use the resource filter in the toolbar to show only one person's activities during a status meeting."
+            ),
+            (
+                "Sprints",
+                "NXProject supports Azure DevOps sprints and allows you to configure local sprints to organize the schedule into iterations.",
+                new()
+                {
+                    ("Configure sprints",
+                     "View → Sprint sets the first sprint number, duration in days and numbering mode (sequential, even or odd).\n" +
+                     "If the project was imported from Azure DevOps, sprints are read from System.IterationPath and created automatically."),
+                    ("Assign activities",
+                     "The Sprint column in the grid lets you move Stories and Features between sprints. When you change the sprint, the Start date is recalculated to the start of that sprint.\n" +
+                     "• To remove the sprint association and use a fixed date, just enter a date in the Start field."),
+                    ("View in Gantt",
+                     "The Gantt shows sprints in the bottom header, with numbering and alternating colors. Sprint or Week zoom makes iterations more visible.")
+                },
+                "The Sprint column is especially useful for replanning — move Stories between sprints and see the schedule impact immediately."
+            ),
+            (
+                "Azure DevOps",
+                "The Azure DevOps integration is the heart of NXProject: the technical backlog becomes a manageable schedule without changing the team's workflow.",
+                new()
+                {
+                    ("Importing the project",
+                     "File → Import → TFS / Azure DevOps opens the import screen. Enter:\n" +
+                     "• Organization URL (e.g. https://dev.azure.com/yourorg)\n" +
+                     "• Project name (Team Project)\n" +
+                     "• Personal Access Token (PAT) with Work Items read permission\n" +
+                     "• ID of the root work item (Project type) — or select from the saved project list"),
+                    ("What is imported",
+                     "• Hierarchy Project → Epic → Feature → Story via Child links.\n" +
+                     "• Estimates: Estimated HH field → duration in hours.\n" +
+                     "• Dates: Data_Inicio and Data_Fim when filled in DevOps.\n" +
+                     "• Assignee: System.AssignedTo → project resource.\n" +
+                     "• Sprint: System.IterationPath → NXProject sprint.\n" +
+                     "• Order: Microsoft.VSTS.Common.StackRank.\n" +
+                     "• Blocks: Tasks with the Block tag mark the Story as blocked."),
+                    ("Import log",
+                     "At the end of import, if there are warnings, a log window is shown with:\n" +
+                     "• Stories whose state was automatically corrected (e.g. Closed with open Tasks → Active).\n" +
+                     "• Predecessors outside the imported scope, identified whether they are Stories or other types.\n" +
+                     "• Info / Warning / Error filters to ease review."),
+                    ("Open work item in DevOps",
+                     "In the DevOps Link window (click the task ID in the grid), the Open in DevOps ↗ button opens the work item directly in the browser. The window also shows child Tasks linked with ID, name and state.")
+                },
+                "Field names (Estimated HH, Data_Inicio, Data_Fim) can be customized in the Fields (advanced) section of the import screen."
+            ),
+            (
+                "Project List",
+                "The DevOps project list is a file shared among the team with the projects available for import.",
+                new()
+                {
+                    ("Purpose",
+                     "Instead of everyone remembering the root work item ID, you maintain a JSON file with registered projects (Name + ID). Everyone on the team points to the same file.\n" +
+                     "Access it at View → DevOps Projects (list)..."),
+                    ("Managing the list",
+                     "• Click Open / Create to load or create a list file.\n" +
+                     "• Use the Add, Edit and Delete buttons to maintain projects.\n" +
+                     "• The file path is saved in user settings and reloaded automatically."),
+                    ("Using in import",
+                     "On the import screen (File → Import → TFS / Azure DevOps), a ComboBox shows the projects from the list. Select the project and the root ID field is filled automatically.\n" +
+                     "Use the ⚙ Manage List... button to open the CRUD directly from the import screen."),
+                    ("Banner in the schedule",
+                     "After importing, the linked project name appears in a light blue banner at the top of the schedule, making it easy to identify which project is open.")
+                },
+                "Save the list file in a shared directory (network, OneDrive, SharePoint) so the whole team uses the same project list."
+            ),
+            (
+                "Sync",
+                "Sync sends back to Azure DevOps the changes made in the schedule: dates, hours, state, sprint, tags and predecessors.",
+                new()
+                {
+                    ("How to sync",
+                     "File → Export → Sync TFS / Azure DevOps... opens the sync screen. Use the same credentials as import.\n" +
+                     "The process compares the current schedule state with DevOps and sends only what changed."),
+                    ("What is synced",
+                     "• Story/Feature title and description.\n" +
+                     "• Estimated hours (Estimated HH).\n" +
+                     "• Start and finish dates (Data_Inicio, Data_Fim).\n" +
+                     "• State (New, Active, Resolved, Closed).\n" +
+                     "• Tags (including Block tag for blocking).\n" +
+                     "• Sprint (System.IterationPath).\n" +
+                     "• Predecessor links between work items."),
+                    ("Sync report",
+                     "When done, a window shows the summary: updated, created, unchanged, warnings and errors. Use filters to focus on issues and copy the log if you need to record it.")
+                },
+                "Sync respects only the configured fields. Azure DevOps code traceability, pull requests and pipelines are not affected."
+            ),
+            (
+                "Export",
+                "Export the schedule to other formats to share with stakeholders or integrate with other tools.",
+                new()
+                {
+                    ("Available formats",
+                     "• MS Project XML (.xml): compatible with Microsoft Project.\n" +
+                     "• OpenProj (.pod): open format for tools like ProjectLibre.\n" +
+                     "• Excel XML (.xml): table with all activities, dates and resources.\n" +
+                     "• CSV: simple format for analysis in any spreadsheet."),
+                    ("When to use each format",
+                     "• Use MS Project XML to send the schedule to stakeholders who use MS Project.\n" +
+                     "• Use Excel/CSV for reports, dashboards or custom analyses.\n" +
+                     "• Use OpenProj in environments without an MS Project license.")
+                },
+                "CSV is the most portable format for feeding dashboards in Power BI, Tableau or Google Sheets."
+            ),
+            (
+                "Health Check",
+                "Health Check identifies schedule issues that need attention before they impact delivery.",
+                new()
+                {
+                    ("What is checked",
+                     "View → Project Health Check analyzes all activities and lists:\n" +
+                     "• Activities with Finish in the past and percent less than 100% (delayed).\n" +
+                     "• Activities without an assigned resource.\n" +
+                     "• Activities with predecessors that create circular dependencies.\n" +
+                     "• Stories marked as blocked (Block tag)."),
+                    ("How to use",
+                     "• Open Health Check regularly in status meetings to review the project state.\n" +
+                     "• Click an activity in the list to select it in the grid and fix the issue.\n" +
+                     "• Use it as a checklist before sending a report to management.")
+                },
+                "Run Health Check before each status meeting — it reveals in seconds what is delayed and unassigned."
+            ),
+            (
+                "AI Assistant",
+                "The AI Assistant suggests task structures, story decomposition and schedule organization from a natural language description.",
+                new()
+                {
+                    ("How to access",
+                     "Click the AI button in the toolbar or go to AI → Task Assistant...\n" +
+                     "Describe what needs to be done and the assistant suggests a task hierarchy with estimates."),
+                    ("Use cases",
+                     "• Create the initial project structure from a description.\n" +
+                     "• Decompose a large Story into smaller Tasks.\n" +
+                     "• Generate an activity list for a recurring delivery type (e.g. environment setup, regression tests).\n" +
+                     "• Review whether the current decomposition covers all scope aspects."),
+                    ("Availability",
+                     "The AI Assistant requires an internet connection and a configured API key. In the Community edition it is available in limited mode. The Enterprise edition includes full integration with OpenAI and Claude.")
+                },
+                "Use the AI Assistant for the initial task brainstorm — then manually refine in the grid with your specific context."
+            ),
+            (
+                "Settings",
+                "Customize NXProject behavior for your project and team.",
+                new()
+                {
+                    ("Work calendar",
+                     "View → Calendar lets you configure:\n" +
+                     "• Working hours per day (default: 8h).\n" +
+                     "• Days of the week considered working days.\n" +
+                     "• Holidays: add specific dates that will be ignored in deadline calculations.\n" +
+                     "The calendar is saved locally at %LocalAppData%\\NXProject.Community\\nxproject_calender.json."),
+                    ("SPF — Story Function Points",
+                     "View → SPF configures the conversion table between function points and estimated hours, used to calculate duration from complexity metrics."),
+                    ("DevOps connection settings",
+                     "Connection credentials (organization URL, Team Project, PAT) are saved securely using DPAPI (Windows encryption tied to the user). Check Remember token to avoid typing it on each import.\n" +
+                     "The DevOps Project List file path is also saved in user settings."),
+                    ("Default zoom",
+                     "The last selected zoom is saved in the .nxp file and restored when reopening the project.")
+                },
+                "The calendar is the heart of deadline calculation — configure your country and company holidays before starting planning."
             )
         };
     }

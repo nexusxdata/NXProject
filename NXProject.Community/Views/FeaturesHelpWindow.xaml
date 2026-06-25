@@ -1,7 +1,7 @@
 <Window x:Class="NXProject.Views.FeaturesHelpWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Guia de Funcionalidades — NXProject Community"
+        Title="{DynamicResource Help_WindowTitle}"
         Width="980" Height="680"
         MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterOwner"
@@ -19,7 +19,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="16,18,16,12">
                     <TextBlock Text="NXProject" FontSize="15" FontWeight="Bold" Foreground="#2B579A"/>
-                    <TextBlock Text="Guia de Funcionalidades" FontSize="10" Foreground="#667" Margin="0,2,0,0"/>
+                    <TextBlock Text="{DynamicResource Help_Subtitle}" FontSize="10" Foreground="#667" Margin="0,2,0,0"/>
                 </StackPanel>
                 <ListBox x:Name="TopicList"
                          BorderThickness="0"
@@ -45,20 +45,20 @@
                             </Style.Triggers>
                         </Style>
                     </ListBox.ItemContainerStyle>
-                    <ListBoxItem Content="🗂  Visão Geral"/>
-                    <ListBoxItem Content="📅  Cronograma"/>
-                    <ListBoxItem Content="📆  Datas da Atividade"/>
-                    <ListBoxItem Content="📊  Gráfico Gantt"/>
-                    <ListBoxItem Content="🔗  Predecessoras"/>
-                    <ListBoxItem Content="👥  Recursos"/>
-                    <ListBoxItem Content="🏃  Sprints"/>
-                    <ListBoxItem Content="☁  Azure DevOps"/>
-                    <ListBoxItem Content="📋  Lista de Projetos"/>
-                    <ListBoxItem Content="🔄  Sincronização"/>
-                    <ListBoxItem Content="📤  Exportação"/>
-                    <ListBoxItem Content="❤  Health Check"/>
-                    <ListBoxItem Content="🤖  Assistente IA"/>
-                    <ListBoxItem Content="⚙  Configurações"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Overview}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Schedule}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_ActivityDates}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Gantt}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Predecessors}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Resources}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Sprints}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_DevOps}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_ProjectList}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Sync}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Export}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_HealthCheck}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_AI}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Settings}"/>
                 </ListBox>
             </DockPanel>
         </Border>

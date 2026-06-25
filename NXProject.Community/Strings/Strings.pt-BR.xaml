@@ -135,4 +135,122 @@
     <sys:String x:Key="Settings_BrowseTitle">Selecionar logo da empresa</sys:String>
     <sys:String x:Key="Settings_BrowseFilter">Imagens|*.png;*.jpg;*.jpeg;*.bmp;*.gif|PNG|*.png|JPEG|*.jpg;*.jpeg|BMP|*.bmp</sys:String>
 
+    <!-- FeaturesHelpWindow -->
+    <sys:String x:Key="Help_WindowTitle">Guia de Funcionalidades — NXProject Community</sys:String>
+    <sys:String x:Key="Help_Subtitle">Guia de Funcionalidades</sys:String>
+    <sys:String x:Key="Help_Topic_Overview">🗂  Visão Geral</sys:String>
+    <sys:String x:Key="Help_Topic_Schedule">📅  Cronograma</sys:String>
+    <sys:String x:Key="Help_Topic_ActivityDates">📆  Datas da Atividade</sys:String>
+    <sys:String x:Key="Help_Topic_Gantt">📊  Gráfico Gantt</sys:String>
+    <sys:String x:Key="Help_Topic_Predecessors">🔗  Predecessoras</sys:String>
+    <sys:String x:Key="Help_Topic_Resources">👥  Recursos</sys:String>
+    <sys:String x:Key="Help_Topic_Sprints">🏃  Sprints</sys:String>
+    <sys:String x:Key="Help_Topic_DevOps">☁  Azure DevOps</sys:String>
+    <sys:String x:Key="Help_Topic_ProjectList">📋  Lista de Projetos</sys:String>
+    <sys:String x:Key="Help_Topic_Sync">🔄  Sincronização</sys:String>
+    <sys:String x:Key="Help_Topic_Export">📤  Exportação</sys:String>
+    <sys:String x:Key="Help_Topic_HealthCheck">❤  Health Check</sys:String>
+    <sys:String x:Key="Help_Topic_AI">🤖  Assistente IA</sys:String>
+    <sys:String x:Key="Help_Topic_Settings">⚙  Configurações</sys:String>
+
+    <!-- Toolbar — botões de hierarquia -->
+    <sys:String x:Key="Toolbar_ExpandSelected">Expandir um nível: expande todas as tarefas do mesmo nível da selecionada</sys:String>
+    <sys:String x:Key="Toolbar_CollapseAll">Contrair toda a hierarquia</sys:String>
+    <sys:String x:Key="Toolbar_ExpandAll">Expandir toda a hierarquia</sys:String>
+
+    <!-- Cabeçalhos de coluna -->
+    <sys:String x:Key="Col_TaskName">Nome da Tarefa</sys:String>
+    <sys:String x:Key="Col_Duration">Dur.(h)</sys:String>
+    <sys:String x:Key="Col_Start">Início</sys:String>
+    <sys:String x:Key="Col_Finish">Fim</sys:String>
+    <sys:String x:Key="Col_PercentComplete">% Compl.</sys:String>
+    <sys:String x:Key="Col_Predecessors">Pred.</sys:String>
+    <sys:String x:Key="Col_Resources">Recursos</sys:String>
+    <sys:String x:Key="Col_OrgH">OrgH</sys:String>
+    <sys:String x:Key="Col_HHAtual">HH Atual</sys:String>
+    <sys:String x:Key="Col_HHRestante">HH Restante</sys:String>
+
+    <!-- Menus de contexto — célula nome -->
+    <sys:String x:Key="Ctx_AddStoryBlock">Adicionar Block na Story</sys:String>
+    <sys:String x:Key="Ctx_ViewOnlineActivities">Ver Atividades Online...</sys:String>
+    <sys:String x:Key="Ctx_EditDescription">Editar Descrição...</sys:String>
+
+    <!-- Menus de contexto — célula data início -->
+    <sys:String x:Key="Ctx_FixStartDate">Fixar data de início</sys:String>
+    <sys:String x:Key="Ctx_ClearFixedDate">Retirar data fixa</sys:String>
+
+    <!-- Menus de contexto — célula predecessoras -->
+    <sys:String x:Key="Ctx_HighlightPred">Destacar predecessoras</sys:String>
+    <sys:String x:Key="Ctx_ClearPredHighlight">Desmarcar predecessoras</sys:String>
+
+    <!-- Menus de contexto — célula recursos -->
+    <sys:String x:Key="Ctx_EditAllocPerc">Editar % de alocação...</sys:String>
+
+    <!-- Tooltip predecessora -->
+    <sys:String x:Key="Tooltip_PredClick">Clique para escolher predecessoras&#x0a;Botão direito para destacar no Gantt</sys:String>
+
+    <!-- Tooltip coluna ID -->
+    <sys:String x:Key="Tooltip_IdCell">Clique para editar o vínculo DevOps (ID, tipo, estado)</sys:String>
+
+    <!-- Mensagens de status -->
+    <sys:String x:Key="Status_SelectTaskToDelete">Selecione uma tarefa para excluir.</sys:String>
+    <sys:String x:Key="Status_SelectTaskToChain">Selecione uma tarefa para encadear.</sys:String>
+    <sys:String x:Key="Status_NoNextTaskToChain">Não há atividades seguintes na mesma hierarquia para encadear.</sys:String>
+    <sys:String x:Key="Status_SelectTaskForHierarchy">Selecione uma tarefa para alterar a hierarquia.</sys:String>
+    <sys:String x:Key="Status_FirstTaskCannotIndent">A primeira tarefa nao pode virar subtarefa.</sys:String>
+    <sys:String x:Key="Status_NoParentForIndent">Nao existe tarefa anterior no nivel necessario para identar mais um nivel.</sys:String>
+    <sys:String x:Key="Status_SelectTaskToMove">Selecione uma tarefa para mover.</sys:String>
+    <sys:String x:Key="Status_CannotMoveUp">A tarefa já está no topo.</sys:String>
+    <sys:String x:Key="Status_CannotMoveDown">A tarefa já está no final.</sys:String>
+    <sys:String x:Key="Status_TaskNotFoundInHierarchy">Atividade selecionada não encontrada na hierarquia.</sys:String>
+    <sys:String x:Key="Status_PrintSent">Documento enviado para impressão.</sys:String>
+    <sys:String x:Key="Status_PdfStarted">Fluxo de geração de PDF iniciado.</sys:String>
+    <sys:String x:Key="Msg_ClearProjectTitle">Limpar projeto</sys:String>
+    <sys:String x:Key="Msg_ClearProjectBody">Deseja remover todas as tarefas e recursos do projeto atual?</sys:String>
+    <sys:String x:Key="Status_NewProject">Novo projeto criado.</sys:String>
+    <sys:String x:Key="Status_ProjectAlreadyClean">O projeto ja esta limpo.</sys:String>
+    <sys:String x:Key="Status_ProjectClearCancelled">Limpeza do projeto cancelada.</sys:String>
+    <sys:String x:Key="Status_ProjectCleared">Projeto limpo.</sys:String>
+    <sys:String x:Key="Status_RecalcError">Erro ao recalcular datas apos troca de recurso.</sys:String>
+    <sys:String x:Key="Status_DatesRecalculated">Datas recalculadas considerando alocacao e disponibilidade.</sys:String>
+    <sys:String x:Key="Status_CalendarApplied">Calendario aplicado ao cronograma.</sys:String>
+    <sys:String x:Key="Status_SprintSaved">Configuracao de sprint gravada para novos projetos.</sys:String>
+    <sys:String x:Key="Status_TaskAdded">Tarefa adicionada abaixo da selecionada.</sys:String>
+    <sys:String x:Key="Status_SelectParentTask">Selecione uma tarefa pai primeiro.</sys:String>
+    <sys:String x:Key="Status_TaskIndented">Tarefa identada um nivel.</sys:String>
+    <sys:String x:Key="Status_TaskAlreadyRoot">A tarefa ja esta no nivel raiz.</sys:String>
+    <sys:String x:Key="Status_TaskPromoted">Tarefa promovida um nivel.</sys:String>
+    <sys:String x:Key="Status_TaskMovedUp">Tarefa movida para cima.</sys:String>
+    <sys:String x:Key="Status_TaskMovedDown">Tarefa movida para baixo.</sys:String>
+    <sys:String x:Key="Status_CannotMoveInsideOwn">Nao e possivel mover uma tarefa para dentro da propria hierarquia.</sys:String>
+    <sys:String x:Key="Status_DragSameLevel">O arrasto so pode reordenar tarefas dentro do mesmo nivel.</sys:String>
+    <sys:String x:Key="Status_TaskReordered">Tarefa reordenada.</sys:String>
+    <sys:String x:Key="Status_SelectTaskToChainFrom">Selecione uma atividade para encadear a partir dela.</sys:String>
+    <sys:String x:Key="Status_Undo">Desfazer (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_Redo">Refazer (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_ProjectInfo">Informacoes do projeto (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_EditCalendar">Editor de calendario (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_SprintSettings">Abra Configuracoes de Sprint pelo menu Projeto.</sys:String>
+    <sys:String x:Key="Status_ManageResources">Gerenciar recursos (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_ReportTasks">Relatorio de tarefas (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_ReportResources">Relatorio de recursos (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_AIGenerateTasks">Geracao de tarefas com IA (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_AISuggestAllocation">Sugestao de alocacao com IA (em desenvolvimento)</sys:String>
+    <sys:String x:Key="Status_AISettings">Configuracoes de IA (em desenvolvimento)</sys:String>
+
+    <!-- Diálogo de exclusão -->
+    <sys:String x:Key="Delete_ProtectedTitle">Exclusão protegida</sys:String>
+    <sys:String x:Key="Delete_ProtectedMsg">A atividade "{0}" é do tipo "{1}" e não pode ser excluída pelo NXProject.\n\nPara excluir, acesse o DevOps diretamente.\n\nDeseja abrir o item no DevOps agora?</sys:String>
+    <sys:String x:Key="Delete_ConfirmTitle">Confirmar Exclusão</sys:String>
+    <sys:String x:Key="Delete_DevOpsTitle">⚠ Excluir Story #{0} do Azure DevOps?</sys:String>
+    <sys:String x:Key="Delete_LocalTitle">⚠ Excluir tarefa "{0}"?</sys:String>
+    <sys:String x:Key="Delete_DevOpsDetail">"{0}"\n\nEsta ação é irreversível. O item será excluído permanentemente do DevOps.</sys:String>
+    <sys:String x:Key="Delete_LocalDetail">A tarefa será removida do cronograma.</sys:String>
+    <sys:String x:Key="Delete_BtnConfirm">Excluir</sys:String>
+    <sys:String x:Key="Delete_BtnCancel">Cancelar</sys:String>
+
+    <!-- Sync / Exportar -->
+    <sys:String x:Key="Sync_NoConnection">Nenhuma conexão DevOps configurada.</sys:String>
+    <sys:String x:Key="Sync_Title">Sincronizar Azure DevOps</sys:String>
+
 </ResourceDictionary>
