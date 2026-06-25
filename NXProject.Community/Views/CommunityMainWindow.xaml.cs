@@ -56,6 +56,8 @@ namespace NXProject.Views
             };
             vm.FlatTasks.CollectionChanged += (_, _) => UpdateEpicHours(vm);
 
+            LanguageService.LanguageChanged += () => TaskGridCtrl.RefreshColumnHeaders();
+
             var syncingVerticalScroll = false;
 
             TaskGridCtrl.VerticalScrollChanged += offset =>

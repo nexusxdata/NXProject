@@ -448,6 +448,21 @@ namespace NXProject.Controls
             SprintColumn.Width = new DataGridLength(expanded ? 148 : 118);
         }
 
+        public void RefreshColumnHeaders()
+        {
+            string R(string key) => Application.Current?.TryFindResource(key) as string ?? key;
+            NameColumn.Header       = R("Col_TaskName");
+            DurationColumn.Header   = R("Col_Duration");
+            OriginalHoursColumn.Header  = R("Col_OrgH");
+            RealizedHoursColumn.Header  = R("Col_HHAtual");
+            EstimatedHoursColumn.Header = R("Col_HHRestante");
+            StartColumn.Header      = R("Col_Start");
+            FinishColumn.Header     = R("Col_Finish");
+            PercentColumn.Header    = R("Col_PercentComplete");
+            PredecessorColumn.Header = R("Col_Predecessors");
+            ResourcesColumn.Header  = R("Col_Resources");
+        }
+
         public void SetPrintMode()
         {
             TaskGrid.EnableRowVirtualization = false;

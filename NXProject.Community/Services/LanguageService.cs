@@ -11,6 +11,8 @@ namespace NXProject.Community.Services
 
         public static string CurrentLanguage { get; private set; } = PtBR;
 
+        public static event Action? LanguageChanged;
+
         public static string DetectFromWindows()
         {
             var culture = CultureInfo.CurrentUICulture;
@@ -42,6 +44,7 @@ namespace NXProject.Community.Services
                     app.Resources.MergedDictionaries.RemoveAt(i);
             }
             app.Resources.MergedDictionaries.Add(dict);
+            LanguageChanged?.Invoke();
         }
     }
 }
