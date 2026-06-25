@@ -171,26 +171,28 @@ Manage multiple DevOps projects in a shared file across your team. Each project 
 
 ---
 
-### Required custom fields on the Story work item type
+### Required custom fields (Story, Feature and Epic)
 
-NXProject reads and writes seven custom fields on Stories in Azure DevOps. You must create them in your process template under **Organization Settings → Process → [Your Process] → Story → Fields**.
+NXProject reads and writes custom fields on **Stories, Features and Epics** in Azure DevOps. You must create them in your process template under **Organization Settings → Process → [Your Process]** and add them to each work item type you want to sync (Story, Feature, Epic).
 
-| Field name (display) | Reference name | Type | Default in NXProject | Purpose |
-|---|---|---|---|---|
-| `HH Estimado` | `Custom.HHEstimado` *(example)* | Integer or Decimal | `HH Estimado` | Estimated effort in hours |
-| `Data_Inicio` | `Custom.DataInicio` *(example)* | Date/Time | `Data_Inicio` | Planned start date |
-| `Data_Fim` | `Custom.DataFim` *(example)* | Date/Time | `Data_Fim` | Planned finish date |
-| `Perc_Alocação` | `Custom.PercAlocacao` *(example)* | Integer (1–100) | `Perc_Alocação` | % of person's day dedicated to this Story |
-| `Perc_Conclusao` | `Custom.PercConclusao` *(example)* | Integer (0–100) | `Perc_Conclusao` | % completion of the Story (read on import, written on sync) |
-| `Sync_version` | `Custom.Syncversion` *(example)* | Integer | `Sync_version` | Concurrency version counter (auto-managed) |
-| `Sync_Name` | `Custom.SyncName` *(example)* | Text *(plain text, not Identity)* | `Sync_Name` | Who last synced (auto-managed) |
+| Field name (display) | Reference name | Type | Default in NXProject | Used on | Purpose |
+|---|---|---|---|---|---|
+| `HH Estimado` | `Custom.HHEstimado` *(example)* | Integer or Decimal | `HH Estimado` | Story, Feature, Epic | Estimated effort in hours |
+| `Data_Inicio` | `Custom.DataInicio` *(example)* | Date/Time | `Data_Inicio` | Story, Feature, Epic | Planned start date |
+| `Data_Fim` | `Custom.DataFim` *(example)* | Date/Time | `Data_Fim` | Story, Feature, Epic | Planned finish date |
+| `Perc_Alocação` | `Custom.PercAlocacao` *(example)* | Integer (1–100) | `Perc_Alocação` | Story | % of person's day dedicated to this Story |
+| `Perc_Conclusao` | `Custom.PercConclusao` *(example)* | Integer (0–100) | `Perc_Conclusao` | Story | % completion (read on import, written on sync) |
+| `Sync_version` | `Custom.Syncversion` *(example)* | Integer | `Sync_version` | Story, Feature, Epic | Concurrency version counter (auto-managed) |
+| `Sync_Name` | `Custom.SyncName` *(example)* | Text *(plain text, not Identity)* | `Sync_Name` | Story, Feature, Epic | Who last synced (auto-managed) |
 
 > The reference names above are examples — Azure DevOps generates them automatically from the display name and your organization prefix.  
 > If your fields have different display names, update them in NXProject under **File → Import TFS / Azure DevOps → Advanced fields** expander.
 
+> **Tip:** create the fields once at the process level and then add them to Story, Feature and Epic work item types — they share the same field definition across types.
+
 #### Concurrency control (`Sync_version` / `Sync_Name`)
 
-When two users sync changes simultaneously, the last write could overwrite the first. NXProject prevents this:
+When two users sync changes simultaneously, the last write could overwrite the first. NXProject prevents this with the `Sync_version` / `Sync_Name` pair, which must be present on every work item type you sync (Story, Feature, Epic):
 
 - On every sync that writes at least one change, `Sync_version` is incremented by 1 and `Sync_Name` is set to the current Windows user.
 - When you sync, NXProject compares the version it read during import with the current version in DevOps. If the DevOps version is higher, someone else saved more recently — the item is **skipped** and marked in **red** in the schedule.

@@ -385,25 +385,38 @@ namespace NXProject.Views
                 new()
                 {
                     ("Campos obrigatórios no Azure DevOps",
-                     "O NXProject lê e escreve três campos personalizados nas Stories e Features:\n\n" +
-                     "• HH Estimado — horas estimadas para a atividade. Usado como duração no cronograma.\n" +
-                     "• Data_Inicio — data de início planejada. Preenchida pelo NXProject ao sincronizar.\n" +
-                     "• Data_Fim — data de término planejada. Preenchida pelo NXProject ao sincronizar.\n\n" +
-                     "Esses campos são do tipo Inteiro (HH Estimado) e Data e Hora (Data_Inicio e Data_Fim). Eles precisam existir no processo do seu projeto no Azure DevOps antes de importar ou sincronizar."),
+                     "O NXProject lê e escreve campos personalizados em Stories, Features e Epics. Os campos precisam existir no processo da organização e ser adicionados a cada tipo de work item que você quer sincronizar.\n\n" +
+                     "Campos de planejamento (Story, Feature e Epic):\n" +
+                     "• HH Estimado — horas estimadas. Tipo: Inteiro. Usado como duração no cronograma.\n" +
+                     "• Data_Inicio — data de início planejada. Tipo: Data e Hora.\n" +
+                     "• Data_Fim — data de término planejada. Tipo: Data e Hora.\n\n" +
+                     "Campos exclusivos da Story:\n" +
+                     "• Perc_Alocação — percentual do dia útil dedicado a esta Story (afeta a data de término). Tipo: Inteiro (1–100).\n" +
+                     "• Perc_Conclusao — percentual de conclusão (lido na importação, gravado na sincronização). Tipo: Inteiro (0–100).\n\n" +
+                     "Campos de controle de concorrência (Story, Feature e Epic):\n" +
+                     "• Sync_version — contador de versão, gerenciado automaticamente pelo NXProject. Tipo: Inteiro.\n" +
+                     "• Sync_Name — usuário que fez a última sincronização, gerenciado automaticamente. Tipo: Texto (linha simples — não use o tipo Identidade)."),
+                    ("Controle de concorrência (Sync_version / Sync_Name)",
+                     "Quando dois usuários sincronizam ao mesmo tempo, a última gravação poderia sobrescrever a primeira. O NXProject evita isso:\n\n" +
+                     "• A cada sincronização que grava alguma alteração, Sync_version é incrementado em 1 e Sync_Name recebe o usuário Windows atual.\n" +
+                     "• Ao sincronizar, o NXProject compara a versão lida na importação com a versão atual no DevOps. Se a versão do DevOps for maior, outro usuário salvou mais recentemente — o item é ignorado e marcado em vermelho no cronograma.\n" +
+                     "• Itens em vermelho ficam destacados até a próxima reimportação. O log de sincronização indica quais itens tiveram conflito.\n" +
+                     "• Clicar no item em vermelho na coluna de estado abre a janela de vínculo DevOps, que exibe um aviso de conflito com o botão ↓ Reimportar.\n\n" +
+                     "Os campos Sync_version e Sync_Name devem estar presentes em todos os tipos de work item que você sincroniza: Story, Feature e Epic."),
                     ("Como criar os campos no Azure DevOps",
-                     "Acesse: Configurações da Organização → Boards → Tipos de trabalho → selecione Story (e Feature, se quiser sincronizar Features).\n\n" +
+                     "Acesse: Configurações da Organização → Boards → Processo → selecione seu processo → abra o tipo de work item (Story, Feature ou Epic).\n\n" +
                      "1. Clique em Novo campo.\n" +
                      "2. Informe o nome (ex: 'HH Estimado'), selecione o tipo (Inteiro ou Data e Hora).\n" +
-                     "3. Salve e repita para os outros dois campos.\n" +
-                     "4. Adicione os campos ao layout do formulário se quiser que apareçam visíveis na tela de edição do work item.\n\n" +
-                     "Os campos ficam disponíveis para todos os projetos da organização que usam o mesmo processo (Agile, Scrum, CMMI ou personalizado)."),
+                     "3. Salve e repita para os demais campos.\n" +
+                     "4. Adicione os campos ao layout do formulário se quiser que apareçam visíveis na tela de edição.\n\n" +
+                     "Dica: crie os campos uma vez no nível do processo e adicione-os a Story, Feature e Epic — todos compartilham a mesma definição de campo."),
                     ("Personalizar os nomes dos campos",
-                     "Se sua organização já usa nomes diferentes para esses campos (ex: 'Estimativa_Horas' em vez de 'HH Estimado'), você pode ajustar os nomes que o NXProject usa sem mexer no Azure DevOps.\n\n" +
-                     "Na tela de importação (Arquivo → Importar → TFS / Azure DevOps), expanda a seção Campos (avançado). Lá você encontra três campos de configuração:\n\n" +
-                     "• Nome do campo Horas Estimadas → padrão: 'Esforço Estimado' (referência interna: HH Estimado)\n" +
+                     "Se sua organização já usa nomes diferentes (ex: 'Estimativa_Horas' em vez de 'HH Estimado'), você pode ajustar os nomes que o NXProject usa sem mexer no Azure DevOps.\n\n" +
+                     "Na tela de importação (Arquivo → Importar → TFS / Azure DevOps), expanda a seção Campos (avançado). Lá você encontra os campos configuráveis:\n\n" +
+                     "• Nome do campo Horas Estimadas → padrão: 'Esforço Estimado'\n" +
                      "• Nome do campo Data de Início → padrão: 'Data_Inicio'\n" +
                      "• Nome do campo Data de Fim → padrão: 'Data_Fim'\n\n" +
-                     "Digite o nome exato do campo como cadastrado no Azure DevOps (o Reference Name, não o rótulo de exibição). As configurações são salvas em config_nxproject.json na pasta do usuário e reusadas nas próximas importações."),
+                     "Digite o Reference Name exato do campo como cadastrado no Azure DevOps (não o rótulo de exibição). As configurações são salvas em config_nxproject.json e reusadas nas próximas importações."),
                     ("Verificar o nome de referência de um campo",
                      "Para descobrir o Reference Name de um campo existente no Azure DevOps:\n\n" +
                      "1. Acesse Configurações da Organização → Boards → Campos.\n" +
@@ -774,25 +787,38 @@ namespace NXProject.Views
                 new()
                 {
                     ("Required fields in Azure DevOps",
-                     "NXProject reads and writes three custom fields on Stories and Features:\n\n" +
-                     "• Estimated HH — estimated hours for the activity. Used as duration in the schedule.\n" +
-                     "• Data_Inicio — planned start date. Written by NXProject when syncing.\n" +
-                     "• Data_Fim — planned finish date. Written by NXProject when syncing.\n\n" +
-                     "These fields are of type Integer (Estimated HH) and Date and Time (Data_Inicio and Data_Fim). They must exist in your project's process in Azure DevOps before importing or syncing."),
+                     "NXProject reads and writes custom fields on Stories, Features and Epics. The fields must exist in the organization process and be added to each work item type you want to sync.\n\n" +
+                     "Planning fields (Story, Feature and Epic):\n" +
+                     "• Estimated HH — estimated hours. Type: Integer. Used as duration in the schedule.\n" +
+                     "• Data_Inicio — planned start date. Type: Date and Time.\n" +
+                     "• Data_Fim — planned finish date. Type: Date and Time.\n\n" +
+                     "Story-only fields:\n" +
+                     "• Perc_Alocação — % of the person's working day dedicated to this Story (affects finish date). Type: Integer (1–100).\n" +
+                     "• Perc_Conclusao — % completion (read on import, written on sync). Type: Integer (0–100).\n\n" +
+                     "Concurrency control fields (Story, Feature and Epic):\n" +
+                     "• Sync_version — version counter, auto-managed by NXProject. Type: Integer.\n" +
+                     "• Sync_Name — user who last synced, auto-managed. Type: Text (single line — do NOT use the Identity type)."),
+                    ("Concurrency control (Sync_version / Sync_Name)",
+                     "When two users sync at the same time, the last write could overwrite the first. NXProject prevents this:\n\n" +
+                     "• On every sync that writes at least one change, Sync_version is incremented by 1 and Sync_Name is set to the current Windows user.\n" +
+                     "• When you sync, NXProject compares the version it read during import with the current version in DevOps. If the DevOps version is higher, someone else saved more recently — the item is skipped and marked red in the schedule.\n" +
+                     "• Red items remain highlighted until you re-import the project. The sync log shows which items had conflicts.\n" +
+                     "• Clicking a red item in the state column opens the DevOps link window, which shows a conflict warning with a ↓ Re-import button.\n\n" +
+                     "Sync_version and Sync_Name must be present on all work item types you sync: Story, Feature and Epic."),
                     ("How to create the fields in Azure DevOps",
-                     "Go to: Organization Settings → Boards → Process → select your process → open Story (and Feature, if you want to sync Features).\n\n" +
+                     "Go to: Organization Settings → Boards → Process → select your process → open the work item type (Story, Feature or Epic).\n\n" +
                      "1. Click New field.\n" +
                      "2. Enter the name (e.g. 'Estimated HH'), select the type (Integer or Date and Time).\n" +
-                     "3. Save and repeat for the other two fields.\n" +
+                     "3. Save and repeat for the remaining fields.\n" +
                      "4. Add the fields to the form layout if you want them visible when editing a work item.\n\n" +
-                     "The fields become available to all projects in the organization that use the same process (Agile, Scrum, CMMI or custom)."),
+                     "Tip: create the fields once at the process level and add them to Story, Feature and Epic — they share the same field definition across types."),
                     ("Customizing field names",
-                     "If your organization already uses different names for these fields (e.g. 'Est_Hours' instead of 'Estimated HH'), you can adjust the names NXProject uses without changing Azure DevOps.\n\n" +
-                     "On the import screen (File → Import → TFS / Azure DevOps), expand the Fields (advanced) section. There you will find three configuration fields:\n\n" +
-                     "• Estimated Hours field name → default: 'Esforço Estimado' (label: Estimated HH)\n" +
+                     "If your organization already uses different names (e.g. 'Est_Hours' instead of 'Estimated HH'), you can adjust the names NXProject uses without changing Azure DevOps.\n\n" +
+                     "On the import screen (File → Import → TFS / Azure DevOps), expand the Fields (advanced) section. There you will find the configurable fields:\n\n" +
+                     "• Estimated Hours field name → default: 'Esforço Estimado'\n" +
                      "• Start Date field name → default: 'Data_Inicio'\n" +
                      "• Finish Date field name → default: 'Data_Fim'\n\n" +
-                     "Enter the exact field name as registered in Azure DevOps (the Reference Name, not the display label). Settings are saved to config_nxproject.json in the user folder and reused on future imports."),
+                     "Enter the exact Reference Name as registered in Azure DevOps (not the display label). Settings are saved to config_nxproject.json and reused on future imports."),
                     ("Finding a field's Reference Name",
                      "To discover the Reference Name of an existing field in Azure DevOps:\n\n" +
                      "1. Go to Organization Settings → Boards → Fields.\n" +
