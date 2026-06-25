@@ -1,28 +1,45 @@
 <Window x:Class="NXProject.Views.TaskDescriptionEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Editar Descrição"
-        Width="620" Height="440"
-        MinWidth="480" MinHeight="320"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Descrição"
+        Width="760" Height="560"
+        MinWidth="520" MinHeight="360"
         WindowStartupLocation="CenterOwner"
         Background="White">
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Cabeçalho -->
         <StackPanel Grid.Row="0" Margin="0,0,0,8">
             <TextBlock x:Name="TitleText" FontSize="14" FontWeight="SemiBold" Foreground="#2B579A"/>
             <TextBlock Text="A descrição será gravada no DevOps na próxima sincronização."
                        FontSize="10" Foreground="#888" Margin="0,2,0,0"/>
         </StackPanel>
 
-        <TextBox Grid.Row="1"
-                 x:Name="DescriptionBox"
+        <!-- Barra de modo -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
+            <Button x:Name="PreviewModeBtn" Content="Visualizar" Height="26" Padding="10,0"
+                    Click="OnPreviewMode"/>
+            <Button x:Name="EditModeBtn" Content="Editar HTML" Height="26" Padding="10,0"
+                    Margin="6,0,0,0" Click="OnEditMode"/>
+        </StackPanel>
+
+        <!-- Preview WebView2 -->
+        <Border Grid.Row="2" x:Name="PreviewPanel" BorderBrush="#DDD" BorderThickness="1">
+            <wv2:WebView2 x:Name="WebView" DefaultBackgroundColor="White"/>
+        </Border>
+
+        <!-- Edição raw HTML -->
+        <TextBox Grid.Row="2" x:Name="DescriptionBox"
+                 Visibility="Collapsed"
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto"
@@ -30,7 +47,8 @@
                  FontFamily="Consolas"
                  FontSize="12"/>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
+        <!-- Barra inferior esquerda -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
             <Button x:Name="FetchBtn"
                     Content="⬇ Buscar Descrição Atualizada"
                     Height="28" Padding="10,0"
@@ -42,7 +60,8 @@
                        Foreground="#666"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <!-- Botões -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Salvar" Width="90" Height="30" IsDefault="True"
                     Click="OnSaveClick"/>
             <Button Content="Cancelar" Width="90" Height="30" IsCancel="True" Margin="8,0,0,0"/>

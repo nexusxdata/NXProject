@@ -1656,6 +1656,28 @@ namespace NXProject.Services
             return ToPlainText(item.Description);
         }
 
+        /// <summary>Retorna o HTML original da descrição, sem conversão para texto.</summary>
+        public static async Task<string> LoadWorkItemDescriptionHtmlAsync(
+            TfsConnectionOptions options,
+            int workItemId,
+            CancellationToken cancellationToken = default)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var authHeader = new AuthenticationHeaderValue(
+                "Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            var fields = new List<string> { "System.Description" };
+            var items = await LoadWorkItemsAsync(orgBase, authHeader, new[] { workItemId }, fields, cancellationToken, expandRelations: false);
+
+            if (!items.TryGetValue(workItemId, out var item))
+                return string.Empty;
+
+            return item.Description ?? string.Empty;
+        }
+
+
         public static async Task<List<OnlineChildTaskInfo>> LoadOnlineChildTasksAsync(
             TfsConnectionOptions options,
             int parentWorkItemId,
