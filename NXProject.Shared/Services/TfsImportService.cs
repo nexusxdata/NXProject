@@ -368,6 +368,16 @@ namespace NXProject.Services
             var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
             var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
 
+            // Resolve refs por tipo (TypeFieldMappings sobrescreve os globais por tipo)
+            string? ResolveForType(string? tfsType, Func<TypeFieldConfig, string?> getter, string? globalRef)
+            {
+                if (tfsType != null &&
+                    options.TypeFieldMappings.TryGetValue(tfsType, out var cfg) &&
+                    !string.IsNullOrWhiteSpace(getter(cfg)))
+                    return ResolveField(fieldMap, getter(cfg), Array.Empty<string>()) ?? getter(cfg)!.Trim();
+                return globalRef;
+            }
+
             // Recalcula a ordem (StackRank) conforme a árvore do NXProject.
             ApplyDesiredStackRanks(project.Tasks);
 
@@ -438,7 +448,13 @@ namespace NXProject.Services
                             task.TfsType = createType;
                         }
 
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, hoursRef, startRef, finishRef, tasksById, options.SyncPredecessorLinks, percAlocRef, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields);
+                        // Resolve refs por tipo para criação (antes de ter o loop principal que define typeHoursRef etc.)
+                        var createHoursRef  = ResolveForType(task.TfsType, c => c.EffortField,        hoursRef);
+                        var createStartRef  = ResolveForType(task.TfsType, c => c.StartField,         startRef);
+                        var createFinishRef = ResolveForType(task.TfsType, c => c.FinishField,        finishRef);
+                        var createPercAloc  = ResolveForType(task.TfsType, c => c.PercAlocField,      percAlocRef);
+                        var createPercConc  = ResolveForType(task.TfsType, c => c.PercConclusaoField, percConclusaoRef);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -488,7 +504,14 @@ namespace NXProject.Services
 
                     bool isTask             = IsTaskType(task.TfsType);
                     bool isEpicOrFeature    = IsEpicOrFeatureType(task.TfsType);
-                    bool isStoryLike        = IsStoryType(task.TfsType) || isEpicOrFeature; // Epic/Feature: mesmos campos que Story
+                    bool isStoryLike        = IsStoryType(task.TfsType) || isEpicOrFeature;
+
+                    // Campos possivelmente sobrescritos por tipo via TypeFieldMappings
+                    var typeHoursRef    = ResolveForType(task.TfsType, c => c.EffortField,       hoursRef);
+                    var typeStartRef    = ResolveForType(task.TfsType, c => c.StartField,        startRef);
+                    var typeFinishRef   = ResolveForType(task.TfsType, c => c.FinishField,       finishRef);
+                    var typePercAloc    = ResolveForType(task.TfsType, c => c.PercAlocField,     percAlocRef);
+                    var typePercConc    = ResolveForType(task.TfsType, c => c.PercConclusaoField,percConclusaoRef);
 
                     if (!string.Equals((task.Name ?? string.Empty).Trim(), (wi.Title ?? string.Empty).Trim(), StringComparison.Ordinal))
                     {
@@ -527,14 +550,14 @@ namespace NXProject.Services
                             }
                         }
 
-                        // HH Estimado (Esforço Estimado).
+                        // HH Estimado (Esforço Estimado / Effort).
                         var desiredHours = GetSyncHours(task);
-                        if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
+                        if (typeHoursRef != null && desiredHours.HasValue && typeHoursRef != originalHoursRef)
                         {
-                            var currentHours = ReadDouble(wi, hoursRef);
+                            var currentHours = ReadDouble(wi, typeHoursRef);
                             if (currentHours == null || Math.Abs(currentHours.Value - desiredHours.Value) > 0.0001)
                             {
-                                ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
+                                ops.Add(PatchAdd($"/fields/{typeHoursRef}", desiredHours.Value));
                                 var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
                                 changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
                             }
@@ -562,34 +585,34 @@ namespace NXProject.Services
                             changes.Add($"responsável: {desiredAssignee}");
                         }
 
-                        if (percAlocRef != null)
+                        if (typePercAloc != null)
                         {
                             var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
                             var primaryAlocInt = (int)Math.Round(primaryAloc);
-                            var currentAloc = ReadDouble(wi, percAlocRef);
+                            var currentAloc = ReadDouble(wi, typePercAloc);
                             if (currentAloc == null || Math.Abs(currentAloc.Value - primaryAloc) > 0.5)
                             {
-                                ops.Add(PatchAdd($"/fields/{percAlocRef}", primaryAlocInt));
+                                ops.Add(PatchAdd($"/fields/{typePercAloc}", primaryAlocInt));
                                 var oldA = currentAloc.HasValue ? $"{currentAloc.Value:0}%→" : "";
                                 changes.Add($"% aloc.: {oldA}{primaryAlocInt}%");
                             }
                         }
 
-                        if (percConclusaoRef != null)
+                        if (typePercConc != null)
                         {
                             var percConc = (int)Math.Round(Math.Clamp(task.PercentComplete, 0, 100));
-                            var currentConc = ReadDouble(wi, percConclusaoRef);
+                            var currentConc = ReadDouble(wi, typePercConc);
                             if (currentConc == null || Math.Abs(currentConc.Value - percConc) > 0.5)
                             {
-                                ops.Add(PatchAdd($"/fields/{percConclusaoRef}", percConc));
+                                ops.Add(PatchAdd($"/fields/{typePercConc}", percConc));
                                 var oldC = currentConc.HasValue ? $"{currentConc.Value:0}%→" : "";
                                 changes.Add($"% conclusão: {oldC}{percConc}%");
                             }
                         }
 
-                        if (startRef != null)
+                        if (typeStartRef != null)
                         {
-                            var currentStart = ReadDate(wi, startRef);
+                            var currentStart = ReadDate(wi, typeStartRef);
                             var effectiveStateForStart = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
                             bool isClosed = IsClosedState(effectiveStateForStart) || task.PercentComplete >= 100;
                             var sprintObj = string.IsNullOrWhiteSpace(task.TfsIterationPath)
@@ -601,7 +624,7 @@ namespace NXProject.Services
                             {
                                 if (currentStart == null || currentStart.Value.Date != task.Start.Date)
                                 {
-                                    ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+                                    ops.Add(PatchAdd($"/fields/{typeStartRef}", FormatDateForTfs(task.Start)));
                                     changes.Add(task.StartFixed
                                         ? $"início: {task.Start:dd/MM} (fixado)"
                                         : $"início: {task.Start:dd/MM}");
@@ -2010,7 +2033,14 @@ namespace NXProject.Services
         /// <summary>
         /// Busca os HH das Tasks filhas usando o campo padrão Microsoft.VSTS.Scheduling.OriginalEstimate.
         /// </summary>
-        public static Task<double?> FetchChildTaskHoursAsync(
+        public sealed class ChildTaskHoursResult
+        {
+            public double TotalHours { get; init; }
+            public int TaskCount { get; init; }
+            public List<string> TasksWithoutHours { get; init; } = [];
+        }
+
+        public static Task<ChildTaskHoursResult?> FetchChildTaskHoursAsync(
             TfsConnectionOptions options, int parentTfsId, CancellationToken ct = default)
             => FetchChildTaskHoursAsync(options, parentTfsId, "Microsoft.VSTS.Scheduling.OriginalEstimate", ct);
 
@@ -2018,7 +2048,7 @@ namespace NXProject.Services
         /// Busca as Tasks filhas de um work item no DevOps e retorna a soma dos HH Estimados (campo hoursRef).
         /// Retorna null se não foi possível obter dados.
         /// </summary>
-        public static async Task<double?> FetchChildTaskHoursAsync(
+        public static async Task<ChildTaskHoursResult?> FetchChildTaskHoursAsync(
             TfsConnectionOptions options, int parentTfsId, string hoursRef,
             CancellationToken ct = default)
         {
@@ -2056,11 +2086,12 @@ namespace NXProject.Services
                         childIds.Add(cid);
                 }
             }
-            if (childIds.Count == 0) return 0.0;
+            if (childIds.Count == 0)
+                return new ChildTaskHoursResult { TotalHours = 0, TaskCount = 0 };
 
             // 2. Busca os work items filhos em batch
             var ids = string.Join(",", childIds);
-            var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,{hoursRef}&{ApiVersion}";
+            var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields=System.Id,System.Title,System.WorkItemType,{hoursRef}&{ApiVersion}";
             using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
             batchReq.Headers.Authorization = auth;
             batchReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
@@ -2072,6 +2103,9 @@ namespace NXProject.Services
             using var batchDoc = JsonDocument.Parse(batchJson);
 
             double total = 0;
+            int taskCount = 0;
+            var tasksWithoutHours = new List<string>();
+
             if (batchDoc.RootElement.TryGetProperty("value", out var values))
             {
                 foreach (var item in values.EnumerateArray())
@@ -2079,11 +2113,31 @@ namespace NXProject.Services
                     if (!item.TryGetProperty("fields", out var fields)) continue;
                     if (!fields.TryGetProperty("System.WorkItemType", out var wt)) continue;
                     if (!IsTaskType(wt.GetString())) continue;
-                    if (fields.TryGetProperty(hoursRef, out var hProp))
-                        total += hProp.ValueKind == JsonValueKind.Number ? hProp.GetDouble() : 0;
+
+                    taskCount++;
+                    var title = fields.TryGetProperty("System.Title", out var tt) ? tt.GetString() ?? "" : "";
+                    var itemId = fields.TryGetProperty("System.Id", out var idp) ? idp.GetInt32().ToString() : "?";
+
+                    if (fields.TryGetProperty(hoursRef, out var hProp) && hProp.ValueKind == JsonValueKind.Number)
+                    {
+                        var h = hProp.GetDouble();
+                        if (h > 0.0001)
+                            total += h;
+                        else
+                            tasksWithoutHours.Add($"#{itemId} {title}");
+                    }
+                    else
+                    {
+                        tasksWithoutHours.Add($"#{itemId} {title}");
+                    }
                 }
             }
-            return total;
+            return new ChildTaskHoursResult
+            {
+                TotalHours       = total,
+                TaskCount        = taskCount,
+                TasksWithoutHours = tasksWithoutHours
+            };
         }
 
         public static async Task DeleteWorkItemAsync(TfsConnectionOptions options, int workItemId, CancellationToken ct = default)

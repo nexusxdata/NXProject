@@ -131,11 +131,41 @@ namespace NXProject.Services
         /// </summary>
         public List<ExtraWorkItemField> ExtraCreateFields { get; set; } = [];
 
+        /// <summary>
+        /// Mapeamentos de campos por tipo de work item (Epic, Feature, Story, Task).
+        /// Sobrescreve os campos globais (EffortFieldName, StartFieldName, FinishFieldName etc.)
+        /// para o tipo especificado.
+        /// Exemplo: { "Epic": { "EffortField": "Effort", "StartField": "Start Date", "FinishField": "Target Date" } }
+        /// </summary>
+        public Dictionary<string, TypeFieldConfig> TypeFieldMappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&
             !string.IsNullOrWhiteSpace(PersonalAccessToken) &&
             RootWorkItemId > 0;
+    }
+
+    /// <summary>
+    /// Configuração de campos do DevOps específica por tipo de work item.
+    /// Campos nulos herdam o valor global de TfsConnectionOptions.
+    /// </summary>
+    public sealed class TypeFieldConfig
+    {
+        /// <summary>Campo de esforço/horas estimadas (ex.: "Effort", "HH Estimado").</summary>
+        public string? EffortField { get; set; }
+
+        /// <summary>Campo de data de início (ex.: "Start Date", "Data_Inicio").</summary>
+        public string? StartField { get; set; }
+
+        /// <summary>Campo de data de fim (ex.: "Target Date", "Data_Fim").</summary>
+        public string? FinishField { get; set; }
+
+        /// <summary>Campo de percentual de alocação.</summary>
+        public string? PercAlocField { get; set; }
+
+        /// <summary>Campo de percentual de conclusão.</summary>
+        public string? PercConclusaoField { get; set; }
     }
 
     /// <summary>
@@ -170,6 +200,7 @@ namespace NXProject.Services
             public List<string> PortfolioProjectPaths { get; set; } = [];
             public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
             public bool DebugLogEnabled { get; set; } = false;
+            public Dictionary<string, TypeFieldConfig> TypeFieldMappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         }
 
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
@@ -224,6 +255,7 @@ namespace NXProject.Services
                 options.PortfolioProjectPaths = stored.PortfolioProjectPaths ?? [];
                 options.PortfolioProjectConfigs = stored.PortfolioProjectConfigs ?? [];
                 options.DebugLogEnabled = stored.DebugLogEnabled;
+                options.TypeFieldMappings = stored.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase);
             }
             catch
             {
@@ -265,7 +297,8 @@ namespace NXProject.Services
                 StoryStatusMappings = options.StoryStatusMappings ?? [],
                 PortfolioProjectPaths = options.PortfolioProjectPaths ?? [],
                 PortfolioProjectConfigs = options.PortfolioProjectConfigs ?? [],
-                DebugLogEnabled = options.DebugLogEnabled
+                DebugLogEnabled = options.DebugLogEnabled,
+                TypeFieldMappings = options.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase)
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });

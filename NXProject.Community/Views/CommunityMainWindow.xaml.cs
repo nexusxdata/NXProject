@@ -497,22 +497,32 @@ namespace NXProject.Views
             try
             {
                 var options = Services.TfsConnectionStore.Load("NXProject.Community");
-                var totalHours = await Services.TfsImportService.FetchChildTaskHoursAsync(options, task.Model.TfsId!.Value);
-                if (totalHours == null)
+                var result = await Services.TfsImportService.FetchChildTaskHoursAsync(options, task.Model.TfsId!.Value);
+                if (result == null)
                 {
                     MessageBox.Show("Não foi possível obter os dados das Tasks no DevOps.", "Erro", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                if (totalHours.Value < 0.001)
+                if (result.TaskCount == 0)
                 {
-                    MessageBox.Show("Nenhuma Task filha com HH Estimado encontrada no DevOps.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Nenhuma Task filha encontrada no DevOps.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                var msg = $"Soma dos HH Estimados das Tasks filhas: {totalHours.Value:0.#}h\n\nDeseja atualizar as horas estimadas desta atividade?";
+                // Avisa e bloqueia se houver Tasks sem duração
+                if (result.TasksWithoutHours.Count > 0)
+                {
+                    var taskList = string.Join("\n  • ", result.TasksWithoutHours);
+                    MessageBox.Show(
+                        $"As seguintes Tasks não possuem horas estimadas (Original Estimate = 0 ou vazio):\n\n  • {taskList}\n\nCorrija as horas no DevOps antes de atualizar a duração.",
+                        "Tasks sem duração", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var msg = $"Tasks filhas encontradas: {result.TaskCount}\nSoma dos HH Estimados: {result.TotalHours:0.#}h\n\nDeseja atualizar as horas estimadas desta atividade?";
                 if (MessageBox.Show(msg, "Atualizar duração", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
-                    task.Model.EstimatedHours = totalHours.Value;
+                    task.Model.EstimatedHours = result.TotalHours;
                     vm.Project.IsDirty = true;
                     vm.RebuildFlatTasks();
                     GanttCtrl.ForceRender();
