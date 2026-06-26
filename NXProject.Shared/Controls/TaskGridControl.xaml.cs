@@ -181,6 +181,9 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário clica em "Editar Descrição..." no menu de contexto do nome.</summary>
         public event Action<TaskViewModel>? EditDescriptionRequested;
 
+        /// <summary>Disparado quando o usuário clica em "Atualizar duração pelas Tasks" no menu da coluna Duração.</summary>
+        public event Action<TaskViewModel>? FetchTaskHoursRequested;
+
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
         private bool _suppressScrollNotification;
@@ -1231,6 +1234,13 @@ namespace NXProject.Controls
             ShowOriginalHoursColumn = !ShowOriginalHoursColumn;
         }
 
+        private void OnFetchTaskHoursClick(object sender, RoutedEventArgs e)
+        {
+            var vm = _durationContextMenuVm;
+            if (vm == null) return;
+            FetchTaskHoursRequested?.Invoke(vm);
+        }
+
         // Guarda a VM capturada no ContextMenuOpening para usar no click (PlacementTarget pode ser null no Click)
         private TaskViewModel? _durationContextMenuVm;
 
@@ -1342,10 +1352,28 @@ namespace NXProject.Controls
                 CancelCurrentEdit();
                 return;
             }
+
+            if (raw == "0")
+            {
+                vm.StartText = raw;
+                TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                ClearEditSnapshot();
+                return;
+            }
+
+            if (parsed && NXProject.Services.ProjectCalendarService.IsWorkingDay(typed.Date))
+            {
+                vm.Start = typed.Date;
+                TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                ClearEditSnapshot();
+                return;
+            }
             else
             {
-                // Se digitou data válida, pré-seleciona o próximo dia útil a partir do que foi digitado.
-                // Se digitou inválido (incluindo "0"), usa a data calculada atual.
+                // Se digitou data não útil, pré-seleciona o próximo dia útil a partir do que foi digitado.
+                // Se digitou valor inválido, usa a data calculada atual.
                 DateTime calDate;
                 if (parsed)
                 {
@@ -1476,10 +1504,24 @@ namespace NXProject.Controls
             DateTime? chosen = null;
             bool ignoreFirstChange = true;
 
+            calendar.AddHandler(
+                ButtonBase.ClickEvent,
+                new RoutedEventHandler((s, e) =>
+                {
+                    var dayButton = FindParent<CalendarDayButton>(e.OriginalSource as DependencyObject);
+                    if (dayButton?.DataContext is DateTime day)
+                    {
+                        chosen = day.Date;
+                        e.Handled = true;
+                        win.Close();
+                    }
+                }),
+                handledEventsToo: true);
+
             calendar.SelectedDatesChanged += (s, e) =>
             {
                 if (ignoreFirstChange) return;
-                chosen = calendar.SelectedDate;
+                chosen = calendar.SelectedDate?.Date;
                 win.Close();
             };
 
@@ -1488,7 +1530,7 @@ namespace NXProject.Controls
                 if (e.Key == Key.Enter)
                 {
                     e.Handled = true;
-                    chosen = calendar.SelectedDate;
+                    chosen = calendar.SelectedDate?.Date;
                     win.Close();
                 }
                 else if (e.Key == Key.Escape)
@@ -1521,6 +1563,7 @@ namespace NXProject.Controls
                 CancelCurrentEdit();
             _suppressEditorLostFocusCommit = false;
             vm.Start = chosen.Value;
+            RefreshGridPreservingSelection(vm, StartColumn);
             TaskGrid.Focus();
         }
 

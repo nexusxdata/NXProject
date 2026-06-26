@@ -99,6 +99,7 @@ namespace NXProject.Views
             TaskGridCtrl.TaskIdClicked += OnTaskIdClicked;
             TaskGridCtrl.ViewOnlineChildrenRequested += OnViewOnlineChildren;
             TaskGridCtrl.EditDescriptionRequested += OnEditDescription;
+            TaskGridCtrl.FetchTaskHoursRequested += OnFetchTaskHoursFromDevOps;
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
@@ -482,6 +483,45 @@ namespace NXProject.Views
             var win = new TaskDescriptionEditWindow(task.Model) { Owner = this };
             if (win.ShowDialog() == true)
                 vm.Project.IsDirty = true;
+        }
+
+        private async void OnFetchTaskHoursFromDevOps(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            if (task.Model.TfsId is not > 0)
+            {
+                MessageBox.Show("Esta atividade não está vinculada ao DevOps.", "Sem vínculo", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var options = Services.TfsConnectionStore.Load("NXProject.Community");
+                var totalHours = await Services.TfsImportService.FetchChildTaskHoursAsync(options, task.Model.TfsId!.Value);
+                if (totalHours == null)
+                {
+                    MessageBox.Show("Não foi possível obter os dados das Tasks no DevOps.", "Erro", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (totalHours.Value < 0.001)
+                {
+                    MessageBox.Show("Nenhuma Task filha com HH Estimado encontrada no DevOps.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var msg = $"Soma dos HH Estimados das Tasks filhas: {totalHours.Value:0.#}h\n\nDeseja atualizar as horas estimadas desta atividade?";
+                if (MessageBox.Show(msg, "Atualizar duração", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                {
+                    task.Model.EstimatedHours = totalHours.Value;
+                    vm.Project.IsDirty = true;
+                    vm.RebuildFlatTasks();
+                    GanttCtrl.ForceRender();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao buscar Tasks no DevOps:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private async void OnConfirmDeleteTask(TaskViewModel task)

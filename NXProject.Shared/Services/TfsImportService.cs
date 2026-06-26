@@ -486,204 +486,225 @@ namespace NXProject.Services
                     var ops = new List<object>();
                     var changes = new List<string>();
 
+                    bool isTask             = IsTaskType(task.TfsType);
+                    bool isEpicOrFeature    = IsEpicOrFeatureType(task.TfsType);
+                    bool isStoryLike        = IsStoryType(task.TfsType) || isEpicOrFeature; // Epic/Feature: mesmos campos que Story
+
                     if (!string.Equals((task.Name ?? string.Empty).Trim(), (wi.Title ?? string.Empty).Trim(), StringComparison.Ordinal))
                     {
                         ops.Add(PatchAdd("/fields/System.Title", task.Name ?? string.Empty));
                         changes.Add("título");
                     }
 
-                    if (task.Description != null || !string.IsNullOrWhiteSpace(task.Justificativa))
+                    // ── Campos exclusivos de Story / Feature / Epic (não Task) ──────────
+                    if (!isTask)
                     {
-                        var desiredDesc = MergeJustificativa(task.Description, task.Justificativa);
-                        if (!string.Equals(desiredDesc.Trim(), (wi.Description ?? string.Empty).Trim(), StringComparison.Ordinal))
+                        if (task.Description != null || !string.IsNullOrWhiteSpace(task.Justificativa))
                         {
-                            ops.Add(PatchAdd("/fields/System.Description", desiredDesc));
-                            changes.Add("descrição");
-                        }
-                    }
-
-                    // Tags (ex.: "Block") — sincroniza se o conjunto mudou.
-                    if (!TagsEqual(task.Tags, wi.Tags))
-                    {
-                        ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(task.Tags)));
-                        changes.Add("tags");
-                    }
-
-                    // Ordem (StackRank) — sincroniza se o rank desejado mudou.
-                    if (task.TfsStackRank.HasValue)
-                    {
-                        var currentRank = ReadDouble(wi, "Microsoft.VSTS.Common.StackRank");
-                        if (currentRank == null || Math.Abs(currentRank.Value - task.TfsStackRank.Value) > 0.0001)
-                        {
-                            ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
-                            changes.Add("ordem");
-                        }
-                    }
-
-                    // HH Estimado (Esforço Estimado): só grava quando originalHoursRef não aponta para o mesmo campo
-                    // (evita sobrescrever HH Original com EstimatedHours quando o campo é o mesmo).
-                    var desiredHours = GetSyncHours(task);
-                    if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
-                    {
-                        var currentHours = ReadDouble(wi, hoursRef);
-                        if (currentHours == null || Math.Abs(currentHours.Value - desiredHours.Value) > 0.0001)
-                        {
-                            ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
-                            var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
-                            changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
-                        }
-                    }
-
-                    // HH Restante: grava EstimatedHours diretamente (já é o restante calculado).
-                    if (remainingHoursRef != null && task.EstimatedHours is >= 0)
-                    {
-                        var remainingH = task.EstimatedHours.Value;
-                        var currentRemH = ReadDouble(wi, remainingHoursRef);
-                        if (currentRemH == null || Math.Abs(currentRemH.Value - remainingH) > 0.0001)
-                        {
-                            ops.Add(PatchAdd($"/fields/{remainingHoursRef}", remainingH));
-                            var oldRem = currentRemH.HasValue ? $"{currentRemH.Value:0.##}→" : "";
-                            changes.Add($"HH Restante: {oldRem}{remainingH:0.##}h");
-                        }
-                    }
-
-                    // HH Atual: grava sempre que o valor local difere do TFS.
-                    if (realizedHoursRef != null && task.CurrentHours.HasValue)
-                    {
-                        var currentH    = task.CurrentHours.Value;
-                        var currentTfsH = ReadDouble(wi, realizedHoursRef);
-                        if (currentTfsH == null || Math.Abs(currentTfsH.Value - currentH) > 0.0001)
-                        {
-                            ops.Add(PatchAdd($"/fields/{realizedHoursRef}", currentH));
-                            var oldR = currentTfsH.HasValue ? $"{currentTfsH.Value:0.##}→" : "";
-                            changes.Add($"HH Atual: {oldR}{currentH:0.##}h");
-                        }
-                    }
-
-                    // HH Original: grava quando % = 0 (tarefa não iniciada) ou quando o campo TFS está vazio/zero.
-                    if (originalHoursRef != null && task.OriginalEstimatedHours is > 0)
-                    {
-                        var currentOrigH = ReadDouble(wi, originalHoursRef);
-                        bool tfsMissing = currentOrigH == null || currentOrigH.Value < 0.0001;
-                        bool taskNotStarted = task.PercentComplete < 0.0001;
-                        if (tfsMissing || taskNotStarted)
-                        {
-                            ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
-                            if (!tfsMissing)
+                            var desiredDesc = MergeJustificativa(task.Description, task.Justificativa);
+                            if (!string.Equals(desiredDesc.Trim(), (wi.Description ?? string.Empty).Trim(), StringComparison.Ordinal))
                             {
-                                var oldO = $"{currentOrigH!.Value:0.##}→";
-                                changes.Add($"HH Original: {oldO}{task.OriginalEstimatedHours.Value:0.##}h");
-                            }
-                            else
-                            {
-                                changes.Add($"HH Original: {task.OriginalEstimatedHours.Value:0.##}h");
+                                ops.Add(PatchAdd("/fields/System.Description", desiredDesc));
+                                changes.Add("descrição");
                             }
                         }
-                    }
 
-                    var desiredAssignee = GetDesiredAssigneeEmail(task);
-                    if (!string.IsNullOrWhiteSpace(desiredAssignee) && !AssigneeEquals(wi, desiredAssignee))
-                    {
-                        ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
-                        changes.Add($"responsável: {desiredAssignee}");
-                    }
-
-                    if (percAlocRef != null)
-                    {
-                        var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
-                        var primaryAlocInt = (int)Math.Round(primaryAloc);
-                        var currentAloc = ReadDouble(wi, percAlocRef);
-                        if (currentAloc == null || Math.Abs(currentAloc.Value - primaryAloc) > 0.5)
+                        // Tags (ex.: "Block") — sincroniza se o conjunto mudou.
+                        if (!TagsEqual(task.Tags, wi.Tags))
                         {
-                            ops.Add(PatchAdd($"/fields/{percAlocRef}", primaryAlocInt));
-                            var oldA = currentAloc.HasValue ? $"{currentAloc.Value:0}%→" : "";
-                            changes.Add($"% aloc.: {oldA}{primaryAlocInt}%");
+                            ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(task.Tags)));
+                            changes.Add("tags");
                         }
-                    }
 
-                    if (percConclusaoRef != null)
-                    {
-                        var percConc = (int)Math.Round(Math.Clamp(task.PercentComplete, 0, 100));
-                        var currentConc = ReadDouble(wi, percConclusaoRef);
-                        if (currentConc == null || Math.Abs(currentConc.Value - percConc) > 0.5)
+                        // Ordem (StackRank) — sincroniza se o rank desejado mudou.
+                        if (task.TfsStackRank.HasValue)
                         {
-                            ops.Add(PatchAdd($"/fields/{percConclusaoRef}", percConc));
-                            var oldC = currentConc.HasValue ? $"{currentConc.Value:0}%→" : "";
-                            changes.Add($"% conclusão: {oldC}{percConc}%");
-                        }
-                    }
-
-                    if (startRef != null)
-                    {
-                        var currentStart = ReadDate(wi, startRef);
-                        var effectiveStateForStart = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
-                        bool isClosed = IsClosedState(effectiveStateForStart) || task.PercentComplete >= 100;
-
-                        // Calcula o início esperado da sprint para saber se o início da tarefa
-                        // diverge da janela da sprint (o que justifica enviar ao TFS).
-                        var sprintObj = string.IsNullOrWhiteSpace(task.TfsIterationPath)
-                            ? null
-                            : project.Sprints.FirstOrDefault(s =>
-                                string.Equals(s.Path, task.TfsIterationPath, StringComparison.OrdinalIgnoreCase));
-                        var sprintStart = sprintObj?.Start;
-                        bool startDiffersFromSprint = sprintStart == null || task.Start.Date != sprintStart.Value.Date;
-
-                        if (isClosed || task.StartFixed || startDiffersFromSprint)
-                        {
-                            // Envia o início: tarefa encerrada/100%, fixada ou calculada diferente da sprint.
-                            if (currentStart == null || currentStart.Value.Date != task.Start.Date)
+                            var currentRank = ReadDouble(wi, "Microsoft.VSTS.Common.StackRank");
+                            if (currentRank == null || Math.Abs(currentRank.Value - task.TfsStackRank.Value) > 0.0001)
                             {
-                                ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
-                                changes.Add(task.StartFixed
-                                    ? $"início: {task.Start:dd/MM} (fixado)"
-                                    : $"início: {task.Start:dd/MM}");
+                                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
+                                changes.Add("ordem");
                             }
                         }
-                        // Não limpa Data_Inicio mesmo quando a data coincide com a sprint:
-                        // o campo pode ter sido definido explicitamente pelo usuário no DevOps.
-                    }
 
-                    // Tag de data fixada: presente quando StartFixed (📌), ausente quando calculado.
-                    {
-                        var fixedTag = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
-                        var fixedTagAliases = GetFixedStartTagAliases(fixedTag);
-                        var currentTags = wi.Tags ?? string.Empty;
-                        bool hasFixedTagNow = fixedTagAliases.Any(tag => HasTag(currentTags, tag));
-                        if (task.StartFixed && !hasFixedTagNow)
+                        // HH Estimado (Esforço Estimado).
+                        var desiredHours = GetSyncHours(task);
+                        if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
                         {
-                            var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedTag).Trim().TrimStart(';').Trim();
-                            ops.Add(PatchAdd("/fields/System.Tags", newTags));
-                            changes.Add($"tag: +{fixedTag}");
-                        }
-                        else if (!task.StartFixed && hasFixedTagNow)
-                        {
-                            var parts = currentTags
-                                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                .Where(t => !fixedTagAliases.Any(tag => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)));
-                            ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
-                            changes.Add($"tag: -{string.Join("/", fixedTagAliases)}");
-
-                            if (startRef != null && ReadDate(wi, startRef) != null)
+                            var currentHours = ReadDouble(wi, hoursRef);
+                            if (currentHours == null || Math.Abs(currentHours.Value - desiredHours.Value) > 0.0001)
                             {
-                                ops.Add(PatchRemove($"/fields/{startRef}"));
-                                changes.Add("início negociado removido");
+                                ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
+                                var oldH = currentHours.HasValue ? $"{currentHours.Value:0.##}→" : "";
+                                changes.Add($"HH: {oldH}{desiredHours.Value:0.##}h");
+                            }
+                        }
+
+                        // HH Original.
+                        if (originalHoursRef != null && task.OriginalEstimatedHours is > 0)
+                        {
+                            var currentOrigH = ReadDouble(wi, originalHoursRef);
+                            bool tfsMissing = currentOrigH == null || currentOrigH.Value < 0.0001;
+                            bool taskNotStarted = task.PercentComplete < 0.0001;
+                            if (tfsMissing || taskNotStarted)
+                            {
+                                ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
+                                changes.Add(tfsMissing
+                                    ? $"HH Original: {task.OriginalEstimatedHours.Value:0.##}h"
+                                    : $"HH Original: {currentOrigH!.Value:0.##}→{task.OriginalEstimatedHours.Value:0.##}h");
+                            }
+                        }
+
+                        var desiredAssignee = GetDesiredAssigneeEmail(task);
+                        if (!string.IsNullOrWhiteSpace(desiredAssignee) && !AssigneeEquals(wi, desiredAssignee))
+                        {
+                            ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
+                            changes.Add($"responsável: {desiredAssignee}");
+                        }
+
+                        if (percAlocRef != null)
+                        {
+                            var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
+                            var primaryAlocInt = (int)Math.Round(primaryAloc);
+                            var currentAloc = ReadDouble(wi, percAlocRef);
+                            if (currentAloc == null || Math.Abs(currentAloc.Value - primaryAloc) > 0.5)
+                            {
+                                ops.Add(PatchAdd($"/fields/{percAlocRef}", primaryAlocInt));
+                                var oldA = currentAloc.HasValue ? $"{currentAloc.Value:0}%→" : "";
+                                changes.Add($"% aloc.: {oldA}{primaryAlocInt}%");
+                            }
+                        }
+
+                        if (percConclusaoRef != null)
+                        {
+                            var percConc = (int)Math.Round(Math.Clamp(task.PercentComplete, 0, 100));
+                            var currentConc = ReadDouble(wi, percConclusaoRef);
+                            if (currentConc == null || Math.Abs(currentConc.Value - percConc) > 0.5)
+                            {
+                                ops.Add(PatchAdd($"/fields/{percConclusaoRef}", percConc));
+                                var oldC = currentConc.HasValue ? $"{currentConc.Value:0}%→" : "";
+                                changes.Add($"% conclusão: {oldC}{percConc}%");
+                            }
+                        }
+
+                        if (startRef != null)
+                        {
+                            var currentStart = ReadDate(wi, startRef);
+                            var effectiveStateForStart = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
+                            bool isClosed = IsClosedState(effectiveStateForStart) || task.PercentComplete >= 100;
+                            var sprintObj = string.IsNullOrWhiteSpace(task.TfsIterationPath)
+                                ? null
+                                : project.Sprints.FirstOrDefault(s =>
+                                    string.Equals(s.Path, task.TfsIterationPath, StringComparison.OrdinalIgnoreCase));
+                            bool startDiffersFromSprint = sprintObj == null || task.Start.Date != sprintObj.Start.Date;
+                            if (isClosed || task.StartFixed || startDiffersFromSprint)
+                            {
+                                if (currentStart == null || currentStart.Value.Date != task.Start.Date)
+                                {
+                                    ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+                                    changes.Add(task.StartFixed
+                                        ? $"início: {task.Start:dd/MM} (fixado)"
+                                        : $"início: {task.Start:dd/MM}");
+                                }
+                            }
+                        }
+
+                        // Tag de data fixada.
+                        {
+                            var fixedTag      = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
+                            var fixedTagAliases = GetFixedStartTagAliases(fixedTag);
+                            var currentTags   = wi.Tags ?? string.Empty;
+                            bool hasFixedTagNow = fixedTagAliases.Any(tag => HasTag(currentTags, tag));
+                            if (task.StartFixed && !hasFixedTagNow)
+                            {
+                                var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedTag).Trim().TrimStart(';').Trim();
+                                ops.Add(PatchAdd("/fields/System.Tags", newTags));
+                                changes.Add($"tag: +{fixedTag}");
+                            }
+                            else if (!task.StartFixed && hasFixedTagNow)
+                            {
+                                var parts = currentTags
+                                    .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                    .Where(t => !fixedTagAliases.Any(tag => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)));
+                                ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
+                                changes.Add($"tag: -{string.Join("/", fixedTagAliases)}");
+                                if (startRef != null && ReadDate(wi, startRef) != null)
+                                {
+                                    ops.Add(PatchRemove($"/fields/{startRef}"));
+                                    changes.Add("início negociado removido");
+                                }
+                            }
+                        }
+
+                        // Sprint (System.IterationPath).
+                        if (!string.IsNullOrWhiteSpace(task.TfsIterationPath) &&
+                            !string.Equals(task.TfsIterationPath.Trim(), (wi.IterationPath ?? string.Empty).Trim(),
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            ops.Add(PatchAdd("/fields/System.IterationPath", task.TfsIterationPath.Trim()));
+                            var sprintName = task.TfsIterationPath.Trim().Split('\\').LastOrDefault() ?? task.TfsIterationPath.Trim();
+                            changes.Add($"sprint: {sprintName}");
+                        }
+                    } // end !isTask
+
+                    // ── Campos de horas para Story/Feature/Epic ────────────────────────────
+                    if (!isTask)
+                    {
+                        // HH Restante.
+                        if (remainingHoursRef != null && task.EstimatedHours is >= 0)
+                        {
+                            var remainingH  = task.EstimatedHours.Value;
+                            var currentRemH = ReadDouble(wi, remainingHoursRef);
+                            if (currentRemH == null || Math.Abs(currentRemH.Value - remainingH) > 0.0001)
+                            {
+                                ops.Add(PatchAdd($"/fields/{remainingHoursRef}", remainingH));
+                                var oldRem = currentRemH.HasValue ? $"{currentRemH.Value:0.##}→" : "";
+                                changes.Add($"HH Restante: {oldRem}{remainingH:0.##}h");
+                            }
+                        }
+
+                        // HH Atual.
+                        if (realizedHoursRef != null && task.CurrentHours.HasValue)
+                        {
+                            var currentH    = task.CurrentHours.Value;
+                            var currentTfsH = ReadDouble(wi, realizedHoursRef);
+                            if (currentTfsH == null || Math.Abs(currentTfsH.Value - currentH) > 0.0001)
+                            {
+                                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", currentH));
+                                var oldR = currentTfsH.HasValue ? $"{currentTfsH.Value:0.##}→" : "";
+                                changes.Add($"HH Atual: {oldR}{currentH:0.##}h");
                             }
                         }
                     }
 
-                    // Sprint (System.IterationPath): sincroniza se a sprint escolhida
-                    // no NXProject difere da que esta no DevOps.
-                    if (!string.IsNullOrWhiteSpace(task.TfsIterationPath) &&
-                        !string.Equals(task.TfsIterationPath.Trim(), (wi.IterationPath ?? string.Empty).Trim(),
-                            StringComparison.OrdinalIgnoreCase))
+                    // ── Task: Original Estimate (Decimal) + Priority (Integer, default 5) ──
+                    if (isTask)
                     {
-                        ops.Add(PatchAdd("/fields/System.IterationPath", task.TfsIterationPath.Trim()));
-                        var sprintName = task.TfsIterationPath.Trim().Split('\\').LastOrDefault() ?? task.TfsIterationPath.Trim();
-                        changes.Add($"sprint: {sprintName}");
+                        // Original Estimate (Microsoft.VSTS.Scheduling.OriginalEstimate).
+                        const string OriginalEstimateRef = "Microsoft.VSTS.Scheduling.OriginalEstimate";
+                        var taskHours = task.EstimatedHours ?? task.CurrentHours;
+                        if (taskHours.HasValue)
+                        {
+                            var currentOrig = ReadDouble(wi, OriginalEstimateRef);
+                            if (currentOrig == null || Math.Abs(currentOrig.Value - taskHours.Value) > 0.0001)
+                            {
+                                ops.Add(PatchAdd($"/fields/{OriginalEstimateRef}", taskHours.Value));
+                                var oldH = currentOrig.HasValue ? $"{currentOrig.Value:0.##}→" : "";
+                                changes.Add($"Original Estimate: {oldH}{taskHours.Value:0.##}h");
+                            }
+                        }
+
+                        // Priority (Microsoft.VSTS.Common.Priority) — padrão 5 quando vazio.
+                        var currentPriority = ReadDouble(wi, "Microsoft.VSTS.Common.Priority");
+                        if (currentPriority == null || currentPriority.Value <= 0)
+                        {
+                            ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", 5));
+                            changes.Add("Priority: 5 (padrão)");
+                        }
                     }
 
-                    // Ajuste automático de estado para User Stories baseado no % de conclusão.
-                    if (IsStoryType(task.TfsType))
+                    // Ajuste automático de estado baseado no % de conclusão (Story, Feature e Epic).
+                    if (isStoryLike)
                     {
                         if (task.PercentComplete >= 100 &&
                             !string.Equals(task.TfsState?.Trim(), "Closed", StringComparison.OrdinalIgnoreCase))
@@ -988,10 +1009,19 @@ namespace NXProject.Services
         }
 
         private static bool ShouldSyncPredecessors(ProjectTask task) =>
-            task.Children.Count == 0 && IsStoryTask(task);
+            task.Children.Count == 0 &&
+            (IsStoryType(task.TfsType) || IsTaskType(task.TfsType) ||
+             IsEpicOrFeatureType(task.TfsType));
 
         private static bool IsStoryTask(ProjectTask task) =>
             IsStoryType(task.TfsType);
+
+        private static bool IsTaskType(string? type) =>
+            string.Equals(type, "Task", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsEpicOrFeatureType(string? type) =>
+            string.Equals(type, "Epic", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase);
 
         private static HashSet<int> GetDesiredPredecessorTfsIds(
             ProjectTask task,
@@ -1131,6 +1161,9 @@ namespace NXProject.Services
             string? realizedHoursRef = null,
             IEnumerable<ExtraWorkItemField>? extraFields = null)
         {
+            bool isTaskCreate        = IsTaskType(task.TfsType);
+            bool isEpicOrFeatureCreate = IsEpicOrFeatureType(task.TfsType);
+
             var ops = new List<object>
             {
                 PatchAdd("/fields/System.Title", task.Name ?? "Novo item")
@@ -1142,50 +1175,61 @@ namespace NXProject.Services
                     if (!string.IsNullOrWhiteSpace(f.Ref) && f.Value != null)
                         ops.Add(PatchAdd($"/fields/{f.Ref}", f.Value));
 
-            if (!string.IsNullOrWhiteSpace(task.Description))
-                ops.Add(PatchAdd("/fields/System.Description", task.Description!));
-
-            if (!string.IsNullOrWhiteSpace(task.Tags))
-                ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(task.Tags)));
-
-            if (!string.IsNullOrWhiteSpace(task.TfsState))
-                ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
-
-            if (task.TfsStackRank.HasValue)
-                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
-
-            var desiredHours = GetSyncHours(task);
-            // Só grava hoursRef se for um campo diferente do originalHoursRef (evitar conflito com "Esforço Estimado")
-            if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
-                ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
-
-            // HH Original (Esforço Estimado): gravado na criação quando % = 0.
-            if (originalHoursRef != null && task.OriginalEstimatedHours is > 0 && task.PercentComplete < 0.0001)
-                ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
-
-            // HH Restante na criação: EstimatedHours já é o valor restante.
-            if (remainingHoursRef != null && task.EstimatedHours is >= 0)
-                ops.Add(PatchAdd($"/fields/{remainingHoursRef}", task.EstimatedHours.Value));
-
-            // HH Atual na criação quando o campo existe e há horas atuais
-            if (realizedHoursRef != null && task.CurrentHours is > 0)
-                ops.Add(PatchAdd($"/fields/{realizedHoursRef}", task.CurrentHours.Value));
-
-            var desiredAssignee = GetDesiredAssigneeEmail(task);
-            if (!string.IsNullOrWhiteSpace(desiredAssignee))
-                ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
-
-            if (percAlocRef != null)
+            if (!isTaskCreate)
             {
-                var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
-                ops.Add(PatchAdd($"/fields/{percAlocRef}", (int)Math.Round(primaryAloc)));
+                if (!string.IsNullOrWhiteSpace(task.Description))
+                    ops.Add(PatchAdd("/fields/System.Description", task.Description!));
+
+                if (!string.IsNullOrWhiteSpace(task.Tags))
+                    ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(task.Tags)));
+
+                if (!string.IsNullOrWhiteSpace(task.TfsState))
+                    ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
+
+                if (task.TfsStackRank.HasValue)
+                    ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.StackRank", task.TfsStackRank.Value));
+
+                var desiredHours = GetSyncHours(task);
+                if (hoursRef != null && desiredHours.HasValue && hoursRef != originalHoursRef)
+                    ops.Add(PatchAdd($"/fields/{hoursRef}", desiredHours.Value));
+
+                if (originalHoursRef != null && task.OriginalEstimatedHours is > 0 && task.PercentComplete < 0.0001)
+                    ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
+
+                var desiredAssignee = GetDesiredAssigneeEmail(task);
+                if (!string.IsNullOrWhiteSpace(desiredAssignee))
+                    ops.Add(PatchAdd("/fields/System.AssignedTo", desiredAssignee));
+
+                if (percAlocRef != null)
+                {
+                    var primaryAloc = task.Resources.Count > 0 ? task.Resources[0].AllocationPercent : 100.0;
+                    ops.Add(PatchAdd($"/fields/{percAlocRef}", (int)Math.Round(primaryAloc)));
+                }
+
+                if (startRef != null)
+                    ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+
+                if (finishRef != null && IsClosedState(task.TfsState))
+                    ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(task.Finish)));
+            }
+            else
+            {
+                // Task: Original Estimate (Decimal) + Priority=5 na criação.
+                var taskHours = task.EstimatedHours ?? task.CurrentHours;
+                if (taskHours.HasValue)
+                    ops.Add(PatchAdd("/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", taskHours.Value));
+                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", 5));
             }
 
-            if (startRef != null)
-                ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+            // HH Restante e HH Atual: apenas para Story/Feature/Epic.
+            if (!isTaskCreate)
+            {
+                if (remainingHoursRef != null && task.EstimatedHours is >= 0)
+                    ops.Add(PatchAdd($"/fields/{remainingHoursRef}", task.EstimatedHours.Value));
 
-            if (finishRef != null && IsClosedState(task.TfsState))
-                ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(task.Finish)));
+                if (realizedHoursRef != null && task.CurrentHours is > 0)
+                    ops.Add(PatchAdd($"/fields/{realizedHoursRef}", task.CurrentHours.Value));
+            }
 
             ops.Add(new
             {
@@ -1962,6 +2006,85 @@ namespace NXProject.Services
             IsStoryType(type);
 
         public static bool IsStoryTypePublic(string? type) => IsStoryType(type);
+
+        /// <summary>
+        /// Busca os HH das Tasks filhas usando o campo padrão Microsoft.VSTS.Scheduling.OriginalEstimate.
+        /// </summary>
+        public static Task<double?> FetchChildTaskHoursAsync(
+            TfsConnectionOptions options, int parentTfsId, CancellationToken ct = default)
+            => FetchChildTaskHoursAsync(options, parentTfsId, "Microsoft.VSTS.Scheduling.OriginalEstimate", ct);
+
+        /// <summary>
+        /// Busca as Tasks filhas de um work item no DevOps e retorna a soma dos HH Estimados (campo hoursRef).
+        /// Retorna null se não foi possível obter dados.
+        /// </summary>
+        public static async Task<double?> FetchChildTaskHoursAsync(
+            TfsConnectionOptions options, int parentTfsId, string hoursRef,
+            CancellationToken ct = default)
+        {
+            if (options == null || parentTfsId <= 0 || string.IsNullOrWhiteSpace(hoursRef))
+                return null;
+
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var auth    = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            // 1. Busca o work item pai com as relações para encontrar filhos Task
+            var fieldsToRequest = $"System.Id,System.WorkItemType,{hoursRef}";
+            var parentUrl = $"{orgBase}/_apis/wit/workitems/{parentTfsId}?$expand=relations&{ApiVersion}";
+            using var parentReq = new HttpRequestMessage(HttpMethod.Get, parentUrl);
+            parentReq.Headers.Authorization = auth;
+            parentReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var parentResp = await Http.SendAsync(parentReq, ct);
+            if (!parentResp.IsSuccessStatusCode) return null;
+
+            var parentJson = await parentResp.Content.ReadAsStringAsync(ct);
+            using var parentDoc = JsonDocument.Parse(parentJson);
+
+            // Coleta IDs dos filhos diretos (Hierarchy-Forward = filhos)
+            var childIds = new List<int>();
+            if (parentDoc.RootElement.TryGetProperty("relations", out var rels))
+            {
+                foreach (var rel in rels.EnumerateArray())
+                {
+                    if (!rel.TryGetProperty("rel", out var relType)) continue;
+                    if (!string.Equals(relType.GetString(), "System.LinkTypes.Hierarchy-Forward", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!rel.TryGetProperty("url", out var urlProp)) continue;
+                    var urlStr = urlProp.GetString() ?? "";
+                    if (int.TryParse(urlStr.Split('/').LastOrDefault(), out var cid))
+                        childIds.Add(cid);
+                }
+            }
+            if (childIds.Count == 0) return 0.0;
+
+            // 2. Busca os work items filhos em batch
+            var ids = string.Join(",", childIds);
+            var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,{hoursRef}&{ApiVersion}";
+            using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
+            batchReq.Headers.Authorization = auth;
+            batchReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var batchResp = await Http.SendAsync(batchReq, ct);
+            if (!batchResp.IsSuccessStatusCode) return null;
+
+            var batchJson = await batchResp.Content.ReadAsStringAsync(ct);
+            using var batchDoc = JsonDocument.Parse(batchJson);
+
+            double total = 0;
+            if (batchDoc.RootElement.TryGetProperty("value", out var values))
+            {
+                foreach (var item in values.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("fields", out var fields)) continue;
+                    if (!fields.TryGetProperty("System.WorkItemType", out var wt)) continue;
+                    if (!IsTaskType(wt.GetString())) continue;
+                    if (fields.TryGetProperty(hoursRef, out var hProp))
+                        total += hProp.ValueKind == JsonValueKind.Number ? hProp.GetDouble() : 0;
+                }
+            }
+            return total;
+        }
 
         public static async Task DeleteWorkItemAsync(TfsConnectionOptions options, int workItemId, CancellationToken ct = default)
         {

@@ -281,6 +281,12 @@
                                     <MenuItem x:Name="ToggleGanttOriginalMenuItem"
                                               Click="OnToggleGanttOriginalViewClick"
                                               Visibility="{Binding HasOriginalEstimate, Converter={StaticResource BoolToVis}}"/>
+                                    <Separator Visibility="{Binding HasDevOpsLink, Converter={StaticResource BoolToVis}}"/>
+                                    <MenuItem x:Name="FetchTaskHoursMenuItem"
+                                              Header="🔄 Atualizar duração pelas Tasks (DevOps)"
+                                              Visibility="{Binding HasDevOpsLink, Converter={StaticResource BoolToVis}}"
+                                              Click="OnFetchTaskHoursClick"
+                                              ToolTip="Soma os HH Estimados das Tasks filhas no DevOps e atualiza a duração desta atividade"/>
                                     <Separator/>
                                     <MenuItem x:Name="ToggleOrgHMenuItem"
                                               Click="OnToggleOrgHColumnClick"/>

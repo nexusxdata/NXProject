@@ -102,6 +102,8 @@ namespace NXProject.ViewModels
         // ID exibido na grade: o do DevOps quando vinculado, senão o interno.
         public string DisplayId => _task.TfsId?.ToString() ?? _task.Id.ToString();
 
+        public bool HasDevOpsLink => _task.TfsId.HasValue && _task.TfsId.Value > 0;
+
         public int? TfsId
         {
             get => _task.TfsId;
