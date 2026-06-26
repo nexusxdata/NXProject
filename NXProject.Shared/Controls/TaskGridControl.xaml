@@ -433,6 +433,25 @@
                 </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
+            <!-- Prioridade (Pri) — visível e editável apenas para Tasks -->
+            <DataGridTemplateColumn x:Name="PriorityColumn" Header="Pri" Width="40">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding PriorityDisplay}"
+                                   TextAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="#E07000" FontWeight="SemiBold"
+                                   Visibility="{Binding IsDevOpsTask, Converter={StaticResource BoolToVis}}"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+                <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding PriorityDisplay, UpdateSourceTrigger=PropertyChanged}"
+                                 TextAlignment="Center"
+                                 LostFocus="OnPriorityEditLostFocus"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
+
             <!-- Início -->
             <DataGridTemplateColumn x:Name="StartColumn" Header="{DynamicResource Col_Start}" Width="110" SortMemberPath="Start">
                 <DataGridTemplateColumn.CellTemplate>

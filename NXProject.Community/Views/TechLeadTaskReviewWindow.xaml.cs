@@ -143,10 +143,11 @@ namespace NXProject.Views
                     TfsId          = r.TaskId,
                     TfsType        = "Task",
                     EstimatedHours = r.EstimatedHours > 0 ? r.EstimatedHours : null,
+                    Priority       = r.Priority > 0 ? r.Priority : 5,
+                    TfsState       = r.State,
                     Start          = r.StoryTask.Start,
                     Finish         = r.StoryTask.Finish,
                 };
-                // Recursos serão mapeados manualmente pelo usuário
                 r.StoryTask.Children.Add(pt);
                 r.InSchedule = true;
                 r.IsSelected = false;

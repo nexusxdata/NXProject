@@ -104,6 +104,31 @@ namespace NXProject.ViewModels
 
         public bool HasDevOpsLink => _task.TfsId.HasValue && _task.TfsId.Value > 0;
 
+        public bool IsDevOpsTask =>
+            string.Equals(_task.TfsType?.Trim(), "Task", StringComparison.OrdinalIgnoreCase);
+
+        public int? Priority
+        {
+            get => _task.Priority;
+            set
+            {
+                if (_task.Priority == value) return;
+                _task.Priority = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string PriorityDisplay
+        {
+            get => IsDevOpsTask ? (_task.Priority?.ToString() ?? "5") : "";
+            set
+            {
+                if (!IsDevOpsTask) return;
+                if (int.TryParse(value, out var v) && v >= 1 && v <= 10)
+                    Priority = v;
+            }
+        }
+
         public int? TfsId
         {
             get => _task.TfsId;
@@ -925,7 +950,8 @@ namespace NXProject.ViewModels
                 if (string.IsNullOrEmpty(t)) return true;
                 return string.Equals(t, "Feature", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(t, "Story", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(t, "User Story", StringComparison.OrdinalIgnoreCase);
+                    || string.Equals(t, "User Story", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(t, "Task", StringComparison.OrdinalIgnoreCase);
             }
         }
 

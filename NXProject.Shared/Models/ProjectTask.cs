@@ -77,6 +77,10 @@ namespace NXProject.Models
         // false → limpa Data_Inicio no TFS (se tarefa não estiver Closed).
         public bool StartFixed { get; set; } = false;
 
+        // Prioridade da Task no DevOps (Microsoft.VSTS.Common.Priority). Usado para
+        // ordenar Tasks dentro da Story e calcular datas sequenciais.
+        public int? Priority { get; set; }
+
         // Fim calculado com base em HH + % alocação, ignorando a data fixada.
         // Preenchido apenas quando StartFixed = true e o fim calculado difere do Finish.
         // Usado pelo Gantt para colorir a barra de vermelho e exibir hint.

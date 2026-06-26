@@ -591,6 +591,8 @@ namespace NXProject.Views
                         TfsId          = t.TfsId,
                         TfsType        = "Task",
                         EstimatedHours = t.EstimatedHours > 0 ? t.EstimatedHours : null,
+                        Priority       = t.Priority > 0 ? t.Priority : 5,
+                        TfsState       = t.State,
                         Start          = storyVm.Model.Start,
                         Finish         = storyVm.Model.Finish,
                     };

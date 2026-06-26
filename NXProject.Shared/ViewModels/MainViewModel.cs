@@ -160,6 +160,7 @@ namespace NXProject.ViewModels
         {
             NormalizeNoDevOpsType(Project.Tasks);
             SyncOriginalHoursWhenZeroPercent(Project.Tasks);
+            RecalcTaskDatesFromPriority(Project.Tasks);
             foreach (var root in Project.Tasks)
                 root.RecalcSummary();
             var selectedModel = SelectedTask?.Model;
@@ -2138,6 +2139,40 @@ namespace NXProject.ViewModels
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Para cada Story/Feature/Epic, ordena as Tasks filhas por Prioridade (menor = maior prioridade)
+        /// e calcula datas sequenciais: Task[n+1] começa quando Task[n] termina.
+        /// A data de início da primeira Task herda a data de início da Story.
+        /// </summary>
+        private static void RecalcTaskDatesFromPriority(
+            System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks)
+        {
+            foreach (var t in tasks)
+            {
+                var taskChildren = t.Children
+                    .Where(c => string.Equals(c.TfsType?.Trim(), "Task", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(c => c.Priority ?? 5)
+                    .ThenBy(c => c.Id)
+                    .ToList();
+
+                if (taskChildren.Count > 0)
+                {
+                    var cursor = t.Start;
+                    foreach (var tc in taskChildren)
+                    {
+                        tc.Start = cursor;
+                        var hours = (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0);
+                        if (hours < 0.001) hours = Services.ProjectCalendarService.WorkingHoursPerDay;
+                        tc.Finish = Services.ProjectCalendarService.AddWorkingHours(cursor, hours);
+                        cursor = tc.Finish;
+                    }
+                }
+
+                // Recursivo para sub-hierarquias
+                RecalcTaskDatesFromPriority(t.Children);
+            }
         }
 
         private static bool IsNoDevOpsType(string? type) =>

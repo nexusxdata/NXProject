@@ -409,6 +409,7 @@ namespace NXProject.Services
             if (percAlocRef != null) requested.Add(percAlocRef);
             if (syncVersionRef != null) requested.Add(syncVersionRef);
             if (syncNameRef != null) requested.Add(syncNameRef);
+            requested.Add("Microsoft.VSTS.Common.Priority"); // Priority para Tasks
 
             var current = existingIds.Count > 0
                 ? await LoadWorkItemsAsync(orgBase, auth, existingIds, requested, cancellationToken, expandRelations: true)
@@ -726,13 +727,18 @@ namespace NXProject.Services
                             }
                         }
 
-                        // Priority (Microsoft.VSTS.Common.Priority) — padrão 5 quando vazio.
+                        // Priority (Microsoft.VSTS.Common.Priority).
+                        // Sincroniza do NXProject → TFS se definida; senão usa padrão 5.
                         var currentPriority = ReadDouble(wi, "Microsoft.VSTS.Common.Priority");
-                        if (currentPriority == null || currentPriority.Value <= 0)
+                        int desiredPriority = task.Priority is > 0 ? task.Priority.Value : 5;
+                        if (currentPriority == null || (int)currentPriority.Value != desiredPriority)
                         {
-                            ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", 5));
-                            changes.Add("Priority: 5 (padrão)");
+                            ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", desiredPriority));
+                            changes.Add($"Priority: {desiredPriority}");
                         }
+                        // Atualiza o modelo local com a prioridade do TFS (se local ainda não definida)
+                        if (!task.Priority.HasValue && currentPriority.HasValue && currentPriority.Value > 0)
+                            task.Priority = (int)currentPriority.Value;
                     }
 
                     // Ajuste automático de estado baseado no % de conclusão (Story, Feature e Epic).

@@ -892,7 +892,8 @@ namespace NXProject.Controls
                 return !task.IsDurationReadOnly;
 
             if (column == StartColumn || column == FinishColumn)
-                return task.Model.Children.Count == 0;
+                // Tasks têm datas calculadas por prioridade — não são editáveis manualmente
+                return task.Model.Children.Count == 0 && !task.IsDevOpsTask;
 
             if (column == PercentColumn)
                 return task.CanEditPercentComplete;
@@ -1369,6 +1370,19 @@ namespace NXProject.Controls
             var vm = GetTaskViewModelFromContextSender(sender);
             if (vm != null)
                 SuppressChildTasksRequested?.Invoke(vm);
+        }
+
+        private void OnPriorityEditLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.TextBox tb) return;
+            if (tb.DataContext is not TaskViewModel vm || !vm.IsDevOpsTask) return;
+            vm.PriorityDisplay = tb.Text;
+            // Marca projeto como dirty e dispara recálculo de datas
+            if (DataContext is ViewModels.MainViewModel mainVm)
+            {
+                mainVm.Project.IsDirty = true;
+                mainVm.RebuildFlatTasks();
+            }
         }
 
         private void CommitStartEdit(TextBox tb)
