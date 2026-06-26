@@ -2178,8 +2178,6 @@ namespace NXProject.ViewModels
                 if (taskChildren.Count > 0)
                 {
                     // Reordena fisicamente as Tasks dentro de Children por prioridade
-                    // mantendo itens não-Task nas posições originais.
-                    // Abordagem: localiza os índices onde há Tasks e substitui na ordem de prioridade.
                     var taskIndices = new List<int>();
                     for (int i = 0; i < t.Children.Count; i++)
                     {
@@ -2194,13 +2192,32 @@ namespace NXProject.ViewModels
                             t.Children.Move(t.Children.IndexOf(desiredItem), taskIndices[k]);
                     }
 
+                    // Distribui horas da story para Tasks sem estimativa
+                    var storyHours = Services.ProjectCalendarService.CountWorkingHours(t.Start, t.Finish);
+                    var tasksWithHours    = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) > 0).ToList();
+                    var tasksWithoutHours = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) <= 0).ToList();
+                    if (tasksWithoutHours.Count > 0)
+                    {
+                        double usedHours      = tasksWithHours.Sum(tc => (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0));
+                        double remaining      = Math.Max(0, storyHours - usedHours);
+                        double perTask        = remaining > 0
+                            ? remaining / tasksWithoutHours.Count
+                            : (storyHours > 0 ? storyHours / taskChildren.Count : Services.ProjectCalendarService.WorkingHoursPerDay);
+                        foreach (var tc in tasksWithoutHours)
+                            tc.EstimatedHours = perTask;
+                    }
+
+                    // Se a soma das Tasks superar a duração da story, expande a story
+                    double totalTaskHours = taskChildren.Sum(tc => (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0));
+                    if (totalTaskHours > storyHours + 0.01)
+                        t.Finish = Services.ProjectCalendarService.AddWorkingHours(t.Start, totalTaskHours);
+
                     // Calcula datas sequenciais por ordem de prioridade
                     var cursor = t.Start;
                     foreach (var tc in taskChildren)
                     {
                         tc.Start = cursor;
                         var hours = (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0);
-                        if (hours < 0.001) hours = Services.ProjectCalendarService.WorkingHoursPerDay;
                         tc.Finish = Services.ProjectCalendarService.AddWorkingHours(cursor, hours);
                         cursor = tc.Finish;
                     }

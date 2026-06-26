@@ -592,10 +592,29 @@ namespace NXProject.Views
                     return;
                 }
 
-                var msg = $"Encontradas {tasks.Count} Tasks no DevOps.\n{newTasks.Count} serão adicionadas ao cronograma.\n\nDeseja incluir?";
-                if (MessageBox.Show(msg, "Buscar Tasks", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                // Pergunta o que fazer: incluir no cronograma ou liberar (suprimir)
+                var fetchDlg = new FetchTasksConfirmDialog(tasks.Count, newTasks.Count) { Owner = this };
+                fetchDlg.ShowDialog();
+                if (fetchDlg.Result == FetchTasksAction.Cancel)
                     return;
+                bool releaseOnly = fetchDlg.Result == FetchTasksAction.Release;
 
+                if (releaseOnly)
+                {
+                    // Liberar = suprimir Tasks do cronograma sem adicionar novas
+                    var existing = storyVm.Model.Children
+                        .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    foreach (var c in existing) storyVm.Model.Children.Remove(c);
+                    storyVm.Model.TasksSuppressed = true;
+                    vm.Project.IsDirty = true;
+                    vm.RebuildFlatTasks();
+                    GanttCtrl.ForceRender();
+                    return;
+                }
+
+                // Mapeia AssignedTo para recurso do projeto
+                var projectResources = vm.Project.Resources;
                 foreach (var t in newTasks)
                 {
                     var pt = new NXProject.Models.ProjectTask
@@ -613,6 +632,15 @@ namespace NXProject.Views
                         Start            = storyVm.Model.Start,
                         Finish           = storyVm.Model.Finish,
                     };
+                    // Vincula recurso pelo e-mail ou nome do AssignedTo
+                    if (!string.IsNullOrWhiteSpace(t.AssignedTo))
+                    {
+                        var res = projectResources.FirstOrDefault(r =>
+                            string.Equals(r.Email, t.AssignedTo, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(r.Name,  t.AssignedTo, StringComparison.OrdinalIgnoreCase));
+                        if (res != null)
+                            pt.Resources.Add(new NXProject.Models.TaskResource { ResourceId = res.Id, Resource = res, AllocationPercent = 100 });
+                    }
                     storyVm.Model.Children.Add(pt);
                 }
 
