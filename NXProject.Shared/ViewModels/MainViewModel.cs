@@ -140,6 +140,12 @@ namespace NXProject.ViewModels
         /// <summary>Chamado antes de reconstruir a grade ao inserir uma tarefa.</summary>
         public Action? PrepareTaskInsertionScroll { get; set; }
 
+        /// <summary>
+        /// Chamado ao adicionar subtarefa de uma Story para perguntar ao usuário se será Task (DevOps) ou interno.
+        /// Retorna true = Task (DevOps), false = No DevOps (interno). Null = cancelado.
+        /// </summary>
+        public Func<bool?>? AskSubtaskIsDevOpsTask { get; set; }
+
         public MainViewModel(string sprintSettingsStorageKey = "NXProject.Community")
         {
             _sprintSettingsStorageKey = string.IsNullOrWhiteSpace(sprintSettingsStorageKey)
@@ -1583,13 +1589,27 @@ namespace NXProject.ViewModels
             var previousSibling = parent.Children.LastOrDefault();
 
             // Deriva o tipo da sub-atividade com base no tipo do pai:
-            // Epic → Feature, Feature → Story, qualquer outro → No DevOps
-            var childType = parent.TfsType?.Trim() switch
+            // Epic → Feature, Feature → Story, Story → pergunta (Task DevOps ou interno), outro → No DevOps
+            string childType;
+            var parentType = parent.TfsType?.Trim();
+            if (parentType == "Epic")
             {
-                "Epic"    => "Feature",
-                "Feature" => "Story",
-                _         => "No DevOps"
-            };
+                childType = "Feature";
+            }
+            else if (parentType == "Feature")
+            {
+                childType = "Story";
+            }
+            else if (IsStoryLikeType(parentType) && AskSubtaskIsDevOpsTask != null)
+            {
+                var isDevOpsTask = AskSubtaskIsDevOpsTask.Invoke();
+                if (isDevOpsTask == null) return; // usuário cancelou
+                childType = isDevOpsTask.Value ? "Task" : "No DevOps";
+            }
+            else
+            {
+                childType = "No DevOps";
+            }
             var isDevOps = !IsNoDevOpsType(childType);
             var task = new ProjectTask
             {
@@ -2122,6 +2142,11 @@ namespace NXProject.ViewModels
 
         private static bool IsNoDevOpsType(string? type) =>
             string.Equals(type?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsStoryLikeType(string? type) =>
+            string.Equals(type?.Trim(), "User Story",  StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type?.Trim(), "Story",       StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type?.Trim(), "STO",         StringComparison.OrdinalIgnoreCase);
 
         private void RecalcIdCounters()
         {

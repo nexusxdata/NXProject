@@ -418,20 +418,29 @@ namespace NXProject.Services
             {
                 try
                 {
-                    // Pai desejado = pai na hierarquia do NXProject; raiz = work item do projeto.
-                    int desiredParent = task.Parent?.TfsId ?? options.RootWorkItemId;
-
                     // Tarefas marcadas como "No DevOps" ou com TfsId negativo nunca são enviadas ao TFS.
                     if (string.Equals(task.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase)
                         || task.TfsId < 0)
                         continue;
+
+                    // Pai desejado = pai na hierarquia do NXProject (usa TfsId atualizado, inclusive
+                    // se o pai acabou de ser criado nesta mesma execução de SyncAsync).
+                    // TfsId == 0 ou null significa "item ainda não vinculado ao DevOps".
+                    // Sobe a árvore até encontrar um ancestral com TfsId > 0 ou usa a raiz.
+                    var parentTask = task.Parent;
+                    int desiredParent = ResolveDesiredParent(task, options.RootWorkItemId);
 
                     if (!task.TfsId.HasValue || task.TfsId.Value == 0)
                     {
                         // CRIAR no DevOps.
                         if (desiredParent <= 0)
                         {
-                            report.LogWarning($"\"{task.Name}\": pai sem vínculo DevOps; vincule/crie o pai primeiro.");
+                            // Se o pai tem TfsType != "No DevOps" e está no cronograma, é provável
+                            // que o pai precise ser criado primeiro e está fora da ordem de coleção.
+                            if (parentTask != null && !string.Equals(parentTask.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
+                                report.LogWarning($"\"{task.Name}\": o pai \"{parentTask.Name}\" ainda não tem vínculo DevOps. Sincronize novamente após vincular/criar o pai.");
+                            else
+                                report.LogWarning($"\"{task.Name}\": pai sem vínculo DevOps; vincule/crie o pai primeiro.");
                             continue;
                         }
 
@@ -909,6 +918,22 @@ namespace NXProject.Services
 
         // Inclui tarefas vinculadas (TfsId definido, inclusive 0 = criar) e tarefas sem
         // vínculo ainda (TfsId null) cujo pai já tem TfsId — serão criadas automaticamente.
+        /// <summary>
+        /// Resolve o pai DevOps de uma task subindo a árvore até encontrar um ancestral com TfsId > 0.
+        /// Se nenhum ancestral tiver TfsId, usa rootWorkItemId como pai.
+        /// </summary>
+        private static int ResolveDesiredParent(ProjectTask task, int rootWorkItemId)
+        {
+            var p = task.Parent;
+            while (p != null)
+            {
+                if (p.TfsId is > 0) return p.TfsId.Value;
+                // Pai com TfsId=0 pode ter acabado de ser criado neste loop — valor já atualizado
+                p = p.Parent;
+            }
+            return rootWorkItemId;
+        }
+
         private static void CollectLinkedTasks(
             System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks,
             List<ProjectTask> acc,
@@ -916,11 +941,27 @@ namespace NXProject.Services
         {
             foreach (var t in tasks)
             {
-                var include = t.TfsId.HasValue || parentIsLinked;
+                // Inclui se: tem TfsId (mesmo = 0 = "a criar"), ou se o pai tem vínculo,
+                // ou se algum descendente tem TfsId (para garantir que o pai seja criado primeiro).
+                bool isNoDevOps = string.Equals(t.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase)
+                                  || t.TfsId < 0;
+                bool hasLinkedDescendant = !isNoDevOps && HasLinkedDescendant(t.Children);
+                var include = (!isNoDevOps && t.TfsId.HasValue) || parentIsLinked || hasLinkedDescendant;
                 if (include)
                     acc.Add(t);
-                CollectLinkedTasks(t.Children, acc, include || (t.TfsId.HasValue && t.TfsId.Value > 0));
+                CollectLinkedTasks(t.Children, acc, include || (t.TfsId is > 0));
             }
+        }
+
+        private static bool HasLinkedDescendant(System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks)
+        {
+            foreach (var t in tasks)
+            {
+                if (t.TfsId.HasValue && !string.Equals(t.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
+                    return true;
+                if (HasLinkedDescendant(t.Children)) return true;
+            }
+            return false;
         }
 
         private static List<int> ApplyTfsPredecessors(

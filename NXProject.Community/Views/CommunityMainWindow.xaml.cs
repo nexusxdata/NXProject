@@ -103,6 +103,16 @@ namespace NXProject.Views
             TaskGridCtrl.FetchChildTasksRequested += OnFetchChildTasksFromDevOps;
             TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
+            vm.AskSubtaskIsDevOpsTask = () =>
+            {
+                var dlg = MessageBox.Show(
+                    "Esta subtarefa será uma Task no DevOps (vinculada e sincronizável)\nou uma atividade interna (apenas no NXProject)?\n\n" +
+                    "Sim = Task (DevOps)\nNão = Interna (No DevOps)\nCancelar = Cancelar",
+                    "Tipo de Subtarefa",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+                return dlg == MessageBoxResult.Yes ? true : dlg == MessageBoxResult.No ? false : (bool?)null;
+            };
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
