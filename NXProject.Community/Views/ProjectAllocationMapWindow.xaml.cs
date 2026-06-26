@@ -1183,12 +1183,197 @@ namespace NXProject.Views
             _scrolling = false;
         }
 
+        // ── Aba Rateio ────────────────────────────────────────────────────────────
+        private void BuildRateioTab()
+        {
+            RateioHeaderPanel.Items.Clear();
+            RateioLeftPanel.Items.Clear();
+            RateioDataPanel.Items.Clear();
+
+            if (_projects.Count == 0) return;
+
+            var (periodStart, periodEnd) = GetPeriod();
+            var months = BuildMonths(periodStart, periodEnd);
+
+            // Coleta todos os recursos
+            var allRes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var proj in _projects)
+                foreach (var task in GetLeafTasks(proj.Data.Tasks))
+                    foreach (var tr in task.Resources)
+                        if (!string.IsNullOrWhiteSpace(tr.Resource?.Name))
+                            allRes.Add(tr.Resource!.Name);
+
+            // Para cada recurso × projeto × mês, calcula horas
+            // [res][projIdx][mi] = horas
+            var data = new Dictionary<string, double[][]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var res in allRes)
+            {
+                var matrix = new double[_projects.Count][];
+                for (int pi = 0; pi < _projects.Count; pi++)
+                {
+                    matrix[pi] = new double[months.Count];
+                    for (int mi = 0; mi < months.Count; mi++)
+                    {
+                        var mStart = months[mi];
+                        var mEnd   = new DateTime(mStart.Year, mStart.Month, DateTime.DaysInMonth(mStart.Year, mStart.Month));
+                        matrix[pi][mi] = ComputeHours(_projects[pi].Data, res, mStart, mEnd);
+                    }
+                }
+                data[res] = matrix;
+            }
+
+            // Filtra meses com alguma hora
+            var visMi = Enumerable.Range(0, months.Count)
+                .Where(mi => allRes.Any(r => data[r].Any(row => row[mi] > 0.01)))
+                .ToList();
+            if (visMi.Count == 0) { StatusText.Text = "Sem dados no período."; return; }
+
+            // Larguras
+            const double ResColW  = 160;
+            const double ProjColW = 200;
+            const double MonW     = 110;
+            const double RowH     = 22;
+            const double TotalW   = 90;
+
+            var headerBg = new SolidColorBrush(Color.FromRgb(43, 87, 154));
+            var resBg    = new SolidColorBrush(Color.FromRgb(220, 230, 248));
+            var projBg   = new SolidColorBrush(Color.FromRgb(245, 248, 255));
+            var totalBg  = new SolidColorBrush(Color.FromRgb(200, 215, 245));
+            var white    = System.Windows.Media.Brushes.White;
+
+            // Cabeçalho: [Recurso] [Projeto] [mês1] [mês2] ... [Total]
+            var headerRow = new StackPanel { Orientation = Orientation.Horizontal };
+            headerRow.Children.Add(RateioMakeCell("Recurso",  ResColW,  RowH + 2, Colors.White, Color.FromRgb(43, 87, 154), bold: true));
+            headerRow.Children.Add(RateioMakeCell("Projeto",  ProjColW, RowH + 2, Colors.White, Color.FromRgb(43, 87, 154), bold: true));
+            foreach (var mi in visMi)
+                headerRow.Children.Add(RateioMakeCell(months[mi].ToString("MMM/yy"), MonW, RowH + 2, Colors.White, Color.FromRgb(43, 87, 154), bold: true));
+            headerRow.Children.Add(RateioMakeCell("Total",    TotalW,   RowH + 2, Colors.White, Color.FromRgb(25, 60, 120), bold: true));
+            RateioHeaderPanel.Items.Add(headerRow);
+
+            // Horas úteis por mês (capacidade full = 8h × dias úteis)
+            var monthCapacity = visMi.Select(mi =>
+            {
+                var ms = months[mi];
+                var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                return NXProject.Services.ProjectCalendarService.CountWorkingHours(ms, me);
+            }).ToList();
+
+            foreach (var res in allRes)
+            {
+                var matrix = data[res];
+
+                // Total de horas do recurso por mês (todos os projetos)
+                var resTotal = visMi.Select((mi, idx) => matrix.Sum(row => row[mi])).ToArray();
+                if (resTotal.All(h => h < 0.01)) continue;
+
+                bool firstProj = true;
+                for (int pi = 0; pi < _projects.Count; pi++)
+                {
+                    var projHours = matrix[pi];
+                    double projTotal = visMi.Sum(mi => projHours[mi]);
+                    if (projTotal < 0.01) continue;
+
+                    var leftRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+                    // Célula Recurso: só na primeira linha do recurso
+                    string resLabel = firstProj ? res : "";
+                    var resCellBg   = firstProj ? Color.FromRgb(220, 230, 248) : Color.FromRgb(235, 240, 252);
+                    leftRow.Children.Add(RateioMakeCell(resLabel,              ResColW, RowH, Colors.Black, resCellBg, bold: firstProj));
+                    leftRow.Children.Add(RateioMakeCell(_projects[pi].Name,   ProjColW, RowH, Color.FromRgb(40, 40, 80), Color.FromRgb(245, 248, 255), bold: false));
+                    RateioLeftPanel.Items.Add(leftRow);
+
+                    var dataRow = new StackPanel { Orientation = Orientation.Horizontal };
+                    for (int idx = 0; idx < visMi.Count; idx++)
+                    {
+                        int mi = visMi[idx];
+                        double h    = projHours[mi];
+                        double tot  = resTotal[idx];
+                        double cap  = monthCapacity[idx];
+                        string text = BuildRateioCell(h, tot, cap);
+                        bool over   = cap > 0 && tot > cap * 1.0001;
+                        var fg = h < 0.01
+                            ? Color.FromRgb(200, 200, 200)
+                            : over ? Color.FromRgb(180, 30, 30) : Color.FromRgb(30, 80, 160);
+                        var bg = h < 0.01 ? Color.FromRgb(248, 250, 255) : Color.FromRgb(240, 246, 255);
+                        dataRow.Children.Add(RateioMakeCell(text, MonW, RowH, fg, bg, bold: false));
+                    }
+                    // Total do projeto (soma dos meses)
+                    double grandCap = monthCapacity.Sum();
+                    string totText = BuildRateioCell(projTotal, resTotal.Sum(), grandCap);
+                    dataRow.Children.Add(RateioMakeCell(totText, TotalW, RowH, Color.FromRgb(20, 50, 120), Color.FromRgb(220, 232, 252), bold: true));
+                    RateioDataPanel.Items.Add(dataRow);
+
+                    firstProj = false;
+                }
+
+                // Linha total do recurso
+                var leftTotalRow = new StackPanel { Orientation = Orientation.Horizontal };
+                leftTotalRow.Children.Add(RateioMakeCell("", ResColW, RowH, Colors.Black, Color.FromRgb(200, 215, 245), bold: false));
+                leftTotalRow.Children.Add(RateioMakeCell("TOTAL " + res, ProjColW, RowH, Color.FromRgb(20, 50, 120), Color.FromRgb(200, 215, 245), bold: true));
+                RateioLeftPanel.Items.Add(leftTotalRow);
+
+                var totRow = new StackPanel { Orientation = Orientation.Horizontal };
+                for (int idx = 0; idx < visMi.Count; idx++)
+                {
+                    int mi = visMi[idx];
+                    double tot = resTotal[idx];
+                    double cap = monthCapacity[idx];
+                    bool over  = cap > 0 && tot > cap * 1.0001;
+                    int pct    = cap > 0 ? (int)Math.Round(tot / cap * 100) : 0;
+                    string text = tot < 0.01 ? "–" : $"{tot:0.#}h ({pct}%)";
+                    var fg = tot < 0.01 ? Color.FromRgb(180, 190, 210) : over ? Color.FromRgb(160, 20, 20) : Color.FromRgb(20, 50, 120);
+                    totRow.Children.Add(RateioMakeCell(text, MonW, RowH, fg, Color.FromRgb(200, 215, 245), bold: true));
+                }
+                double resTotalAll = resTotal.Sum();
+                double grandCapAll = monthCapacity.Sum();
+                int    resPct      = grandCapAll > 0 ? (int)Math.Round(resTotalAll / grandCapAll * 100) : 0;
+                string totAllText  = resTotalAll < 0.01 ? "–" : $"{resTotalAll:0.#}h ({resPct}%)";
+                totRow.Children.Add(RateioMakeCell(totAllText, TotalW, RowH, Color.FromRgb(20, 50, 120), Color.FromRgb(185, 205, 240), bold: true));
+                RateioDataPanel.Items.Add(totRow);
+
+                // Separador
+                RateioLeftPanel.Items.Add(new Border { Height = 3, Background = new SolidColorBrush(Color.FromRgb(43, 87, 154)) });
+                RateioDataPanel.Items.Add(new Border { Height = 3, Background = new SolidColorBrush(Color.FromRgb(43, 87, 154)) });
+            }
+        }
+
+        private static string BuildRateioCell(double h, double resTotalInMonth, double capacityInMonth)
+        {
+            if (h < 0.01) return "–";
+            // % em relação ao total do recurso no mês
+            int pctRes = resTotalInMonth > 0.01 ? (int)Math.Round(h / resTotalInMonth * 100) : 0;
+            return $"{h:0.#}h ({pctRes}%)";
+        }
+
+        private static Border RateioMakeCell(string text, double width, double height,
+            Color fg, Color bg, bool bold)
+            => new Border
+            {
+                Width = width, Height = height,
+                Background = new SolidColorBrush(bg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(200, 215, 240)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Padding = new Thickness(4, 0, 4, 0),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 11,
+                    FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
+                    Foreground = new SolidColorBrush(fg),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    ToolTip = text.Length > 0 && text != "–" ? text : null
+                }
+            };
+
         private void OnTabChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             if (MainTabControl.SelectedIndex == 1)
                 BuildDistributionGrid();
             else if (MainTabControl.SelectedIndex == 2)
                 BuildStoriesGrid();
+            else if (MainTabControl.SelectedIndex == 3)
+                BuildRateioTab();
         }
 
         private void OnSrScrollChanged(object sender, ScrollChangedEventArgs e)
