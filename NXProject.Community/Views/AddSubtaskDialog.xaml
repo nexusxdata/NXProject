@@ -5,93 +5,54 @@
         Width="420" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        ShowInTaskbar="False"
-        Background="{DynamicResource WindowBackground}">
-
-    <Window.Resources>
-        <Style x:Key="OptionButton" TargetType="Button">
-            <Setter Property="Height" Value="48"/>
-            <Setter Property="Margin" Value="0,4"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Background" Value="{DynamicResource ButtonBackground}"/>
-            <Setter Property="Foreground" Value="{DynamicResource ForegroundColor}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
-                            <ContentPresenter VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource ButtonHoverBackground}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource ButtonPressedBackground}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
+        ShowInTaskbar="False">
 
     <StackPanel Margin="20">
         <TextBlock x:Name="SubtitleText"
-                   FontSize="12" Opacity="0.7"
-                   Margin="0,0,0,12"
+                   FontSize="12" Foreground="#666"
+                   Margin="0,0,0,14"
                    TextWrapping="Wrap"/>
 
-        <Button x:Name="BtnFetch"
-                Style="{StaticResource OptionButton}"
-                Click="OnFetchClick">
+        <Button x:Name="BtnFetch" Height="52" Margin="0,0,0,6"
+                HorizontalContentAlignment="Left" Padding="12,0"
+                Cursor="Hand" Click="OnFetchClick">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="📥" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <StackPanel>
-                    <TextBlock Text="Buscar Tasks do DevOps" FontWeight="SemiBold"/>
-                    <TextBlock Text="Baixa as Tasks existentes desta Story" FontSize="11" Opacity="0.7"/>
+                <TextBlock Text="📥" FontSize="18" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Buscar Tasks do DevOps" FontWeight="SemiBold" FontSize="13"/>
+                    <TextBlock Text="Baixa as Tasks existentes desta Story no DevOps" FontSize="11" Foreground="#666"/>
                 </StackPanel>
             </StackPanel>
         </Button>
 
-        <Button x:Name="BtnTask"
-                Style="{StaticResource OptionButton}"
-                Click="OnCreateTaskClick">
+        <Button x:Name="BtnTask" Height="52" Margin="0,0,0,6"
+                HorizontalContentAlignment="Left" Padding="12,0"
+                Cursor="Hand" Click="OnCreateTaskClick">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="➕" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <StackPanel>
-                    <TextBlock Text="Criar Task (DevOps)" FontWeight="SemiBold"/>
-                    <TextBlock Text="Nova tarefa vinculada e sincronizável com o DevOps" FontSize="11" Opacity="0.7"/>
+                <TextBlock Text="➕" FontSize="18" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Criar Task (DevOps)" FontWeight="SemiBold" FontSize="13"/>
+                    <TextBlock Text="Nova tarefa vinculada e sincronizável com o DevOps" FontSize="11" Foreground="#666"/>
                 </StackPanel>
             </StackPanel>
         </Button>
 
-        <Button x:Name="BtnInternal"
-                Style="{StaticResource OptionButton}"
-                Click="OnCreateInternalClick">
+        <Button x:Name="BtnInternal" Height="52" Margin="0,0,0,6"
+                HorizontalContentAlignment="Left" Padding="12,0"
+                Cursor="Hand" Click="OnCreateInternalClick">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="📌" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <StackPanel>
-                    <TextBlock Text="Criar Atividade Interna" FontWeight="SemiBold"/>
-                    <TextBlock Text="Apenas no NXProject, sem vínculo com DevOps" FontSize="11" Opacity="0.7"/>
+                <TextBlock Text="📌" FontSize="18" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Criar Atividade Interna" FontWeight="SemiBold" FontSize="13"/>
+                    <TextBlock Text="Apenas no NXProject, sem vínculo com DevOps" FontSize="11" Foreground="#666"/>
                 </StackPanel>
             </StackPanel>
         </Button>
 
-        <Separator Margin="0,12,0,8" Background="{DynamicResource BorderBrush}"/>
+        <Separator Margin="0,10,0,10"/>
 
-        <Button Content="Cancelar"
-                Height="32" FontSize="12"
-                HorizontalAlignment="Right" Width="90"
-                Click="OnCancelClick"
-                Style="{StaticResource OptionButton}"/>
+        <Button Content="Cancelar" Height="32" Width="90"
+                HorizontalAlignment="Right"
+                Click="OnCancelClick"/>
     </StackPanel>
 </Window>
