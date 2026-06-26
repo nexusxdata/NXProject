@@ -2040,6 +2040,88 @@ namespace NXProject.Services
             public List<string> TasksWithoutHours { get; init; } = [];
         }
 
+        public sealed class DevOpsTaskInfo
+        {
+            public int TfsId { get; init; }
+            public string Title { get; init; } = "";
+            public double EstimatedHours { get; init; }
+            public string? AssignedTo { get; init; }
+            public int Priority { get; init; } = 5;
+            public string? State { get; init; }
+        }
+
+        /// <summary>
+        /// Busca todas as Tasks filhas de um work item pai no DevOps.
+        /// </summary>
+        public static async Task<List<DevOpsTaskInfo>?> FetchChildTasksFromDevOpsAsync(
+            TfsConnectionOptions options, int parentTfsId, CancellationToken ct = default)
+        {
+            if (options == null || parentTfsId <= 0) return null;
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var auth    = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            // 1. Busca o pai com relações
+            var parentUrl = $"{orgBase}/_apis/wit/workitems/{parentTfsId}?$expand=relations&{ApiVersion}";
+            using var parentReq = new HttpRequestMessage(HttpMethod.Get, parentUrl);
+            parentReq.Headers.Authorization = auth;
+            parentReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            using var parentResp = await Http.SendAsync(parentReq, ct);
+            if (!parentResp.IsSuccessStatusCode) return null;
+
+            var parentJson = await parentResp.Content.ReadAsStringAsync(ct);
+            using var parentDoc = JsonDocument.Parse(parentJson);
+            var childIds = new List<int>();
+            if (parentDoc.RootElement.TryGetProperty("relations", out var rels))
+            {
+                foreach (var rel in rels.EnumerateArray())
+                {
+                    if (!rel.TryGetProperty("rel", out var relType)) continue;
+                    if (!string.Equals(relType.GetString(), "System.LinkTypes.Hierarchy-Forward", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!rel.TryGetProperty("url", out var urlProp)) continue;
+                    if (int.TryParse((urlProp.GetString() ?? "").Split('/').LastOrDefault(), out var cid))
+                        childIds.Add(cid);
+                }
+            }
+            if (childIds.Count == 0) return [];
+
+            // 2. Busca os filhos em batch com os campos necessários
+            const string OrigEstRef = "Microsoft.VSTS.Scheduling.OriginalEstimate";
+            var ids = string.Join(",", childIds);
+            var fields = $"System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo,{OrigEstRef},Microsoft.VSTS.Common.Priority";
+            var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields={fields}&{ApiVersion}";
+            using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
+            batchReq.Headers.Authorization = auth;
+            batchReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            using var batchResp = await Http.SendAsync(batchReq, ct);
+            if (!batchResp.IsSuccessStatusCode) return null;
+
+            var batchJson = await batchResp.Content.ReadAsStringAsync(ct);
+            using var batchDoc = JsonDocument.Parse(batchJson);
+
+            var result = new List<DevOpsTaskInfo>();
+            if (batchDoc.RootElement.TryGetProperty("value", out var values))
+            {
+                foreach (var item in values.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("fields", out var f)) continue;
+                    if (!f.TryGetProperty("System.WorkItemType", out var wt) || !IsTaskType(wt.GetString())) continue;
+
+                    var tid   = f.TryGetProperty("System.Id",    out var ip) ? ip.GetInt32() : 0;
+                    var title = f.TryGetProperty("System.Title", out var tp) ? tp.GetString() ?? "" : "";
+                    var state = f.TryGetProperty("System.State", out var sp) ? sp.GetString() : null;
+                    var hours = f.TryGetProperty(OrigEstRef,      out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetDouble() : 0;
+                    var prio  = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pp) && pp.ValueKind == JsonValueKind.Number ? pp.GetInt32() : 5;
+                    string? assignee = null;
+                    if (f.TryGetProperty("System.AssignedTo", out var at))
+                        assignee = at.ValueKind == JsonValueKind.Object && at.TryGetProperty("uniqueName", out var un) ? un.GetString() : at.GetString();
+
+                    result.Add(new DevOpsTaskInfo { TfsId = tid, Title = title, EstimatedHours = hours, AssignedTo = assignee, Priority = prio, State = state });
+                }
+            }
+            return result;
+        }
+
         public static Task<ChildTaskHoursResult?> FetchChildTaskHoursAsync(
             TfsConnectionOptions options, int parentTfsId, CancellationToken ct = default)
             => FetchChildTaskHoursAsync(options, parentTfsId, "Microsoft.VSTS.Scheduling.OriginalEstimate", ct);

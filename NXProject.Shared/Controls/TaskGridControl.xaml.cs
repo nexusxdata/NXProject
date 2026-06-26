@@ -184,6 +184,12 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário clica em "Atualizar duração pelas Tasks" no menu da coluna Duração.</summary>
         public event Action<TaskViewModel>? FetchTaskHoursRequested;
 
+        /// <summary>Disparado quando o usuário clica em "Buscar Tasks (DevOps)" no menu do nome da tarefa.</summary>
+        public event Action<TaskViewModel>? FetchChildTasksRequested;
+
+        /// <summary>Disparado quando o usuário clica em "Suprimir Tasks do cronograma".</summary>
+        public event Action<TaskViewModel>? SuppressChildTasksRequested;
+
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
         private bool _suppressScrollNotification;
@@ -1286,11 +1292,28 @@ namespace NXProject.Controls
             if (blockItem != null)
                 blockItem.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
 
+            bool hasDevOps = vm.Model.TfsId is > 0;
+            bool isStoryLike = !vm.Model.IsSummary && !vm.Model.IsMilestone &&
+                               (Services.TfsImportService.IsStoryTypePublic(vm.Model.TfsType) ||
+                                string.Equals(vm.Model.TfsType, "Feature", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(vm.Model.TfsType, "Epic", StringComparison.OrdinalIgnoreCase));
+            bool hasTasks = vm.Model.Children.Any(c =>
+                string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
+
             var onlineItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "ViewOnlineChildrenMenuItem");
             if (onlineItem != null)
-                onlineItem.Visibility = (vm.Model.TfsId is > 0)
-                    ? Visibility.Visible : Visibility.Collapsed;
+                onlineItem.Visibility = hasDevOps ? Visibility.Visible : Visibility.Collapsed;
+
+            var fetchItem = cm.Items.OfType<MenuItem>()
+                .FirstOrDefault(m => m.Name == "FetchChildTasksMenuItem");
+            if (fetchItem != null)
+                fetchItem.Visibility = (hasDevOps && isStoryLike) ? Visibility.Visible : Visibility.Collapsed;
+
+            var suppressItem = cm.Items.OfType<MenuItem>()
+                .FirstOrDefault(m => m.Name == "SuppressChildTasksMenuItem");
+            if (suppressItem != null)
+                suppressItem.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void OnToggleStoryBlockClick(object sender, RoutedEventArgs e)
@@ -1332,6 +1355,20 @@ namespace NXProject.Controls
             var vm = GetTaskViewModelFromContextSender(sender);
             if (vm != null)
                 EditDescriptionRequested?.Invoke(vm);
+        }
+
+        private void OnFetchChildTasksClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                FetchChildTasksRequested?.Invoke(vm);
+        }
+
+        private void OnSuppressChildTasksClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                SuppressChildTasksRequested?.Invoke(vm);
         }
 
         private void CommitStartEdit(TextBox tb)

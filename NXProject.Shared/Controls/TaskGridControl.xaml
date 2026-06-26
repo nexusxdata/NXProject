@@ -240,6 +240,15 @@
                                             <MenuItem x:Name="ViewOnlineChildrenMenuItem"
                                                       Header="{DynamicResource Ctx_ViewOnlineActivities}"
                                                       Click="OnViewOnlineChildrenClick"/>
+                                            <MenuItem x:Name="FetchChildTasksMenuItem"
+                                                      Header="📥 Buscar Tasks (DevOps)"
+                                                      Click="OnFetchChildTasksClick"
+                                                      ToolTip="Baixa as Tasks filhas desta Story do DevOps e adiciona ao cronograma"/>
+                                            <MenuItem x:Name="SuppressChildTasksMenuItem"
+                                                      Header="🗑 Suprimir Tasks do cronograma"
+                                                      Click="OnSuppressChildTasksClick"
+                                                      ToolTip="Remove todas as Tasks filhas desta Story do cronograma (não apaga no DevOps)"/>
+                                            <Separator/>
                                             <MenuItem Header="{DynamicResource Ctx_EditDescription}"
                                                       Click="OnEditDescriptionClick"/>
                                         </ContextMenu>

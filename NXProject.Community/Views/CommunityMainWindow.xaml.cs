@@ -100,6 +100,8 @@ namespace NXProject.Views
             TaskGridCtrl.ViewOnlineChildrenRequested += OnViewOnlineChildren;
             TaskGridCtrl.EditDescriptionRequested += OnEditDescription;
             TaskGridCtrl.FetchTaskHoursRequested += OnFetchTaskHoursFromDevOps;
+            TaskGridCtrl.FetchChildTasksRequested += OnFetchChildTasksFromDevOps;
+            TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
@@ -531,6 +533,117 @@ namespace NXProject.Views
             catch (Exception ex)
             {
                 MessageBox.Show($"Erro ao buscar Tasks no DevOps:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void OnFetchChildTasksFromDevOps(TaskViewModel storyVm)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            if (storyVm.Model.TfsId is not > 0) return;
+
+            try
+            {
+                var options = Services.TfsConnectionStore.Load("NXProject.Community");
+                var tasks = await Services.TfsImportService.FetchChildTasksFromDevOpsAsync(options, storyVm.Model.TfsId!.Value);
+                if (tasks == null)
+                {
+                    MessageBox.Show("Não foi possível acessar o DevOps.", "Erro", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (tasks.Count == 0)
+                {
+                    MessageBox.Show("Nenhuma Task encontrada no DevOps para esta atividade.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // Filtra as que já existem no cronograma pelo TfsId
+                var existingTfsIds = storyVm.Model.Children
+                    .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase) && c.TfsId.HasValue)
+                    .Select(c => c.TfsId!.Value)
+                    .ToHashSet();
+                var newTasks = tasks.Where(t => !existingTfsIds.Contains(t.TfsId)).ToList();
+
+                if (newTasks.Count == 0)
+                {
+                    MessageBox.Show($"Todas as {tasks.Count} Tasks já estão no cronograma.", "Sem novidades", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var msg = $"Encontradas {tasks.Count} Tasks no DevOps.\n{newTasks.Count} serão adicionadas ao cronograma.\n\nDeseja incluir?";
+                if (MessageBox.Show(msg, "Buscar Tasks", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
+                foreach (var t in newTasks)
+                {
+                    var pt = new NXProject.Models.ProjectTask
+                    {
+                        Name           = t.Title,
+                        TfsId          = t.TfsId,
+                        TfsType        = "Task",
+                        EstimatedHours = t.EstimatedHours > 0 ? t.EstimatedHours : null,
+                        Start          = storyVm.Model.Start,
+                        Finish         = storyVm.Model.Finish,
+                    };
+                    storyVm.Model.Children.Add(pt);
+                }
+
+                vm.Project.IsDirty = true;
+                vm.RebuildFlatTasks();
+                GanttCtrl.ForceRender();
+                MessageBox.Show($"{newTasks.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao buscar Tasks:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OnSuppressChildTasks(TaskViewModel storyVm)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var tasks = storyVm.Model.Children
+                .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (tasks.Count == 0)
+            {
+                MessageBox.Show("Nenhuma Task no cronograma para esta atividade.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (MessageBox.Show($"Remover {tasks.Count} Task(s) do cronograma?\n(Não apaga no DevOps)", "Suprimir Tasks", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+
+            foreach (var t in tasks)
+                storyVm.Model.Children.Remove(t);
+
+            vm.Project.IsDirty = true;
+            vm.RebuildFlatTasks();
+            GanttCtrl.ForceRender();
+        }
+
+        private async void OnTechLeadReviewClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+
+            var storiesWithDevOps = vm.FlatTasks
+                .Where(t => !t.Model.IsSummary && !t.Model.IsMilestone && t.Model.TfsId is > 0 &&
+                            (Services.TfsImportService.IsStoryTypePublic(t.Model.TfsType) ||
+                             string.Equals(t.Model.TfsType, "Feature", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(t.Model.TfsType, "Epic", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (storiesWithDevOps.Count == 0)
+            {
+                MessageBox.Show("Nenhuma atividade vinculada ao DevOps encontrada.", "Revisão de Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var win = new TechLeadTaskReviewWindow(vm.Project, storiesWithDevOps.Select(t => t.Model).ToList()) { Owner = this };
+            win.ShowDialog();
+            if (win.HasChanges)
+            {
+                vm.Project.IsDirty = true;
+                vm.RebuildFlatTasks();
+                GanttCtrl.ForceRender();
             }
         }
 

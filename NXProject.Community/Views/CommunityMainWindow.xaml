@@ -360,6 +360,29 @@
                     </Canvas>
                 </Viewbox>
             </Button>
+
+            <Separator/>
+
+            <!-- Revisão de Tasks (Tech Lead) -->
+            <Button x:Name="TechLeadReviewButton"
+                    Style="{StaticResource ToolbarButtonStyle}"
+                    Click="OnTechLeadReviewClick"
+                    ToolTip="Revisão de Tasks (Tech Lead) — busca todas as Tasks de todas as Stories no DevOps">
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="18" Height="18">
+                        <!-- ícone: checklist com lupa -->
+                        <Rectangle Canvas.Left="1" Canvas.Top="1" Width="11" Height="16" RadiusX="1" RadiusY="1"
+                                   Stroke="#2B579A" StrokeThickness="1.5" Fill="White"/>
+                        <Line X1="3.5" Y1="5"  X2="9.5" Y2="5"  Stroke="#2B579A" StrokeThickness="1.2"/>
+                        <Line X1="3.5" Y1="8"  X2="9.5" Y2="8"  Stroke="#2B579A" StrokeThickness="1.2"/>
+                        <Line X1="3.5" Y1="11" X2="7"   Y2="11" Stroke="#2B579A" StrokeThickness="1.2"/>
+                        <!-- lupa -->
+                        <Ellipse Canvas.Left="9" Canvas.Top="9" Width="6" Height="6"
+                                 Stroke="#E07000" StrokeThickness="1.5" Fill="Transparent"/>
+                        <Line X1="14" Y1="14" X2="17" Y2="17" Stroke="#E07000" StrokeThickness="1.5"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
         </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom" Background="{StaticResource PrimaryBrush}" Foreground="White" Height="22">
