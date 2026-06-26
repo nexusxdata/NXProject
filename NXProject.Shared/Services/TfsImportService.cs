@@ -620,7 +620,7 @@ namespace NXProject.Services
                             }
                         }
 
-                        if (typeStartRef != null)
+                        if (typeStartRef != null && task.Start > DateTime.MinValue.AddYears(1))
                         {
                             var currentStart = ReadDate(wi, typeStartRef);
                             var effectiveStateForStart = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
@@ -1300,10 +1300,10 @@ namespace NXProject.Services
                     ops.Add(PatchAdd($"/fields/{percAlocRef}", (int)Math.Round(primaryAloc)));
                 }
 
-                if (startRef != null)
+                if (startRef != null && task.Start > DateTime.MinValue.AddYears(1))
                     ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
 
-                if (finishRef != null && IsClosedState(task.TfsState))
+                if (finishRef != null && IsClosedState(task.TfsState) && task.Finish > DateTime.MinValue.AddYears(1))
                     ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(task.Finish)));
             }
             else
