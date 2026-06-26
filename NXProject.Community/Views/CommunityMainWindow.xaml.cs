@@ -613,11 +613,14 @@ namespace NXProject.Views
                     Start            = story.Start,
                     Finish           = story.Finish,
                 };
-                if (!string.IsNullOrWhiteSpace(r.AssignedTo))
+                var display = r.AssignedToDisplay;
+                var email   = r.AssignedTo;
+                if (!string.IsNullOrWhiteSpace(email) || !string.IsNullOrWhiteSpace(display))
                 {
                     var res = projectResources.FirstOrDefault(x =>
-                        string.Equals(x.Email, r.AssignedTo, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(x.Name,  r.AssignedTo, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(x.Email, email,   StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Name,  email,   StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Name,  display, StringComparison.OrdinalIgnoreCase));
                     if (res != null)
                         pt.Resources.Add(new NXProject.Models.TaskResource { ResourceId = res.Id, Resource = res, AllocationPercent = 100 });
                 }

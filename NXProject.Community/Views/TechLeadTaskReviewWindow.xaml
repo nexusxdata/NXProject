@@ -61,10 +61,6 @@
                     Click="OnSaveChangesClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"
                     Background="#217346" Foreground="White" IsEnabled="False"/>
-            <Button Content="📥 Adicionar selecionadas ao cronograma" x:Name="AddSelectedButton"
-                    Click="OnAddSelectedClick"
-                    Padding="8,3" FontSize="12"
-                    Background="#2B579A" Foreground="White" IsEnabled="False"/>
         </WrapPanel>
 
         <!-- Grid de Tasks editável -->
@@ -177,9 +173,9 @@
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
 
-                <!-- Responsável (editável) -->
+                <!-- Responsável (editável — exibe displayName, edição altera AssignedToDisplay) -->
                 <DataGridTextColumn Header="Responsável" Width="170"
-                    Binding="{Binding AssignedTo, UpdateSourceTrigger=LostFocus}"/>
+                    Binding="{Binding AssignedToDisplay, UpdateSourceTrigger=LostFocus}"/>
 
                 <!-- No cronograma (somente leitura) -->
                 <DataGridTextColumn Header="Cronograma" Width="90"
@@ -214,12 +210,22 @@
                        x:Name="DirtyHint" Visibility="Collapsed"/>
         </StackPanel>
 
-        <!-- Botões -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button x:Name="ReleaseButton" Content="🔓 Liberar atividade" Click="OnReleaseClick"
-                    Width="150" Height="30" Margin="0,0,8,0"
-                    Background="#C0392B" Foreground="White" Visibility="Collapsed"/>
-            <Button Content="Fechar" Click="OnCloseClick" Width="90" Height="30"/>
-        </StackPanel>
+        <!-- Botões rodapé -->
+        <DockPanel Grid.Row="5" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button x:Name="ExpandAllButton" Content="📂 Expandir todas no cronograma"
+                        Click="OnExpandAllClick" Height="30" Padding="10,0" Margin="0,0,8,0"
+                        Background="#5C3E8F" Foreground="White" Visibility="Collapsed"/>
+                <Button x:Name="AddSelectedButton" Content="📥 Incluir selecionadas no cronograma"
+                        Click="OnAddSelectedClick" Height="30" Padding="10,0" Margin="0,0,8,0"
+                        Background="#2B579A" Foreground="White" IsEnabled="False" Visibility="Collapsed"/>
+                <Button x:Name="ReleaseButton" Content="🔓 Liberar atividade"
+                        Click="OnReleaseClick" Height="30" Padding="10,0" Margin="0,0,8,0"
+                        Background="#C0392B" Foreground="White" Visibility="Collapsed"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Fechar" Click="OnCloseClick" Width="90" Height="30"/>
+            </StackPanel>
+        </DockPanel>
     </Grid>
 </Window>

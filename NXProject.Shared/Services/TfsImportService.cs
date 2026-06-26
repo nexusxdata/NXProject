@@ -2118,7 +2118,8 @@ namespace NXProject.Services
             public double EstimatedHours { get; init; }
             public double CompletedHours { get; init; }
             public double PercentComplete { get; init; }
-            public string? AssignedTo { get; init; }
+            public string? AssignedTo { get; init; }        // uniqueName/email para matching
+            public string? AssignedToDisplay { get; init; } // displayName para exibição
             public int Priority { get; init; } = 5;
             public string? State { get; init; }
         }
@@ -2192,8 +2193,19 @@ namespace NXProject.Services
                     var completed = f.TryGetProperty(CompletedRef, out var cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetDouble() : 0;
                     var prio      = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pp) && pp.ValueKind == JsonValueKind.Number ? pp.GetInt32() : 5;
                     string? assignee = null;
+                    string? assigneeDisplay = null;
                     if (f.TryGetProperty("System.AssignedTo", out var at))
-                        assignee = at.ValueKind == JsonValueKind.Object && at.TryGetProperty("uniqueName", out var un) ? un.GetString() : at.GetString();
+                    {
+                        if (at.ValueKind == JsonValueKind.Object)
+                        {
+                            assignee        = at.TryGetProperty("uniqueName",   out var un) ? un.GetString() : null;
+                            assigneeDisplay = at.TryGetProperty("displayName",  out var dn) ? dn.GetString() : assignee;
+                        }
+                        else
+                        {
+                            assignee = assigneeDisplay = at.GetString();
+                        }
+                    }
 
                     // Closed → 100%; caso contrário calcula pelo CompletedWork
                     double pct = 0;
@@ -2207,7 +2219,7 @@ namespace NXProject.Services
                     {
                         TfsId = tid, Title = title, State = state,
                         EstimatedHours = hours, CompletedHours = completed,
-                        PercentComplete = pct, AssignedTo = assignee, Priority = prio
+                        PercentComplete = pct, AssignedTo = assignee, AssignedToDisplay = assigneeDisplay, Priority = prio
                     });
                 }
             }

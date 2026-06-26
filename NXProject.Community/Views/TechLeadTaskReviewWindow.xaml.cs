@@ -31,7 +31,12 @@ namespace NXProject.Views
             _stories = stories;
             InitializeComponent();
             Loaded += async (_, _) => await LoadAsync();
-            Loaded += (_, _) => ReleaseButton.Visibility = ReleaseCallback != null ? Visibility.Visible : Visibility.Collapsed;
+            Loaded += (_, _) =>
+            {
+                ReleaseButton.Visibility     = ReleaseCallback       != null ? Visibility.Visible : Visibility.Collapsed;
+                ExpandAllButton.Visibility   = AddToScheduleCallback != null ? Visibility.Visible : Visibility.Collapsed;
+                AddSelectedButton.Visibility = AddToScheduleCallback != null ? Visibility.Visible : Visibility.Collapsed;
+            };
         }
 
         private async Task LoadAsync()
@@ -70,8 +75,9 @@ namespace NXProject.Views
                         CompletedHours  = t.CompletedHours,
                         PercentComplete = t.PercentComplete,
                         Priority        = t.Priority,
-                        AssignedTo      = t.AssignedTo ?? "",
-                        InSchedule      = inScheduleIds.Contains(t.TfsId),
+                        AssignedTo        = t.AssignedTo ?? "",
+                        AssignedToDisplay = t.AssignedToDisplay ?? t.AssignedTo ?? "",
+                        InSchedule        = inScheduleIds.Contains(t.TfsId),
                     };
                     row.PropertyChanged += OnRowPropertyChanged;
                     rows.Add(row);
@@ -266,6 +272,20 @@ namespace NXProject.Views
             MessageBox.Show($"{toAdd.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        private void OnExpandAllClick(object sender, RoutedEventArgs e)
+        {
+            var toAdd = (_view?.Cast<TaskReviewRow>() ?? _allRows).Where(r => !r.InSchedule).ToList();
+            if (toAdd.Count == 0) { MessageBox.Show("Todas as Tasks já estão no cronograma.", "Info", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            if (AddToScheduleCallback != null)
+            {
+                AddToScheduleCallback.Invoke(toAdd);
+                foreach (var r in toAdd) { r.InSchedule = true; r.IsSelected = false; }
+                HasChanges = true;
+                UpdateTotals();
+                MessageBox.Show($"{toAdd.Count} Task(s) expandidas no cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
         private void OnReleaseClick(object sender, RoutedEventArgs e)
         {
             ReleaseCallback?.Invoke();
@@ -300,6 +320,10 @@ namespace NXProject.Views
 
         private string _assignedTo = "";
         public string AssignedTo { get => _assignedTo; set { if (_assignedTo == value) return; _assignedTo = value; OnPropertyChanged(); } }
+
+        // displayName para exibição na grid; editável (sincroniza no AssignedTo se igual ao email)
+        private string _assignedToDisplay = "";
+        public string AssignedToDisplay { get => _assignedToDisplay; set { if (_assignedToDisplay == value) return; _assignedToDisplay = value; OnPropertyChanged(); } }
 
         private bool _inSchedule;
         public bool InSchedule
