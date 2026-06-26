@@ -2223,15 +2223,23 @@ namespace NXProject.ViewModels
 
                     // Distribui horas da story para Tasks sem estimativa
                     var storyHours = Services.ProjectCalendarService.CountWorkingHours(t.Start, t.Finish);
-                    // Tasks sem HH Original mas com HH Atual: usa HH Atual como estimado para cálculo de duração
-                    foreach (var tc in taskChildren.Where(tc => (tc.EstimatedHours ?? 0) <= 0 && (tc.CurrentHours ?? 0) > 0))
-                        tc.EstimatedHours = tc.CurrentHours;
-                    // Rateio: só tasks sem HH Original E sem HH Atual
-                    var tasksWithHours    = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) > 0).ToList();
-                    var tasksWithoutHours = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) <= 0 && (tc.CurrentHours ?? 0) <= 0).ToList();
+
+                    // Duração efetiva de cada task:
+                    //   HH Estimado > 0 → HH Estimado + HH Atual (restante + concluído)
+                    //   HH Estimado = 0, HH Atual > 0 → HH Atual (só o concluído, sem estimar restante)
+                    //   ambos = 0 → recebe rateio
+                    static double EffDur(ProjectTask tc)
+                    {
+                        var est = tc.EstimatedHours ?? 0;
+                        var cur = tc.CurrentHours ?? 0;
+                        return est > 0 ? est + cur : cur;
+                    }
+
+                    var tasksWithHours    = taskChildren.Where(tc => EffDur(tc) > 0).ToList();
+                    var tasksWithoutHours = taskChildren.Where(tc => EffDur(tc) <= 0).ToList();
                     if (tasksWithoutHours.Count > 0)
                     {
-                        double usedHours = tasksWithHours.Sum(tc => (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0));
+                        double usedHours = tasksWithHours.Sum(EffDur);
                         double remaining = Math.Max(0, storyHours - usedHours);
                         double perTask   = remaining > 0
                             ? remaining / tasksWithoutHours.Count
@@ -2241,7 +2249,7 @@ namespace NXProject.ViewModels
                     }
 
                     // Se a soma das Tasks superar a duração da story, expande a story
-                    double totalTaskHours = taskChildren.Sum(tc => (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0));
+                    double totalTaskHours = taskChildren.Sum(EffDur);
                     if (totalTaskHours > storyHours + 0.01)
                         t.Finish = Services.ProjectCalendarService.AddWorkingHours(t.Start, totalTaskHours);
 
@@ -2250,8 +2258,7 @@ namespace NXProject.ViewModels
                     foreach (var tc in taskChildren)
                     {
                         tc.Start = cursor;
-                        var hours = (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0);
-                        tc.Finish = Services.ProjectCalendarService.AddWorkingHours(cursor, hours);
+                        tc.Finish = Services.ProjectCalendarService.AddWorkingHours(cursor, EffDur(tc));
                         cursor = tc.Finish;
                     }
                 }
