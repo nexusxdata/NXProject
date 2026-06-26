@@ -100,27 +100,12 @@ namespace NXProject.Views
             TaskGridCtrl.ViewOnlineChildrenRequested += OnViewOnlineChildren;
             TaskGridCtrl.EditDescriptionRequested += OnEditDescription;
             TaskGridCtrl.FetchTaskHoursRequested += OnFetchTaskHoursFromDevOps;
-            TaskGridCtrl.FetchChildTasksRequested += OnFetchChildTasksFromDevOps;
-            TaskGridCtrl.ExpandChildTasksRequested += OnExpandChildTasks;
+            TaskGridCtrl.FetchChildTasksRequested    += OnFetchChildTasksFromDevOps;
+            TaskGridCtrl.ExpandChildTasksRequested   += OnExpandChildTasks;
             TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
+            TaskGridCtrl.AddDevOpsTaskRequested      += storyVm => { vm.AskSubtaskAction = null; vm.AddSubtask(storyVm, "Task"); };
+            TaskGridCtrl.AddInternalTaskRequested    += storyVm => { vm.AskSubtaskAction = null; vm.AddSubtask(storyVm, "NoDevOps"); };
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
-            vm.AskSubtaskAction = (storyVm) =>
-            {
-                bool hasDevOps = storyVm.Model.TfsId is > 0;
-                var dlg = new AddSubtaskDialog(storyVm.Name, hasDevOps) { Owner = this };
-                dlg.ShowDialog();
-                if (dlg.Result == AddSubtaskResult.Fetch)
-                {
-                    OpenTaskReviewForStory(storyVm);
-                    return "Fetch";
-                }
-                return dlg.Result switch
-                {
-                    AddSubtaskResult.CreateTask     => "Task",
-                    AddSubtaskResult.CreateInternal => "NoDevOps",
-                    _                               => null
-                };
-            };
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
@@ -559,8 +544,11 @@ namespace NXProject.Views
 
         private void OnExpandChildTasks(TaskViewModel storyVm)
         {
+            if (DataContext is not MainViewModel vm) return;
             storyVm.Model.TasksSuppressed = false;
-            OpenTaskReviewForStory(storyVm);
+            vm.Project.IsDirty = true;
+            vm.RebuildFlatTasks();
+            GanttCtrl.ForceRender();
         }
 
         private void OpenTaskReviewForStory(TaskViewModel storyVm)

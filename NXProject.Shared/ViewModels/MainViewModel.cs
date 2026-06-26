@@ -1656,6 +1656,35 @@ namespace NXProject.ViewModels
             RequestScrollToSelected?.Invoke();
         }
 
+        /// <summary>Adiciona subtarefa ao pai especificado com ação direta ("Task" ou "NoDevOps").</summary>
+        public void AddSubtask(TaskViewModel parentVm, string action)
+        {
+            var parent    = parentVm.Model;
+            var childType = action == "Task" ? "Task" : "No DevOps";
+            var isDevOps  = !IsNoDevOpsType(childType);
+            var task = new ProjectTask
+            {
+                Id       = _nextId++,
+                Name     = isDevOps ? "Nova Tarefa" : "Nova Subtarefa",
+                Start    = parent.Start,
+                Finish   = ProjectCalendarService.AddWorkingHours(parent.Start, ProjectCalendarService.WorkingHoursPerDay * 3.0),
+                Level    = parent.Level + 1,
+                Parent   = parent,
+                TfsType  = childType,
+                TfsIterationPath = parent.TfsIterationPath,
+                TfsId    = isDevOps ? 0 : _nextNoDevOpsId--,
+                TfsState = isDevOps ? "New" : null
+            };
+            parent.Children.Add(task);
+            parent.IsSummary = true;
+            parent.RecalcSummary();
+            Project.IsDirty = true;
+            PrepareTaskInsertionScroll?.Invoke();
+            RebuildFlatTasks();
+            SelectedTask = FlatTasks.FirstOrDefault(t => t.Id == task.Id);
+            RequestScrollToSelected?.Invoke();
+        }
+
         [RelayCommand]
         public void DeleteTaskViewModel(TaskViewModel vm)
         {

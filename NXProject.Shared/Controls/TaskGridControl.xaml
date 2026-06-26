@@ -241,17 +241,28 @@
                                                       Header="{DynamicResource Ctx_ViewOnlineActivities}"
                                                       Click="OnViewOnlineChildrenClick"/>
                                             <MenuItem x:Name="FetchChildTasksMenuItem"
-                                                      Header="📥 Buscar Tasks (DevOps)"
+                                                      Header="📋 Grid de Tasks (DevOps)"
                                                       Click="OnFetchChildTasksClick"
-                                                      ToolTip="Baixa as Tasks filhas desta Story do DevOps e adiciona ao cronograma"/>
+                                                      ToolTip="Abre a grid de Tasks desta Story para editar e incluir no cronograma"/>
                                             <MenuItem x:Name="ExpandChildTasksMenuItem"
-                                                      Header="📂 Expandir Tasks (DevOps)"
+                                                      Header="📂 Expandir Tasks no cronograma"
                                                       Click="OnExpandChildTasksClick"
-                                                      ToolTip="Re-busca e exibe as Tasks desta Story que foram suprimidas"/>
+                                                      ToolTip="Inclui as Tasks desta Story diretamente no cronograma"/>
                                             <MenuItem x:Name="SuppressChildTasksMenuItem"
                                                       Header="🗑 Suprimir Tasks do cronograma"
                                                       Click="OnSuppressChildTasksClick"
                                                       ToolTip="Remove todas as Tasks filhas desta Story do cronograma (não apaga no DevOps)"/>
+                                            <Separator x:Name="AddTaskSeparator" Visibility="Collapsed"/>
+                                            <MenuItem x:Name="AddDevOpsTaskMenuItem"
+                                                      Header="➕ Nova Task (DevOps)"
+                                                      Click="OnAddDevOpsTaskClick"
+                                                      Visibility="Collapsed"
+                                                      ToolTip="Cria uma nova Task vinculada ao DevOps"/>
+                                            <MenuItem x:Name="AddInternalTaskMenuItem"
+                                                      Header="📌 Nova Atividade Interna"
+                                                      Click="OnAddInternalTaskClick"
+                                                      Visibility="Collapsed"
+                                                      ToolTip="Cria uma atividade interna sem vínculo com DevOps"/>
                                             <Separator/>
                                             <MenuItem Header="{DynamicResource Ctx_EditDescription}"
                                                       Click="OnEditDescriptionClick"/>

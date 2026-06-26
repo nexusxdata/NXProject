@@ -191,6 +191,11 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário clica em "Suprimir Tasks do cronograma".</summary>
         public event Action<TaskViewModel>? SuppressChildTasksRequested;
 
+        /// <summary>Disparado quando o usuário clica em "Nova Task (DevOps)".</summary>
+        public event Action<TaskViewModel>? AddDevOpsTaskRequested;
+        /// <summary>Disparado quando o usuário clica em "Nova Atividade Interna".</summary>
+        public event Action<TaskViewModel>? AddInternalTaskRequested;
+
         private bool _headerMeasured;
         private ScrollViewer? _scrollViewer;
         private bool _suppressScrollNotification;
@@ -1308,13 +1313,13 @@ namespace NXProject.Controls
             if (onlineItem != null)
                 onlineItem.Visibility = hasDevOps ? Visibility.Visible : Visibility.Collapsed;
 
-            // "Buscar Tasks" aparece só quando não suprimido e sem tasks no cronograma
+            // "Grid de Tasks" aparece para stories com DevOps (sempre, para editar/revisar)
             var fetchItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "FetchChildTasksMenuItem");
             if (fetchItem != null)
-                fetchItem.Visibility = (hasDevOps && isStoryLike && !suppressed) ? Visibility.Visible : Visibility.Collapsed;
+                fetchItem.Visibility = (hasDevOps && isStoryLike) ? Visibility.Visible : Visibility.Collapsed;
 
-            // "Expandir Tasks" aparece só quando suprimido
+            // "Expandir Tasks no cronograma" aparece quando suprimido (tasks já em memória)
             var expandItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "ExpandChildTasksMenuItem");
             if (expandItem != null)
@@ -1325,6 +1330,17 @@ namespace NXProject.Controls
                 .FirstOrDefault(m => m.Name == "SuppressChildTasksMenuItem");
             if (suppressItem != null)
                 suppressItem.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
+
+            // "Nova Task DevOps" / "Nova Atividade Interna" aparecem para stories (com ou sem DevOps)
+            bool isStory = !vm.Model.IsSummary && !vm.Model.IsMilestone &&
+                           Services.TfsImportService.IsStoryTypePublic(vm.Model.TfsType);
+            var sepAdd      = cm.Items.OfType<Separator>().FirstOrDefault(s => s.Name == "AddTaskSeparator");
+            var addDevOps   = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "AddDevOpsTaskMenuItem");
+            var addInternal = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "AddInternalTaskMenuItem");
+            var showAdd = isStory;
+            if (sepAdd      != null) sepAdd.Visibility      = showAdd ? Visibility.Visible : Visibility.Collapsed;
+            if (addDevOps   != null) addDevOps.Visibility   = (showAdd && hasDevOps) ? Visibility.Visible : Visibility.Collapsed;
+            if (addInternal != null) addInternal.Visibility = showAdd ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void OnToggleStoryBlockClick(object sender, RoutedEventArgs e)
@@ -1387,6 +1403,20 @@ namespace NXProject.Controls
             var vm = GetTaskViewModelFromContextSender(sender);
             if (vm != null)
                 ExpandChildTasksRequested?.Invoke(vm);
+        }
+
+        private void OnAddDevOpsTaskClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                AddDevOpsTaskRequested?.Invoke(vm);
+        }
+
+        private void OnAddInternalTaskClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                AddInternalTaskRequested?.Invoke(vm);
         }
 
         private void OnPriorityEditLostFocus(object sender, RoutedEventArgs e)
