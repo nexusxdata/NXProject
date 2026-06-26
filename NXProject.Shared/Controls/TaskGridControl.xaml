@@ -249,6 +249,10 @@
                                                       Header="📂 Expandir Tasks no cronograma"
                                                       Click="OnExpandChildTasksClick"
                                                       ToolTip="Inclui as Tasks desta Story diretamente no cronograma"/>
+                                            <MenuItem x:Name="ReleaseStoryMenuItem"
+                                                      Header="✅ Liberar Atividade (folha editável)"
+                                                      Click="OnReleaseStoryClick"
+                                                      ToolTip="Mantém a Story sem Tasks no cronograma — duração e HH passam a ser editáveis diretamente"/>
                                             <MenuItem x:Name="SuppressChildTasksMenuItem"
                                                       Header="🗑 Suprimir Tasks do cronograma"
                                                       Click="OnSuppressChildTasksClick"

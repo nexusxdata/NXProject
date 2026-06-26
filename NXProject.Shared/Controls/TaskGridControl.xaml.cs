@@ -191,6 +191,9 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário clica em "Suprimir Tasks do cronograma".</summary>
         public event Action<TaskViewModel>? SuppressChildTasksRequested;
 
+        /// <summary>Disparado quando o usuário clica em "Liberar Atividade" (story vira folha editável).</summary>
+        public event Action<TaskViewModel>? ReleaseStoryRequested;
+
         /// <summary>Disparado quando o usuário clica em "Nova Task (DevOps)".</summary>
         public event Action<TaskViewModel>? AddDevOpsTaskRequested;
         /// <summary>Disparado quando o usuário clica em "Nova Atividade Interna".</summary>
@@ -1334,6 +1337,12 @@ namespace NXProject.Controls
             if (expandItem != null)
                 expandItem.Visibility = (hasDevOps && isStoryLike && suppressed) ? Visibility.Visible : Visibility.Collapsed;
 
+            // "Liberar Atividade" aparece quando suprimido — confirma story como folha editável
+            var releaseStoryItem = cm.Items.OfType<MenuItem>()
+                .FirstOrDefault(m => m.Name == "ReleaseStoryMenuItem");
+            if (releaseStoryItem != null)
+                releaseStoryItem.Visibility = (isStoryLike && suppressed) ? Visibility.Visible : Visibility.Collapsed;
+
             // "Suprimir" aparece quando há tasks no cronograma
             var suppressItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "SuppressChildTasksMenuItem");
@@ -1414,6 +1423,13 @@ namespace NXProject.Controls
             var vm = GetTaskViewModelFromContextSender(sender);
             if (vm != null)
                 SuppressChildTasksRequested?.Invoke(vm);
+        }
+
+        private void OnReleaseStoryClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                ReleaseStoryRequested?.Invoke(vm);
         }
 
         private void OnExpandChildTasksClick(object sender, RoutedEventArgs e)

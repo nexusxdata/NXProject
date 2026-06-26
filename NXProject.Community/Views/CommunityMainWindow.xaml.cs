@@ -103,6 +103,7 @@ namespace NXProject.Views
             TaskGridCtrl.FetchChildTasksRequested    += OnFetchChildTasksFromDevOps;
             TaskGridCtrl.ExpandChildTasksRequested   += OnExpandChildTasks;
             TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
+            TaskGridCtrl.ReleaseStoryRequested       += OnReleaseStory;
             TaskGridCtrl.AddDevOpsTaskRequested      += storyVm => { vm.AskSubtaskAction = null; vm.AddSubtask(storyVm, "Task"); };
             TaskGridCtrl.AddInternalTaskRequested    += storyVm => { vm.AskSubtaskAction = null; vm.AddSubtask(storyVm, "NoDevOps"); };
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
@@ -688,6 +689,20 @@ namespace NXProject.Views
                 .ToList();
             foreach (var t in tasks) story.Children.Remove(t);
             story.TasksSuppressed = false;
+            vm.Project.IsDirty = true;
+            vm.RebuildFlatTasks();
+            GanttCtrl.ForceRender();
+        }
+
+        private void OnReleaseStory(TaskViewModel storyVm)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            // Libera a story como folha editável: reseta flag e garante que não há tasks filhas
+            storyVm.Model.TasksSuppressed = false;
+            var tasks = storyVm.Model.Children
+                .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var t in tasks) storyVm.Model.Children.Remove(t);
             vm.Project.IsDirty = true;
             vm.RebuildFlatTasks();
             GanttCtrl.ForceRender();
