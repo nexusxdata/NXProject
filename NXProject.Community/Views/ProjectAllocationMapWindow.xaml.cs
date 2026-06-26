@@ -166,7 +166,7 @@ namespace NXProject.Views
                     if (!string.Equals(tr.Resource?.Name, resourceName, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    double hours = tr.EstimatedHours ?? 0;
+                    double hours = NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
                     if (hours <= 0) continue;
 
                     var tStart = task.Start.Date;
@@ -361,7 +361,7 @@ namespace NXProject.Views
                         projByMonth[mi] += mh[mi];
 
                 double projTotal = projByMonth.Sum();
-                DataRowsPanel.Items.Add(BuildDataRow(projByMonth, visibleMonths, projTotal, projBg, bold: true));
+                DataRowsPanel.Items.Add(BuildDataRow(projByMonth, visibleMonths, projTotal, projBg, bold: true, months: _months));
 
                 for (int mi = 0; mi < _months.Count; mi++)
                     grandByMonth[mi] += projByMonth[mi];
@@ -444,11 +444,14 @@ namespace NXProject.Views
 
         // ── Linha de totais do projeto (sem coluna de recurso — está na coluna fixa) ──
         private static StackPanel BuildDataRow(double[] byMonth, List<int> visibleMonths,
-            double rowTotal, SolidColorBrush rowBg, bool bold)
+            double rowTotal, SolidColorBrush rowBg, bool bold, List<DateTime>? months = null)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var mi in visibleMonths)
-                row.Children.Add(MakeHoursCell(byMonth[mi], ColWidth, RowHeight + 2, rowBg, bold: bold));
+            {
+                var mStart = months != null && mi < months.Count ? months[mi] : (DateTime?)null;
+                row.Children.Add(MakeHoursCell(byMonth[mi], ColWidth, RowHeight + 2, rowBg, bold: bold, monthStart: mStart));
+            }
             row.Children.Add(MakeTotalCell(rowTotal, TotalColW, RowHeight + 2, bold: bold));
             return row;
         }
@@ -530,10 +533,22 @@ namespace NXProject.Views
             };
         }
 
-        private static Border MakeHoursCell(double hours, double width, double height,
-            Brush rowBg, bool bold = false)
+        private static string FormatHoursWithPercent(double hours, DateTime? monthStart)
         {
-            string text = hours < 0.05 ? "–" : $"{hours:0.#}h";
+            if (hours < 0.05) return "–";
+            if (monthStart == null) return $"{hours:0.#}h";
+            var mEnd = new DateTime(monthStart.Value.Year, monthStart.Value.Month,
+                DateTime.DaysInMonth(monthStart.Value.Year, monthStart.Value.Month));
+            double capacity = NXProject.Services.ProjectCalendarService.CountWorkingHours(monthStart.Value, mEnd);
+            if (capacity <= 0) return $"{hours:0.#}h";
+            int pct = (int)Math.Round(hours / capacity * 100);
+            return $"{hours:0.#}h ({pct}%)";
+        }
+
+        private static Border MakeHoursCell(double hours, double width, double height,
+            Brush rowBg, bool bold = false, DateTime? monthStart = null)
+        {
+            string text = FormatHoursWithPercent(hours, monthStart);
             var fg = hours < 0.05
                 ? new SolidColorBrush(Color.FromRgb(200, 200, 200))
                 : new SolidColorBrush(bold
@@ -564,7 +579,7 @@ namespace NXProject.Views
         private Border MakeHoursCellClickable(double hours, double width, double height,
             Brush rowBg, LoadedProject proj, string resName, DateTime monthStart, DateTime monthEnd)
         {
-            string text   = hours < 0.05 ? "–" : $"{hours:0.#}h";
+            string text   = FormatHoursWithPercent(hours, monthStart);
             bool hasHours = hours >= 0.05;
             var fg = hasHours
                 ? new SolidColorBrush(Color.FromRgb(40, 100, 200))
@@ -1616,7 +1631,7 @@ namespace NXProject.Views
         private static double ComputeHoursForTask(ProjectTask task, TaskResource tr,
             DateTime monthStart, DateTime monthEnd)
         {
-            double hours = tr.EstimatedHours ?? 0;
+            double hours = NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
             if (hours <= 0) return 0;
 
             var tStart = task.Start.Date;
