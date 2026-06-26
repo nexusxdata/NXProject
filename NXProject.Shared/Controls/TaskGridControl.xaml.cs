@@ -1308,11 +1308,6 @@ namespace NXProject.Controls
                 string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
             bool suppressed = vm.Model.TasksSuppressed;
 
-            var onlineItem = cm.Items.OfType<MenuItem>()
-                .FirstOrDefault(m => m.Name == "ViewOnlineChildrenMenuItem");
-            if (onlineItem != null)
-                onlineItem.Visibility = hasDevOps ? Visibility.Visible : Visibility.Collapsed;
-
             // "Grid de Tasks" aparece para stories com DevOps (sempre, para editar/revisar)
             var fetchItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "FetchChildTasksMenuItem");

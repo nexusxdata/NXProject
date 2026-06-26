@@ -237,9 +237,6 @@
                                         <ContextMenu>
                                             <MenuItem Header="{DynamicResource Ctx_AddStoryBlock}" Click="OnToggleStoryBlockClick"/>
                                             <Separator/>
-                                            <MenuItem x:Name="ViewOnlineChildrenMenuItem"
-                                                      Header="{DynamicResource Ctx_ViewOnlineActivities}"
-                                                      Click="OnViewOnlineChildrenClick"/>
                                             <MenuItem x:Name="FetchChildTasksMenuItem"
                                                       Header="📋 Grid de Tasks (DevOps)"
                                                       Click="OnFetchChildTasksClick"

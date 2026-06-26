@@ -542,13 +542,62 @@ namespace NXProject.Views
         private void OnFetchChildTasksFromDevOps(TaskViewModel storyVm) =>
             OpenTaskReviewForStory(storyVm);
 
-        private void OnExpandChildTasks(TaskViewModel storyVm)
+        private async void OnExpandChildTasks(TaskViewModel storyVm)
         {
             if (DataContext is not MainViewModel vm) return;
-            storyVm.Model.TasksSuppressed = false;
+            var story = storyVm.Model;
+            story.TasksSuppressed = false;
+
+            // Se não há tasks em memória, busca do DevOps e adiciona ao cronograma
+            bool hasTasks = story.Children.Any(c =>
+                string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
+            if (!hasTasks && story.TfsId is > 0)
+            {
+                var options = Services.TfsConnectionStore.Load("NXProject.Community");
+                var tasks = await Services.TfsImportService.FetchChildTasksFromDevOpsAsync(options, story.TfsId!.Value);
+                if (tasks != null && tasks.Count > 0)
+                {
+                    var rows = tasks.Select(t => new Views.TaskReviewRow
+                    {
+                        StoryTask       = story,
+                        TaskId          = t.TfsId,
+                        Title           = t.Title,
+                        State           = t.State ?? "New",
+                        EstimatedHours  = t.EstimatedHours,
+                        CompletedHours  = t.CompletedHours,
+                        PercentComplete = t.PercentComplete,
+                        Priority        = t.Priority,
+                        AssignedTo        = t.AssignedTo ?? "",
+                        AssignedToDisplay = t.AssignedToDisplay ?? t.AssignedTo ?? "",
+                    });
+                    var first = AddTaskRowsToSchedule(rows, story, vm);
+                    if (first != null)
+                        SelectTaskInSchedule(first, vm);
+                    return;
+                }
+            }
+
             vm.Project.IsDirty = true;
             vm.RebuildFlatTasks();
             GanttCtrl.ForceRender();
+
+            // Seleciona a primeira task do cronograma desta story
+            var firstTask = vm.FlatTasks.FirstOrDefault(t =>
+                t.Model.Parent == story &&
+                string.Equals(t.Model.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
+            if (firstTask != null)
+                SelectTaskInSchedule(firstTask.Model, vm);
+        }
+
+        private void SelectTaskInSchedule(NXProject.Models.ProjectTask task, MainViewModel vm)
+        {
+            var tvm = vm.FlatTasks.FirstOrDefault(t => t.Model == task);
+            if (tvm != null)
+            {
+                vm.SelectedTask = tvm;
+                TaskGridCtrl.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                    () => TaskGridCtrl.ScrollToSelected());
+            }
         }
 
         private void OpenTaskReviewForStory(TaskViewModel storyVm)
@@ -559,7 +608,12 @@ namespace NXProject.Views
             var dlg = new TechLeadTaskReviewWindow(vm.Project, [storyVm.Model])
             {
                 Owner = this,
-                AddToScheduleCallback = rows => AddTaskRowsToSchedule(rows, storyVm.Model, vm),
+                AddToScheduleCallback = rows =>
+                {
+                    var first = AddTaskRowsToSchedule(rows, storyVm.Model, vm);
+                    if (first != null) SelectTaskInSchedule(first, vm);
+                    return first;
+                },
                 ReleaseCallback       = () => ReleaseStoryTasks(storyVm.Model, vm)
             };
             dlg.ShowDialog();
@@ -572,7 +626,7 @@ namespace NXProject.Views
             }
         }
 
-        private void AddTaskRowsToSchedule(
+        private NXProject.Models.ProjectTask? AddTaskRowsToSchedule(
             IEnumerable<TaskReviewRow> rows,
             NXProject.Models.ProjectTask story,
             MainViewModel vm)
@@ -582,7 +636,7 @@ namespace NXProject.Views
                 .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase) && c.TfsId.HasValue)
                 .Select(c => c.TfsId!.Value).ToHashSet();
 
-            int added = 0;
+            NXProject.Models.ProjectTask? firstAdded = null;
             foreach (var r in rows)
             {
                 if (existingIds.Contains(r.TaskId)) continue;
@@ -614,15 +668,16 @@ namespace NXProject.Views
                 }
                 story.Children.Add(pt);
                 story.TasksSuppressed = false;
-                added++;
+                firstAdded ??= pt;
             }
 
-            if (added > 0)
+            if (firstAdded != null)
             {
                 vm.Project.IsDirty = true;
                 vm.RebuildFlatTasks();
                 GanttCtrl.ForceRender();
             }
+            return firstAdded;
         }
 
         private void ReleaseStoryTasks(NXProject.Models.ProjectTask story, MainViewModel vm)

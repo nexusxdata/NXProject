@@ -22,7 +22,8 @@ namespace NXProject.Views
         private static readonly List<string> KnownStates = ["New", "Active", "Resolved", "Closed", "Blocked"];
 
         public bool HasChanges { get; private set; }
-        public Action<IEnumerable<TaskReviewRow>>? AddToScheduleCallback { get; set; }
+        /// <summary>Callback: adiciona rows ao cronograma e retorna a primeira ProjectTask adicionada (para seleção).</summary>
+        public Func<IEnumerable<TaskReviewRow>, ProjectTask?>? AddToScheduleCallback { get; set; }
         public Action? ReleaseCallback { get; set; }
 
         public TechLeadTaskReviewWindow(Project project, List<ProjectTask> stories)
@@ -225,65 +226,21 @@ namespace NXProject.Views
         {
             var toAdd = _allRows.Where(r => r.IsSelected && !r.InSchedule).ToList();
             if (toAdd.Count == 0) return;
-
-            if (AddToScheduleCallback != null)
-            {
-                AddToScheduleCallback.Invoke(toAdd);
-                foreach (var r in toAdd) { r.InSchedule = true; r.IsSelected = false; }
-                HasChanges = true;
-                UpdateTotals();
-                MessageBox.Show($"{toAdd.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var projectResources = _project.Resources;
-            foreach (var r in toAdd)
-            {
-                var pt = new ProjectTask
-                {
-                    Name             = r.Title,
-                    TfsId            = r.TaskId,
-                    TfsType          = "Task",
-                    EstimatedHours   = r.EstimatedHours > 0 ? r.EstimatedHours : null,
-                    CurrentHours     = r.CompletedHours > 0 ? r.CompletedHours : null,
-                    PercentComplete  = r.PercentComplete,
-                    Priority         = r.Priority > 0 ? r.Priority : 5,
-                    TfsState         = r.State,
-                    TfsIterationPath = r.StoryTask.TfsIterationPath,
-                    SprintNumber     = r.StoryTask.SprintNumber,
-                    Start            = r.StoryTask.Start,
-                    Finish           = r.StoryTask.Finish,
-                };
-                if (!string.IsNullOrWhiteSpace(r.AssignedTo))
-                {
-                    var res = projectResources.FirstOrDefault(x =>
-                        string.Equals(x.Email, r.AssignedTo, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(x.Name,  r.AssignedTo, StringComparison.OrdinalIgnoreCase));
-                    if (res != null)
-                        pt.Resources.Add(new TaskResource { ResourceId = res.Id, Resource = res, AllocationPercent = 100 });
-                }
-                r.StoryTask.Children.Add(pt);
-                r.InSchedule = true;
-                r.IsSelected = false;
-            }
-
-            HasChanges = true;
-            UpdateTotals();
-            MessageBox.Show($"{toAdd.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
+            AddToScheduleAndClose(toAdd);
         }
 
         private void OnExpandAllClick(object sender, RoutedEventArgs e)
         {
             var toAdd = (_view?.Cast<TaskReviewRow>() ?? _allRows).Where(r => !r.InSchedule).ToList();
             if (toAdd.Count == 0) { MessageBox.Show("Todas as Tasks já estão no cronograma.", "Info", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-            if (AddToScheduleCallback != null)
-            {
-                AddToScheduleCallback.Invoke(toAdd);
-                foreach (var r in toAdd) { r.InSchedule = true; r.IsSelected = false; }
-                HasChanges = true;
-                UpdateTotals();
-                MessageBox.Show($"{toAdd.Count} Task(s) expandidas no cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
+            AddToScheduleAndClose(toAdd);
+        }
+
+        private void AddToScheduleAndClose(List<TaskReviewRow> toAdd)
+        {
+            AddToScheduleCallback?.Invoke(toAdd);
+            HasChanges = true;
+            Close();
         }
 
         private void OnReleaseClick(object sender, RoutedEventArgs e)
