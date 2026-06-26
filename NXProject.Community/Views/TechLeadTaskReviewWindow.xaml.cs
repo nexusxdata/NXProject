@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using NXProject.Models;
 using NXProject.Services;
@@ -18,8 +19,11 @@ namespace NXProject.Views
         private readonly List<ProjectTask> _stories;
         private readonly ObservableCollection<TaskReviewRow> _allRows = [];
         private ICollectionView? _view;
+        private static readonly List<string> KnownStates = ["New", "Active", "Resolved", "Closed", "Blocked"];
 
         public bool HasChanges { get; private set; }
+        public Action<IEnumerable<TaskReviewRow>>? AddToScheduleCallback { get; set; }
+        public Action? ReleaseCallback { get; set; }
 
         public TechLeadTaskReviewWindow(Project project, List<ProjectTask> stories)
         {
@@ -27,17 +31,18 @@ namespace NXProject.Views
             _stories = stories;
             InitializeComponent();
             Loaded += async (_, _) => await LoadAsync();
+            Loaded += (_, _) => ReleaseButton.Visibility = ReleaseCallback != null ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private async Task LoadAsync()
         {
             StatusText.Text = "Buscando Tasks no DevOps...";
             AddSelectedButton.IsEnabled = false;
+            SaveChangesButton.IsEnabled = false;
 
             var options = TfsConnectionStore.Load("NXProject.Community");
             var rows = new List<TaskReviewRow>();
 
-            // Set de TfsIds já no cronograma como Tasks
             var inScheduleIds = _stories
                 .SelectMany(s => s.Children)
                 .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase) && c.TfsId.HasValue)
@@ -53,27 +58,29 @@ namespace NXProject.Views
                 fetched++;
                 foreach (var t in tasks)
                 {
-                    rows.Add(new TaskReviewRow
+                    var row = new TaskReviewRow
                     {
-                        StoryId        = story.TfsId!.Value,
-                        StoryName      = story.Name,
-                        StoryTask      = story,
-                        TaskId         = t.TfsId,
-                        Title          = t.Title,
-                        State          = t.State ?? "",
-                        EstimatedHours = t.EstimatedHours,
-                        CompletedHours = t.CompletedHours,
+                        StoryId         = story.TfsId!.Value,
+                        StoryName       = story.Name,
+                        StoryTask       = story,
+                        TaskId          = t.TfsId,
+                        Title           = t.Title,
+                        State           = t.State ?? "New",
+                        EstimatedHours  = t.EstimatedHours,
+                        CompletedHours  = t.CompletedHours,
                         PercentComplete = t.PercentComplete,
-                        Priority       = t.Priority,
-                        AssignedTo     = t.AssignedTo ?? "",
-                        InSchedule     = inScheduleIds.Contains(t.TfsId),
-                    });
+                        Priority        = t.Priority,
+                        AssignedTo      = t.AssignedTo ?? "",
+                        InSchedule      = inScheduleIds.Contains(t.TfsId),
+                    };
+                    row.PropertyChanged += OnRowPropertyChanged;
+                    rows.Add(row);
                 }
             }
 
+            _allRows.Clear();
             foreach (var r in rows) _allRows.Add(r);
 
-            // Popula filtros
             var storyNames = new[] { "(Todas)" }.Concat(rows.Select(r => r.StoryName).Distinct().OrderBy(s => s)).ToList();
             StoryFilterBox.ItemsSource = storyNames;
             StoryFilterBox.SelectedIndex = 0;
@@ -90,6 +97,19 @@ namespace NXProject.Views
             StatusText.Text = $"{fetched} Stories consultadas — {rows.Count} Tasks encontradas no DevOps.";
         }
 
+        private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(TaskReviewRow.IsDirty)) return;
+            if (sender is TaskReviewRow row && e.PropertyName != nameof(TaskReviewRow.IsSelected)
+                                             && e.PropertyName != nameof(TaskReviewRow.InSchedule))
+            {
+                row.IsDirty = true;
+                SaveChangesButton.IsEnabled = _allRows.Any(r => r.IsDirty);
+                DirtyHint.Visibility = SaveChangesButton.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            }
+            UpdateTotals();
+        }
+
         private bool ApplyFilter(object obj)
         {
             if (obj is not TaskReviewRow r) return true;
@@ -104,25 +124,88 @@ namespace NXProject.Views
         {
             var visible = _view?.Cast<TaskReviewRow>().ToList() ?? [.. _allRows];
             double totalH = visible.Sum(r => r.EstimatedHours);
-            int inSched = visible.Count(r => r.InSchedule);
-            TotalsText.Text = $"Total visível: {visible.Count} Tasks | {totalH:0.#}h estimadas | {inSched} já no cronograma";
+            double doneH  = visible.Sum(r => r.CompletedHours);
+            int inSched   = visible.Count(r => r.InSchedule);
+            int dirty     = _allRows.Count(r => r.IsDirty);
+            TotalsText.Text = $"Visível: {visible.Count} Tasks | Est: {totalH:0.#}h | Conc: {doneH:0.#}h | {inSched} no cronograma" +
+                              (dirty > 0 ? $" | {dirty} pendentes de sync" : "");
+        }
+
+        private void OnStoryFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); UpdateTotals(); }
+        private void OnStateFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); UpdateTotals(); }
+
+        private void OnTasksGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateTotals();
             AddSelectedButton.IsEnabled = _allRows.Any(r => r.IsSelected && !r.InSchedule);
+
+            // Atualiza breadcrumb com a story da linha selecionada
+            var row = TasksGrid.SelectedItem as TaskReviewRow;
+            if (row == null) { BreadcrumbPanel.Visibility = Visibility.Collapsed; return; }
+
+            BreadcrumbPanel.Visibility = Visibility.Visible;
+            var story = row.StoryTask;
+            var feature = story.Parent;
+            var epic = feature?.Parent;
+
+            EpicBreadcrumb.Text    = epic    != null ? $"{epic.Name} › "    : "";
+            FeatureBreadcrumb.Text = feature != null ? $"{feature.Name} › " : "";
+            StoryBreadcrumb.Text   = $"{story.Name}";
+            TaskBreadcrumb.Text    = $" › {row.Title}";
         }
 
-        private void OnStoryFilterChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void OnStateComboLoaded(object sender, RoutedEventArgs e)
         {
-            _view?.Refresh();
-            UpdateTotals();
+            if (sender is ComboBox cb)
+                cb.ItemsSource = KnownStates;
         }
 
-        private void OnStateFilterChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
-            _view?.Refresh();
-            UpdateTotals();
+            // Marca dirty quando confirma a edição
+            if (e.EditAction == DataGridEditAction.Commit && e.Row.Item is TaskReviewRow row)
+            {
+                row.IsDirty = true;
+                SaveChangesButton.IsEnabled = true;
+                DirtyHint.Visibility = Visibility.Visible;
+            }
         }
 
-        private void OnTasksGridSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private async void OnSaveChangesClick(object sender, RoutedEventArgs e)
         {
+            var dirty = _allRows.Where(r => r.IsDirty).ToList();
+            if (dirty.Count == 0) return;
+
+            SaveChangesButton.IsEnabled = false;
+            StatusText.Text = $"Sincronizando {dirty.Count} Task(s) com o DevOps...";
+
+            var options = TfsConnectionStore.Load("NXProject.Community");
+            int ok = 0, fail = 0;
+
+            foreach (var row in dirty)
+            {
+                try
+                {
+                    await TfsImportService.UpdateTaskFieldsAsync(options, row.TaskId,
+                        estimatedHours: row.EstimatedHours,
+                        completedHours: row.CompletedHours,
+                        priority: row.Priority,
+                        assignedTo: row.AssignedTo,
+                        state: row.State,
+                        title: row.Title);
+                    row.IsDirty = false;
+                    ok++;
+                }
+                catch
+                {
+                    fail++;
+                }
+            }
+
+            HasChanges = true;
+            DirtyHint.Visibility = _allRows.Any(r => r.IsDirty) ? Visibility.Visible : Visibility.Collapsed;
+            SaveChangesButton.IsEnabled = _allRows.Any(r => r.IsDirty);
+            StatusText.Text = $"Sync concluído: {ok} OK" + (fail > 0 ? $", {fail} com erro" : "");
             UpdateTotals();
         }
 
@@ -137,21 +220,42 @@ namespace NXProject.Views
             var toAdd = _allRows.Where(r => r.IsSelected && !r.InSchedule).ToList();
             if (toAdd.Count == 0) return;
 
+            if (AddToScheduleCallback != null)
+            {
+                AddToScheduleCallback.Invoke(toAdd);
+                foreach (var r in toAdd) { r.InSchedule = true; r.IsSelected = false; }
+                HasChanges = true;
+                UpdateTotals();
+                MessageBox.Show($"{toAdd.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var projectResources = _project.Resources;
             foreach (var r in toAdd)
             {
                 var pt = new ProjectTask
                 {
-                    Name            = r.Title,
-                    TfsId           = r.TaskId,
-                    TfsType         = "Task",
-                    EstimatedHours  = r.EstimatedHours > 0 ? r.EstimatedHours : null,
-                    CurrentHours    = r.CompletedHours > 0 ? r.CompletedHours : null,
-                    PercentComplete = r.PercentComplete,
-                    Priority        = r.Priority > 0 ? r.Priority : 5,
-                    TfsState        = r.State,
-                    Start           = r.StoryTask.Start,
-                    Finish          = r.StoryTask.Finish,
+                    Name             = r.Title,
+                    TfsId            = r.TaskId,
+                    TfsType          = "Task",
+                    EstimatedHours   = r.EstimatedHours > 0 ? r.EstimatedHours : null,
+                    CurrentHours     = r.CompletedHours > 0 ? r.CompletedHours : null,
+                    PercentComplete  = r.PercentComplete,
+                    Priority         = r.Priority > 0 ? r.Priority : 5,
+                    TfsState         = r.State,
+                    TfsIterationPath = r.StoryTask.TfsIterationPath,
+                    SprintNumber     = r.StoryTask.SprintNumber,
+                    Start            = r.StoryTask.Start,
+                    Finish           = r.StoryTask.Finish,
                 };
+                if (!string.IsNullOrWhiteSpace(r.AssignedTo))
+                {
+                    var res = projectResources.FirstOrDefault(x =>
+                        string.Equals(x.Email, r.AssignedTo, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Name,  r.AssignedTo, StringComparison.OrdinalIgnoreCase));
+                    if (res != null)
+                        pt.Resources.Add(new TaskResource { ResourceId = res.Id, Resource = res, AllocationPercent = 100 });
+                }
                 r.StoryTask.Children.Add(pt);
                 r.InSchedule = true;
                 r.IsSelected = false;
@@ -160,6 +264,13 @@ namespace NXProject.Views
             HasChanges = true;
             UpdateTotals();
             MessageBox.Show($"{toAdd.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void OnReleaseClick(object sender, RoutedEventArgs e)
+        {
+            ReleaseCallback?.Invoke();
+            HasChanges = true;
+            Close();
         }
 
         private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
@@ -171,13 +282,24 @@ namespace NXProject.Views
         public string StoryName { get; set; } = "";
         public ProjectTask StoryTask { get; set; } = null!;
         public int TaskId { get; set; }
-        public string Title { get; set; } = "";
-        public string State { get; set; } = "";
-        public double EstimatedHours { get; set; }
+
+        private string _title = "";
+        public string Title { get => _title; set { if (_title == value) return; _title = value; OnPropertyChanged(); } }
+
+        private string _state = "New";
+        public string State { get => _state; set { if (_state == value) return; _state = value; OnPropertyChanged(); } }
+
+        private double _estimatedHours;
+        public double EstimatedHours { get => _estimatedHours; set { if (_estimatedHours == value) return; _estimatedHours = value; OnPropertyChanged(); OnPropertyChanged(nameof(EstimatedHoursDisplay)); } }
+
         public double CompletedHours { get; set; }
         public double PercentComplete { get; set; }
-        public int Priority { get; set; }
-        public string AssignedTo { get; set; } = "";
+
+        private int _priority = 5;
+        public int Priority { get => _priority; set { if (_priority == value) return; _priority = value; OnPropertyChanged(); } }
+
+        private string _assignedTo = "";
+        public string AssignedTo { get => _assignedTo; set { if (_assignedTo == value) return; _assignedTo = value; OnPropertyChanged(); } }
 
         private bool _inSchedule;
         public bool InSchedule
@@ -187,11 +309,10 @@ namespace NXProject.Views
         }
 
         private bool _isSelected;
-        public bool IsSelected
-        {
-            get => _isSelected;
-            set { _isSelected = value; OnPropertyChanged(); }
-        }
+        public bool IsSelected { get => _isSelected; set { _isSelected = value; OnPropertyChanged(); } }
+
+        private bool _isDirty;
+        public bool IsDirty { get => _isDirty; set { _isDirty = value; OnPropertyChanged(); } }
 
         public string EstimatedHoursDisplay => EstimatedHours > 0 ? $"{EstimatedHours:0.#}h" : "-";
         public string InScheduleDisplay => InSchedule ? "✔ Sim" : "Não";

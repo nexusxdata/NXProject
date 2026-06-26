@@ -111,7 +111,7 @@ namespace NXProject.Views
                 dlg.ShowDialog();
                 if (dlg.Result == AddSubtaskResult.Fetch)
                 {
-                    _ = FetchAndAddChildTasksAsync(storyVm);
+                    OpenTaskReviewForStory(storyVm);
                     return "Fetch";
                 }
                 return dlg.Result switch
@@ -554,106 +554,96 @@ namespace NXProject.Views
             }
         }
 
-        private async void OnFetchChildTasksFromDevOps(TaskViewModel storyVm) =>
-            await FetchAndAddChildTasksAsync(storyVm);
+        private void OnFetchChildTasksFromDevOps(TaskViewModel storyVm) =>
+            OpenTaskReviewForStory(storyVm);
 
-        private async Task FetchAndAddChildTasksAsync(TaskViewModel storyVm)
+        private void OnExpandChildTasks(TaskViewModel storyVm)
+        {
+            storyVm.Model.TasksSuppressed = false;
+            OpenTaskReviewForStory(storyVm);
+        }
+
+        private void OpenTaskReviewForStory(TaskViewModel storyVm)
         {
             if (DataContext is not MainViewModel vm) return;
             if (storyVm.Model.TfsId is not > 0) return;
 
-            try
+            var dlg = new TechLeadTaskReviewWindow(vm.Project, [storyVm.Model])
             {
-                var options = Services.TfsConnectionStore.Load("NXProject.Community");
-                var tasks = await Services.TfsImportService.FetchChildTasksFromDevOpsAsync(options, storyVm.Model.TfsId!.Value);
-                if (tasks == null)
-                {
-                    MessageBox.Show("Não foi possível acessar o DevOps.", "Erro", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-                if (tasks.Count == 0)
-                {
-                    MessageBox.Show("Nenhuma Task encontrada no DevOps para esta atividade.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
-                    storyVm.Model.TasksSuppressed = false;
-                    return;
-                }
+                Owner = this,
+                AddToScheduleCallback = rows => AddTaskRowsToSchedule(rows, storyVm.Model, vm),
+                ReleaseCallback       = () => ReleaseStoryTasks(storyVm.Model, vm)
+            };
+            dlg.ShowDialog();
 
-                // Filtra as que já existem no cronograma pelo TfsId
-                var existingTfsIds = storyVm.Model.Children
-                    .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase) && c.TfsId.HasValue)
-                    .Select(c => c.TfsId!.Value)
-                    .ToHashSet();
-                var newTasks = tasks.Where(t => !existingTfsIds.Contains(t.TfsId)).ToList();
-
-                if (newTasks.Count == 0)
-                {
-                    MessageBox.Show($"Todas as {tasks.Count} Tasks já estão no cronograma.", "Sem novidades", MessageBoxButton.OK, MessageBoxImage.Information);
-                    storyVm.Model.TasksSuppressed = false;
-                    return;
-                }
-
-                // Pergunta o que fazer: incluir no cronograma ou liberar (suprimir)
-                var fetchDlg = new FetchTasksConfirmDialog(tasks.Count, newTasks.Count) { Owner = this };
-                fetchDlg.ShowDialog();
-                if (fetchDlg.Result == FetchTasksAction.Cancel)
-                    return;
-                bool releaseOnly = fetchDlg.Result == FetchTasksAction.Release;
-
-                if (releaseOnly)
-                {
-                    // Liberar = suprimir Tasks do cronograma sem adicionar novas
-                    var existing = storyVm.Model.Children
-                        .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    foreach (var c in existing) storyVm.Model.Children.Remove(c);
-                    storyVm.Model.TasksSuppressed = true;
-                    vm.Project.IsDirty = true;
-                    vm.RebuildFlatTasks();
-                    GanttCtrl.ForceRender();
-                    return;
-                }
-
-                // Mapeia AssignedTo para recurso do projeto
-                var projectResources = vm.Project.Resources;
-                foreach (var t in newTasks)
-                {
-                    var pt = new NXProject.Models.ProjectTask
-                    {
-                        Name             = t.Title,
-                        TfsId            = t.TfsId,
-                        TfsType          = "Task",
-                        EstimatedHours   = t.EstimatedHours > 0 ? t.EstimatedHours : null,
-                        CurrentHours     = t.CompletedHours > 0 ? t.CompletedHours : null,
-                        PercentComplete  = t.PercentComplete,
-                        Priority         = t.Priority > 0 ? t.Priority : 5,
-                        TfsState         = t.State,
-                        TfsIterationPath = storyVm.Model.TfsIterationPath,
-                        SprintNumber     = storyVm.Model.SprintNumber,
-                        Start            = storyVm.Model.Start,
-                        Finish           = storyVm.Model.Finish,
-                    };
-                    // Vincula recurso pelo e-mail ou nome do AssignedTo
-                    if (!string.IsNullOrWhiteSpace(t.AssignedTo))
-                    {
-                        var res = projectResources.FirstOrDefault(r =>
-                            string.Equals(r.Email, t.AssignedTo, StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(r.Name,  t.AssignedTo, StringComparison.OrdinalIgnoreCase));
-                        if (res != null)
-                            pt.Resources.Add(new NXProject.Models.TaskResource { ResourceId = res.Id, Resource = res, AllocationPercent = 100 });
-                    }
-                    storyVm.Model.Children.Add(pt);
-                }
-
-                storyVm.Model.TasksSuppressed = false;
+            if (dlg.HasChanges)
+            {
                 vm.Project.IsDirty = true;
                 vm.RebuildFlatTasks();
                 GanttCtrl.ForceRender();
-                MessageBox.Show($"{newTasks.Count} Task(s) adicionadas ao cronograma.", "Concluído", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            catch (Exception ex)
+        }
+
+        private void AddTaskRowsToSchedule(
+            IEnumerable<TaskReviewRow> rows,
+            NXProject.Models.ProjectTask story,
+            MainViewModel vm)
+        {
+            var projectResources = vm.Project.Resources;
+            var existingIds = story.Children
+                .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase) && c.TfsId.HasValue)
+                .Select(c => c.TfsId!.Value).ToHashSet();
+
+            int added = 0;
+            foreach (var r in rows)
             {
-                MessageBox.Show($"Erro ao buscar Tasks:\n{ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (existingIds.Contains(r.TaskId)) continue;
+                var pt = new NXProject.Models.ProjectTask
+                {
+                    Name             = r.Title,
+                    TfsId            = r.TaskId,
+                    TfsType          = "Task",
+                    EstimatedHours   = r.EstimatedHours > 0 ? r.EstimatedHours : null,
+                    CurrentHours     = r.CompletedHours > 0 ? r.CompletedHours : null,
+                    PercentComplete  = r.PercentComplete,
+                    Priority         = r.Priority > 0 ? r.Priority : 5,
+                    TfsState         = r.State,
+                    TfsIterationPath = story.TfsIterationPath,
+                    SprintNumber     = story.SprintNumber,
+                    Start            = story.Start,
+                    Finish           = story.Finish,
+                };
+                if (!string.IsNullOrWhiteSpace(r.AssignedTo))
+                {
+                    var res = projectResources.FirstOrDefault(x =>
+                        string.Equals(x.Email, r.AssignedTo, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Name,  r.AssignedTo, StringComparison.OrdinalIgnoreCase));
+                    if (res != null)
+                        pt.Resources.Add(new NXProject.Models.TaskResource { ResourceId = res.Id, Resource = res, AllocationPercent = 100 });
+                }
+                story.Children.Add(pt);
+                story.TasksSuppressed = false;
+                added++;
             }
+
+            if (added > 0)
+            {
+                vm.Project.IsDirty = true;
+                vm.RebuildFlatTasks();
+                GanttCtrl.ForceRender();
+            }
+        }
+
+        private void ReleaseStoryTasks(NXProject.Models.ProjectTask story, MainViewModel vm)
+        {
+            var tasks = story.Children
+                .Where(c => string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var t in tasks) story.Children.Remove(t);
+            story.TasksSuppressed = false;
+            vm.Project.IsDirty = true;
+            vm.RebuildFlatTasks();
+            GanttCtrl.ForceRender();
         }
 
         private void OnSuppressChildTasks(TaskViewModel storyVm)
@@ -677,13 +667,6 @@ namespace NXProject.Views
             vm.Project.IsDirty = true;
             vm.RebuildFlatTasks();
             GanttCtrl.ForceRender();
-        }
-
-        private async void OnExpandChildTasks(TaskViewModel storyVm)
-        {
-            // Reutiliza o mesmo fluxo de busca de Tasks, apenas limpa o flag ao terminar
-            storyVm.Model.TasksSuppressed = false;
-            await FetchAndAddChildTasksAsync(storyVm);
         }
 
         private async void OnTechLeadReviewClick(object sender, RoutedEventArgs e)

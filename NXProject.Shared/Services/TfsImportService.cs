@@ -2334,6 +2334,50 @@ namespace NXProject.Services
                 throw new InvalidOperationException($"Falha ao excluir #{workItemId}: {resp.StatusCode} — {body}");
             }
         }
+        /// <summary>
+        /// Atualiza campos de uma Task individual diretamente no DevOps (usado pelo Tech Lead Review).
+        /// </summary>
+        public static async Task UpdateTaskFieldsAsync(
+            TfsConnectionOptions options, int taskId,
+            double estimatedHours = 0, double completedHours = 0,
+            int priority = 5, string? assignedTo = null,
+            string? state = null, string? title = null,
+            CancellationToken ct = default)
+        {
+            if (options == null || taskId <= 0) return;
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var auth    = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            var ops = new List<object>();
+            if (!string.IsNullOrWhiteSpace(title))
+                ops.Add(PatchAdd("/fields/System.Title", title));
+            if (estimatedHours > 0)
+                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", estimatedHours));
+            if (completedHours > 0)
+                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Scheduling.CompletedWork", completedHours));
+            if (priority > 0)
+                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", priority));
+            if (!string.IsNullOrWhiteSpace(assignedTo))
+                ops.Add(PatchAdd("/fields/System.AssignedTo", assignedTo));
+            if (!string.IsNullOrWhiteSpace(state))
+                ops.Add(PatchAdd("/fields/System.State", state));
+
+            if (ops.Count == 0) return;
+
+            var url     = $"{orgBase}/_apis/wit/workitems/{taskId}?{ApiVersion}";
+            var body    = System.Text.Json.JsonSerializer.Serialize(ops);
+            using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url);
+            req.Headers.Authorization = auth;
+            req.Content = new StringContent(body, Encoding.UTF8, "application/json-patch+json");
+            using var resp = await Http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var err = await resp.Content.ReadAsStringAsync(ct);
+                throw new InvalidOperationException($"DevOps rejeitou atualização da Task {taskId}: {resp.StatusCode} — {err}");
+            }
+        }
+
         private static bool IsStoryType(string? type) =>
             string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase) ||
