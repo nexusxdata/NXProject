@@ -1377,11 +1377,26 @@ namespace NXProject.Controls
             if (sender is not System.Windows.Controls.TextBox tb) return;
             if (tb.DataContext is not TaskViewModel vm || !vm.IsDevOpsTask) return;
             vm.PriorityDisplay = tb.Text;
-            // Marca projeto como dirty e dispara recálculo de datas
             if (DataContext is ViewModels.MainViewModel mainVm)
             {
                 mainVm.Project.IsDirty = true;
+                var model = vm.Model;
+                // Guarda posição do scroll antes do rebuild (Clear() joga para o topo)
+                var scrollOffset = _scrollViewer?.VerticalOffset ?? 0;
                 mainVm.RebuildFlatTasks();
+                var rebuilt = mainVm.FlatTasks.FirstOrDefault(t => t.Model == model);
+                if (rebuilt != null)
+                {
+                    mainVm.SelectedTask = rebuilt;
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+                    {
+                        // Restaura posição do scroll; ScrollToSelected só rola se o item ficou fora da tela
+                        _scrollViewer?.ScrollToVerticalOffset(scrollOffset);
+                        TaskGrid.UpdateLayout();
+                        if (!IsItemFullyVisible(rebuilt))
+                            ScrollToSelected();
+                    });
+                }
             }
         }
 
