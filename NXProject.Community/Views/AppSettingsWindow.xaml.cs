@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
@@ -31,6 +32,7 @@ namespace NXProject.Views
             CompanyNameBox.Text    = opts.CompanyName ?? string.Empty;
             _logoBase64            = opts.CompanyLogoBase64 ?? string.Empty;
             DebugLogCheck.IsChecked = opts.DebugLogEnabled;
+            ActivityListBox.Text   = string.Join("\n", opts.TaskActivityList);
 
             if (!string.IsNullOrEmpty(_logoBase64))
                 ShowLogoPreview(_logoBase64);
@@ -165,6 +167,9 @@ namespace NXProject.Views
             opts.CompanyName       = CompanyNameBox.Text.Trim();
             opts.CompanyLogoBase64 = _logoBase64;
             opts.DebugLogEnabled   = DebugLogCheck.IsChecked == true;
+            opts.TaskActivityList  = ActivityListBox.Text
+                .Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
 
             SprintAlertLog.Enabled = opts.DebugLogEnabled;
 

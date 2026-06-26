@@ -87,6 +87,17 @@
                 FontSize="11" Margin="20,0,0,20"
                 Click="OnOpenLogFolderClick"/>
 
+        <!-- ══ CATEGORIAS DE TASK (Activity) ══ -->
+        <TextBlock Text="Categorias de Task (Activity)" FontSize="13" FontWeight="Bold"
+                   Foreground="#2B579A" Margin="0,0,0,6"/>
+        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#666" Margin="0,0,0,6"
+                   Text="Lista de opções exibidas na coluna Categoria da Grid de Tasks. Uma categoria por linha. Sincroniza o campo Activity no DevOps."/>
+        <TextBox x:Name="ActivityListBox" FontSize="12" Height="120" Padding="6,4"
+                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                 TextWrapping="NoWrap" Margin="0,0,0,20"
+                 FontFamily="Consolas"
+                 ToolTip="Uma categoria por linha. Ex: Development, Design, Testing"/>
+
         <!-- ══ BOTÕES ══ -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="{DynamicResource Settings_Save}" Width="90" Height="30" Margin="0,0,8,0"

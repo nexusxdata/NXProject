@@ -101,6 +101,18 @@
                 <DataGridCheckBoxColumn Header="" Width="28"
                     Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"/>
 
+                <!-- Numeração sequencial -->
+                <DataGridTextColumn Header="#" Width="32"
+                    Binding="{Binding RowNumber}" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="#999"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+
                 <!-- Hierarquia (somente leitura) -->
                 <DataGridTextColumn Header="ID" Width="60"
                     Binding="{Binding TaskId}" IsReadOnly="True">
@@ -194,8 +206,26 @@
                 </DataGridTextColumn>
 
                 <!-- Responsável (editável — exibe displayName, edição altera AssignedToDisplay) -->
-                <DataGridTextColumn Header="Responsável" Width="170"
+                <DataGridTextColumn Header="Responsável" Width="160"
                     Binding="{Binding AssignedToDisplay, UpdateSourceTrigger=LostFocus}"/>
+
+                <!-- Categoria / Activity (ComboBox editável sincroniza Microsoft.VSTS.Common.Activity) -->
+                <DataGridTemplateColumn Header="Categoria" Width="130">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Activity}" Padding="2,0" FontSize="12"
+                                       Foreground="#444"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <ComboBox SelectedItem="{Binding Activity, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEditable="True"
+                                      Loaded="OnActivityComboLoaded"
+                                      FontSize="12"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
 
                 <!-- No cronograma (somente leitura) -->
                 <DataGridTextColumn Header="Cronograma" Width="90"

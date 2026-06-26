@@ -2122,6 +2122,7 @@ namespace NXProject.Services
             public string? AssignedToDisplay { get; init; } // displayName para exibição
             public int Priority { get; init; } = 5;
             public string? State { get; init; }
+            public string? Activity { get; init; }
         }
 
         /// <summary>
@@ -2163,7 +2164,8 @@ namespace NXProject.Services
             const string OrigEstRef      = "Microsoft.VSTS.Scheduling.OriginalEstimate";
             const string CompletedRef    = "Microsoft.VSTS.Scheduling.CompletedWork";
             var ids = string.Join(",", childIds);
-            var fields = $"System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo,{OrigEstRef},{CompletedRef},Microsoft.VSTS.Common.Priority";
+            const string ActivityRef = "Microsoft.VSTS.Common.Activity";
+            var fields = $"System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo,{OrigEstRef},{CompletedRef},Microsoft.VSTS.Common.Priority,{ActivityRef}";
             var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields={fields}&{ApiVersion}";
             using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
             batchReq.Headers.Authorization = auth;
@@ -2215,11 +2217,14 @@ namespace NXProject.Services
                     else if (completed > 0 && hours > 0)
                         pct = Math.Min(100, completed / hours * 100);
 
+                    var activity = f.TryGetProperty(ActivityRef, out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null;
+
                     result.Add(new DevOpsTaskInfo
                     {
                         TfsId = tid, Title = title, State = state,
                         EstimatedHours = hours, CompletedHours = completed,
-                        PercentComplete = pct, AssignedTo = assignee, AssignedToDisplay = assigneeDisplay, Priority = prio
+                        PercentComplete = pct, AssignedTo = assignee, AssignedToDisplay = assigneeDisplay,
+                        Priority = prio, Activity = activity
                     });
                 }
             }
@@ -2354,6 +2359,7 @@ namespace NXProject.Services
             double estimatedHours = 0, double completedHours = 0,
             int priority = 5, string? assignedTo = null,
             string? state = null, string? title = null,
+            string? activity = null,
             CancellationToken ct = default)
         {
             if (options == null || taskId <= 0) return;
@@ -2374,6 +2380,8 @@ namespace NXProject.Services
                 ops.Add(PatchAdd("/fields/System.AssignedTo", assignedTo));
             if (!string.IsNullOrWhiteSpace(state))
                 ops.Add(PatchAdd("/fields/System.State", state));
+            if (!string.IsNullOrWhiteSpace(activity))
+                ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Activity", activity));
 
             if (ops.Count == 0) return;
 

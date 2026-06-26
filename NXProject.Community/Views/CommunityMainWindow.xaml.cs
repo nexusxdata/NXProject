@@ -605,7 +605,8 @@ namespace NXProject.Views
             if (DataContext is not MainViewModel vm) return;
             if (storyVm.Model.TfsId is not > 0) return;
 
-            var dlg = new TechLeadTaskReviewWindow(vm.Project, [storyVm.Model])
+            var cfg = Services.TfsConnectionStore.Load("NXProject.Community");
+            var dlg = new TechLeadTaskReviewWindow(vm.Project, [storyVm.Model], cfg.TaskActivityList)
             {
                 Owner = this,
                 AddToScheduleCallback = rows =>

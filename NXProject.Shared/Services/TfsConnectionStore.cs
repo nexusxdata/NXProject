@@ -139,6 +139,17 @@ namespace NXProject.Services
         /// </summary>
         public Dictionary<string, TypeFieldConfig> TypeFieldMappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Lista de categorias de atividade (campo Activity do DevOps). Configurável pelo usuário.</summary>
+        public List<string> TaskActivityList { get; set; } =
+        [
+            "Deployment",
+            "Design",
+            "Development",
+            "Documentation",
+            "Requirements",
+            "Testing"
+        ];
+
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(OrganizationUrl) &&
             !string.IsNullOrWhiteSpace(TeamProject) &&

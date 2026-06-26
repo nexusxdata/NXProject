@@ -18,6 +18,7 @@ namespace NXProject.Views
     {
         private readonly Project _project;
         private readonly List<ProjectTask> _stories;
+        private readonly List<string> _activityList;
         private readonly ObservableCollection<TaskReviewRow> _allRows = [];
         private ICollectionView? _view;
         private static readonly List<string> KnownStates = ["New", "Active", "Resolved", "Closed", "Blocked"];
@@ -28,13 +29,15 @@ namespace NXProject.Views
         private bool _isDragging;
 
         public bool HasChanges { get; private set; }
+        public List<string> ActivityList => _activityList;
         /// <summary>Callback: adiciona rows ao cronograma e retorna a primeira ProjectTask adicionada (para seleção).</summary>
         public Func<IEnumerable<TaskReviewRow>, ProjectTask?>? AddToScheduleCallback { get; set; }
         public Action? ReleaseCallback { get; set; }
 
-        public TechLeadTaskReviewWindow(Project project, List<ProjectTask> stories)
+        public TechLeadTaskReviewWindow(Project project, List<ProjectTask> stories, List<string>? activityList = null)
         {
             _project = project;
+            _activityList = activityList ?? ["Deployment", "Design", "Development", "Documentation", "Requirements", "Testing"];
             _stories = stories;
             InitializeComponent();
             Loaded += async (_, _) => await LoadAsync();
@@ -84,6 +87,7 @@ namespace NXProject.Views
                         Priority        = t.Priority,
                         AssignedTo        = t.AssignedTo ?? "",
                         AssignedToDisplay = t.AssignedToDisplay ?? t.AssignedTo ?? "",
+                        Activity          = t.Activity ?? "",
                         InSchedule        = inScheduleIds.Contains(t.TfsId),
                     };
                     row.PropertyChanged += OnRowPropertyChanged;
@@ -107,6 +111,7 @@ namespace NXProject.Views
             _view.SortDescriptions.Clear();
             _view.SortDescriptions.Add(new SortDescription(nameof(TaskReviewRow.Priority), ListSortDirection.Ascending));
             TasksGrid.ItemsSource = _view;
+            RefreshRowNumbers();
 
             // Preenche duração da story (primeira story selecionada)
             if (_stories.Count > 0)
@@ -154,8 +159,15 @@ namespace NXProject.Views
                               (dirty > 0 ? $" | {dirty} pendentes de sync" : "");
         }
 
-        private void OnStoryFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); UpdateTotals(); }
-        private void OnStateFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); UpdateTotals(); }
+        private void RefreshRowNumbers()
+        {
+            var visible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
+            for (int i = 0; i < visible.Count; i++)
+                visible[i].RowNumber = i + 1;
+        }
+
+        private void OnStoryFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); }
+        private void OnStateFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); }
 
         private void OnTasksGridSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -181,6 +193,12 @@ namespace NXProject.Views
         {
             if (sender is ComboBox cb)
                 cb.ItemsSource = KnownStates;
+        }
+
+        private void OnActivityComboLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is ComboBox cb)
+                cb.ItemsSource = _activityList;
         }
 
         private void OnCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
@@ -215,7 +233,8 @@ namespace NXProject.Views
                         priority: row.Priority,
                         assignedTo: row.AssignedTo,
                         state: row.State,
-                        title: row.Title);
+                        title: row.Title,
+                        activity: row.Activity);
                     row.IsDirty = false;
                     ok++;
                 }
@@ -364,6 +383,7 @@ namespace NXProject.Views
             _allRows.Clear();
             foreach (var r in visible) _allRows.Add(r);
 
+            RefreshRowNumbers();
             SaveChangesButton.IsEnabled = _allRows.Any(r => r.IsDirty);
             DirtyHint.Visibility = SaveChangesButton.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             UpdateTotals();
@@ -385,6 +405,9 @@ namespace NXProject.Views
         public ProjectTask StoryTask { get; set; } = null!;
         public int TaskId { get; set; }
 
+        private int _rowNumber;
+        public int RowNumber { get => _rowNumber; set { if (_rowNumber == value) return; _rowNumber = value; OnPropertyChanged(); } }
+
         private string _title = "";
         public string Title { get => _title; set { if (_title == value) return; _title = value; OnPropertyChanged(); } }
 
@@ -399,6 +422,9 @@ namespace NXProject.Views
 
         private int _priority = 5;
         public int Priority { get => _priority; set { if (_priority == value) return; _priority = value; OnPropertyChanged(); } }
+
+        private string _activity = "";
+        public string Activity { get => _activity; set { if (_activity == value) return; _activity = value; OnPropertyChanged(); } }
 
         private string _assignedTo = "";
         public string AssignedTo { get => _assignedTo; set { if (_assignedTo == value) return; _assignedTo = value; OnPropertyChanged(); } }
