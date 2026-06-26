@@ -104,6 +104,12 @@ namespace NXProject.ViewModels
 
         public bool HasDevOpsLink => _task.TfsId.HasValue && _task.TfsId.Value > 0;
 
+        public bool TasksSuppressed
+        {
+            get => _task.TasksSuppressed;
+            set { if (_task.TasksSuppressed == value) return; _task.TasksSuppressed = value; OnPropertyChanged(); }
+        }
+
         public bool IsDevOpsTask =>
             string.Equals(_task.TfsType?.Trim(), "Task", StringComparison.OrdinalIgnoreCase);
 

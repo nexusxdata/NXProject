@@ -186,6 +186,7 @@ namespace NXProject.Controls
 
         /// <summary>Disparado quando o usuário clica em "Buscar Tasks (DevOps)" no menu do nome da tarefa.</summary>
         public event Action<TaskViewModel>? FetchChildTasksRequested;
+        public event Action<TaskViewModel>? ExpandChildTasksRequested;
 
         /// <summary>Disparado quando o usuário clica em "Suprimir Tasks do cronograma".</summary>
         public event Action<TaskViewModel>? SuppressChildTasksRequested;
@@ -1300,17 +1301,26 @@ namespace NXProject.Controls
                                 string.Equals(vm.Model.TfsType, "Epic", StringComparison.OrdinalIgnoreCase));
             bool hasTasks = vm.Model.Children.Any(c =>
                 string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
+            bool suppressed = vm.Model.TasksSuppressed;
 
             var onlineItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "ViewOnlineChildrenMenuItem");
             if (onlineItem != null)
                 onlineItem.Visibility = hasDevOps ? Visibility.Visible : Visibility.Collapsed;
 
+            // "Buscar Tasks" aparece só quando não suprimido e sem tasks no cronograma
             var fetchItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "FetchChildTasksMenuItem");
             if (fetchItem != null)
-                fetchItem.Visibility = (hasDevOps && isStoryLike) ? Visibility.Visible : Visibility.Collapsed;
+                fetchItem.Visibility = (hasDevOps && isStoryLike && !suppressed) ? Visibility.Visible : Visibility.Collapsed;
 
+            // "Expandir Tasks" aparece só quando suprimido
+            var expandItem = cm.Items.OfType<MenuItem>()
+                .FirstOrDefault(m => m.Name == "ExpandChildTasksMenuItem");
+            if (expandItem != null)
+                expandItem.Visibility = (hasDevOps && isStoryLike && suppressed) ? Visibility.Visible : Visibility.Collapsed;
+
+            // "Suprimir" aparece quando há tasks no cronograma
             var suppressItem = cm.Items.OfType<MenuItem>()
                 .FirstOrDefault(m => m.Name == "SuppressChildTasksMenuItem");
             if (suppressItem != null)
@@ -1372,6 +1382,13 @@ namespace NXProject.Controls
                 SuppressChildTasksRequested?.Invoke(vm);
         }
 
+        private void OnExpandChildTasksClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                ExpandChildTasksRequested?.Invoke(vm);
+        }
+
         private void OnPriorityEditLostFocus(object sender, RoutedEventArgs e)
         {
             if (sender is not System.Windows.Controls.TextBox tb) return;
@@ -1381,23 +1398,43 @@ namespace NXProject.Controls
             {
                 mainVm.Project.IsDirty = true;
                 var model = vm.Model;
-                // Guarda posição do scroll antes do rebuild (Clear() joga para o topo)
-                var scrollOffset = _scrollViewer?.VerticalOffset ?? 0;
+                var modelId = model.Id;
                 mainVm.RebuildFlatTasks();
-                var rebuilt = mainVm.FlatTasks.FirstOrDefault(t => t.Model == model);
+                var rebuilt = mainVm.FlatTasks.FirstOrDefault(t => ReferenceEquals(t.Model, model))
+                              ?? mainVm.FlatTasks.FirstOrDefault(t => t.Model.Id == modelId);
                 if (rebuilt != null)
                 {
                     mainVm.SelectedTask = rebuilt;
-                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
-                    {
-                        // Restaura posição do scroll; ScrollToSelected só rola se o item ficou fora da tela
-                        _scrollViewer?.ScrollToVerticalOffset(scrollOffset);
-                        TaskGrid.UpdateLayout();
-                        if (!IsItemFullyVisible(rebuilt))
-                            ScrollToSelected();
-                    });
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                        () => SelectRebuiltTask(rebuilt, PriorityColumn));
                 }
             }
+        }
+
+        private void SelectRebuiltTask(TaskViewModel task, DataGridColumn column)
+        {
+            if (!TaskGrid.Items.Contains(task))
+                return;
+
+            TaskGrid.SelectedItem = task;
+            TaskGrid.CurrentCell = new DataGridCellInfo(task, column);
+            TaskGrid.ScrollIntoView(task, column);
+            TaskGrid.UpdateLayout();
+
+            if (TaskGrid.ItemContainerGenerator.ContainerFromItem(task) is not DataGridRow row)
+                return;
+
+            row.IsSelected = true;
+            var cell = FindCell(row, column);
+            if (cell != null)
+            {
+                cell.Focus();
+                Keyboard.Focus(cell);
+                return;
+            }
+
+            row.Focus();
+            Keyboard.Focus(row);
         }
 
         private void CommitStartEdit(TextBox tb)

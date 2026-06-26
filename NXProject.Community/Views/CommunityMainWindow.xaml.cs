@@ -101,6 +101,7 @@ namespace NXProject.Views
             TaskGridCtrl.EditDescriptionRequested += OnEditDescription;
             TaskGridCtrl.FetchTaskHoursRequested += OnFetchTaskHoursFromDevOps;
             TaskGridCtrl.FetchChildTasksRequested += OnFetchChildTasksFromDevOps;
+            TaskGridCtrl.ExpandChildTasksRequested += OnExpandChildTasks;
             TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
             vm.AskSubtaskIsDevOpsTask = () =>
@@ -112,6 +113,23 @@ namespace NXProject.Views
                     MessageBoxButton.YesNoCancel,
                     MessageBoxImage.Question);
                 return dlg == MessageBoxResult.Yes ? true : dlg == MessageBoxResult.No ? false : (bool?)null;
+            };
+            vm.AskFetchTasksBeforeSubtask = (storyVm) =>
+            {
+                var dlg = MessageBox.Show(
+                    $"A Story \"{storyVm.Name}\" está vinculada ao DevOps.\n\n" +
+                    "Deseja buscar as Tasks existentes no DevOps antes de criar uma nova?\n\n" +
+                    "Sim = Buscar Tasks do DevOps\nNão = Criar subtarefa diretamente\nCancelar = Cancelar",
+                    "Buscar Tasks do DevOps?",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+                if (dlg == MessageBoxResult.Yes)
+                {
+                    // Dispara a busca de forma assíncrona e retorna true para cancelar a criação da subtarefa
+                    _ = FetchAndAddChildTasksAsync(storyVm);
+                    return true;
+                }
+                return dlg == MessageBoxResult.No ? false : (bool?)null;
             };
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
@@ -546,7 +564,10 @@ namespace NXProject.Views
             }
         }
 
-        private async void OnFetchChildTasksFromDevOps(TaskViewModel storyVm)
+        private async void OnFetchChildTasksFromDevOps(TaskViewModel storyVm) =>
+            await FetchAndAddChildTasksAsync(storyVm);
+
+        private async Task FetchAndAddChildTasksAsync(TaskViewModel storyVm)
         {
             if (DataContext is not MainViewModel vm) return;
             if (storyVm.Model.TfsId is not > 0) return;
@@ -563,6 +584,7 @@ namespace NXProject.Views
                 if (tasks.Count == 0)
                 {
                     MessageBox.Show("Nenhuma Task encontrada no DevOps para esta atividade.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
+                    storyVm.Model.TasksSuppressed = false;
                     return;
                 }
 
@@ -576,6 +598,7 @@ namespace NXProject.Views
                 if (newTasks.Count == 0)
                 {
                     MessageBox.Show($"Todas as {tasks.Count} Tasks já estão no cronograma.", "Sem novidades", MessageBoxButton.OK, MessageBoxImage.Information);
+                    storyVm.Model.TasksSuppressed = false;
                     return;
                 }
 
@@ -599,6 +622,7 @@ namespace NXProject.Views
                     storyVm.Model.Children.Add(pt);
                 }
 
+                storyVm.Model.TasksSuppressed = false;
                 vm.Project.IsDirty = true;
                 vm.RebuildFlatTasks();
                 GanttCtrl.ForceRender();
@@ -621,15 +645,23 @@ namespace NXProject.Views
                 MessageBox.Show("Nenhuma Task no cronograma para esta atividade.", "Sem Tasks", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (MessageBox.Show($"Remover {tasks.Count} Task(s) do cronograma?\n(Não apaga no DevOps)", "Suprimir Tasks", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            if (MessageBox.Show($"Ocultar {tasks.Count} Task(s) do cronograma?\n(Não apaga no DevOps — use 'Expandir Tasks' para restaurar)", "Suprimir Tasks", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
                 return;
 
             foreach (var t in tasks)
                 storyVm.Model.Children.Remove(t);
 
+            storyVm.Model.TasksSuppressed = true;
             vm.Project.IsDirty = true;
             vm.RebuildFlatTasks();
             GanttCtrl.ForceRender();
+        }
+
+        private async void OnExpandChildTasks(TaskViewModel storyVm)
+        {
+            // Reutiliza o mesmo fluxo de busca de Tasks, apenas limpa o flag ao terminar
+            storyVm.Model.TasksSuppressed = false;
+            await FetchAndAddChildTasksAsync(storyVm);
         }
 
         private async void OnTechLeadReviewClick(object sender, RoutedEventArgs e)

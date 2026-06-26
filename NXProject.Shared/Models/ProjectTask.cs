@@ -81,6 +81,10 @@ namespace NXProject.Models
         // ordenar Tasks dentro da Story e calcular datas sequenciais.
         public int? Priority { get; set; }
 
+        // true quando as Tasks filhas foram suprimidas do cronograma pelo usuário
+        // (existem no DevOps mas não estão nos Children). Controla o menu "Expandir Tasks".
+        public bool TasksSuppressed { get; set; }
+
         // Fim calculado com base em HH + % alocação, ignorando a data fixada.
         // Preenchido apenas quando StartFixed = true e o fim calculado difere do Finish.
         // Usado pelo Gantt para colorir a barra de vermelho e exibir hint.

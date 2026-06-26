@@ -244,6 +244,10 @@
                                                       Header="📥 Buscar Tasks (DevOps)"
                                                       Click="OnFetchChildTasksClick"
                                                       ToolTip="Baixa as Tasks filhas desta Story do DevOps e adiciona ao cronograma"/>
+                                            <MenuItem x:Name="ExpandChildTasksMenuItem"
+                                                      Header="📂 Expandir Tasks (DevOps)"
+                                                      Click="OnExpandChildTasksClick"
+                                                      ToolTip="Re-busca e exibe as Tasks desta Story que foram suprimidas"/>
                                             <MenuItem x:Name="SuppressChildTasksMenuItem"
                                                       Header="🗑 Suprimir Tasks do cronograma"
                                                       Click="OnSuppressChildTasksClick"

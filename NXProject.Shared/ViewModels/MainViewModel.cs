@@ -146,6 +146,13 @@ namespace NXProject.ViewModels
         /// </summary>
         public Func<bool?>? AskSubtaskIsDevOpsTask { get; set; }
 
+        /// <summary>
+        /// Callback para perguntar se o usuário quer buscar Tasks do DevOps antes de criar subtarefa numa Story vinculada.
+        /// Retorna true = buscar primeiro, false = criar diretamente, null = cancelado.
+        /// O parâmetro é a Story (TaskViewModel) que receberá a subtarefa.
+        /// </summary>
+        public Func<TaskViewModel, bool?>? AskFetchTasksBeforeSubtask { get; set; }
+
         public MainViewModel(string sprintSettingsStorageKey = "NXProject.Community")
         {
             _sprintSettingsStorageKey = string.IsNullOrWhiteSpace(sprintSettingsStorageKey)
@@ -1601,11 +1608,26 @@ namespace NXProject.ViewModels
             {
                 childType = "Story";
             }
-            else if (IsStoryLikeType(parentType) && AskSubtaskIsDevOpsTask != null)
+            else if (IsStoryLikeType(parentType))
             {
-                var isDevOpsTask = AskSubtaskIsDevOpsTask.Invoke();
-                if (isDevOpsTask == null) return; // usuário cancelou
-                childType = isDevOpsTask.Value ? "Task" : "No DevOps";
+                // Se a Story tem vínculo DevOps, perguntar primeiro se quer buscar Tasks do DevOps
+                if (parent.TfsId is > 0 && AskFetchTasksBeforeSubtask != null)
+                {
+                    var parentVm = FlatTasks.FirstOrDefault(t => t.Model == parent);
+                    if (parentVm != null)
+                    {
+                        var fetch = AskFetchTasksBeforeSubtask.Invoke(parentVm);
+                        if (fetch == null) return; // cancelado
+                        if (fetch.Value) return;   // busca será feita pela View; não cria subtarefa
+                    }
+                }
+                if (AskSubtaskIsDevOpsTask == null) { childType = "No DevOps"; }
+                else
+                {
+                    var isDevOpsTask = AskSubtaskIsDevOpsTask.Invoke();
+                    if (isDevOpsTask == null) return; // usuário cancelou
+                    childType = isDevOpsTask.Value ? "Task" : "No DevOps";
+                }
             }
             else
             {
