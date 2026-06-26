@@ -287,7 +287,15 @@ namespace NXProject.Views
                     ("Alocação de recursos",
                      "Exibir → Alocação de Recursos mostra a carga de trabalho por pessoa em cada período (sprint ou semana), permitindo identificar sobrecargas antes que virem problemas.\n" +
                      "• Células vermelhas indicam sobrecarga (mais de 100% da capacidade diária).\n" +
-                     "• Células verdes indicam capacidade disponível."),
+                     "• Células verdes indicam capacidade disponível.\n\n" +
+                     "O Mapa de Alocação por Projeto (Exibir → Mapa de Alocação) exibe horas por recurso × projeto × mês com as seguintes abas:\n" +
+                     "• Horas por Projeto — horas de cada recurso em cada projeto por mês.\n" +
+                     "• Distribuição por Pessoa — visão consolidada de todos os projetos por recurso.\n" +
+                     "• Stories por Recurso — detalhamento de cada story por recurso e mês.\n" +
+                     "• Rateio — % que cada projeto representa do total de horas do recurso naquele mês.\n\n" +
+                     "Critério de cálculo das horas por mês:\n" +
+                     "As horas de cada atividade são distribuídas proporcionalmente entre os meses cobertos pela sua duração. Se uma story vai de 10/jan a 20/fev (42 dias), 22 dias ficam em janeiro e 20 dias em fevereiro; as horas são distribuídas nessa proporção (22/42 em jan, 20/42 em fev).\n\n" +
+                     "O valor de horas mostrado em cada célula é HH Atual (já trabalhado) + HH Restante (previsto). Use o checkbox 'Apenas HH atual (alocado)' para ver somente as horas já executadas, excluindo a estimativa futura."),
                     ("Filtro por recurso",
                      "O botão 👤 na toolbar permite filtrar o Gantt e a grade para mostrar somente as atividades de uma pessoa específica — útil em reuniões individuais de acompanhamento.")
                 },
@@ -689,7 +697,15 @@ namespace NXProject.Views
                     ("Resource allocation",
                      "View → Resource Allocation shows the workload per person in each period (sprint or week), allowing you to identify overloads before they become problems.\n" +
                      "• Red cells indicate overload (more than 100% of daily capacity).\n" +
-                     "• Green cells indicate available capacity."),
+                     "• Green cells indicate available capacity.\n\n" +
+                     "The Allocation Map (View → Allocation Map) shows hours per resource × project × month with the following tabs:\n" +
+                     "• Hours by Project — hours per resource per project per month.\n" +
+                     "• Distribution by Person — consolidated view across all projects per resource.\n" +
+                     "• Stories by Resource — breakdown of each story per resource and month.\n" +
+                     "• Rateio (Apportionment) — % that each project represents of the resource's total hours in that month.\n\n" +
+                     "How hours are calculated per month:\n" +
+                     "Each activity's hours are distributed proportionally across the months it spans. If a story runs from Jan 10 to Feb 20 (42 days), 22 days fall in January and 20 in February; hours are split in that ratio (22/42 in Jan, 20/42 in Feb).\n\n" +
+                     "The hours shown in each cell are Current HH (already worked) + Remaining HH (forecast). Use the 'Only current HH (allocated)' checkbox to see only hours already executed, excluding the future estimate."),
                     ("Resource filter",
                      "The 👤 button in the toolbar filters the Gantt and the grid to show only the activities of a specific person — useful in individual status meetings.")
                 },

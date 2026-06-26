@@ -46,6 +46,13 @@
                       FontSize="12" IsChecked="True"
                       Click="OnFilterChanged"/>
 
+            <CheckBox x:Name="OnlyCurrentHoursBox"
+                      Content="Apenas HH atual (alocado)"
+                      VerticalAlignment="Center" Margin="0,0,12,0"
+                      FontSize="12" IsChecked="False"
+                      ToolTip="Marcado: soma só HH Atual (horas já trabalhadas). Desmarcado: soma HH Atual + HH Restante (duração total prevista)."
+                      Click="OnFilterChanged"/>
+
             <Button Content="📊 Exportar Excel" Height="28" Padding="10,0"
                     Click="OnExportExcelClick"/>
         </WrapPanel>

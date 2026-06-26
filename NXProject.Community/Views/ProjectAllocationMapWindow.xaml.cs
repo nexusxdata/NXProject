@@ -155,8 +155,16 @@ namespace NXProject.Views
             }
         }
 
+        private bool OnlyCurrentHours => OnlyCurrentHoursBox?.IsChecked == true;
+
+        private static double GetHoursForMode(ProjectTask task, TaskResource tr, bool onlyCurrentHours)
+            => onlyCurrentHours
+                ? (task.CurrentHours ?? 0)
+                : NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
+
         private static double ComputeHours(Project project, string resourceName,
-                                            DateTime monthStart, DateTime monthEnd)
+                                            DateTime monthStart, DateTime monthEnd,
+                                            bool onlyCurrentHours = false)
         {
             double total = 0;
             foreach (var task in GetLeafTasks(project.Tasks))
@@ -166,7 +174,7 @@ namespace NXProject.Views
                     if (!string.Equals(tr.Resource?.Name, resourceName, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    double hours = NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
+                    double hours = GetHoursForMode(task, tr, onlyCurrentHours);
                     if (hours <= 0) continue;
 
                     var tStart = task.Start.Date;
@@ -229,7 +237,7 @@ namespace NXProject.Views
                         var mStart = _months[mi];
                         var mEnd   = new DateTime(mStart.Year, mStart.Month,
                                          DateTime.DaysInMonth(mStart.Year, mStart.Month));
-                        monthHours[mi] = ComputeHours(proj.Data, res, mStart, mEnd);
+                        monthHours[mi] = ComputeHours(proj.Data, res, mStart, mEnd, OnlyCurrentHours);
                     }
 
                     double rowTotal = monthHours.Sum();
@@ -644,9 +652,9 @@ namespace NXProject.Views
             var win = new Window
             {
                 Title                 = $"{resName}  ·  {monthStart:MMM/yyyy}  ·  {proj.Name}",
-                Width                 = 760,
-                Height                = 420,
-                MinWidth              = 500,
+                Width                 = 840,
+                Height                = 440,
+                MinWidth              = 560,
                 MinHeight             = 300,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner                 = this,
@@ -680,7 +688,7 @@ namespace NXProject.Views
 
             // Cabeçalho da tabela
             panel.Children.Add(MakeStoryRow(
-                "Story / Tarefa", "HH Est.", "Início", "Fim", "DevOps",
+                "Story / Tarefa", "HH Total", "% Concl.", "Início", "Fim", "DevOps",
                 isHeader: true, devOpsUrl: null));
 
             if (stories.Count == 0)
@@ -697,13 +705,15 @@ namespace NXProject.Views
             {
                 foreach (var task in stories.OrderBy(t => t.Start))
                 {
-                    string hh    = task.EstimatedHours.HasValue ? $"{task.EstimatedHours.Value:0.#}h" : "–";
+                    double totalH = (task.CurrentHours ?? 0) + (task.EstimatedHours ?? 0);
+                    string hh    = totalH > 0.01 ? $"{totalH:0.#}h" : "–";
+                    string pct   = $"{(int)Math.Round(task.PercentComplete)}%";
                     string start = task.Start.ToString("dd/MM/yy");
                     string fin   = task.Finish.ToString("dd/MM/yy");
                     string? url  = task.TfsId.HasValue && !string.IsNullOrWhiteSpace(orgUrl)
                         ? $"{orgUrl}/{Uri.EscapeDataString(tp)}/_workitems/edit/{task.TfsId.Value}"
                         : null;
-                    panel.Children.Add(MakeStoryRow(task.Name, hh, start, fin, url != null ? "↗" : "", isHeader: false, devOpsUrl: url));
+                    panel.Children.Add(MakeStoryRow(task.Name, hh, pct, start, fin, url != null ? "↗" : "", isHeader: false, devOpsUrl: url));
                 }
             }
 
@@ -715,7 +725,7 @@ namespace NXProject.Views
             win.ShowDialog();
         }
 
-        private static UIElement MakeStoryRow(string name, string hh, string start, string fin,
+        private static UIElement MakeStoryRow(string name, string hh, string pct, string start, string fin,
             string devOps, bool isHeader, string? devOpsUrl)
         {
             var bg = isHeader
@@ -732,19 +742,21 @@ namespace NXProject.Views
             };
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
 
-            UIElement NameCell(string t, double w) => new Border
+            UIElement Cell(string t, double w, HorizontalAlignment ha = HorizontalAlignment.Left) => new Border
             {
                 Width = w, Padding = new Thickness(6, 4, 6, 4),
                 Child = new TextBlock { Text = t, FontSize = 11, FontWeight = fw,
                     Foreground = new SolidColorBrush(fgColor),
                     TextTrimming = TextTrimming.CharacterEllipsis,
+                    HorizontalAlignment = ha,
                     VerticalAlignment = VerticalAlignment.Center, ToolTip = t }
             };
 
-            sp.Children.Add(NameCell(name, 340));
-            sp.Children.Add(NameCell(hh, 70));
-            sp.Children.Add(NameCell(start, 76));
-            sp.Children.Add(NameCell(fin, 76));
+            sp.Children.Add(Cell(name, 320));
+            sp.Children.Add(Cell(hh,  72, HorizontalAlignment.Right));
+            sp.Children.Add(Cell(pct, 64, HorizontalAlignment.Right));
+            sp.Children.Add(Cell(start, 76));
+            sp.Children.Add(Cell(fin, 76));
 
             if (!isHeader && !string.IsNullOrEmpty(devOpsUrl))
             {
@@ -766,7 +778,7 @@ namespace NXProject.Views
             }
             else if (isHeader)
             {
-                sp.Children.Add(NameCell(devOps, 90));
+                sp.Children.Add(Cell(devOps, 90));
             }
 
             row.Child = sp;
@@ -841,7 +853,7 @@ namespace NXProject.Views
                     {
                         var ms = months[mi];
                         var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
-                        mh[mi] = ComputeHours(proj.Data, res, ms, me);
+                        mh[mi] = ComputeHours(proj.Data, res, ms, me, OnlyCurrentHours);
                     }
                     d[res] = mh;
                 }
@@ -1216,7 +1228,7 @@ namespace NXProject.Views
                     {
                         var mStart = months[mi];
                         var mEnd   = new DateTime(mStart.Year, mStart.Month, DateTime.DaysInMonth(mStart.Year, mStart.Month));
-                        matrix[pi][mi] = ComputeHours(_projects[pi].Data, res, mStart, mEnd);
+                        matrix[pi][mi] = ComputeHours(_projects[pi].Data, res, mStart, mEnd, OnlyCurrentHours);
                     }
                 }
                 data[res] = matrix;
@@ -1451,7 +1463,7 @@ namespace NXProject.Views
                         {
                             var ms = months[mi];
                             var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
-                            double h = ComputeHoursForTask(task, tr, ms, me);
+                            double h = ComputeHoursForTask(task, tr, ms, me, OnlyCurrentHours);
                             mh[mi] = h;
                             if (h > 0.01) any = true;
                         }
@@ -1814,9 +1826,9 @@ namespace NXProject.Views
         }
 
         private static double ComputeHoursForTask(ProjectTask task, TaskResource tr,
-            DateTime monthStart, DateTime monthEnd)
+            DateTime monthStart, DateTime monthEnd, bool onlyCurrentHours = false)
         {
-            double hours = NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
+            double hours = GetHoursForMode(task, tr, onlyCurrentHours);
             if (hours <= 0) return 0;
 
             var tStart = task.Start.Date;
@@ -2103,7 +2115,7 @@ namespace NXProject.Views
                         {
                             var ms = months[mi];
                             var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
-                            double h = ComputeHoursForTask(task, tr, ms, me);
+                            double h = ComputeHoursForTask(task, tr, ms, me, OnlyCurrentHours);
                             mh[mi] = h;
                             if (h > 0.01) any = true;
                         }
@@ -2432,7 +2444,7 @@ namespace NXProject.Views
                     {
                         var ms = months[mi];
                         var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
-                        mh[mi] = ComputeHours(proj.Data, res, ms, me);
+                        mh[mi] = ComputeHours(proj.Data, res, ms, me, OnlyCurrentHours);
                     }
                     if (hideZero && mh.Sum() < 0.01) continue;
                     rows.Add((res, mh));
