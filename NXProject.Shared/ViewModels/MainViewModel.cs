@@ -2151,6 +2151,7 @@ namespace NXProject.ViewModels
         {
             foreach (var t in tasks)
             {
+                // Separa Tasks dos outros filhos (mantendo posições relativas dos não-Task)
                 var taskChildren = t.Children
                     .Where(c => string.Equals(c.TfsType?.Trim(), "Task", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(c => c.Priority ?? 5)
@@ -2159,6 +2160,24 @@ namespace NXProject.ViewModels
 
                 if (taskChildren.Count > 0)
                 {
+                    // Reordena fisicamente as Tasks dentro de Children por prioridade
+                    // mantendo itens não-Task nas posições originais.
+                    // Abordagem: localiza os índices onde há Tasks e substitui na ordem de prioridade.
+                    var taskIndices = new List<int>();
+                    for (int i = 0; i < t.Children.Count; i++)
+                    {
+                        if (string.Equals(t.Children[i].TfsType?.Trim(), "Task", StringComparison.OrdinalIgnoreCase))
+                            taskIndices.Add(i);
+                    }
+                    for (int k = 0; k < taskIndices.Count; k++)
+                    {
+                        var currentItem = t.Children[taskIndices[k]];
+                        var desiredItem = taskChildren[k];
+                        if (!ReferenceEquals(currentItem, desiredItem))
+                            t.Children.Move(t.Children.IndexOf(desiredItem), taskIndices[k]);
+                    }
+
+                    // Calcula datas sequenciais por ordem de prioridade
                     var cursor = t.Start;
                     foreach (var tc in taskChildren)
                     {
