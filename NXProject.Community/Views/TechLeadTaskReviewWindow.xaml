@@ -57,6 +57,17 @@
                       SelectionChanged="OnStateFilterChanged"/>
             <Button Content="🔄 Recarregar" Click="OnReloadClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"/>
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0"/>
+            <TextBlock Text="Duração Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+            <TextBox x:Name="StoryDurationBox" Width="60" FontSize="12" Margin="0,0,4,0"
+                     VerticalContentAlignment="Center" ToolTip="Duração total da Story em horas"/>
+            <TextBlock Text="h" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+            <Button Content="⚖ Ratear HH nas Tasks" x:Name="RatearButton"
+                    Click="OnRatearClick"
+                    Padding="8,3" FontSize="12" Margin="0,0,8,0"
+                    Background="#7B3F00" Foreground="White"
+                    ToolTip="Distribui as horas da Story entre as Tasks sem HH Estimado (exceto Closed/100%/com HH Atual)"/>
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0"/>
             <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
                     Click="OnSaveChangesClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"
@@ -71,11 +82,20 @@
                   CanUserDeleteRows="False"
                   HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal"
-                  RowHeaderWidth="0"
+                  RowHeaderWidth="20"
                   SelectionMode="Extended"
                   SelectionChanged="OnTasksGridSelectionChanged"
                   CellEditEnding="OnCellEditEnding"
-                  TextElement.FontSize="12">
+                  TextElement.FontSize="12"
+                  AllowDrop="True"
+                  PreviewMouseLeftButtonDown="OnGridMouseLeftButtonDown"
+                  PreviewMouseMove="OnGridMouseMove"
+                  Drop="OnGridDrop">
+            <DataGrid.RowHeaderTemplate>
+                <DataTemplate>
+                    <TextBlock Text="⠿" FontSize="11" Foreground="#999" ToolTip="Arraste para reordenar" Cursor="SizeAll"/>
+                </DataTemplate>
+            </DataGrid.RowHeaderTemplate>
             <DataGrid.Columns>
                 <!-- Seleção -->
                 <DataGridCheckBoxColumn Header="" Width="28"

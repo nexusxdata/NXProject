@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using NXProject.Models;
 using NXProject.Services;
 
@@ -20,6 +21,11 @@ namespace NXProject.Views
         private readonly ObservableCollection<TaskReviewRow> _allRows = [];
         private ICollectionView? _view;
         private static readonly List<string> KnownStates = ["New", "Active", "Resolved", "Closed", "Blocked"];
+
+        // Drag-drop
+        private Point _dragStart;
+        private TaskReviewRow? _dragRow;
+        private bool _isDragging;
 
         public bool HasChanges { get; private set; }
         /// <summary>Callback: adiciona rows ao cronograma e retorna a primeira ProjectTask adicionada (para seleção).</summary>
@@ -98,7 +104,17 @@ namespace NXProject.Views
 
             _view = CollectionViewSource.GetDefaultView(_allRows);
             _view.Filter = ApplyFilter;
+            _view.SortDescriptions.Clear();
+            _view.SortDescriptions.Add(new SortDescription(nameof(TaskReviewRow.Priority), ListSortDirection.Ascending));
             TasksGrid.ItemsSource = _view;
+
+            // Preenche duração da story (primeira story selecionada)
+            if (_stories.Count > 0)
+            {
+                var s = _stories[0];
+                double h = NXProject.Services.ProjectCalendarService.CountWorkingHours(s.Start, s.Finish);
+                StoryDurationBox.Text = h.ToString("0.#");
+            }
 
             UpdateTotals();
             StatusText.Text = $"{fetched} Stories consultadas — {rows.Count} Tasks encontradas no DevOps.";
@@ -251,6 +267,115 @@ namespace NXProject.Views
         }
 
         private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+        private void OnRatearClick(object sender, RoutedEventArgs e)
+        {
+            if (!double.TryParse(StoryDurationBox.Text.Replace(",", "."),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out double storyHours) || storyHours <= 0)
+            {
+                MessageBox.Show("Informe a duração da Story em horas (ex: 40).", "Rateio", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var allVisible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
+
+            // Regra: exclui tasks encerradas ou com HH Atual
+            var eligible = allVisible.Where(r =>
+                r.EstimatedHours <= 0 &&
+                (r.CompletedHours <= 0) &&
+                r.PercentComplete < 100 &&
+                !string.Equals(r.State, "Closed", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (eligible.Count == 0)
+            {
+                MessageBox.Show("Todas as Tasks já têm HH Estimado, são Closed ou 100% concluídas.", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            double usedHours = allVisible.Where(r => r.EstimatedHours > 0)
+                                         .Sum(r => r.EstimatedHours + r.CompletedHours);
+            double remaining = Math.Max(0, storyHours - usedHours);
+            double perTask   = remaining > 0 ? remaining / eligible.Count
+                                             : storyHours / Math.Max(1, allVisible.Count);
+
+            foreach (var r in eligible)
+            {
+                r.EstimatedHours = Math.Round(perTask, 1);
+                r.IsDirty = true;
+            }
+
+            SaveChangesButton.IsEnabled = true;
+            DirtyHint.Visibility = Visibility.Visible;
+            UpdateTotals();
+            MessageBox.Show($"Rateio aplicado: {perTask:0.#}h por Task em {eligible.Count} task(s).", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        // ── Drag-drop para reordenar por prioridade ──────────────────────────────
+
+        private void OnGridMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStart = e.GetPosition(null);
+            _dragRow = GetRowUnderMouse(e);
+            _isDragging = false;
+        }
+
+        private void OnGridMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || _dragRow == null || _isDragging) return;
+            var pos = e.GetPosition(null);
+            if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+            _isDragging = true;
+            DragDrop.DoDragDrop(TasksGrid, _dragRow, DragDropEffects.Move);
+        }
+
+        private void OnGridDrop(object sender, DragEventArgs e)
+        {
+            _isDragging = false;
+            if (_dragRow == null) return;
+            var target = GetRowUnderMouse(e);
+            if (target == null || ReferenceEquals(target, _dragRow)) { _dragRow = null; return; }
+
+            // Determinar visível e reordenar
+            var visible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
+            int fromIdx = visible.IndexOf(_dragRow);
+            int toIdx   = visible.IndexOf(target);
+            if (fromIdx < 0 || toIdx < 0) { _dragRow = null; return; }
+
+            // Remover sort automático para manter ordem manual
+            _view?.SortDescriptions.Clear();
+
+            visible.RemoveAt(fromIdx);
+            visible.Insert(toIdx, _dragRow);
+
+            // Reatribuir prioridades sequenciais baseado na nova ordem
+            for (int i = 0; i < visible.Count; i++)
+            {
+                int newPri = i + 1;
+                if (visible[i].Priority != newPri)
+                {
+                    visible[i].Priority = newPri;
+                    visible[i].IsDirty  = true;
+                }
+            }
+
+            // Reordenar _allRows para refletir a nova ordem
+            _allRows.Clear();
+            foreach (var r in visible) _allRows.Add(r);
+
+            SaveChangesButton.IsEnabled = _allRows.Any(r => r.IsDirty);
+            DirtyHint.Visibility = SaveChangesButton.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            UpdateTotals();
+            _dragRow = null;
+        }
+
+        private TaskReviewRow? GetRowUnderMouse(RoutedEventArgs e)
+        {
+            var el = e.OriginalSource as DependencyObject;
+            while (el != null && el is not DataGridRow) el = System.Windows.Media.VisualTreeHelper.GetParent(el);
+            return (el as DataGridRow)?.Item as TaskReviewRow;
+        }
     }
 
     public class TaskReviewRow : INotifyPropertyChanged
