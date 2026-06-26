@@ -51,6 +51,7 @@
                     <ListBoxItem Content="{DynamicResource Help_Topic_Gantt}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Predecessors}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Resources}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_AllocationMap}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Sprints}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_DevOps}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_ProjectList}"/>

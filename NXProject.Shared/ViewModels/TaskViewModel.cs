@@ -1137,7 +1137,17 @@ namespace NXProject.ViewModels
                     r.EstimatedHours = _task.EstimatedHours;
 
             // Não pula por PercentComplete — alteração de alocação deve sempre recalcular o fim.
+            // effectiveHours = HH Restante / alloc% (tempo calendário para o trabalho restante).
+            // CurrentHours foi feito à mesma taxa de alocação, então o tempo calendário já consumido
+            // é CurrentHours / alloc%. A duração total (Start → Finish) é a soma dos dois.
             var effectiveHours = Services.TaskScheduleService.GetEffectiveDurationHours(_task);
+            if (_task.CurrentHours is > 0)
+            {
+                var allocFactor = _task.Resources.Count > 0
+                    ? Services.TaskScheduleService.NormalizeAllocationPercent(_task.Resources[0].AllocationPercent) / 100.0
+                    : 1.0;
+                effectiveHours += _task.CurrentHours.Value / Math.Max(0.01, allocFactor);
+            }
             if (effectiveHours > 0)
                 _task.Finish = Services.ProjectCalendarService.AddWorkingHours(_task.Start, effectiveHours);
 

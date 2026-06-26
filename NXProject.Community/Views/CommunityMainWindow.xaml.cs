@@ -55,6 +55,11 @@ namespace NXProject.Views
                     UpdateDevOpsProjectBanner(vm.Project.DevOpsProjectName, vm.Project.DevOpsRootWorkItemId);
             };
             vm.FlatTasks.CollectionChanged += (_, _) => UpdateEpicHours(vm);
+            vm.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(vm.FlatTasks) || args.PropertyName == "ProjectPercent")
+                    UpdateEpicHours(vm);
+            };
 
             LanguageService.LanguageChanged += () => TaskGridCtrl.RefreshColumnHeaders();
 
@@ -574,10 +579,13 @@ namespace NXProject.Views
             if (DataContext is not MainViewModel vm) return;
 
             var maxAllocationPercent = task.Model.PercentComplete > 0 ? 120 : 100;
+            double totalH = (task.Model.CurrentHours ?? 0) + (task.Model.EstimatedHours ?? 0);
             var dialog = new PercAlocEditWindow(
                 task.Name,
                 task.Model.Resources[0].AllocationPercent,
-                maxAllocationPercent)
+                maxAllocationPercent,
+                taskStart:  task.Model.Start,
+                totalHours: totalH)
             {
                 Owner = this
             };
@@ -865,6 +873,21 @@ namespace NXProject.Views
             DevOpsEpicHoursLabel.Text = epicHours > 0
                 ? $"| {epicHours:0.#} HH (Epics)"
                 : string.Empty;
+
+            // % de conclusão: média ponderada pelas horas de todas as atividades folha
+            var leaves = vm.FlatTasks.Where(t => !t.IsSummary && !t.IsMilestone).ToList();
+            if (leaves.Count > 0)
+            {
+                double totalW = leaves.Sum(t => t.DurationHours);
+                double pct = totalW > 0
+                    ? leaves.Sum(t => t.DurationHours * t.PercentComplete) / totalW
+                    : leaves.Average(t => t.PercentComplete);
+                DevOpsPercentLabel.Text = $"| {pct:0.#}% concluído";
+            }
+            else
+            {
+                DevOpsPercentLabel.Text = string.Empty;
+            }
         }
 
         private void UpdateDevOpsProjectBanner(string? name, int id)

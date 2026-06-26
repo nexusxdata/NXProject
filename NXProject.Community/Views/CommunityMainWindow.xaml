@@ -385,6 +385,7 @@
                 <TextBlock x:Name="DevOpsProjectNameLabel" FontSize="12" Foreground="#2B579A" VerticalAlignment="Center"/>
                 <TextBlock x:Name="DevOpsProjectIdLabel" FontSize="11" Foreground="#888" VerticalAlignment="Center" Margin="6,0,0,0"/>
                 <TextBlock x:Name="DevOpsEpicHoursLabel" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <TextBlock x:Name="DevOpsPercentLabel" FontSize="11" Foreground="#2B579A" FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,0,0"/>
             </StackPanel>
         </Border>
 

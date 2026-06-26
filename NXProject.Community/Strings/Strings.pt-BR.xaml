@@ -144,6 +144,7 @@
     <sys:String x:Key="Help_Topic_Gantt">📊  Gráfico Gantt</sys:String>
     <sys:String x:Key="Help_Topic_Predecessors">🔗  Predecessoras</sys:String>
     <sys:String x:Key="Help_Topic_Resources">👥  Recursos</sys:String>
+    <sys:String x:Key="Help_Topic_AllocationMap">📊  Mapa de Alocação</sys:String>
     <sys:String x:Key="Help_Topic_Sprints">🏃  Sprints</sys:String>
     <sys:String x:Key="Help_Topic_DevOps">☁  Azure DevOps</sys:String>
     <sys:String x:Key="Help_Topic_ProjectList">📋  Lista de Projetos</sys:String>

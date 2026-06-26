@@ -302,6 +302,32 @@ namespace NXProject.Views
                 "Use o filtro de recurso na toolbar para ver somente as atividades de uma pessoa durante a reunião de status."
             ),
             (
+                "Mapa de Alocação",
+                "O Mapa de Alocação por Projeto (Exibir → Mapa de Alocação) consolida horas de múltiplos projetos por recurso e mês, permitindo enxergar sobrecargas e planejar capacidade.",
+                new()
+                {
+                    ("Abas disponíveis",
+                     "• Horas por Projeto — horas de cada recurso em cada projeto por mês. Clique em uma célula para ver as stories do recurso naquele mês.\n" +
+                     "• Distribuição por Pessoa — visão consolidada de todos os projetos por recurso, com total e percentual de capacidade.\n" +
+                     "• Stories por Recurso — detalhamento de cada story com HH Total (Atual + Restante), % de conclusão, início e fim.\n" +
+                     "• Rateio — mostra o % que cada projeto representa do total de horas do recurso naquele mês."),
+                    ("Critério de horas por mês",
+                     "As horas de cada atividade são distribuídas proporcionalmente entre os meses cobertos pela sua duração.\n\n" +
+                     "Exemplo: uma story de 10/jan a 20/fev tem 22 dias em janeiro e 20 dias em fevereiro; se a story tem 42 horas no total, 22h ficam em janeiro e 20h em fevereiro (proporção 22/42 e 20/42).\n\n" +
+                     "O valor exibido é HH Atual + HH Restante (duração total prevista). Use o checkbox 'Apenas HH atual (alocado)' para ver somente as horas já realizadas."),
+                    ("% de capacidade",
+                     "O percentual exibido ao lado das horas (ex: '16h (60%)') é calculado sobre a capacidade mensal do calendário: 8h × dias úteis do mês.\n\n" +
+                     "Na aba Rateio, o % representa a fatia daquele projeto no total de horas do recurso no mês — não em relação à capacidade total."),
+                    ("% de Alocação e data fim",
+                     "Ao clicar no % de alocação de uma atividade, a janela permite:\n" +
+                     "• Informar HH/dia para calcular o % (ex: 4h/dia = 50%).\n" +
+                     "• Informar a data fim desejada: o NXProject calcula automaticamente o % de alocação necessário para completar as horas totais (HH Atual + HH Restante) até aquela data.\n" +
+                     "  Fórmula: % = Horas Totais ÷ Horas úteis(Início → Data Fim) × 100.\n" +
+                     "  Isso permite descobrir por engenharia reversa quanto o recurso precisou se dedicar para entregar em um prazo específico.")
+                },
+                "Filtre os projetos com 'Selecionar Projetos' e ajuste o período de análise — as colunas zeradas são ocultadas automaticamente quando 'Ocultar linhas/colunas zeradas' está marcado."
+            ),
+            (
                 "Sprints",
                 "O NXProject suporta sprints do Azure DevOps e permite configurar sprints locais para organizar o cronograma em iterações.",
                 new()
@@ -710,6 +736,32 @@ namespace NXProject.Views
                      "The 👤 button in the toolbar filters the Gantt and the grid to show only the activities of a specific person — useful in individual status meetings.")
                 },
                 "Use the resource filter in the toolbar to show only one person's activities during a status meeting."
+            ),
+            (
+                "Allocation Map",
+                "The Allocation Map (View → Allocation Map) consolidates hours from multiple projects by resource and month, helping you spot overloads and plan capacity.",
+                new()
+                {
+                    ("Available tabs",
+                     "• Hours by Project — hours per resource per project per month. Click a cell to see the stories for that resource in that month.\n" +
+                     "• Distribution by Person — consolidated view across all projects per resource, with totals and capacity percentage.\n" +
+                     "• Stories by Resource — details each story with Total HH (Current + Remaining), % completion, start and finish.\n" +
+                     "• Rateio (Apportionment) — shows what % each project represents of the resource's total hours in that month."),
+                    ("Hours per month criterion",
+                     "Each activity's hours are distributed proportionally across the months it spans.\n\n" +
+                     "Example: a story from Jan 10 to Feb 20 has 22 days in January and 20 days in February; if the story has 42 total hours, 22h go to January and 20h to February (ratios 22/42 and 20/42).\n\n" +
+                     "The value shown is Current HH + Remaining HH (total planned duration). Use the 'Only current HH (allocated)' checkbox to see only realized hours."),
+                    ("Capacity percentage",
+                     "The percentage shown beside hours (e.g. '16h (60%)') is calculated against the monthly calendar capacity: 8h × working days in the month.\n\n" +
+                     "In the Rateio tab, the % represents that project's share of the resource's total hours in the month — not relative to full capacity."),
+                    ("Allocation % and finish date",
+                     "Clicking a task's allocation % opens a dialog that lets you:\n" +
+                     "• Enter HH/day to calculate the % (e.g. 4h/day = 50%).\n" +
+                     "• Enter a desired finish date: NXProject automatically calculates the allocation % needed to complete the total hours (Current + Remaining) by that date.\n" +
+                     "  Formula: % = Total Hours ÷ Working hours(Start → Finish) × 100.\n" +
+                     "  This lets you reverse-engineer how much dedication the resource needs to meet a specific deadline.")
+                },
+                "Filter projects with 'Select Projects' and adjust the analysis period — zero columns are automatically hidden when 'Hide zero rows/columns' is checked."
             ),
             (
                 "Sprints",
