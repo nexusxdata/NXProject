@@ -907,7 +907,9 @@ namespace NXProject.ViewModels
         {
             foreach (var task in tasks)
             {
-                if (!task.IsSummary && !(task.OriginalEstimatedHours is > 0))
+                // Tasks DevOps (TfsType="Task") têm OriginalEstimatedHours gerenciado pelo rateio — não tocar aqui
+                bool isDevOpsTask = string.Equals(task.TfsType?.Trim(), "Task", StringComparison.OrdinalIgnoreCase);
+                if (!task.IsSummary && !isDevOpsTask && !(task.OriginalEstimatedHours is > 0))
                 {
                     // Para % = 0: EstimatedHours é a duração total planejada.
                     // Para % > 0: usa CurrentHours + EstimatedHours (total = atual + restante).
