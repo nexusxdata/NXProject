@@ -55,16 +55,18 @@ namespace NXProject.Views
                 {
                     rows.Add(new TaskReviewRow
                     {
-                        StoryId    = story.TfsId!.Value,
-                        StoryName  = story.Name,
-                        StoryTask  = story,
-                        TaskId     = t.TfsId,
-                        Title      = t.Title,
-                        State      = t.State ?? "",
+                        StoryId        = story.TfsId!.Value,
+                        StoryName      = story.Name,
+                        StoryTask      = story,
+                        TaskId         = t.TfsId,
+                        Title          = t.Title,
+                        State          = t.State ?? "",
                         EstimatedHours = t.EstimatedHours,
-                        Priority   = t.Priority,
-                        AssignedTo = t.AssignedTo ?? "",
-                        InSchedule = inScheduleIds.Contains(t.TfsId),
+                        CompletedHours = t.CompletedHours,
+                        PercentComplete = t.PercentComplete,
+                        Priority       = t.Priority,
+                        AssignedTo     = t.AssignedTo ?? "",
+                        InSchedule     = inScheduleIds.Contains(t.TfsId),
                     });
                 }
             }
@@ -139,14 +141,16 @@ namespace NXProject.Views
             {
                 var pt = new ProjectTask
                 {
-                    Name           = r.Title,
-                    TfsId          = r.TaskId,
-                    TfsType        = "Task",
-                    EstimatedHours = r.EstimatedHours > 0 ? r.EstimatedHours : null,
-                    Priority       = r.Priority > 0 ? r.Priority : 5,
-                    TfsState       = r.State,
-                    Start          = r.StoryTask.Start,
-                    Finish         = r.StoryTask.Finish,
+                    Name            = r.Title,
+                    TfsId           = r.TaskId,
+                    TfsType         = "Task",
+                    EstimatedHours  = r.EstimatedHours > 0 ? r.EstimatedHours : null,
+                    CurrentHours    = r.CompletedHours > 0 ? r.CompletedHours : null,
+                    PercentComplete = r.PercentComplete,
+                    Priority        = r.Priority > 0 ? r.Priority : 5,
+                    TfsState        = r.State,
+                    Start           = r.StoryTask.Start,
+                    Finish          = r.StoryTask.Finish,
                 };
                 r.StoryTask.Children.Add(pt);
                 r.InSchedule = true;
@@ -170,6 +174,8 @@ namespace NXProject.Views
         public string Title { get; set; } = "";
         public string State { get; set; } = "";
         public double EstimatedHours { get; set; }
+        public double CompletedHours { get; set; }
+        public double PercentComplete { get; set; }
         public int Priority { get; set; }
         public string AssignedTo { get; set; } = "";
 

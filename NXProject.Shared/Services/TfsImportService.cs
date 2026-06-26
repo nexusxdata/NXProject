@@ -715,6 +715,8 @@ namespace NXProject.Services
                     {
                         // Original Estimate (Microsoft.VSTS.Scheduling.OriginalEstimate).
                         const string OriginalEstimateRef = "Microsoft.VSTS.Scheduling.OriginalEstimate";
+                        const string CompletedWorkRef    = "Microsoft.VSTS.Scheduling.CompletedWork";
+
                         var taskHours = task.EstimatedHours ?? task.CurrentHours;
                         if (taskHours.HasValue)
                         {
@@ -727,8 +729,19 @@ namespace NXProject.Services
                             }
                         }
 
+                        // Completed Work = HH Atual (CurrentHours).
+                        if (task.CurrentHours.HasValue && task.CurrentHours.Value > 0)
+                        {
+                            var currentCompleted = ReadDouble(wi, CompletedWorkRef);
+                            if (currentCompleted == null || Math.Abs(currentCompleted.Value - task.CurrentHours.Value) > 0.0001)
+                            {
+                                ops.Add(PatchAdd($"/fields/{CompletedWorkRef}", task.CurrentHours.Value));
+                                var oldC = currentCompleted.HasValue ? $"{currentCompleted.Value:0.##}→" : "";
+                                changes.Add($"Completed Work: {oldC}{task.CurrentHours.Value:0.##}h");
+                            }
+                        }
+
                         // Priority (Microsoft.VSTS.Common.Priority).
-                        // Sincroniza do NXProject → TFS se definida; senão usa padrão 5.
                         var currentPriority = ReadDouble(wi, "Microsoft.VSTS.Common.Priority");
                         int desiredPriority = task.Priority is > 0 ? task.Priority.Value : 5;
                         if (currentPriority == null || (int)currentPriority.Value != desiredPriority)
@@ -736,9 +749,20 @@ namespace NXProject.Services
                             ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", desiredPriority));
                             changes.Add($"Priority: {desiredPriority}");
                         }
-                        // Atualiza o modelo local com a prioridade do TFS (se local ainda não definida)
                         if (!task.Priority.HasValue && currentPriority.HasValue && currentPriority.Value > 0)
                             task.Priority = (int)currentPriority.Value;
+
+                        // Fecha a Task no TFS quando 100% concluída e não estiver Closed nem New.
+                        if (task.PercentComplete >= 100)
+                        {
+                            var currentState = task.TfsState?.Trim();
+                            if (!string.Equals(currentState, "Closed", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(currentState, "New",    StringComparison.OrdinalIgnoreCase))
+                            {
+                                task.TfsState = "Closed";
+                                changes.Add("State: → Closed (100%)");
+                            }
+                        }
                     }
 
                     // Ajuste automático de estado baseado no % de conclusão (Story, Feature e Epic).
@@ -2092,6 +2116,8 @@ namespace NXProject.Services
             public int TfsId { get; init; }
             public string Title { get; init; } = "";
             public double EstimatedHours { get; init; }
+            public double CompletedHours { get; init; }
+            public double PercentComplete { get; init; }
             public string? AssignedTo { get; init; }
             public int Priority { get; init; } = 5;
             public string? State { get; init; }
@@ -2133,9 +2159,10 @@ namespace NXProject.Services
             if (childIds.Count == 0) return [];
 
             // 2. Busca os filhos em batch com os campos necessários
-            const string OrigEstRef = "Microsoft.VSTS.Scheduling.OriginalEstimate";
+            const string OrigEstRef      = "Microsoft.VSTS.Scheduling.OriginalEstimate";
+            const string CompletedRef    = "Microsoft.VSTS.Scheduling.CompletedWork";
             var ids = string.Join(",", childIds);
-            var fields = $"System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo,{OrigEstRef},Microsoft.VSTS.Common.Priority";
+            var fields = $"System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo,{OrigEstRef},{CompletedRef},Microsoft.VSTS.Common.Priority";
             var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields={fields}&{ApiVersion}";
             using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
             batchReq.Headers.Authorization = auth;
@@ -2154,16 +2181,34 @@ namespace NXProject.Services
                     if (!item.TryGetProperty("fields", out var f)) continue;
                     if (!f.TryGetProperty("System.WorkItemType", out var wt) || !IsTaskType(wt.GetString())) continue;
 
-                    var tid   = f.TryGetProperty("System.Id",    out var ip) ? ip.GetInt32() : 0;
-                    var title = f.TryGetProperty("System.Title", out var tp) ? tp.GetString() ?? "" : "";
-                    var state = f.TryGetProperty("System.State", out var sp) ? sp.GetString() : null;
-                    var hours = f.TryGetProperty(OrigEstRef,      out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetDouble() : 0;
-                    var prio  = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pp) && pp.ValueKind == JsonValueKind.Number ? pp.GetInt32() : 5;
+                    var tid       = f.TryGetProperty("System.Id",    out var ip) ? ip.GetInt32() : 0;
+                    var title     = f.TryGetProperty("System.Title", out var tp) ? tp.GetString() ?? "" : "";
+                    var state     = f.TryGetProperty("System.State", out var sp) ? sp.GetString() : null;
+
+                    // Ignora atividades removidas
+                    if (string.Equals(state, "Removed", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var hours     = f.TryGetProperty(OrigEstRef,   out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetDouble() : 0;
+                    var completed = f.TryGetProperty(CompletedRef, out var cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetDouble() : 0;
+                    var prio      = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pp) && pp.ValueKind == JsonValueKind.Number ? pp.GetInt32() : 5;
                     string? assignee = null;
                     if (f.TryGetProperty("System.AssignedTo", out var at))
                         assignee = at.ValueKind == JsonValueKind.Object && at.TryGetProperty("uniqueName", out var un) ? un.GetString() : at.GetString();
 
-                    result.Add(new DevOpsTaskInfo { TfsId = tid, Title = title, EstimatedHours = hours, AssignedTo = assignee, Priority = prio, State = state });
+                    // Closed → 100%; caso contrário calcula pelo CompletedWork
+                    double pct = 0;
+                    bool isClosed = string.Equals(state, "Closed", StringComparison.OrdinalIgnoreCase);
+                    if (isClosed)
+                        pct = 100;
+                    else if (completed > 0 && hours > 0)
+                        pct = Math.Min(100, completed / hours * 100);
+
+                    result.Add(new DevOpsTaskInfo
+                    {
+                        TfsId = tid, Title = title, State = state,
+                        EstimatedHours = hours, CompletedHours = completed,
+                        PercentComplete = pct, AssignedTo = assignee, Priority = prio
+                    });
                 }
             }
             return result;

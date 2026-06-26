@@ -600,14 +600,18 @@ namespace NXProject.Views
                 {
                     var pt = new NXProject.Models.ProjectTask
                     {
-                        Name           = t.Title,
-                        TfsId          = t.TfsId,
-                        TfsType        = "Task",
-                        EstimatedHours = t.EstimatedHours > 0 ? t.EstimatedHours : null,
-                        Priority       = t.Priority > 0 ? t.Priority : 5,
-                        TfsState       = t.State,
-                        Start          = storyVm.Model.Start,
-                        Finish         = storyVm.Model.Finish,
+                        Name             = t.Title,
+                        TfsId            = t.TfsId,
+                        TfsType          = "Task",
+                        EstimatedHours   = t.EstimatedHours > 0 ? t.EstimatedHours : null,
+                        CurrentHours     = t.CompletedHours > 0 ? t.CompletedHours : null,
+                        PercentComplete  = t.PercentComplete,
+                        Priority         = t.Priority > 0 ? t.Priority : 5,
+                        TfsState         = t.State,
+                        TfsIterationPath = storyVm.Model.TfsIterationPath,
+                        SprintNumber     = storyVm.Model.SprintNumber,
+                        Start            = storyVm.Model.Start,
+                        Finish           = storyVm.Model.Finish,
                     };
                     storyVm.Model.Children.Add(pt);
                 }
