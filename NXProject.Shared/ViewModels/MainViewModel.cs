@@ -2223,13 +2223,12 @@ namespace NXProject.ViewModels
 
                     // Distribui horas da story para Tasks sem estimativa
                     var storyHours = Services.ProjectCalendarService.CountWorkingHours(t.Start, t.Finish);
-                    // Exclui do rateio tasks encerradas (Closed, 100% ou com HH Atual preenchido)
-                    static bool IsTaskDone(ProjectTask tc) =>
-                        (tc.CurrentHours ?? 0) > 0 ||
-                        tc.PercentComplete >= 100 ||
-                        string.Equals(tc.TfsState, "Closed", StringComparison.OrdinalIgnoreCase);
+                    // Tasks sem HH Original mas com HH Atual: usa HH Atual como estimado para cálculo de duração
+                    foreach (var tc in taskChildren.Where(tc => (tc.EstimatedHours ?? 0) <= 0 && (tc.CurrentHours ?? 0) > 0))
+                        tc.EstimatedHours = tc.CurrentHours;
+                    // Rateio: só tasks sem HH Original E sem HH Atual
                     var tasksWithHours    = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) > 0).ToList();
-                    var tasksWithoutHours = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) <= 0 && !IsTaskDone(tc)).ToList();
+                    var tasksWithoutHours = taskChildren.Where(tc => (tc.EstimatedHours ?? 0) <= 0 && (tc.CurrentHours ?? 0) <= 0).ToList();
                     if (tasksWithoutHours.Count > 0)
                     {
                         double usedHours = tasksWithHours.Sum(tc => (tc.EstimatedHours ?? 0) + (tc.CurrentHours ?? 0));

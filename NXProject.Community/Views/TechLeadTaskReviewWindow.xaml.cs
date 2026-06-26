@@ -299,24 +299,21 @@ namespace NXProject.Views
 
             var allVisible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
 
-            // Regra: exclui tasks encerradas ou com HH Atual
-            var eligible = allVisible.Where(r =>
-                r.EstimatedHours <= 0 &&
-                (r.CompletedHours <= 0) &&
-                r.PercentComplete < 100 &&
-                !string.Equals(r.State, "Closed", StringComparison.OrdinalIgnoreCase)).ToList();
+            // Rateio: tasks sem HH Estimado E sem HH Atual (independente de estado/Closed)
+            // Tasks com HH Atual mas sem HH Estimado já têm duração própria — não entram no rateio
+            var eligible = allVisible.Where(r => r.EstimatedHours <= 0 && r.CompletedHours <= 0).ToList();
 
             if (eligible.Count == 0)
             {
-                MessageBox.Show("Todas as Tasks já têm HH Estimado, são Closed ou 100% concluídas.", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Todas as Tasks já possuem HH Estimado ou HH Atual.", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            double usedHours = allVisible.Where(r => r.EstimatedHours > 0)
-                                         .Sum(r => r.EstimatedHours + r.CompletedHours);
+            double usedHours = allVisible.Where(r => r.EstimatedHours > 0 || r.CompletedHours > 0)
+                                         .Sum(r => Math.Max(r.EstimatedHours, r.CompletedHours));
             double remaining = Math.Max(0, storyHours - usedHours);
             double perTask   = remaining > 0 ? remaining / eligible.Count
-                                             : storyHours / Math.Max(1, allVisible.Count);
+                                             : storyHours / Math.Max(1, eligible.Count);
 
             foreach (var r in eligible)
             {
@@ -353,22 +350,24 @@ namespace NXProject.Views
         {
             _isDragging = false;
             if (_dragRow == null) return;
+
+            // Commitar qualquer edição pendente antes de mexer na coleção/sort
+            TasksGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            TasksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+
             var target = GetRowUnderMouse(e);
             if (target == null || ReferenceEquals(target, _dragRow)) { _dragRow = null; return; }
 
-            // Determinar visível e reordenar
+            // Snapshot da ordem visível atual
             var visible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
             int fromIdx = visible.IndexOf(_dragRow);
             int toIdx   = visible.IndexOf(target);
             if (fromIdx < 0 || toIdx < 0) { _dragRow = null; return; }
 
-            // Remover sort automático para manter ordem manual
-            _view?.SortDescriptions.Clear();
-
             visible.RemoveAt(fromIdx);
             visible.Insert(toIdx, _dragRow);
 
-            // Reatribuir prioridades sequenciais baseado na nova ordem
+            // Reatribuir prioridades sequenciais
             for (int i = 0; i < visible.Count; i++)
             {
                 int newPri = i + 1;
@@ -379,9 +378,15 @@ namespace NXProject.Views
                 }
             }
 
-            // Reordenar _allRows para refletir a nova ordem
-            _allRows.Clear();
-            foreach (var r in visible) _allRows.Add(r);
+            // Remover sort automático (deve ser feito DEPOIS do CommitEdit)
+            _view?.SortDescriptions.Clear();
+
+            // Reordenar _allRows usando Move para evitar reset completo da coleção
+            for (int i = 0; i < visible.Count; i++)
+            {
+                int cur = _allRows.IndexOf(visible[i]);
+                if (cur != i) _allRows.Move(cur, i);
+            }
 
             RefreshRowNumbers();
             SaveChangesButton.IsEnabled = _allRows.Any(r => r.IsDirty);

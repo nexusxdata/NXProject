@@ -66,7 +66,7 @@
                     Click="OnRatearClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"
                     Background="#7B3F00" Foreground="White"
-                    ToolTip="Distribui as horas da Story entre as Tasks sem HH Estimado (exceto Closed/100%/com HH Atual)"/>
+                    ToolTip="Distribui as horas da Story entre as Tasks com HH Estimado e HH Atual zerados"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0"/>
             <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
                     Click="OnSaveChangesClick"
