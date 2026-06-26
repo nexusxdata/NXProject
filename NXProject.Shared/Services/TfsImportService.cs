@@ -2100,6 +2100,7 @@ namespace NXProject.Services
             IsStoryType(type);
 
         public static bool IsStoryTypePublic(string? type) => IsStoryType(type);
+        public static bool IsTaskTypePublic(string? type)  => IsTaskType(type);
 
         /// <summary>
         /// Busca os HH das Tasks filhas usando o campo padrão Microsoft.VSTS.Scheduling.OriginalEstimate.

@@ -236,6 +236,10 @@
                                     <TextBlock.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="{DynamicResource Ctx_AddStoryBlock}" Click="OnToggleStoryBlockClick"/>
+                                            <MenuItem x:Name="ToggleTaskBlockMenuItem"
+                                                      Header="🔴 Adicionar Block na Task"
+                                                      Click="OnToggleTaskBlockClick"
+                                                      Visibility="Collapsed"/>
                                             <Separator/>
                                             <MenuItem x:Name="FetchChildTasksMenuItem"
                                                       Header="📋 Grid de Tasks (DevOps)"

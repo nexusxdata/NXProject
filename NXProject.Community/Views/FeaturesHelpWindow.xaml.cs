@@ -133,6 +133,51 @@ namespace NXProject.Views
                 "Use Arquivo → Importar → TFS / Azure DevOps para criar o cronograma a partir do seu backlog existente."
             ),
             (
+                "Epic / Feature / Story / Task",
+                "Entenda o papel de cada nível da hierarquia do Azure DevOps no NXProject e as regras que governam campos, datas e sincronização.",
+                new()
+                {
+                    ("Epic",
+                     "O Epic representa uma grande iniciativa ou objetivo estratégico, geralmente com duração de meses.\n\n" +
+                     "No NXProject:\n" +
+                     "• É um agrupador de Features — suas datas são calculadas a partir das datas das Features filhas.\n" +
+                     "• Não possui HH Estimado próprio; a duração é derivada da soma dos filhos.\n" +
+                     "• Pode ter predecessoras para sequenciar grandes blocos de trabalho.\n" +
+                     "• Sincroniza com o DevOps os campos: State, título e datas (se configurados).\n" +
+                     "• Aparece na barra do Gantt como agrupador (cor cinza-azulada)."),
+                    ("Feature",
+                     "A Feature representa uma capacidade de negócio entregável, normalmente agrupando várias Stories.\n\n" +
+                     "No NXProject:\n" +
+                     "• É um agrupador de Stories — datas e percentual de conclusão calculados pelos filhos.\n" +
+                     "• Pode ter predecessoras entre Features (dependências de entrega).\n" +
+                     "• HH Estimado: calculado como soma dos HH das Stories filhas.\n" +
+                     "• Alerta de sprint é exibido quando a Feature cruza mais de uma sprint sem estar concluída.\n" +
+                     "• Sincroniza State e datas com o DevOps."),
+                    ("Story (User Story / PBI)",
+                     "A Story é a unidade central de planejamento do NXProject. Representa uma entrega de valor ao usuário.\n\n" +
+                     "No NXProject:\n" +
+                     "• Possui HH Estimado, Data Início, Data Fim, Sprint e Recurso alocado.\n" +
+                     "• Datas são calculadas pela fila do recurso e pela duração em HH.\n" +
+                     "• Percentual de conclusão (%) vem do campo configurado no DevOps (ex: Perc_Conclusao).\n" +
+                     "• Block: se a Story tem a tag 'Block' no DevOps, é exibida com ícone ⛔ no cronograma.\n" +
+                     "• Tasks filhas: podem ser buscadas/expandidas no cronograma via menu de contexto.\n" +
+                     "• Sincroniza: HH Estimado, datas, state, % conclusão, alocação e predecessoras.\n" +
+                     "• Ao exportar (Sincronizar), o NXProject atualiza apenas campos alterados localmente."),
+                    ("Task",
+                     "A Task representa uma atividade técnica dentro de uma Story, executada por um desenvolvedor.\n\n" +
+                     "No NXProject:\n" +
+                     "• Campos principais: HH Estimado (Original Estimate), HH Atual (Completed Work), Prioridade, Responsável, State e Categoria (Activity).\n" +
+                     "• HH Estimado = 0 e HH Atual = 0: a Task recebe rateio proporcional da duração da Story ao ser incluída no cronograma.\n" +
+                     "• HH Estimado = 0 e HH Atual > 0: o HH Atual é usado como duração estimada para cálculo.\n" +
+                     "• Prioridade define a ordem de execução dentro da Story; pode ser editada no cronograma ou na Grid de Tasks.\n" +
+                     "• State 'Closed' com 100% = Task encerrada.\n" +
+                     "• Block: menu de contexto na Task permite marcar/retirar Block — altera o campo BlockedByChild da Story pai.\n" +
+                     "• Grid de Tasks: acessível pelo menu de contexto da Story → 'Grid de Tasks (DevOps)'. Permite editar, ratear HH, reordenar por drag-drop e sincronizar com o DevOps.\n" +
+                     "• Sincroniza: Title, Original Estimate, Completed Work, Priority, AssignedTo, State e Activity.")
+                },
+                "A hierarquia Epic → Feature → Story → Task espelha o backlog do Azure DevOps. O NXProject planeja até a Story e oferece visibilidade das Tasks sem engessá-las."
+            ),
+            (
                 "Cronograma",
                 "A grade de tarefas é onde você visualiza e edita a estrutura do projeto: hierarquia, datas, duração, recursos, percentual de conclusão e dependências.",
                 new()

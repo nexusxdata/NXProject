@@ -287,6 +287,17 @@ namespace NXProject.Views
 
         private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
+        private void OnToggleBlockClick(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is TaskReviewRow row)
+            {
+                row.ToggleBlock();
+                SaveChangesButton.IsEnabled = true;
+                DirtyHint.Visibility = Visibility.Visible;
+                UpdateTotals();
+            }
+        }
+
         private void OnRatearClick(object sender, RoutedEventArgs e)
         {
             if (!double.TryParse(StoryDurationBox.Text.Replace(",", "."),
@@ -417,7 +428,19 @@ namespace NXProject.Views
         public string Title { get => _title; set { if (_title == value) return; _title = value; OnPropertyChanged(); } }
 
         private string _state = "New";
-        public string State { get => _state; set { if (_state == value) return; _state = value; OnPropertyChanged(); } }
+        public string State
+        {
+            get => _state;
+            set
+            {
+                if (_state == value) return;
+                _state = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsBlockedState));
+                OnPropertyChanged(nameof(BlockButtonLabel));
+                OnPropertyChanged(nameof(BlockButtonColor));
+            }
+        }
 
         private double _estimatedHours;
         public double EstimatedHours { get => _estimatedHours; set { if (_estimatedHours == value) return; _estimatedHours = value; OnPropertyChanged(); OnPropertyChanged(nameof(EstimatedHoursDisplay)); } }
@@ -453,6 +476,19 @@ namespace NXProject.Views
 
         public string EstimatedHoursDisplay => EstimatedHours > 0 ? $"{EstimatedHours:0.#}h" : "-";
         public string InScheduleDisplay => InSchedule ? "✔ Sim" : "Não";
+
+        public bool IsBlockedState => string.Equals(State, "Blocked", StringComparison.OrdinalIgnoreCase);
+        public string BlockButtonLabel => IsBlockedState ? "⛔ Block" : "Block";
+        public string BlockButtonColor => IsBlockedState ? "#C0392B" : "#AAA";
+
+        public void ToggleBlock()
+        {
+            State    = IsBlockedState ? "Active" : "Blocked";
+            IsDirty  = true;
+            OnPropertyChanged(nameof(IsBlockedState));
+            OnPropertyChanged(nameof(BlockButtonLabel));
+            OnPropertyChanged(nameof(BlockButtonColor));
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] string? p = null) => PropertyChanged?.Invoke(this, new(p));

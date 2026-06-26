@@ -228,7 +228,7 @@
                 </DataGridTemplateColumn>
 
                 <!-- No cronograma (somente leitura) -->
-                <DataGridTextColumn Header="Cronograma" Width="90"
+                <DataGridTextColumn Header="Cronograma" Width="80"
                     Binding="{Binding InScheduleDisplay}" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
@@ -236,6 +236,22 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
+
+                <!-- Block -->
+                <DataGridTemplateColumn Header="Block" Width="62" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding BlockButtonLabel}"
+                                    Click="OnToggleBlockClick"
+                                    Padding="4,1" FontSize="10"
+                                    Cursor="Hand"
+                                    Background="{Binding BlockButtonColor}"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    ToolTip="Marcar/retirar Block (altera State para Blocked ou Active)"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
 
             <DataGrid.RowStyle>

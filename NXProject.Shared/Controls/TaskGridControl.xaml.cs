@@ -1295,9 +1295,23 @@ namespace NXProject.Controls
             var cm = el.ContextMenu;
             if (cm == null || vm == null) return;
 
-            var blockItem = cm.Items.OfType<MenuItem>().FirstOrDefault();
-            if (blockItem != null)
-                blockItem.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
+            bool isTaskItem = Services.TfsImportService.IsTaskTypePublic(vm.Model.TfsType);
+
+            // Block de Story (oculto quando for Task)
+            var storyBlockItem = cm.Items.OfType<MenuItem>().FirstOrDefault();
+            if (storyBlockItem != null)
+            {
+                storyBlockItem.Visibility = isTaskItem ? Visibility.Collapsed : Visibility.Visible;
+                storyBlockItem.Header = vm.IsBlockedByStory ? "Retirar Block da Story" : "Adicionar Block na Story";
+            }
+
+            // Block de Task (visível apenas para tasks)
+            var taskBlockItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ToggleTaskBlockMenuItem");
+            if (taskBlockItem != null)
+            {
+                taskBlockItem.Visibility = isTaskItem ? Visibility.Visible : Visibility.Collapsed;
+                taskBlockItem.Header = vm.IsBlockedByTask ? "✅ Retirar Block da Task" : "🔴 Adicionar Block na Task";
+            }
 
             bool hasDevOps = vm.Model.TfsId is > 0;
             bool isStoryLike = !vm.Model.IsSummary && !vm.Model.IsMilestone &&
@@ -1336,6 +1350,15 @@ namespace NXProject.Controls
             if (sepAdd      != null) sepAdd.Visibility      = showAdd ? Visibility.Visible : Visibility.Collapsed;
             if (addDevOps   != null) addDevOps.Visibility   = (showAdd && hasDevOps) ? Visibility.Visible : Visibility.Collapsed;
             if (addInternal != null) addInternal.Visibility = showAdd ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void OnToggleTaskBlockClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm == null) return;
+            vm.ToggleTaskBlock();
+            if (DataContext is ViewModels.MainViewModel mainVm)
+                mainVm.Project.IsDirty = true;
         }
 
         private void OnToggleStoryBlockClick(object sender, RoutedEventArgs e)

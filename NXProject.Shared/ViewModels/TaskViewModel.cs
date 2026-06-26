@@ -267,6 +267,14 @@ namespace NXProject.ViewModels
 
         public bool ToggleBlockCommand_CanExecute => true;
 
+        public void ToggleTaskBlock()
+        {
+            _task.BlockedByChild = !_task.BlockedByChild;
+            OnPropertyChanged(nameof(IsBlocked));
+            OnPropertyChanged(nameof(IsBlockedByTask));
+            OnPropertyChanged(nameof(BlockIcon));
+        }
+
         public void ToggleStoryBlock()
         {
             var tags = (_task.Tags ?? string.Empty)
