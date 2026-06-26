@@ -1,0 +1,44 @@
+using System.Windows;
+
+namespace NXProject.Views
+{
+    public enum AddSubtaskResult { Fetch, CreateTask, CreateInternal, Cancel }
+
+    public partial class AddSubtaskDialog : Window
+    {
+        public AddSubtaskResult Result { get; private set; } = AddSubtaskResult.Cancel;
+
+        public AddSubtaskDialog(string storyName, bool hasDevOpsLink)
+        {
+            InitializeComponent();
+            SubtitleText.Text = $"Story: {storyName}";
+            // Oculta "Buscar Tasks" se não tiver vínculo DevOps
+            BtnFetch.Visibility = hasDevOpsLink ? Visibility.Visible : Visibility.Collapsed;
+            BtnTask.Visibility  = hasDevOpsLink ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void OnFetchClick(object sender, RoutedEventArgs e)
+        {
+            Result = AddSubtaskResult.Fetch;
+            Close();
+        }
+
+        private void OnCreateTaskClick(object sender, RoutedEventArgs e)
+        {
+            Result = AddSubtaskResult.CreateTask;
+            Close();
+        }
+
+        private void OnCreateInternalClick(object sender, RoutedEventArgs e)
+        {
+            Result = AddSubtaskResult.CreateInternal;
+            Close();
+        }
+
+        private void OnCancelClick(object sender, RoutedEventArgs e)
+        {
+            Result = AddSubtaskResult.Cancel;
+            Close();
+        }
+    }
+}

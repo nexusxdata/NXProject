@@ -141,17 +141,18 @@ namespace NXProject.ViewModels
         public Action? PrepareTaskInsertionScroll { get; set; }
 
         /// <summary>
-        /// Chamado ao adicionar subtarefa de uma Story para perguntar ao usuário se será Task (DevOps) ou interno.
-        /// Retorna true = Task (DevOps), false = No DevOps (interno). Null = cancelado.
+        /// Callback unificado ao adicionar subtarefa de uma Story.
+        /// Recebe a Story (TaskViewModel). Retorna:
+        ///   "Task"     → criar Task DevOps
+        ///   "NoDevOps" → criar atividade interna
+        ///   "Fetch"    → buscar Tasks do DevOps (a View dispara e não cria subtarefa)
+        ///   null       → cancelado
         /// </summary>
-        public Func<bool?>? AskSubtaskIsDevOpsTask { get; set; }
+        public Func<TaskViewModel, string?>? AskSubtaskAction { get; set; }
 
-        /// <summary>
-        /// Callback para perguntar se o usuário quer buscar Tasks do DevOps antes de criar subtarefa numa Story vinculada.
-        /// Retorna true = buscar primeiro, false = criar diretamente, null = cancelado.
-        /// O parâmetro é a Story (TaskViewModel) que receberá a subtarefa.
-        /// </summary>
-        public Func<TaskViewModel, bool?>? AskFetchTasksBeforeSubtask { get; set; }
+        // Mantidos por compatibilidade mas não mais usados internamente
+        [Obsolete] public Func<bool?>? AskSubtaskIsDevOpsTask { get; set; }
+        [Obsolete] public Func<TaskViewModel, bool?>? AskFetchTasksBeforeSubtask { get; set; }
 
         public MainViewModel(string sprintSettingsStorageKey = "NXProject.Community")
         {
@@ -1610,23 +1611,17 @@ namespace NXProject.ViewModels
             }
             else if (IsStoryLikeType(parentType))
             {
-                // Se a Story tem vínculo DevOps, perguntar primeiro se quer buscar Tasks do DevOps
-                if (parent.TfsId is > 0 && AskFetchTasksBeforeSubtask != null)
+                if (AskSubtaskAction != null)
                 {
                     var parentVm = FlatTasks.FirstOrDefault(t => t.Model == parent);
-                    if (parentVm != null)
-                    {
-                        var fetch = AskFetchTasksBeforeSubtask.Invoke(parentVm);
-                        if (fetch == null) return; // cancelado
-                        if (fetch.Value) return;   // busca será feita pela View; não cria subtarefa
-                    }
+                    var action = AskSubtaskAction.Invoke(parentVm ?? new TaskViewModel(parent));
+                    if (action == null || action == "Cancel") return;
+                    if (action == "Fetch") return; // View dispara busca; não cria subtarefa
+                    childType = action == "Task" ? "Task" : "No DevOps";
                 }
-                if (AskSubtaskIsDevOpsTask == null) { childType = "No DevOps"; }
                 else
                 {
-                    var isDevOpsTask = AskSubtaskIsDevOpsTask.Invoke();
-                    if (isDevOpsTask == null) return; // usuário cancelou
-                    childType = isDevOpsTask.Value ? "Task" : "No DevOps";
+                    childType = "No DevOps";
                 }
             }
             else

@@ -104,32 +104,22 @@ namespace NXProject.Views
             TaskGridCtrl.ExpandChildTasksRequested += OnExpandChildTasks;
             TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
             vm.RequestDevOpsDeleteDialog += task => OnConfirmDeleteTask(task);
-            vm.AskSubtaskIsDevOpsTask = () =>
+            vm.AskSubtaskAction = (storyVm) =>
             {
-                var dlg = MessageBox.Show(
-                    "Esta subtarefa será uma Task no DevOps (vinculada e sincronizável)\nou uma atividade interna (apenas no NXProject)?\n\n" +
-                    "Sim = Task (DevOps)\nNão = Interna (No DevOps)\nCancelar = Cancelar",
-                    "Tipo de Subtarefa",
-                    MessageBoxButton.YesNoCancel,
-                    MessageBoxImage.Question);
-                return dlg == MessageBoxResult.Yes ? true : dlg == MessageBoxResult.No ? false : (bool?)null;
-            };
-            vm.AskFetchTasksBeforeSubtask = (storyVm) =>
-            {
-                var dlg = MessageBox.Show(
-                    $"A Story \"{storyVm.Name}\" está vinculada ao DevOps.\n\n" +
-                    "Deseja buscar as Tasks existentes no DevOps antes de criar uma nova?\n\n" +
-                    "Sim = Buscar Tasks do DevOps\nNão = Criar subtarefa diretamente\nCancelar = Cancelar",
-                    "Buscar Tasks do DevOps?",
-                    MessageBoxButton.YesNoCancel,
-                    MessageBoxImage.Question);
-                if (dlg == MessageBoxResult.Yes)
+                bool hasDevOps = storyVm.Model.TfsId is > 0;
+                var dlg = new AddSubtaskDialog(storyVm.Name, hasDevOps) { Owner = this };
+                dlg.ShowDialog();
+                if (dlg.Result == AddSubtaskResult.Fetch)
                 {
-                    // Dispara a busca de forma assíncrona e retorna true para cancelar a criação da subtarefa
                     _ = FetchAndAddChildTasksAsync(storyVm);
-                    return true;
+                    return "Fetch";
                 }
-                return dlg == MessageBoxResult.No ? false : (bool?)null;
+                return dlg.Result switch
+                {
+                    AddSubtaskResult.CreateTask     => "Task",
+                    AddSubtaskResult.CreateInternal => "NoDevOps",
+                    _                               => null
+                };
             };
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
