@@ -2223,36 +2223,47 @@ namespace NXProject.ViewModels
                             t.Children.Move(t.Children.IndexOf(desiredItem), taskIndices[k]);
                     }
 
-                    // Distribui horas da story para Tasks sem estimativa
-                    var storyHours = Services.ProjectCalendarService.CountWorkingHours(t.Start, t.Finish);
-
-                    // Duração efetiva de cada task:
-                    //   HH Estimado > 0 → HH Estimado + HH Atual (restante + concluído)
-                    //   HH Estimado = 0, HH Atual > 0 → HH Atual (só o concluído, sem estimar restante)
+                    // Duração efetiva de cada task para cálculo de Gantt:
+                    //   HH Original > 0 → HH Original + HH Atual
+                    //   HH Original = 0, HH Atual > 0 → HH Atual
                     //   ambos = 0 → recebe rateio
                     static double EffDur(ProjectTask tc)
                     {
-                        var est = tc.EstimatedHours ?? 0;
-                        var cur = tc.CurrentHours ?? 0;
-                        return est > 0 ? est + cur : cur;
+                        var orig = tc.OriginalEstimatedHours ?? 0;
+                        var cur  = tc.CurrentHours ?? 0;
+                        return orig > 0 ? orig + cur : cur;
                     }
+
+                    var storyHours    = Services.ProjectCalendarService.CountWorkingHours(t.Start, t.Finish);
+                    var storyOriginal = t.OriginalEstimatedHours ?? 0;
+                    var storyCurrent  = t.CurrentHours ?? 0;
 
                     var tasksWithHours    = taskChildren.Where(tc => EffDur(tc) > 0).ToList();
                     var tasksWithoutHours = taskChildren.Where(tc => EffDur(tc) <= 0).ToList();
                     if (tasksWithoutHours.Count > 0)
                     {
-                        double usedHours = tasksWithHours.Sum(EffDur);
-                        double remaining = Math.Max(0, storyHours - usedHours);
-                        double perTask   = remaining > 0
-                            ? remaining / tasksWithoutHours.Count
-                            : (storyHours > 0 ? storyHours / taskChildren.Count : Services.ProjectCalendarService.WorkingHoursPerDay);
+                        int n = tasksWithoutHours.Count;
+
+                        // Rateio de HH Original da story → OriginalEstimatedHours das tasks
+                        double usedOrig    = tasksWithHours.Sum(tc => tc.OriginalEstimatedHours ?? 0);
+                        double remainOrig  = storyOriginal > 0 ? Math.Max(0, storyOriginal - usedOrig) : 0;
+                        double perOriginal = remainOrig > 0 ? remainOrig / n
+                                          : storyOriginal > 0 ? storyOriginal / Math.Max(1, taskChildren.Count)
+                                          : storyHours > 0 ? storyHours / Math.Max(1, taskChildren.Count)
+                                          : Services.ProjectCalendarService.WorkingHoursPerDay;
+
+                        // Rateio de HH Atual da story → CurrentHours das tasks (somente se story tem HH Atual)
+                        double usedCur   = tasksWithHours.Sum(tc => tc.CurrentHours ?? 0);
+                        double remainCur = storyCurrent > 0 ? Math.Max(0, storyCurrent - usedCur) : 0;
+                        double perCurrent = remainCur > 0 ? remainCur / n
+                                         : storyCurrent > 0 ? storyCurrent / Math.Max(1, taskChildren.Count)
+                                         : 0;
+
                         foreach (var tc in tasksWithoutHours)
                         {
-                            bool isClosed = Services.TfsImportService.IsClosedStateName(tc.TfsState) || tc.PercentComplete >= 100;
-                            if (isClosed)
-                                tc.CurrentHours = perTask;   // task encerrada: rateio vai para HH Atual
-                            else
-                                tc.EstimatedHours = perTask; // task aberta: rateio vai para HH Restante
+                            tc.OriginalEstimatedHours = perOriginal;
+                            if (perCurrent > 0)
+                                tc.CurrentHours = perCurrent;
                         }
                     }
 

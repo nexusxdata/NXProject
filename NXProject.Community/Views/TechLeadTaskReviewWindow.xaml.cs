@@ -310,37 +310,50 @@ namespace NXProject.Views
 
             var allVisible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
 
-            // Rateio: tasks sem HH Estimado E sem HH Atual (independente de estado/Closed)
-            // Tasks com HH Atual mas sem HH Estimado já têm duração própria — não entram no rateio
+            // Eligible: tasks sem HH Original E sem HH Atual
             var eligible = allVisible.Where(r => r.EstimatedHours <= 0 && r.CompletedHours <= 0).ToList();
-
             if (eligible.Count == 0)
             {
-                MessageBox.Show("Todas as Tasks já possuem HH Estimado ou HH Atual.", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Todas as Tasks já possuem HH Original ou HH Atual.", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            double usedHours = allVisible.Where(r => r.EstimatedHours > 0 || r.CompletedHours > 0)
-                                         .Sum(r => Math.Max(r.EstimatedHours, r.CompletedHours));
-            double remaining = Math.Max(0, storyHours - usedHours);
-            double perTask   = remaining > 0 ? remaining / eligible.Count
-                                             : storyHours / Math.Max(1, eligible.Count);
+            // Usa HH Original e HH Atual da story (via StoryTask) para ratear separadamente
+            var storyTask    = allVisible.FirstOrDefault()?.StoryTask;
+            double storyOrig = storyTask?.OriginalEstimatedHours ?? 0;
+            double storyCur  = storyTask?.CurrentHours ?? 0;
+            int n = eligible.Count;
+
+            // Rateio de HH Original
+            double usedOrig   = allVisible.Where(r => r.EstimatedHours > 0).Sum(r => r.EstimatedHours);
+            double remainOrig = storyOrig > 0 ? Math.Max(0, storyOrig - usedOrig) : 0;
+            double perOrig    = remainOrig > 0 ? remainOrig / n
+                              : storyOrig > 0 ? storyOrig / Math.Max(1, allVisible.Count)
+                              : storyHours / Math.Max(1, allVisible.Count);
+
+            // Rateio de HH Atual (só se story tem HH Atual)
+            double usedCur   = allVisible.Where(r => r.CompletedHours > 0).Sum(r => r.CompletedHours);
+            double remainCur = storyCur > 0 ? Math.Max(0, storyCur - usedCur) : 0;
+            double perCur    = remainCur > 0 ? remainCur / n
+                             : storyCur > 0 ? storyCur / Math.Max(1, allVisible.Count)
+                             : 0;
 
             foreach (var r in eligible)
             {
-                bool isClosed = TfsImportService.IsClosedStateName(r.State)
-                                || r.PercentComplete >= 100;
-                if (isClosed)
-                    r.CompletedHours = Math.Round(perTask, 1);  // encerrada: rateio vai para HH Atual
-                else
-                    r.EstimatedHours = Math.Round(perTask, 1);  // aberta: rateio vai para HH Restante
+                r.EstimatedHours = Math.Round(perOrig, 1);
+                if (perCur > 0)
+                    r.CompletedHours = Math.Round(perCur, 1);
                 r.IsDirty = true;
             }
 
             SaveChangesButton.IsEnabled = true;
             DirtyHint.Visibility = Visibility.Visible;
             UpdateTotals();
-            MessageBox.Show($"Rateio aplicado: {perTask:0.#}h por Task em {eligible.Count} task(s).", "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            var msg = perCur > 0
+                ? $"Rateio aplicado em {n} task(s): HH Original = {perOrig:0.#}h | HH Atual = {perCur:0.#}h"
+                : $"Rateio aplicado em {n} task(s): HH Original = {perOrig:0.#}h";
+            MessageBox.Show(msg, "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // ── Drag-drop para reordenar por prioridade ──────────────────────────────
