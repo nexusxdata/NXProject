@@ -642,6 +642,17 @@ namespace NXProject.Services
                             }
                         }
 
+                        // Data Fim: sincroniza sempre que a data local difere do TFS (inclusive quando vazia no TFS).
+                        if (typeFinishRef != null && task.Finish > DateTime.MinValue.AddYears(1))
+                        {
+                            var currentFinish = ReadDate(wi, typeFinishRef);
+                            if (currentFinish == null || currentFinish.Value.Date != task.Finish.Date)
+                            {
+                                ops.Add(PatchAdd($"/fields/{typeFinishRef}", FormatDateForTfs(task.Finish)));
+                                changes.Add($"fim: {task.Finish:dd/MM}");
+                            }
+                        }
+
                         // Tag de data fixada.
                         {
                             var fixedTag      = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
