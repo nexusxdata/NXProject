@@ -328,7 +328,12 @@ namespace NXProject.Views
 
             foreach (var r in eligible)
             {
-                r.EstimatedHours = Math.Round(perTask, 1);
+                bool isClosed = TfsImportService.IsClosedStateName(r.State)
+                                || r.PercentComplete >= 100;
+                if (isClosed)
+                    r.CompletedHours = Math.Round(perTask, 1);  // encerrada: rateio vai para HH Atual
+                else
+                    r.EstimatedHours = Math.Round(perTask, 1);  // aberta: rateio vai para HH Restante
                 r.IsDirty = true;
             }
 
@@ -445,7 +450,8 @@ namespace NXProject.Views
         private double _estimatedHours;
         public double EstimatedHours { get => _estimatedHours; set { if (_estimatedHours == value) return; _estimatedHours = value; OnPropertyChanged(); OnPropertyChanged(nameof(EstimatedHoursDisplay)); } }
 
-        public double CompletedHours { get; set; }
+        private double _completedHours;
+        public double CompletedHours { get => _completedHours; set { if (_completedHours == value) return; _completedHours = value; OnPropertyChanged(); } }
         public double PercentComplete { get; set; }
 
         private int _priority = 5;

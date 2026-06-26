@@ -2245,7 +2245,13 @@ namespace NXProject.ViewModels
                             ? remaining / tasksWithoutHours.Count
                             : (storyHours > 0 ? storyHours / taskChildren.Count : Services.ProjectCalendarService.WorkingHoursPerDay);
                         foreach (var tc in tasksWithoutHours)
-                            tc.EstimatedHours = perTask;
+                        {
+                            bool isClosed = Services.TfsImportService.IsClosedStateName(tc.TfsState) || tc.PercentComplete >= 100;
+                            if (isClosed)
+                                tc.CurrentHours = perTask;   // task encerrada: rateio vai para HH Atual
+                            else
+                                tc.EstimatedHours = perTask; // task aberta: rateio vai para HH Restante
+                        }
                     }
 
                     // Se a soma das Tasks superar a duração da story, expande a story

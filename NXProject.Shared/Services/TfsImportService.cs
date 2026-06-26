@@ -1402,6 +1402,8 @@ namespace NXProject.Services
         private static string NormalizeTagsForWrite(string? tags) =>
             string.Join("; ", SplitTags(tags));
 
+        public static bool IsClosedStateName(string? state) => IsClosedState(state);
+
         private static bool IsClosedState(string? state) =>
             state?.Trim().ToLowerInvariant() switch
             {
