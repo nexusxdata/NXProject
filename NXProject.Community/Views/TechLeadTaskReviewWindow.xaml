@@ -205,9 +205,24 @@
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
 
-                <!-- Responsável (editável — exibe displayName, edição altera AssignedToDisplay) -->
-                <DataGridTextColumn Header="Responsável" Width="160"
-                    Binding="{Binding AssignedToDisplay, UpdateSourceTrigger=LostFocus}"/>
+                <!-- Responsável (ComboBox com lista de recursos do projeto) -->
+                <DataGridTemplateColumn Header="Responsável" Width="160">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding AssignedToDisplay}" Padding="3,0" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding ResourceList, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      Text="{Binding AssignedToDisplay, UpdateSourceTrigger=LostFocus}"
+                                      IsEditable="True"
+                                      StaysOpenOnEdit="False"
+                                      FontSize="12"
+                                      SelectionChanged="OnResourceSelectionChanged"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
 
                 <!-- Categoria / Activity (ComboBox editável sincroniza Microsoft.VSTS.Common.Activity) -->
                 <DataGridTemplateColumn Header="Categoria" Width="130">
@@ -256,6 +271,15 @@
 
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
+                    <Setter Property="ContextMenu">
+                        <Setter.Value>
+                            <ContextMenu Opened="OnRowContextMenuOpened">
+                                <MenuItem x:Name="BlockRowMenuItem"
+                                          Header="🔴 Adicionar Block na Task"
+                                          Click="OnRowToggleBlockClick"/>
+                            </ContextMenu>
+                        </Setter.Value>
+                    </Setter>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsDirty}" Value="True">
                             <Setter Property="Background" Value="#FFFDE7"/>

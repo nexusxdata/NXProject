@@ -30,6 +30,7 @@ namespace NXProject.Views
 
         public bool HasChanges { get; private set; }
         public List<string> ActivityList => _activityList;
+        public List<string> ResourceList => _project.Resources.Select(r => r.DisplayName ?? r.Name ?? "").Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
         /// <summary>Callback: adiciona rows ao cronograma e retorna a primeira ProjectTask adicionada (para seleção).</summary>
         public Func<IEnumerable<TaskReviewRow>, ProjectTask?>? AddToScheduleCallback { get; set; }
         public Action? ReleaseCallback { get; set; }
@@ -286,6 +287,40 @@ namespace NXProject.Views
         }
 
         private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+        private void OnResourceSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ComboBox cb && cb.SelectedItem is string name &&
+                cb.DataContext is TaskReviewRow row)
+            {
+                row.AssignedToDisplay = name;
+                row.IsDirty = true;
+            }
+        }
+
+        private void OnRowContextMenuOpened(object sender, RoutedEventArgs e)
+        {
+            if (sender is not ContextMenu menu) return;
+            var row = (menu.PlacementTarget as FrameworkElement)?.DataContext as TaskReviewRow
+                   ?? (TasksGrid.SelectedItem as TaskReviewRow);
+            if (row == null) return;
+            var item = menu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "BlockRowMenuItem");
+            if (item != null)
+                item.Header = row.IsBlockedState ? "✅ Retirar Block da Task" : "🔴 Adicionar Block na Task";
+        }
+
+        private void OnRowToggleBlockClick(object sender, RoutedEventArgs e)
+        {
+            var row = ((sender as MenuItem)?.Parent as ContextMenu)
+                ?.PlacementTarget is FrameworkElement fe
+                ? fe.DataContext as TaskReviewRow
+                : TasksGrid.SelectedItem as TaskReviewRow;
+            if (row == null) return;
+            row.ToggleBlock();
+            SaveChangesButton.IsEnabled = true;
+            DirtyHint.Visibility = Visibility.Visible;
+            UpdateTotals();
+        }
 
         private void OnToggleBlockClick(object sender, RoutedEventArgs e)
         {
