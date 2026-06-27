@@ -122,6 +122,13 @@ namespace NXProject.Views
             MarkDirty("Pessoa excluída.");
         }
 
+        private void OnSaveLocalClick(object sender, RoutedEventArgs e)
+        {
+            CommitPendingEdits();
+            ResourceKindConfigService.Save(_vm.Project.Resources);
+            StatusText.Text = "Configuração de Alocação salva localmente.";
+        }
+
         private void OnRecalcClick(object sender, RoutedEventArgs e)
         {
             CommitPendingEdits();

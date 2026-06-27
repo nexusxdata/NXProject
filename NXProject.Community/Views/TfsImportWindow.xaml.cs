@@ -156,6 +156,7 @@ namespace NXProject.Views
 
                 TfsConnectionStore.Save(options, RememberTokenCheck.IsChecked == true, _storageKey);
 
+                ResourceKindConfigService.ApplyTo(project.Resources);
                 ImportedProject = project;
                 DialogResult = true;
                 Close();

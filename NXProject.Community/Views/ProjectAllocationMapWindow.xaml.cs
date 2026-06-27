@@ -2235,6 +2235,7 @@ namespace NXProject.Views
                 try
                 {
                     var result = await TfsImportService.ImportAsync(importOpts);
+                    ResourceKindConfigService.ApplyTo(result.Project.Resources);
                     imported.Add(new LoadedProject
                     {
                         FilePath         = string.Empty,

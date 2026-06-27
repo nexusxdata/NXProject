@@ -31,6 +31,10 @@
                     Click="OnDeleteClick"/>
             <Button Content="Recalcular Cronograma" Width="160" Height="28" Margin="8,0,0,0"
                     Click="OnRecalcClick" ToolTip="Recalcula as datas-fim de todas as tarefas com base na disponibilidade atual"/>
+            <Button Content="💾 Salvar Local" Width="120" Height="28" Margin="16,0,0,0"
+                    Click="OnSaveLocalClick"
+                    Background="#5B3270" Foreground="White"
+                    ToolTip="Salva a configuração de Alocação (Project/Internal) de cada pessoa localmente. Preservada ao re-importar do TFS."/>
             <TextBlock x:Name="CountLabel" VerticalAlignment="Center" Margin="16,0,0,0"
                        FontSize="12" Foreground="#666"/>
         </StackPanel>
