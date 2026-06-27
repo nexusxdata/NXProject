@@ -121,6 +121,39 @@ namespace NXProject.Views
             }
         }
 
+        private void OnDiscoveryClick(object sender, RoutedEventArgs e)
+        {
+            var options = TfsConnectionStore.Load("NXProject.Community");
+            if (!options.IsValid)
+            {
+                MessageBox.Show(
+                    "Configure a conexão com o Azure DevOps antes de usar o Discovery.\n(Menu Configurações → Conexão DevOps / TFS)",
+                    "Conexão não configurada", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dlg = new DevOpsDiscoveryWindow(options, _projects) { Owner = this };
+            if (dlg.ShowDialog() != true) return;
+
+            int added = 0;
+            foreach (var p in dlg.SelectedProjects)
+            {
+                if (_projects.Any(x => x.RootWorkItemId == p.RootWorkItemId)) continue;
+                _projects.Add(p);
+                added++;
+            }
+
+            if (added > 0)
+            {
+                SaveIfPathSet();
+                MessageBox.Show($"{added} projeto(s) adicionado(s) ao portfólio.", "Discovery", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("Os itens selecionados já estão no portfólio.", "Discovery", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
         private void OnDeleteClick(object sender, RoutedEventArgs e)
         {
             if (ProjectsGrid.SelectedItem is not DevOpsProject selected)

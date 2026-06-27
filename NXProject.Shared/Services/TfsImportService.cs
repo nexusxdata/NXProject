@@ -2416,6 +2416,63 @@ namespace NXProject.Services
             }
         }
 
+        /// <summary>
+        /// Busca work items de nível raiz (sem pai) do Team Project para discovery do portfólio.
+        /// Retorna lista de (Id, Title, Type).
+        /// </summary>
+        public static async Task<List<(int Id, string Title, string Type)>> FetchRootWorkItemsAsync(
+            TfsConnectionOptions options, CancellationToken ct = default)
+        {
+            if (options == null || !options.IsValid) return [];
+            var orgBase = options.OrganizationUrl.TrimEnd('/');
+            var auth    = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+
+            // WIQL: work items sem pai no projeto
+            var wiql = new { query = $"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{options.TeamProject.Replace("'", "''")}' AND [System.WorkItemType] <> 'Task' AND NOT [System.WorkItemType] IN ('Test Plan','Test Suite','Test Case') AND [System.State] <> 'Removed' AND [System.AreaPath] UNDER '{options.TeamProject.Replace("'", "''")}' ORDER BY [System.Id]" };
+            var wiqlBody = System.Text.Json.JsonSerializer.Serialize(wiql);
+            var wiqlUrl  = $"{orgBase}/{Uri.EscapeDataString(options.TeamProject)}/_apis/wit/wiql?{ApiVersion}";
+            using var wiqlReq = new HttpRequestMessage(HttpMethod.Post, wiqlUrl);
+            wiqlReq.Headers.Authorization = auth;
+            wiqlReq.Content = new StringContent(wiqlBody, Encoding.UTF8, "application/json");
+            using var wiqlResp = await Http.SendAsync(wiqlReq, ct);
+            if (!wiqlResp.IsSuccessStatusCode) return [];
+
+            var wiqlJson = await wiqlResp.Content.ReadAsStringAsync(ct);
+            using var wiqlDoc = JsonDocument.Parse(wiqlJson);
+            if (!wiqlDoc.RootElement.TryGetProperty("workItems", out var wiItems)) return [];
+
+            var ids = wiItems.EnumerateArray()
+                .Select(x => x.TryGetProperty("id", out var idp) ? idp.GetInt32() : 0)
+                .Where(x => x > 0).ToList();
+            if (ids.Count == 0) return [];
+
+            var result = new List<(int, string, string)>();
+            // Busca em lotes de 200
+            for (int i = 0; i < ids.Count; i += 200)
+            {
+                var batch = ids.Skip(i).Take(200).ToList();
+                var batchIds = string.Join(",", batch);
+                var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={batchIds}&fields=System.Id,System.Title,System.WorkItemType&{ApiVersion}";
+                using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
+                batchReq.Headers.Authorization = auth;
+                using var batchResp = await Http.SendAsync(batchReq, ct);
+                if (!batchResp.IsSuccessStatusCode) continue;
+                var batchJson = await batchResp.Content.ReadAsStringAsync(ct);
+                using var batchDoc = JsonDocument.Parse(batchJson);
+                if (!batchDoc.RootElement.TryGetProperty("value", out var values)) continue;
+                foreach (var item in values.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("fields", out var f)) continue;
+                    var id    = f.TryGetProperty("System.Id",           out var ip) ? ip.GetInt32()    : 0;
+                    var title = f.TryGetProperty("System.Title",        out var tp) ? tp.GetString() ?? "" : "";
+                    var type  = f.TryGetProperty("System.WorkItemType", out var wt) ? wt.GetString() ?? "" : "";
+                    if (id > 0) result.Add((id, title, type));
+                }
+            }
+            return result;
+        }
+
         private static bool IsStoryType(string? type) =>
             string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase) ||
