@@ -78,6 +78,7 @@ namespace NXProject.Views
                     {
                         StoryId         = story.TfsId!.Value,
                         StoryName       = story.Name,
+                        FeatureName     = story.Parent?.Name ?? "",
                         StoryTask       = story,
                         TaskId          = t.TfsId,
                         Title           = t.Title,
@@ -99,6 +100,10 @@ namespace NXProject.Views
 
             _allRows.Clear();
             foreach (var r in rows) _allRows.Add(r);
+
+            var featureNames = new[] { "(Todas)" }.Concat(rows.Select(r => r.FeatureName).Where(f => !string.IsNullOrEmpty(f)).Distinct().OrderBy(f => f)).ToList();
+            FeatureFilterBox.ItemsSource = featureNames;
+            FeatureFilterBox.SelectedIndex = 0;
 
             var storyNames = new[] { "(Todas)" }.Concat(rows.Select(r => r.StoryName).Distinct().OrderBy(s => s)).ToList();
             StoryFilterBox.ItemsSource = storyNames;
@@ -143,10 +148,12 @@ namespace NXProject.Views
         private bool ApplyFilter(object obj)
         {
             if (obj is not TaskReviewRow r) return true;
-            var storyFilter = StoryFilterBox.SelectedItem as string;
-            var stateFilter = StateFilterBox.SelectedItem as string;
-            if (!string.IsNullOrEmpty(storyFilter) && storyFilter != "(Todas)" && r.StoryName != storyFilter) return false;
-            if (!string.IsNullOrEmpty(stateFilter) && stateFilter != "(Todos)" && r.State != stateFilter) return false;
+            var featureFilter = FeatureFilterBox.SelectedItem as string;
+            var storyFilter   = StoryFilterBox.SelectedItem as string;
+            var stateFilter   = StateFilterBox.SelectedItem as string;
+            if (!string.IsNullOrEmpty(featureFilter) && featureFilter != "(Todas)" && r.FeatureName != featureFilter) return false;
+            if (!string.IsNullOrEmpty(storyFilter)   && storyFilter   != "(Todas)" && r.StoryName != storyFilter) return false;
+            if (!string.IsNullOrEmpty(stateFilter)   && stateFilter   != "(Todos)" && r.State != stateFilter) return false;
             return true;
         }
 
@@ -168,6 +175,18 @@ namespace NXProject.Views
                 visible[i].RowNumber = i + 1;
         }
 
+        private void OnFeatureFilterChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Ao mudar feature, refiltra stories disponíveis
+            var featureFilter = FeatureFilterBox.SelectedItem as string;
+            var filtered = string.IsNullOrEmpty(featureFilter) || featureFilter == "(Todas)"
+                ? _allRows.Select(r => r.StoryName)
+                : _allRows.Where(r => r.FeatureName == featureFilter).Select(r => r.StoryName);
+            var storyNames = new[] { "(Todas)" }.Concat(filtered.Distinct().OrderBy(s => s)).ToList();
+            StoryFilterBox.ItemsSource = storyNames;
+            StoryFilterBox.SelectedIndex = 0;
+            _view?.Refresh(); RefreshRowNumbers(); UpdateTotals();
+        }
         private void OnStoryFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); }
         private void OnStateFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); }
 
@@ -484,6 +503,7 @@ namespace NXProject.Views
     {
         public int StoryId { get; set; }
         public string StoryName { get; set; } = "";
+        public string FeatureName { get; set; } = "";
         public ProjectTask StoryTask { get; set; } = null!;
         public int TaskId { get; set; }
 

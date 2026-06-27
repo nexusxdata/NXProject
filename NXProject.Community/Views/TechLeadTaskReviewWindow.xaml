@@ -49,8 +49,11 @@
 
         <!-- Filtros -->
         <WrapPanel Grid.Row="2" Margin="0,0,0,8" Orientation="Horizontal">
+            <TextBlock Text="Feature:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+            <ComboBox x:Name="FeatureFilterBox" Width="170" FontSize="12" Margin="0,0,12,0"
+                      SelectionChanged="OnFeatureFilterChanged"/>
             <TextBlock Text="Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
-            <ComboBox x:Name="StoryFilterBox" Width="200" FontSize="12" Margin="0,0,12,0"
+            <ComboBox x:Name="StoryFilterBox" Width="170" FontSize="12" Margin="0,0,12,0"
                       SelectionChanged="OnStoryFilterChanged"/>
             <TextBlock Text="Status:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
             <ComboBox x:Name="StateFilterBox" Width="120" FontSize="12" Margin="0,0,12,0"
@@ -123,15 +126,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Story" Width="180"
-                    Binding="{Binding StoryName}" IsReadOnly="True">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="#555"/>
-                            <Setter Property="FontSize" Value="11"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+
 
                 <!-- Task (editável, com badge Block) -->
                 <DataGridTemplateColumn Header="Task" Width="220">
