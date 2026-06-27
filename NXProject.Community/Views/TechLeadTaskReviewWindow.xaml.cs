@@ -304,7 +304,7 @@ namespace NXProject.Views
             var row = (menu.PlacementTarget as FrameworkElement)?.DataContext as TaskReviewRow
                    ?? (TasksGrid.SelectedItem as TaskReviewRow);
             if (row == null) return;
-            var item = menu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "BlockRowMenuItem");
+            var item = menu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Tag as string == "BlockRowMenuItem");
             if (item != null)
                 item.Header = row.IsBlockedState ? "✅ Retirar Block da Task" : "🔴 Adicionar Block na Task";
         }

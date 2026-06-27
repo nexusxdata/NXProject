@@ -274,7 +274,7 @@
                     <Setter Property="ContextMenu">
                         <Setter.Value>
                             <ContextMenu Opened="OnRowContextMenuOpened">
-                                <MenuItem x:Name="BlockRowMenuItem"
+                                <MenuItem Tag="BlockRowMenuItem"
                                           Header="🔴 Adicionar Block na Task"
                                           Click="OnRowToggleBlockClick"/>
                             </ContextMenu>
