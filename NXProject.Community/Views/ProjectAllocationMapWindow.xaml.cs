@@ -2071,23 +2071,29 @@ namespace NXProject.Views
                 return;
             }
 
-            bool isStoriesTab = MainTabControl.SelectedIndex == 2;
+            int tab = MainTabControl.SelectedIndex;
+            string[] tabNames  = ["Horas por Projeto", "Distribuição por Pessoa", "Stories por Recurso", "Rateio"];
+            string defaultName = tab < tabNames.Length ? tabNames[tab] : "Mapa de Alocação";
 
             var dlg = new SaveFileDialog
             {
-                Title      = isStoriesTab ? "Exportar Stories por Recurso" : "Exportar Mapa de Alocação",
+                Title      = $"Exportar — {defaultName}",
                 Filter     = "Excel XML 2003 (*.xml)|*.xml",
                 DefaultExt = ".xml",
-                FileName   = isStoriesTab ? "Stories por Recurso" : "Mapa de Alocação para Projetos"
+                FileName   = defaultName
             };
             if (dlg.ShowDialog(this) != true) return;
 
             try
             {
-                if (isStoriesTab)
-                    ExportStoriesToExcel(dlg.FileName);
-                else
-                    ExportAllocationToExcel(dlg.FileName);
+                switch (tab)
+                {
+                    case 0: ExportAllocationToExcel(dlg.FileName, onlyTab: 0); break;
+                    case 1: ExportAllocationToExcel(dlg.FileName, onlyTab: 1); break;
+                    case 2: ExportStoriesToExcel(dlg.FileName);                 break;
+                    case 3: ExportRateioToExcel(dlg.FileName);                  break;
+                    default: ExportAllocationToExcel(dlg.FileName, onlyTab: 0); break;
+                }
                 StatusText.Text = $"Exportado: {dlg.FileName}";
             }
             catch (Exception ex)
@@ -2095,6 +2101,119 @@ namespace NXProject.Views
                 MessageBox.Show($"Erro ao exportar:\n{ex.Message}", "Erro",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void ExportRateioToExcel(string filePath)
+        {
+            var (periodStart, periodEnd) = GetPeriod();
+            var months    = BuildMonths(periodStart, periodEnd);
+            bool hideZero = OnlyWithHoursBox.IsChecked == true;
+
+            // Reconstrói os dados do rateio (igual ao BuildRateioTab)
+            var allRes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var proj in _projects)
+                foreach (var task in GetLeafTasks(proj.Data.Tasks))
+                    foreach (var tr in task.Resources)
+                        if (!string.IsNullOrWhiteSpace(tr.Resource?.Name))
+                            allRes.Add(tr.Resource!.Name);
+
+            var data = new Dictionary<string, double[][]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var res in allRes)
+            {
+                var matrix = new double[_projects.Count][];
+                for (int pi = 0; pi < _projects.Count; pi++)
+                {
+                    matrix[pi] = new double[months.Count];
+                    for (int mi = 0; mi < months.Count; mi++)
+                    {
+                        var mStart = months[mi];
+                        var mEnd   = new DateTime(mStart.Year, mStart.Month, DateTime.DaysInMonth(mStart.Year, mStart.Month));
+                        matrix[pi][mi] = ComputeHours(_projects[pi].Data, res, mStart, mEnd, onlyCurrentHours: false);
+                    }
+                }
+                data[res] = matrix;
+            }
+
+            var visMi = Enumerable.Range(0, months.Count)
+                .Where(mi => allRes.Any(r => data[r].Any(row => row[mi] > 0.01)))
+                .ToList();
+            if (visMi.Count == 0) { StatusText.Text = "Sem dados no período para exportar."; return; }
+
+            var monthCapacity = visMi.Select(mi =>
+            {
+                var ms = months[mi];
+                var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                return NXProject.Services.ProjectCalendarService.CountWorkingHours(ms, me);
+            }).ToList();
+
+            XNamespace ns = "urn:schemas-microsoft-com:office:spreadsheet";
+            XNamespace ss = "urn:schemas-microsoft-com:office:spreadsheet";
+
+            var styles = new XElement(ns + "Styles",
+                ExSt(ns, "Default"),
+                ExSt(ns, "RH",  bg: "#2B579A", fg: "#FFFFFF", bold: true, hAlign: "Center"),
+                ExSt(ns, "RHL", bg: "#2B579A", fg: "#FFFFFF", bold: true),
+                ExSt(ns, "RR",  bg: "#DCE6F8", fg: "#000000", bold: true),
+                ExSt(ns, "RP",  bg: "#F5F8FF", fg: "#282850"),
+                ExSt(ns, "RD",  bg: "#F0F6FF", fg: "#1E50A0", hAlign: "Right"),
+                ExSt(ns, "RT",  bg: "#DCE8FC", fg: "#142832", bold: true, hAlign: "Right")
+            );
+
+            var sheet = new List<XElement>();
+            sheet.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "160")));
+            sheet.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "200")));
+            foreach (var _ in visMi)
+                sheet.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "95")));
+            sheet.Add(new XElement(ns + "Column", new XAttribute(ss + "Width", "90")));
+
+            // Cabeçalho
+            var hdr = new XElement(ns + "Row", new XAttribute(ss + "Height", "22"));
+            hdr.Add(ExStCell(ns, "Recurso",  "RHL"));
+            hdr.Add(ExStCell(ns, "Projeto",  "RHL"));
+            foreach (var mi in visMi) hdr.Add(ExStCell(ns, months[mi].ToString("MMM/yyyy"), "RH"));
+            hdr.Add(ExStCell(ns, "Total", "RH"));
+            sheet.Add(hdr);
+
+            foreach (var res in allRes)
+            {
+                var matrix   = data[res];
+                var resTotal = visMi.Select((_, idx) => matrix.Sum(row => row[visMi[idx]])).ToArray();
+                if (resTotal.All(h => h < 0.01)) continue;
+
+                bool firstProj = true;
+                for (int pi = 0; pi < _projects.Count; pi++)
+                {
+                    var projHours = matrix[pi];
+                    double projTotal = visMi.Sum(mi => projHours[mi]);
+                    if (projTotal < 0.01) continue;
+
+                    var row = new XElement(ns + "Row", new XAttribute(ss + "Height", "20"));
+                    row.Add(ExStCell(ns, firstProj ? res : "", "RR"));
+                    row.Add(ExStCell(ns, _projects[pi].Name, "RP"));
+                    for (int idx = 0; idx < visMi.Count; idx++)
+                    {
+                        double h   = projHours[visMi[idx]];
+                        double tot = resTotal[idx];
+                        string txt = h < 0.01 ? "–" : $"{h:0.#}h ({(tot > 0.01 ? (int)Math.Round(h / tot * 100) : 0)}%)";
+                        row.Add(ExStCell(ns, txt, "RD"));
+                    }
+                    string totTxt = $"{projTotal:0.#}h ({(resTotal.Sum() > 0.01 ? (int)Math.Round(projTotal / resTotal.Sum() * 100) : 0)}%)";
+                    row.Add(ExStCell(ns, totTxt, "RT"));
+                    sheet.Add(row);
+                    firstProj = false;
+                }
+            }
+
+            var workbook = new XDocument(
+                new XDeclaration("1.0", "utf-8", "yes"),
+                new XElement(ns + "Workbook",
+                    new XAttribute(XNamespace.Xmlns + "ss", ss),
+                    styles,
+                    new XElement(ns + "Worksheet",
+                        new XAttribute(ss + "Name", "Rateio"),
+                        new XElement(ns + "Table", sheet))));
+
+            workbook.Save(filePath);
         }
 
         private void ExportStoriesToExcel(string filePath)
@@ -2419,7 +2538,7 @@ namespace NXProject.Views
         private static XElement ExStCell(XNamespace ns, string _ignored, string projName, string styleId) =>
             ExStCell(ns, projName, styleId);
 
-        private void ExportAllocationToExcel(string filePath)
+        private void ExportAllocationToExcel(string filePath, int onlyTab = 0)
         {
             var (periodStart, periodEnd) = GetPeriod();
             var months    = BuildMonths(periodStart, periodEnd);
@@ -2650,18 +2769,23 @@ namespace NXProject.Views
             totRow2.Add(ExStCell(ns, Math.Round(grand2, 1), "BTN"));
             sheet2.Add(totRow2);
 
-            // ── Gera o arquivo ──
+            // ── Gera o arquivo com apenas a aba solicitada ──
+            var worksheets = new List<XElement>();
+            if (onlyTab == 0)
+                worksheets.Add(new XElement(ns + "Worksheet",
+                    new XAttribute(ss + "Name", "Horas por Projeto"),
+                    new XElement(ns + "Table", sheet1)));
+            else
+                worksheets.Add(new XElement(ns + "Worksheet",
+                    new XAttribute(ss + "Name", "Distribuição por Pessoa"),
+                    new XElement(ns + "Table", sheet2)));
+
             var workbook = new XDocument(
                 new XDeclaration("1.0", "utf-8", "yes"),
                 new XElement(ns + "Workbook",
                     new XAttribute(XNamespace.Xmlns + "ss", ss),
                     styles,
-                    new XElement(ns + "Worksheet",
-                        new XAttribute(ss + "Name", "Horas por Projeto"),
-                        new XElement(ns + "Table", sheet1)),
-                    new XElement(ns + "Worksheet",
-                        new XAttribute(ss + "Name", "Distribuição por Pessoa"),
-                        new XElement(ns + "Table", sheet2))));
+                    worksheets));
 
             workbook.Save(filePath);
         }
