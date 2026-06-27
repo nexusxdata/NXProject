@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Vínculo DevOps"
         Width="520"
-        Height="Auto"
         SizeToContent="Height"
         MaxHeight="700"
         WindowStartupLocation="CenterOwner"
