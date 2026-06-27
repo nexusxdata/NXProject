@@ -205,9 +205,13 @@ namespace NXProject.Views
             private string _email;
             private double _maxUnitsPerDay;
             private string _typeLabel;
+            private string _kindLabel;
 
             public static readonly string[] TypeOptions =
                 { "Work", "Material", "Cost" };
+
+            public static readonly string[] KindOptions =
+                { "Project", "Internal" };
 
             private static readonly SolidColorBrush BrushGreen  = MakeFrozen(0x2E, 0x7D, 0x32);
             private static readonly SolidColorBrush BrushOrange = MakeFrozen(0xF5, 0x7C, 0x00);
@@ -229,6 +233,7 @@ namespace NXProject.Views
                 _availPct = r.AvailabilityPercent;
                 _maxUnitsPerDay = r.MaxUnitsPerDay;
                 _typeLabel = r.Type.ToString();
+                _kindLabel = r.Kind.ToString();
             }
 
             // ── editable fields ─────────────────────────────────────────────
@@ -270,6 +275,12 @@ namespace NXProject.Views
                 set { _typeLabel = value; OnPropertyChanged(); }
             }
 
+            public string KindLabel
+            {
+                get => _kindLabel;
+                set { _kindLabel = value; OnPropertyChanged(); OnPropertyChanged(nameof(KindColor)); }
+            }
+
             // ── read-only display ────────────────────────────────────────────
 
             public int TaskCount { get; }
@@ -295,6 +306,11 @@ namespace NXProject.Views
             };
 
             public IEnumerable<string> TypeOptionsSource => TypeOptions;
+            public IEnumerable<string> KindOptionsSource => KindOptions;
+
+            public Brush KindColor => _kindLabel == "Internal"
+                ? new SolidColorBrush(Color.FromRgb(91, 50, 112))
+                : new SolidColorBrush(Color.FromRgb(43, 87, 154));
 
             // ── sync back to model ───────────────────────────────────────────
 
@@ -307,6 +323,9 @@ namespace NXProject.Views
                 Resource.Type = Enum.TryParse<ResourceType>(_typeLabel, out var rt)
                     ? rt
                     : ResourceType.Work;
+                Resource.Kind = Enum.TryParse<ResourceKind>(_kindLabel, out var rk)
+                    ? rk
+                    : ResourceKind.Project;
             }
 
             public event PropertyChangedEventHandler? PropertyChanged;

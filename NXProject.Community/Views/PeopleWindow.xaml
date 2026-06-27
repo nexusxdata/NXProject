@@ -106,6 +106,24 @@
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
 
+                <!-- Alocação: Project ou Internal -->
+                <DataGridTemplateColumn Header="Alocação" Width="100">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding KindLabel}" VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{Binding KindColor}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding KindOptionsSource}"
+                                      SelectedItem="{Binding KindLabel, UpdateSourceTrigger=PropertyChanged}"
+                                      FontSize="12"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
                 <!-- Tipo -->
                 <DataGridTemplateColumn Header="Tipo" Width="90">
                     <DataGridTemplateColumn.CellTemplate>
