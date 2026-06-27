@@ -153,7 +153,7 @@ namespace NXProject.Views
             {
                 var resource = resources[row];
                 AllocationGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
-                AddCell(resource.DisplayName, row + 1, 0, true, horizontalAlignment: HorizontalAlignment.Left);
+                AddResourceNameCell(resource, row + 1);
 
                 var lastFinish = GetLastActivityDate(resource);
                 AddCell(lastFinish.HasValue ? lastFinish.Value.ToString("dd/MM/yy") : "-", row + 1, 1, false);
@@ -206,6 +206,65 @@ namespace NXProject.Views
 
             Grid.SetRow(border, row);
             Grid.SetColumn(border, col);
+            AllocationGrid.Children.Add(border);
+        }
+
+        private void AddResourceNameCell(Resource resource, int row)
+        {
+            bool isInternal = resource.Kind == ResourceKind.Internal;
+
+            var badge = new Border
+            {
+                Background = new SolidColorBrush(isInternal ? Color.FromRgb(120, 81, 169) : Color.FromRgb(43, 87, 154)),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 1, 4, 1),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = isInternal ? "INT" : "PRJ",
+                    FontSize = 9, FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.White,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+
+            var nameText = new TextBlock
+            {
+                Text = resource.DisplayName,
+                FontWeight = FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var stack = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 6, 0) };
+            stack.Children.Add(badge);
+            stack.Children.Add(nameText);
+
+            var menu = new ContextMenu();
+            var toggleItem = new MenuItem
+            {
+                Header = isInternal ? "Mudar para Project (PRJ)" : "Mudar para Internal (INT)"
+            };
+            toggleItem.Click += (_, _) =>
+            {
+                resource.Kind = resource.Kind == ResourceKind.Internal ? ResourceKind.Project : ResourceKind.Internal;
+                _vm.Project.IsDirty = true;
+                BuildMatrix();
+            };
+            menu.Items.Add(toggleItem);
+
+            var border = new Border
+            {
+                BorderBrush = new SolidColorBrush(Color.FromRgb(219, 225, 234)),
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Background = new SolidColorBrush(Color.FromRgb(235, 239, 246)),
+                ContextMenu = menu,
+                Child = stack
+            };
+
+            Grid.SetRow(border, row);
+            Grid.SetColumn(border, 0);
             AllocationGrid.Children.Add(border);
         }
 

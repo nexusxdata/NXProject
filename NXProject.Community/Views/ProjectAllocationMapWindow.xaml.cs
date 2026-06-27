@@ -222,7 +222,7 @@ namespace NXProject.Views
             foreach (var proj in _projects)
             {
                 var resources = proj.Data.Resources
-                    .Where(r => r.Type == ResourceType.Work && !string.IsNullOrWhiteSpace(r.Name))
+                    .Where(r => r.Type == ResourceType.Work && r.Kind == ResourceKind.Project && !string.IsNullOrWhiteSpace(r.Name))
                     .Select(r => r.Name!)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(n => n)
@@ -835,7 +835,7 @@ namespace NXProject.Views
             // Coleta recursos únicos
             var allResources = _projects
                 .SelectMany(p => p.Data.Resources
-                    .Where(r => r.Type == ResourceType.Work && !string.IsNullOrWhiteSpace(r.Name))
+                    .Where(r => r.Type == ResourceType.Work && r.Kind == ResourceKind.Project && !string.IsNullOrWhiteSpace(r.Name))
                     .Select(r => r.Name!))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(n => n)
@@ -1212,7 +1212,7 @@ namespace NXProject.Views
             foreach (var proj in _projects)
                 foreach (var task in GetLeafTasks(proj.Data.Tasks))
                     foreach (var tr in task.Resources)
-                        if (!string.IsNullOrWhiteSpace(tr.Resource?.Name))
+                        if (!string.IsNullOrWhiteSpace(tr.Resource?.Name) && tr.Resource!.Kind == ResourceKind.Project)
                             allRes.Add(tr.Resource!.Name);
 
             // Para cada recurso × projeto × mês, calcula horas
@@ -1392,6 +1392,8 @@ namespace NXProject.Views
                 BuildStoriesGrid();
             else if (MainTabControl.SelectedIndex == 3)
                 BuildRateioTab();
+            else if (MainTabControl.SelectedIndex == 4)
+                BuildInternalTab();
         }
 
         private void OnSrScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -1408,6 +1410,23 @@ namespace NXProject.Views
             if (_scrolling) return;
             _scrolling = true;
             SrMainScroll.ScrollToVerticalOffset(e.VerticalOffset);
+            _scrolling = false;
+        }
+
+        private void OnIntScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scrolling) return;
+            _scrolling = true;
+            IntHeaderScroll.ScrollToHorizontalOffset(e.HorizontalOffset);
+            IntLeftScroll.ScrollToVerticalOffset(e.VerticalOffset);
+            _scrolling = false;
+        }
+
+        private void OnIntLeftScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scrolling) return;
+            _scrolling = true;
+            IntMainScroll.ScrollToVerticalOffset(e.VerticalOffset);
             _scrolling = false;
         }
 
@@ -1462,6 +1481,7 @@ namespace NXProject.Views
                     {
                         var rname = tr.Resource?.Name;
                         if (string.IsNullOrWhiteSpace(rname)) continue;
+                        if (tr.Resource?.Kind != ResourceKind.Project) continue;
 
                         var mh = new double[months.Count];
                         bool any = false;
@@ -1831,6 +1851,198 @@ namespace NXProject.Views
             SrDataPanel.Items.Add(gtData);
         }
 
+        // ── Aba 5: Interno ───────────────────────────────────────────────────────
+        private void BuildInternalTab()
+        {
+            IntHeaderPanel.Items.Clear();
+            IntLeftPanel.Items.Clear();
+            IntDataPanel.Items.Clear();
+
+            if (_projects.Count == 0) return;
+
+            var (periodStart, periodEnd) = GetPeriod();
+            bool hideZero = OnlyWithHoursBox.IsChecked == true;
+            var months = BuildMonths(periodStart, periodEnd);
+
+            var byRes = new SortedDictionary<string, List<(LoadedProject Proj, ProjectTask Task, double[] MonthHours)>>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var proj in _projects)
+            {
+                foreach (var task in GetLeafTasks(proj.Data.Tasks))
+                {
+                    foreach (var tr in task.Resources)
+                    {
+                        var rname = tr.Resource?.Name;
+                        if (string.IsNullOrWhiteSpace(rname)) continue;
+                        if (tr.Resource?.Kind != ResourceKind.Internal) continue;
+
+                        var mh = new double[months.Count];
+                        bool any = false;
+                        for (int mi = 0; mi < months.Count; mi++)
+                        {
+                            var ms = months[mi];
+                            var me = new DateTime(ms.Year, ms.Month, DateTime.DaysInMonth(ms.Year, ms.Month));
+                            double h = ComputeHoursForTask(task, tr, ms, me, onlyCurrentHours: false);
+                            mh[mi] = h;
+                            if (h > 0.01) any = true;
+                        }
+                        if (hideZero && !any) continue;
+
+                        if (!byRes.TryGetValue(rname, out var list))
+                            byRes[rname] = list = [];
+                        list.Add((proj, task, mh));
+                    }
+                }
+            }
+
+            var visMi = Enumerable.Range(0, months.Count)
+                .Where(mi => !hideZero || byRes.Values.Any(l => l.Any(x => x.MonthHours[mi] > 0.01)))
+                .ToList();
+
+            const double MonW   = 90;
+            const double TotW   = 90;
+            var hdrBg = Color.FromRgb(91, 50, 112);
+            var hdrBorder = Color.FromRgb(61, 31, 80);
+
+            // Cabeçalho de meses
+            foreach (var mi in visMi)
+            {
+                IntHeaderPanel.Items.Add(new Border
+                {
+                    Width = MonW, Height = 44, Background = new SolidColorBrush(hdrBg),
+                    BorderBrush = new SolidColorBrush(hdrBorder), BorderThickness = new Thickness(0, 0, 1, 1),
+                    Child = new TextBlock { Text = months[mi].ToString("MMM/yy"), FontSize = 10,
+                        FontWeight = FontWeights.SemiBold, Foreground = Brushes.White,
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+                });
+            }
+            IntHeaderPanel.Items.Add(new Border
+            {
+                Width = TotW, Height = 44, Background = new SolidColorBrush(Color.FromRgb(61, 31, 80)),
+                BorderBrush = new SolidColorBrush(hdrBorder), BorderThickness = new Thickness(0, 0, 1, 1),
+                Child = new TextBlock { Text = "TOTAL", FontSize = 10, FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center }
+            });
+
+            // Linhas
+            var grandByMonth = new double[months.Count];
+
+            foreach (var (resName, entries) in byRes)
+            {
+                var byProj = entries.GroupBy(e => e.Proj.Name, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key);
+                bool resFirst = true;
+
+                foreach (var projGroup in byProj)
+                {
+                    var projEntries = projGroup.ToList();
+                    var projByMonth = new double[months.Count];
+                    foreach (var e in projEntries)
+                        for (int mi = 0; mi < months.Count; mi++)
+                            projByMonth[mi] += e.MonthHours[mi];
+
+                    bool projFirst = true;
+                    foreach (var (proj, task, mh) in projEntries.OrderBy(e => e.Task.Start))
+                    {
+                        var rowBg = new SolidColorBrush(Color.FromRgb(250, 246, 255));
+                        var leftRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrResW, Height = SrRowH, Background = rowBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(200, 180, 220)), BorderThickness = new Thickness(0,0,1,1),
+                            Padding = new Thickness(6, 0, 4, 0),
+                            Child = new TextBlock { Text = resFirst && projFirst ? resName : "", FontSize = 11,
+                                FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(91, 50, 112)),
+                                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+                                ToolTip = resFirst && projFirst ? resName : null }
+                        });
+                        leftRow.Children.Add(new Border
+                        {
+                            Width = SrProjW, Height = SrRowH, Background = rowBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(200, 180, 220)), BorderThickness = new Thickness(0,0,1,1),
+                            Padding = new Thickness(4, 0, 4, 0),
+                            Child = new TextBlock { Text = projFirst ? projGroup.Key : "", FontSize = 11,
+                                Foreground = new SolidColorBrush(Color.FromRgb(110, 70, 150)),
+                                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+                                ToolTip = projFirst ? projGroup.Key : null }
+                        });
+                        var epicTask    = FindAncestorByType(task, "Epic");
+                        var featureTask = FindAncestorByType(task, "Feature");
+                        leftRow.Children.Add(new Border { Width = SrEpicW, Height = SrRowH, Background = rowBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(200,180,220)), BorderThickness = new Thickness(0,0,1,1),
+                            Padding = new Thickness(4,0,4,0), ToolTip = epicTask?.Name,
+                            Child = new TextBlock { Text = epicTask?.Name ?? "", FontSize = 10,
+                                Foreground = new SolidColorBrush(Color.FromRgb(100,40,140)),
+                                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }
+                        });
+                        leftRow.Children.Add(new Border { Width = SrFeatureW, Height = SrRowH, Background = rowBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(200,180,220)), BorderThickness = new Thickness(0,0,1,1),
+                            Padding = new Thickness(4,0,4,0), ToolTip = featureTask?.Name,
+                            Child = new TextBlock { Text = featureTask?.Name ?? "", FontSize = 10,
+                                Foreground = new SolidColorBrush(Color.FromRgb(20,100,120)),
+                                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }
+                        });
+                        string storyLabel = task.Name ?? $"#{task.TfsId}";
+                        leftRow.Children.Add(new Border { Width = SrStoryW, Height = SrRowH, Background = rowBg,
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(200,180,220)), BorderThickness = new Thickness(0,0,1,1),
+                            Padding = new Thickness(4,0,4,0),
+                            ToolTip = $"{storyLabel}\nInício: {task.Start:dd/MM/yy}  Fim: {task.Finish:dd/MM/yy}",
+                            Child = new TextBlock { Text = storyLabel, FontSize = 10,
+                                Foreground = new SolidColorBrush(Color.FromRgb(40,40,40)),
+                                VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }
+                        });
+                        IntLeftPanel.Items.Add(leftRow);
+
+                        var dataRow = new StackPanel { Orientation = Orientation.Horizontal };
+                        double rowTotal = 0;
+                        foreach (var mi in visMi)
+                        {
+                            double h = mh[mi];
+                            rowTotal += h;
+                            grandByMonth[mi] += h;
+                            dataRow.Children.Add(SrMakeCell(h > 0.01 ? $"{h:0.#}h" : "–",
+                                MonW, h > 0.01 ? Color.FromRgb(80, 40, 110) : Color.FromRgb(200, 200, 200),
+                                Color.FromRgb(248, 244, 255), bold: false));
+                        }
+                        dataRow.Children.Add(SrMakeCell(rowTotal > 0.01 ? $"{rowTotal:0.#}h" : "–",
+                            TotW, Color.FromRgb(60, 20, 90), Color.FromRgb(230, 220, 245), bold: true));
+                        IntDataPanel.Items.Add(dataRow);
+
+                        projFirst = false;
+                        resFirst  = false;
+                    }
+                }
+            }
+
+            // Total Geral
+            var gtBg = Color.FromRgb(61, 31, 80);
+            var gtLeft = new StackPanel { Orientation = Orientation.Horizontal };
+            gtLeft.Children.Add(new Border { Width = SrResW + SrProjW + SrEpicW + SrFeatureW, Height = SrRowH + 2,
+                Background = new SolidColorBrush(gtBg), BorderBrush = new SolidColorBrush(Color.FromRgb(40,15,60)),
+                BorderThickness = new Thickness(0,0,1,1), Padding = new Thickness(6,0,4,0),
+                Child = new TextBlock { Text = "TOTAL GERAL", FontSize = 11, FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center }
+            });
+            gtLeft.Children.Add(new Border { Width = SrStoryW, Height = SrRowH + 2, Background = new SolidColorBrush(gtBg),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(40,15,60)), BorderThickness = new Thickness(0,0,1,1) });
+            IntLeftPanel.Items.Add(gtLeft);
+
+            var gtData = new StackPanel { Orientation = Orientation.Horizontal };
+            double gtotal2 = 0;
+            foreach (var mi in visMi)
+            {
+                double g = grandByMonth[mi];
+                gtotal2 += g;
+                gtData.Children.Add(SrMakeCell(g > 0.01 ? $"{g:0.#}h" : "–",
+                    MonW, Colors.White, Color.FromRgb(61, 31, 80), bold: true, height: SrRowH + 2));
+            }
+            gtData.Children.Add(SrMakeCell(gtotal2 > 0.01 ? $"{gtotal2:0.#}h" : "–",
+                TotW, Colors.White, Color.FromRgb(40, 15, 60), bold: true, height: SrRowH + 2));
+            IntDataPanel.Items.Add(gtData);
+        }
+
         private static double ComputeHoursForTask(ProjectTask task, TaskResource tr,
             DateTime monthStart, DateTime monthEnd, bool onlyCurrentHours = false)
         {
@@ -2072,7 +2284,7 @@ namespace NXProject.Views
             }
 
             int tab = MainTabControl.SelectedIndex;
-            string[] tabNames  = ["Horas por Projeto", "Distribuição por Pessoa", "Stories por Recurso", "Rateio"];
+            string[] tabNames  = ["Horas por Projeto", "Distribuição por Pessoa", "Stories por Recurso", "Rateio", "Interno"];
             string defaultName = tab < tabNames.Length ? tabNames[tab] : "Mapa de Alocação";
 
             var dlg = new SaveFileDialog
@@ -2092,6 +2304,7 @@ namespace NXProject.Views
                     case 1: ExportAllocationToExcel(dlg.FileName, onlyTab: 1); break;
                     case 2: ExportStoriesToExcel(dlg.FileName);                 break;
                     case 3: ExportRateioToExcel(dlg.FileName);                  break;
+                    case 4: ExportRateioToExcel(dlg.FileName, internalOnly: true); break;
                     default: ExportAllocationToExcel(dlg.FileName, onlyTab: 0); break;
                 }
                 StatusText.Text = $"Exportado: {dlg.FileName}";
@@ -2103,18 +2316,19 @@ namespace NXProject.Views
             }
         }
 
-        private void ExportRateioToExcel(string filePath)
+        private void ExportRateioToExcel(string filePath, bool internalOnly = false)
         {
             var (periodStart, periodEnd) = GetPeriod();
             var months    = BuildMonths(periodStart, periodEnd);
             bool hideZero = OnlyWithHoursBox.IsChecked == true;
+            var targetKind = internalOnly ? ResourceKind.Internal : ResourceKind.Project;
 
-            // Reconstrói os dados do rateio (igual ao BuildRateioTab)
+            // Reconstrói os dados do rateio
             var allRes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var proj in _projects)
                 foreach (var task in GetLeafTasks(proj.Data.Tasks))
                     foreach (var tr in task.Resources)
-                        if (!string.IsNullOrWhiteSpace(tr.Resource?.Name))
+                        if (!string.IsNullOrWhiteSpace(tr.Resource?.Name) && tr.Resource!.Kind == targetKind)
                             allRes.Add(tr.Resource!.Name);
 
             var data = new Dictionary<string, double[][]>(StringComparer.OrdinalIgnoreCase);
@@ -2210,7 +2424,7 @@ namespace NXProject.Views
                     new XAttribute(XNamespace.Xmlns + "ss", ss),
                     styles,
                     new XElement(ns + "Worksheet",
-                        new XAttribute(ss + "Name", "Rateio"),
+                        new XAttribute(ss + "Name", internalOnly ? "Interno" : "Rateio"),
                         new XElement(ns + "Table", sheet))));
 
             workbook.Save(filePath);
@@ -2233,6 +2447,7 @@ namespace NXProject.Views
                     {
                         var rname = tr.Resource?.Name;
                         if (string.IsNullOrWhiteSpace(rname)) continue;
+                        if (tr.Resource?.Kind != ResourceKind.Project) continue;
 
                         var mh = new double[months.Count];
                         bool any = false;
@@ -2555,7 +2770,7 @@ namespace NXProject.Views
             foreach (var proj in _projects)
             {
                 var resources = proj.Data.Resources
-                    .Where(r => r.Type == ResourceType.Work && !string.IsNullOrWhiteSpace(r.Name))
+                    .Where(r => r.Type == ResourceType.Work && r.Kind == ResourceKind.Project && !string.IsNullOrWhiteSpace(r.Name))
                     .Select(r => r.Name!)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(n => n)

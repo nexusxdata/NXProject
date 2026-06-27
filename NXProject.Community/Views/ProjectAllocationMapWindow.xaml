@@ -336,6 +336,72 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Interno">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="44"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="730"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Row="0" Grid.Column="0" Background="#5B3270" BorderBrush="#3D1F50" BorderThickness="0,0,1,1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="22"/>
+                                <RowDefinition Height="22"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Recursos Internos — horas por story/tarefa"
+                                       Foreground="White" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                <TextBlock Text="Recurso" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="130" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <TextBlock Text="Projeto" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="120" VerticalAlignment="Center"/>
+                                <TextBlock Text="EPIC" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="140" VerticalAlignment="Center"/>
+                                <TextBlock Text="Feature" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           Width="140" VerticalAlignment="Center"/>
+                                <TextBlock Text="Story / Tarefa" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer x:Name="IntHeaderScroll" Grid.Row="0" Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="IntHeaderPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="IntLeftScroll" Grid.Row="1" Grid.Column="0"
+                                  VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                                  ScrollChanged="OnIntLeftScrollChanged">
+                        <ItemsControl x:Name="IntLeftPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="IntMainScroll" Grid.Row="1" Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  ScrollChanged="OnIntScrollChanged">
+                        <ItemsControl x:Name="IntDataPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
         </TabControl>
 
         <!-- Status bar -->

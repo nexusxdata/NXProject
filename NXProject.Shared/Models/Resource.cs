@@ -8,6 +8,9 @@ namespace NXProject.Models
         public string Name { get; set; } = string.Empty;
         public ResourceType Type { get; set; } = ResourceType.Work;
 
+        /// <summary>Project (padrão) aparece no Mapa de Alocação. Internal aparece na aba Interno.</summary>
+        public ResourceKind Kind { get; set; } = ResourceKind.Project;
+
         // Capacidade em horas por dia (padrão 8h)
         public double MaxUnitsPerDay { get; set; } = 8.0;
 
@@ -36,6 +39,12 @@ namespace NXProject.Models
         Work,       // Pessoa
         Material,   // Material/Equipamento
         Cost        // Custo fixo
+    }
+
+    public enum ResourceKind
+    {
+        Project,    // Aparece nas abas OPEX/CAPEX do Mapa de Alocação
+        Internal    // Aparece na aba Interno do Mapa de Alocação
     }
 
     public class TaskResource
