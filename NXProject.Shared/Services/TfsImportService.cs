@@ -2429,7 +2429,7 @@ namespace NXProject.Services
                 "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
 
             // WIQL: work items sem pai no projeto
-            var wiql = new { query = $"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{options.TeamProject.Replace("'", "''")}' AND [System.WorkItemType] <> 'Task' AND NOT [System.WorkItemType] IN ('Test Plan','Test Suite','Test Case') AND [System.State] <> 'Removed' AND [System.AreaPath] UNDER '{options.TeamProject.Replace("'", "''")}' ORDER BY [System.Id]" };
+            var wiql = new { query = $"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{options.TeamProject.Replace("'", "''")}' AND [System.WorkItemType] = 'Project' AND [System.State] <> 'Removed' AND [System.AreaPath] UNDER '{options.TeamProject.Replace("'", "''")}' ORDER BY [System.Id]" };
             var wiqlBody = System.Text.Json.JsonSerializer.Serialize(wiql);
             var wiqlUrl  = $"{orgBase}/{Uri.EscapeDataString(options.TeamProject)}/_apis/wit/wiql?{ApiVersion}";
             using var wiqlReq = new HttpRequestMessage(HttpMethod.Post, wiqlUrl);
@@ -2467,7 +2467,8 @@ namespace NXProject.Services
                     var id    = f.TryGetProperty("System.Id",           out var ip) ? ip.GetInt32()    : 0;
                     var title = f.TryGetProperty("System.Title",        out var tp) ? tp.GetString() ?? "" : "";
                     var type  = f.TryGetProperty("System.WorkItemType", out var wt) ? wt.GetString() ?? "" : "";
-                    if (id > 0) result.Add((id, title, type));
+                    if (id > 0 && string.Equals(type, "Project", StringComparison.OrdinalIgnoreCase))
+                        result.Add((id, title, type));
                 }
             }
             return result;

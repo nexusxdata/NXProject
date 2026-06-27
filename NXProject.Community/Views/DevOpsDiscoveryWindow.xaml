@@ -63,7 +63,6 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="70" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="100" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Nome no Azure DevOps" Binding="{Binding Title}" Width="*" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
