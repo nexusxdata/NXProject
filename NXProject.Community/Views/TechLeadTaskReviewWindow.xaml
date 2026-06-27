@@ -261,7 +261,7 @@
                 </DataGridTemplateColumn>
 
                 <!-- No cronograma (somente leitura) -->
-                <DataGridTextColumn Header="Cronograma" Width="80"
+                <DataGridTextColumn Header="Add Cronograma" Width="90"
                     Binding="{Binding InScheduleDisplay}" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
