@@ -58,12 +58,12 @@ namespace NXProject.Views
         private List<DateTime>      _months   = [];
 
         private const double RowHeight   = 26;
-        private const double ColWidth    = 72;
+        private const double ColWidth    = 90;
         private const double LeftWidth   = 220; // projeto
         private const double ResWidth    = 160; // recurso
         private const double TypeWidth   = 80;
         private const double CcWidth     = 120;
-        private const double TotalColW   = 72;
+        private const double TotalColW   = 90;
 
         // ── Construtor ────────────────────────────────────────────────────────
         public ProjectAllocationMapWindow()
@@ -876,7 +876,7 @@ namespace NXProject.Views
                     allResources.Any(r => dist[pi][r][mi] > 0.01)))
                 .ToList();
 
-            const double MonthColW   = 78;   // coluna por mês
+            const double MonthColW   = 95;   // coluna por mês
             const double ProjTotalW  = 66;   // total do projeto
             const double GrandTotalW = 72;   // total geral
             const double DistRowH    = 36;   // altura maior para duas linhas
@@ -1380,6 +1380,12 @@ namespace NXProject.Views
 
         private void OnTabChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
+            // Checkbox "Apenas HH atual" só é usado na aba 0 (Horas por Projeto)
+            if (OnlyCurrentHoursBox != null)
+                OnlyCurrentHoursBox.Visibility = MainTabControl.SelectedIndex == 0
+                    ? System.Windows.Visibility.Visible
+                    : System.Windows.Visibility.Collapsed;
+
             if (MainTabControl.SelectedIndex == 1)
                 BuildDistributionGrid();
             else if (MainTabControl.SelectedIndex == 2)
