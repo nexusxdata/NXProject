@@ -298,15 +298,18 @@ namespace NXProject.Views
             }
         }
 
-        private void OnRowContextMenuOpened(object sender, RoutedEventArgs e)
+        private void OnGridContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
-            if (sender is not ContextMenu menu) return;
-            var row = (menu.PlacementTarget as FrameworkElement)?.DataContext as TaskReviewRow
-                   ?? (TasksGrid.SelectedItem as TaskReviewRow);
-            if (row == null) return;
-            var item = menu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Tag as string == "BlockRowMenuItem");
+            var dataRow = (e.OriginalSource as FrameworkElement)?.DataContext as TaskReviewRow
+                       ?? TasksGrid.SelectedItem as TaskReviewRow;
+            if (dataRow == null) return;
+            var uiRow = TasksGrid.ItemContainerGenerator.ContainerFromItem(dataRow) as DataGridRow;
+            var menu  = uiRow?.ContextMenu;
+            if (menu == null) return;
+            var item = menu.Items.OfType<MenuItem>()
+                .FirstOrDefault(m => m.Tag as string == "BlockRowMenuItem");
             if (item != null)
-                item.Header = row.IsBlockedState ? "✅ Retirar Block da Task" : "🔴 Adicionar Block na Task";
+                item.Header = dataRow.IsBlockedState ? "✅ Retirar Block da Task" : "🔴 Adicionar Block na Task";
         }
 
         private void OnRowToggleBlockClick(object sender, RoutedEventArgs e)
