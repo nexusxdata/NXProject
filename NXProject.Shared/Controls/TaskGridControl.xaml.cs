@@ -1730,8 +1730,9 @@ namespace NXProject.Controls
                 CancelCurrentEdit();
             _suppressEditorLostFocusCommit = false;
             vm.Start = chosen.Value;
-            RefreshGridPreservingSelection(vm, StartColumn);
             TaskGrid.Focus();
+            Dispatcher.InvokeAsync(() => RefreshGridPreservingSelection(vm, StartColumn),
+                System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private DataGridCell? GetCurrentStartCell()
