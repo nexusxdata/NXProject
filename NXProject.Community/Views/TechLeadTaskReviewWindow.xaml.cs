@@ -298,26 +298,18 @@ namespace NXProject.Views
             }
         }
 
-        private void OnGridContextMenuOpening(object sender, ContextMenuEventArgs e)
+        private void OnGridContextMenuOpened(object sender, RoutedEventArgs e)
         {
-            var dataRow = (e.OriginalSource as FrameworkElement)?.DataContext as TaskReviewRow
-                       ?? TasksGrid.SelectedItem as TaskReviewRow;
-            if (dataRow == null) return;
-            var uiRow = TasksGrid.ItemContainerGenerator.ContainerFromItem(dataRow) as DataGridRow;
-            var menu  = uiRow?.ContextMenu;
-            if (menu == null) return;
-            var item = menu.Items.OfType<MenuItem>()
-                .FirstOrDefault(m => m.Tag as string == "BlockRowMenuItem");
-            if (item != null)
-                item.Header = dataRow.IsBlockedState ? "✅ Retirar Block da Task" : "🔴 Adicionar Block na Task";
+            var row = TasksGrid.SelectedItem as TaskReviewRow;
+            if (BlockTaskMenuItem != null)
+                BlockTaskMenuItem.Header = (row?.IsBlockedState == true)
+                    ? "✅ Retirar Block da Task"
+                    : "🔴 Adicionar Block na Task";
         }
 
         private void OnRowToggleBlockClick(object sender, RoutedEventArgs e)
         {
-            var row = ((sender as MenuItem)?.Parent as ContextMenu)
-                ?.PlacementTarget is FrameworkElement fe
-                ? fe.DataContext as TaskReviewRow
-                : TasksGrid.SelectedItem as TaskReviewRow;
+            var row = TasksGrid.SelectedItem as TaskReviewRow;
             if (row == null) return;
             row.ToggleBlock();
             SaveChangesButton.IsEnabled = true;
@@ -465,8 +457,24 @@ namespace NXProject.Views
         private TaskReviewRow? GetRowUnderMouse(RoutedEventArgs e)
         {
             var el = e.OriginalSource as DependencyObject;
-            while (el != null && el is not DataGridRow) el = System.Windows.Media.VisualTreeHelper.GetParent(el);
+            while (el != null && el is not DataGridRow)
+                el = GetParentElement(el);
+
             return (el as DataGridRow)?.Item as TaskReviewRow;
+        }
+
+        private static DependencyObject? GetParentElement(DependencyObject element)
+        {
+            if (element is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D)
+                return System.Windows.Media.VisualTreeHelper.GetParent(element);
+
+            if (element is FrameworkContentElement contentElement)
+                return contentElement.Parent;
+
+            if (element is FrameworkElement frameworkElement)
+                return frameworkElement.Parent;
+
+            return LogicalTreeHelper.GetParent(element);
         }
     }
 

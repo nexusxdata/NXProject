@@ -57,7 +57,7 @@
                       SelectionChanged="OnStateFilterChanged"/>
             <Button Content="🔄 Recarregar" Click="OnReloadClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"/>
-            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0"/>
+            <Separator Margin="4,0"/>
             <TextBlock Text="Duração Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
             <TextBox x:Name="StoryDurationBox" Width="60" FontSize="12" Margin="0,0,4,0"
                      VerticalContentAlignment="Center" ToolTip="Duração total da Story em horas"/>
@@ -67,7 +67,7 @@
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"
                     Background="#7B3F00" Foreground="White"
                     ToolTip="Distribui as horas da Story entre as Tasks com HH Estimado e HH Atual zerados"/>
-            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,0"/>
+            <Separator Margin="4,0"/>
             <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
                     Click="OnSaveChangesClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"
@@ -88,7 +88,6 @@
                   CellEditEnding="OnCellEditEnding"
                   TextElement.FontSize="12"
                   AllowDrop="True"
-                  ContextMenuOpening="OnGridContextMenuOpening"
                   PreviewMouseLeftButtonDown="OnGridMouseLeftButtonDown"
                   PreviewMouseMove="OnGridMouseMove"
                   Drop="OnGridDrop">
@@ -272,15 +271,6 @@
 
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
-                    <Setter Property="ContextMenu">
-                        <Setter.Value>
-                            <ContextMenu>
-                                <MenuItem Tag="BlockRowMenuItem"
-                                          Header="🔴 Adicionar Block na Task"
-                                          Click="OnRowToggleBlockClick"/>
-                            </ContextMenu>
-                        </Setter.Value>
-                    </Setter>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsDirty}" Value="True">
                             <Setter Property="Background" Value="#FFFDE7"/>
@@ -288,9 +278,21 @@
                         <DataTrigger Binding="{Binding InSchedule}" Value="True">
                             <Setter Property="Foreground" Value="#888"/>
                         </DataTrigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#2B579A"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
                     </Style.Triggers>
                 </Style>
             </DataGrid.RowStyle>
+
+            <DataGrid.ContextMenu>
+                <ContextMenu Opened="OnGridContextMenuOpened">
+                    <MenuItem x:Name="BlockTaskMenuItem"
+                              Header="🔴 Adicionar Block na Task"
+                              Click="OnRowToggleBlockClick"/>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
         </DataGrid>
 
         <!-- Totais e dica de edição -->
