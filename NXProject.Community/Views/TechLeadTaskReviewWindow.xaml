@@ -133,9 +133,27 @@
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
 
-                <!-- Task (editável) -->
-                <DataGridTextColumn Header="Task" Width="220"
-                    Binding="{Binding Title, UpdateSourceTrigger=LostFocus}"/>
+                <!-- Task (editável, com badge Block) -->
+                <DataGridTemplateColumn Header="Task" Width="220">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="#C0392B" CornerRadius="3" Padding="3,1"
+                                        Margin="0,0,4,0"
+                                        Visibility="{Binding IsBlockedState, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="🔴 BLOCK" FontSize="10" Foreground="White" FontWeight="SemiBold"/>
+                                </Border>
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}"
+                                     Style="{StaticResource EditCell}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
 
                 <!-- Status (editável via template) -->
                 <DataGridTemplateColumn Header="Status" Width="110">
