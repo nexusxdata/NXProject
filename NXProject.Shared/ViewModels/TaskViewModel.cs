@@ -269,7 +269,16 @@ namespace NXProject.ViewModels
 
         public void ToggleTaskBlock()
         {
-            _task.BlockedByChild = !_task.BlockedByChild;
+            // Block na Task = tag "Block" nas próprias tags (igual à Story)
+            var tags = (_task.Tags ?? string.Empty)
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            if (HasBlockTag(_task.Tags))
+                tags.RemoveAll(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
+            else
+                tags.Add("Block");
+            _task.Tags = string.Join("; ", tags);
+            OnPropertyChanged(nameof(Tags));
             OnPropertyChanged(nameof(IsBlocked));
             OnPropertyChanged(nameof(IsBlockedByTask));
             OnPropertyChanged(nameof(BlockIcon));

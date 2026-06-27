@@ -89,6 +89,7 @@ namespace NXProject.Views
                         AssignedTo        = t.AssignedTo ?? "",
                         AssignedToDisplay = t.AssignedToDisplay ?? t.AssignedTo ?? "",
                         Activity          = t.Activity ?? "",
+                        Tags              = t.Tags ?? "",
                         InSchedule        = inScheduleIds.Contains(t.TfsId),
                     };
                     row.PropertyChanged += OnRowPropertyChanged;
@@ -235,7 +236,8 @@ namespace NXProject.Views
                         assignedTo: row.AssignedTo,
                         state: row.State,
                         title: row.Title,
-                        activity: row.Activity);
+                        activity: row.Activity,
+                        tags: row.Tags);
                     row.IsDirty = false;
                     ok++;
                 }
@@ -542,17 +544,30 @@ namespace NXProject.Views
         public string EstimatedHoursDisplay => EstimatedHours > 0 ? $"{EstimatedHours:0.#}h" : "-";
         public string InScheduleDisplay => InSchedule ? "✔ Sim" : "Não";
 
-        public bool IsBlockedState => string.Equals(State, "Blocked", StringComparison.OrdinalIgnoreCase);
-        public string BlockButtonLabel => IsBlockedState ? "⛔ Block" : "Block";
+        private string _tags = "";
+        public string Tags
+        {
+            get => _tags;
+            set { if (_tags == value) return; _tags = value ?? ""; OnPropertyChanged(); OnPropertyChanged(nameof(IsBlockedState)); OnPropertyChanged(nameof(BlockButtonLabel)); OnPropertyChanged(nameof(BlockButtonColor)); }
+        }
+
+        private static bool HasBlockTag(string? tags) =>
+            (tags ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Any(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
+
+        public bool IsBlockedState => HasBlockTag(_tags);
+        public string BlockButtonLabel => IsBlockedState ? "🔴 Block" : "Block";
         public string BlockButtonColor => IsBlockedState ? "#C0392B" : "#AAA";
 
         public void ToggleBlock()
         {
-            State    = IsBlockedState ? "Active" : "Blocked";
-            IsDirty  = true;
-            OnPropertyChanged(nameof(IsBlockedState));
-            OnPropertyChanged(nameof(BlockButtonLabel));
-            OnPropertyChanged(nameof(BlockButtonColor));
+            var list = _tags.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            if (IsBlockedState)
+                list.RemoveAll(t => string.Equals(t, "Block", StringComparison.OrdinalIgnoreCase));
+            else
+                list.Add("Block");
+            Tags    = string.Join("; ", list);
+            IsDirty = true;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
