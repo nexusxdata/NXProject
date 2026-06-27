@@ -129,7 +129,7 @@
 
 
                 <!-- Task (editável, com badge Block) -->
-                <DataGridTemplateColumn Header="Task" Width="220">
+                <DataGridTemplateColumn Header="Task" Width="340">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">

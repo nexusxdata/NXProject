@@ -101,13 +101,15 @@ namespace NXProject.Views
             _allRows.Clear();
             foreach (var r in rows) _allRows.Add(r);
 
-            var featureNames = new[] { "(Todas)" }.Concat(rows.Select(r => r.FeatureName).Where(f => !string.IsNullOrEmpty(f)).Distinct().OrderBy(f => f)).ToList();
+            var distinctFeatures = rows.Select(r => r.FeatureName).Where(f => !string.IsNullOrEmpty(f)).Distinct().OrderBy(f => f).ToList();
+            var featureNames = new[] { "(Todas)" }.Concat(distinctFeatures).ToList();
             FeatureFilterBox.ItemsSource = featureNames;
-            FeatureFilterBox.SelectedIndex = 0;
+            FeatureFilterBox.SelectedIndex = distinctFeatures.Count == 1 ? 1 : 0;
 
-            var storyNames = new[] { "(Todas)" }.Concat(rows.Select(r => r.StoryName).Distinct().OrderBy(s => s)).ToList();
+            var distinctStories = rows.Select(r => r.StoryName).Distinct().OrderBy(s => s).ToList();
+            var storyNames = new[] { "(Todas)" }.Concat(distinctStories).ToList();
             StoryFilterBox.ItemsSource = storyNames;
-            StoryFilterBox.SelectedIndex = 0;
+            StoryFilterBox.SelectedIndex = distinctStories.Count == 1 ? 1 : 0;
 
             var states = new[] { "(Todos)" }.Concat(rows.Select(r => r.State).Distinct().OrderBy(s => s)).ToList();
             StateFilterBox.ItemsSource = states;
