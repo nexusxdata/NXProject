@@ -1,7 +1,7 @@
 <Window x:Class="NXProject.Views.StoryStatusChartWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Status das Stories"
+        Title="Status de Stories e Incidentes"
         Width="700" Height="520"
         MinWidth="500" MinHeight="380"
         WindowStartupLocation="CenterOwner"
@@ -20,7 +20,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="Status das Stories"
+                <TextBlock Text="Status de Stories e Incidentes"
                            FontSize="18" FontWeight="SemiBold" Foreground="#2B579A"/>
                 <TextBlock x:Name="SubtitleText"
                            FontSize="11" Foreground="#666" Margin="0,2,0,0"/>

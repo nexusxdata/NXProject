@@ -37,7 +37,7 @@
     <sys:String x:Key="Menu_Manage">_Gestão</sys:String>
     <sys:String x:Key="Menu_Manage_Resources">_Alocação de Recursos...</sys:String>
     <sys:String x:Key="Menu_Manage_HealthCheck">_Progresso do Projeto e Curva S...</sys:String>
-    <sys:String x:Key="Menu_Manage_StoryStatusChart">_Status das Stories...</sys:String>
+    <sys:String x:Key="Menu_Manage_StoryStatusChart">_Status de Stories e Incidentes...</sys:String>
     <sys:String x:Key="Menu_Manage_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
 
     <!-- Menu Exibir -->
@@ -49,7 +49,7 @@
     <sys:String x:Key="Menu_View_Resources">_Alocacao de Recursos...</sys:String>
     <sys:String x:Key="Menu_View_DevOpsList">_Portfólio de Projetos...</sys:String>
     <sys:String x:Key="Menu_View_HealthCheck">_Progresso do Projeto e Curva S...</sys:String>
-    <sys:String x:Key="Menu_View_StoryStatusChart">_Status das Stories...</sys:String>
+    <sys:String x:Key="Menu_View_StoryStatusChart">_Status de Stories e Incidentes...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
     <sys:String x:Key="Menu_View_People">_Pessoas...</sys:String>
     <sys:String x:Key="Menu_View_Language">_Idioma / Language...</sys:String>
