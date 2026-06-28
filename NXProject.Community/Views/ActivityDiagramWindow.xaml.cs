@@ -236,14 +236,19 @@ namespace NXProject.Views
 
         private void DrawNode(DiagramNode node)
         {
-            var levelColor = LevelColors[Math.Min(node.Level, LevelColors.Length - 1)];
-            var bg = new LinearGradientBrush(
-                Color.FromRgb(
+            bool isTfs      = node.Task.HasTfsLink;
+            var levelColor  = isTfs
+                ? LevelColors[Math.Min(node.Level, LevelColors.Length - 1)]
+                : Color.FromRgb(130, 100, 60);   // Interno: marrom/laranja escuro
+
+            var bgTop = isTfs
+                ? Color.FromRgb(
                     (byte)Math.Min(255, levelColor.R + 40),
                     (byte)Math.Min(255, levelColor.G + 40),
-                    (byte)Math.Min(255, levelColor.B + 40)),
-                levelColor,
-                90);
+                    (byte)Math.Min(255, levelColor.B + 40))
+                : Color.FromRgb(180, 140, 80);
+
+            var bg = new LinearGradientBrush(bgTop, levelColor, 90);
 
             // Shadow
             var shadow = new Rectangle
@@ -286,6 +291,20 @@ namespace NXProject.Views
                 indicator.MouseLeftButtonDown += (_, _) => OnNodeClick(node);
                 DiagramCanvas.Children.Add(indicator);
             }
+
+            // Badge T: / I:
+            var idKey   = node.Task.HasTfsLink ? $"T:{node.Task.TfsId}" : $"I:{node.Task.Id}";
+            var idBadge = new TextBlock
+            {
+                Text       = idKey,
+                FontSize   = 8,
+                Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+                FontWeight = FontWeights.Bold
+            };
+            Canvas.SetLeft(idBadge, node.X + NodeW - 8 - idKey.Length * 5);
+            Canvas.SetTop(idBadge,  node.Y + NodeH - 14);
+            idBadge.MouseLeftButtonDown += (_, _) => OnNodeClick(node);
+            DiagramCanvas.Children.Add(idBadge);
 
             // Label
             var label = new TextBlock

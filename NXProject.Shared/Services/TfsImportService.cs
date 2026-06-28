@@ -426,12 +426,11 @@ namespace NXProject.Services
 
                     // Pai desejado = pai na hierarquia do NXProject (usa TfsId atualizado, inclusive
                     // se o pai acabou de ser criado nesta mesma execução de SyncAsync).
-                    // TfsId == 0 ou null significa "item ainda não vinculado ao DevOps".
-                    // Sobe a árvore até encontrar um ancestral com TfsId > 0 ou usa a raiz.
+                    // IsPendingTfsCreate ou TfsId == 0/null → item ainda não existe no DevOps.
                     var parentTask = task.Parent;
                     int desiredParent = ResolveDesiredParent(task, options.RootWorkItemId);
 
-                    if (!task.TfsId.HasValue || task.TfsId.Value == 0)
+                    if (task.IsPendingTfsCreate || !task.TfsId.HasValue || task.TfsId.Value == 0)
                     {
                         // CRIAR no DevOps.
                         if (desiredParent <= 0)

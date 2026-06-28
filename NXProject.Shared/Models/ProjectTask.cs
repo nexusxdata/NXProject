@@ -42,8 +42,15 @@ namespace NXProject.Models
 
         // ── Vínculo com TFS / Azure DevOps ──────────────────────────────────
         // Id do work item no DevOps (distinto do Id interno, que é sequencial).
-        // 0 = marcado para criar no DevOps na próxima sincronização.
+        // 0 = marcado para criar no DevOps na próxima sincronização (legado; preferir IsPendingTfsCreate).
         public int? TfsId { get; set; }
+
+        // true = task criada localmente, ainda não existe no DevOps (pendente de criação na próxima sync).
+        // Substitui a convenção TfsId == 0, que agora coexiste para compatibilidade.
+        public bool IsPendingTfsCreate { get; set; } = false;
+
+        // true = task tem vínculo real com o DevOps (TfsId preenchido e não pendente de criação).
+        public bool HasTfsLink => TfsId.HasValue && TfsId.Value != 0 && !IsPendingTfsCreate;
         // Id do work item PAI no DevOps (parent hierárquico) na época da importação,
         // usado para detectar reparenting e atualizar o link na sincronização.
         public int? TfsParentId { get; set; }

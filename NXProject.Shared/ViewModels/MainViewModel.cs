@@ -225,7 +225,20 @@ namespace NXProject.ViewModels
                     FlatTasks.FirstOrDefault(t => t.Model.Id == internalId),
                 FindByDisplayId = displayId =>
                 {
-                    // Tenta TfsId primeiro; fallback para Id interno.
+                    // Formato novo: "T:1234" (TFS) ou "I:45" (interno)
+                    if (displayId.StartsWith("T:", StringComparison.OrdinalIgnoreCase) &&
+                        int.TryParse(displayId[2..], out var tfsNum))
+                    {
+                        var byTfs = FlatTasks.FirstOrDefault(t => t.Model.TfsId == tfsNum);
+                        if (byTfs != null) return byTfs.Model.Id;
+                    }
+                    if (displayId.StartsWith("I:", StringComparison.OrdinalIgnoreCase) &&
+                        int.TryParse(displayId[2..], out var intNum))
+                    {
+                        var byInt = FlatTasks.FirstOrDefault(t => t.Model.Id == intNum);
+                        if (byInt != null) return byInt.Model.Id;
+                    }
+                    // Fallback legado: número puro → tenta TfsId depois Id interno
                     if (int.TryParse(displayId, out var num))
                     {
                         var byTfs = FlatTasks.FirstOrDefault(t => t.Model.TfsId == num);

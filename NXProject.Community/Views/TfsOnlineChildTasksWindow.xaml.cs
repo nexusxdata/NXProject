@@ -86,8 +86,8 @@ namespace NXProject.Views
                         IsPending   = false
                     });
 
-                // Filhos locais pendentes de criação (TfsId == 0)
-                foreach (var local in _parent.Children.Where(c => c.TfsId == 0))
+                // Filhos locais pendentes de criação (IsPendingTfsCreate ou TfsId == 0)
+                foreach (var local in _parent.Children.Where(c => c.IsPendingTfsCreate || c.TfsId == 0))
                     _rows.Add(new ChildRow
                     {
                         TfsId       = 0,
