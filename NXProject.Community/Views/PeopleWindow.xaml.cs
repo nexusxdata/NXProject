@@ -132,37 +132,75 @@ namespace NXProject.Views
         private void OnSaveCostConfigClick(object sender, RoutedEventArgs e)
         {
             CommitPendingEdits();
-            var dlg = new Microsoft.Win32.SaveFileDialog
+
+            var pwdDlg = new PasswordDialog(
+                "Digite uma senha para criptografar o arquivo de custo.\n" +
+                "Mínimo 6 caracteres. Você precisará desta senha para abrir o arquivo.",
+                confirmMode: true) { Owner = this };
+            if (pwdDlg.ShowDialog() != true) return;
+
+            var fileDlg = new Microsoft.Win32.SaveFileDialog
             {
                 Title      = "Salvar configuração de custo",
                 Filter     = NXProject.Services.ResourceCostConfigService.FileFilter,
                 FileName   = NXProject.Services.ResourceCostConfigService.DefaultFileName,
                 DefaultExt = ".nxcost"
             };
-            if (dlg.ShowDialog(this) != true) return;
-            NXProject.Services.ResourceCostConfigService.Save(dlg.FileName, _vm.Project.Resources);
-            StatusText.Text = $"Config de custo salva em {System.IO.Path.GetFileName(dlg.FileName)}.";
+            if (fileDlg.ShowDialog(this) != true) return;
+
+            try
+            {
+                NXProject.Services.ResourceCostConfigService.Save(
+                    fileDlg.FileName, _vm.Project.Resources, pwdDlg.Password);
+                StatusText.Text = $"Config de custo salva (criptografada) em {System.IO.Path.GetFileName(fileDlg.FileName)}.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao salvar: {ex.Message}", "Erro",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void OnLoadCostConfigClick(object sender, RoutedEventArgs e)
         {
             CommitPendingEdits();
-            var dlg = new Microsoft.Win32.OpenFileDialog
+
+            var fileDlg = new Microsoft.Win32.OpenFileDialog
             {
                 Title  = "Carregar configuração de custo",
                 Filter = NXProject.Services.ResourceCostConfigService.FileFilter
             };
-            if (dlg.ShowDialog(this) != true) return;
-            int n = NXProject.Services.ResourceCostConfigService.Load(dlg.FileName, _vm.Project.Resources);
-            // Atualiza as linhas exibidas
-            foreach (var row in _rows)
+            if (fileDlg.ShowDialog(this) != true) return;
+
+            var pwdDlg = new PasswordDialog(
+                $"Digite a senha para descriptografar:\n{System.IO.Path.GetFileName(fileDlg.FileName)}",
+                confirmMode: false) { Owner = this };
+            if (pwdDlg.ShowDialog() != true) return;
+
+            try
             {
-                var r = row.Resource;
-                row.CostTypeLabel = r.CostType.ToString();
-                row.HourlyRate    = r.CostPerHour;
-                row.MonthlyRate   = r.MonthlyRate;
+                int n = NXProject.Services.ResourceCostConfigService.Load(
+                    fileDlg.FileName, _vm.Project.Resources, pwdDlg.Password);
+
+                foreach (var row in _rows)
+                {
+                    var r = row.Resource;
+                    row.CostTypeLabel = r.CostType.ToString();
+                    row.HourlyRate    = r.CostPerHour;
+                    row.MonthlyRate   = r.MonthlyRate;
+                }
+                StatusText.Text = $"Config de custo carregada: {n} recurso(s) atualizados.";
             }
-            StatusText.Text = $"Config de custo carregada: {n} recurso(s) atualizados.";
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                MessageBox.Show("Senha incorreta ou arquivo corrompido.", "Erro de descriptografia",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao carregar: {ex.Message}", "Erro",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void OnRecalcClick(object sender, RoutedEventArgs e)

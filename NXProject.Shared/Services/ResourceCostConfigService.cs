@@ -1,50 +1,119 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using NXProject.Models;
 
 namespace NXProject.Services
 {
     /// <summary>
-    /// Salva e carrega a configuração de custo dos recursos em um arquivo .nxcost (JSON).
-    /// O arquivo é mantido fora do .nxp para preservar o sigilo dos valores.
-    /// A chave de correlação é o nome do recurso (case-insensitive).
+    /// Salva e carrega a configuração de custo dos recursos em um arquivo .nxcost criptografado.
+    ///
+    /// Formato do arquivo:
+    ///   [4]  magic "NXCT"
+    ///   [1]  versão (1)
+    ///   [16] salt PBKDF2
+    ///   [12] nonce AES-GCM
+    ///   [16] tag de autenticação GCM
+    ///   [*]  ciphertext (JSON criptografado)
+    ///
+    /// Algoritmo: AES-256-GCM + PBKDF2-SHA256 (100 000 iterações).
+    /// Sem a senha correta, o arquivo é inútil e indecifrável.
     /// </summary>
     public static class ResourceCostConfigService
     {
-        public const string FileExtension    = ".nxcost";
-        public const string FileFilter       = "Configuração de Custo (*.nxcost)|*.nxcost|JSON (*.json)|*.json";
-        public const string DefaultFileName  = "recursos-custo.nxcost";
+        public const string FileExtension   = ".nxcost";
+        public const string FileFilter      = "Configuração de Custo (*.nxcost)|*.nxcost";
+        public const string DefaultFileName = "recursos-custo.nxcost";
+
+        private static readonly byte[] Magic       = Encoding.ASCII.GetBytes("NXCT");
+        private const           byte   FileVersion = 1;
+        private const           int    KeySize     = 32;   // AES-256
+        private const           int    SaltSize    = 16;
+        private const           int    NonceSize   = 12;   // GCM standard
+        private const           int    TagSize     = 16;
+        private const           int    Iterations  = 100_000;
 
         private sealed record CostEntry(
-            string   Name,
-            string   CostType,     // "Hourly" | "Monthly"
-            decimal  HourlyRate,
-            decimal  MonthlyRate);
+            string  Name,
+            string  CostType,
+            decimal HourlyRate,
+            decimal MonthlyRate);
 
-        public static void Save(string filePath, IEnumerable<Resource> resources)
+        // ── Save ──────────────────────────────────────────────────────────────
+
+        public static void Save(string filePath, IEnumerable<Resource> resources, string password)
         {
             var entries = resources
                 .Select(r => new CostEntry(r.Name, r.CostType.ToString(), r.CostPerHour, r.MonthlyRate))
                 .ToList();
-            var json = JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(filePath, json);
+
+            var json      = JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true });
+            var plaintext = Encoding.UTF8.GetBytes(json);
+
+            var salt  = RandomNumberGenerator.GetBytes(SaltSize);
+            var nonce = RandomNumberGenerator.GetBytes(NonceSize);
+            var key   = DeriveKey(password, salt);
+
+            var ciphertext = new byte[plaintext.Length];
+            var tag        = new byte[TagSize];
+
+            using var aes = new AesGcm(key, TagSize);
+            aes.Encrypt(nonce, plaintext, ciphertext, tag);
+
+            using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+            fs.Write(Magic);
+            fs.WriteByte(FileVersion);
+            fs.Write(salt);
+            fs.Write(nonce);
+            fs.Write(tag);
+            fs.Write(ciphertext);
         }
 
+        // ── Load ──────────────────────────────────────────────────────────────
+
         /// <summary>
-        /// Carrega o arquivo e aplica os valores nos recursos correspondentes por nome.
+        /// Tenta descriptografar e carregar o arquivo.
+        /// Lança <see cref="CryptographicException"/> se a senha for errada ou o arquivo estiver corrompido.
         /// Retorna o número de recursos atualizados.
         /// </summary>
-        public static int Load(string filePath, IEnumerable<Resource> resources)
+        public static int Load(string filePath, IEnumerable<Resource> resources, string password)
         {
-            if (!File.Exists(filePath)) return 0;
-            var json    = File.ReadAllText(filePath);
-            var entries = JsonSerializer.Deserialize<List<CostEntry>>(json);
-            if (entries == null) return 0;
+            var data = File.ReadAllBytes(filePath);
 
-            var map   = entries.ToDictionary(e => e.Name, e => e,
-                            System.StringComparer.OrdinalIgnoreCase);
+            // Valida magic + versão
+            if (data.Length < Magic.Length + 1 + SaltSize + NonceSize + TagSize)
+                throw new InvalidDataException("Arquivo de custo inválido ou corrompido.");
+
+            int pos = 0;
+            for (int i = 0; i < Magic.Length; i++)
+                if (data[pos++] != Magic[i])
+                    throw new InvalidDataException("Arquivo não é um .nxcost válido.");
+
+            byte version = data[pos++];
+            if (version != FileVersion)
+                throw new InvalidDataException($"Versão {version} não suportada.");
+
+            var salt       = data[pos..(pos + SaltSize)];   pos += SaltSize;
+            var nonce      = data[pos..(pos + NonceSize)];   pos += NonceSize;
+            var tag        = data[pos..(pos + TagSize)];     pos += TagSize;
+            var ciphertext = data[pos..];
+
+            var key       = DeriveKey(password, salt);
+            var plaintext = new byte[ciphertext.Length];
+
+            using var aes = new AesGcm(key, TagSize);
+            // Lança CryptographicException automaticamente se a senha for errada
+            aes.Decrypt(nonce, ciphertext, tag, plaintext);
+
+            var json    = Encoding.UTF8.GetString(plaintext);
+            var entries = JsonSerializer.Deserialize<List<CostEntry>>(json)
+                          ?? throw new InvalidDataException("Conteúdo do arquivo inválido.");
+
+            var map   = entries.ToDictionary(e => e.Name, e => e, StringComparer.OrdinalIgnoreCase);
             int count = 0;
             foreach (var r in resources)
             {
@@ -55,6 +124,15 @@ namespace NXProject.Services
                 count++;
             }
             return count;
+        }
+
+        // ── Key derivation ────────────────────────────────────────────────────
+
+        private static byte[] DeriveKey(string password, byte[] salt)
+        {
+            using var pbkdf2 = new Rfc2898DeriveBytes(
+                password, salt, Iterations, HashAlgorithmName.SHA256);
+            return pbkdf2.GetBytes(KeySize);
         }
     }
 }
