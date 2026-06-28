@@ -89,10 +89,15 @@ namespace NXProject.Views
             Color.FromRgb(209, 52,   56),   // 4+                 (vermelho)
         };
 
+        private readonly ScaleTransform _scale = new(1.0, 1.0);
+
         public ActivityDiagramWindow(IEnumerable<ProjectTask> roots)
         {
             InitializeComponent();
             _roots = roots.ToList();
+            DiagramViewbox.RenderTransform = _scale;
+            DiagramViewbox.RenderTransformOrigin = new Point(0, 0);
+            DiagramScroll.PreviewMouseWheel += OnScrollWheel;
             Loaded += (_, _) => Build();
         }
 
@@ -261,6 +266,9 @@ namespace NXProject.Views
             Canvas.SetTop(shadow,  node.Y + 3);
             DiagramCanvas.Children.Add(shadow);
 
+            // Tooltip rico
+            var tt = BuildNodeTooltip(node);
+
             // Main box
             var rect = new Rectangle
             {
@@ -269,7 +277,8 @@ namespace NXProject.Views
                 Fill    = bg,
                 Stroke  = new SolidColorBrush(levelColor),
                 StrokeThickness = 1.5,
-                Cursor  = node.HasChildren ? Cursors.Hand : Cursors.Arrow
+                Cursor  = node.HasChildren ? Cursors.Hand : Cursors.Arrow,
+                ToolTip = tt
             };
             Canvas.SetLeft(rect, node.X);
             Canvas.SetTop(rect,  node.Y);
@@ -461,13 +470,86 @@ namespace NXProject.Views
             DiagramCanvas.Children.Add(poly);
         }
 
+        // ── Node Tooltip ─────────────────────────────────────────────────────
+
+        private static ToolTip BuildNodeTooltip(DiagramNode node)
+        {
+            var t = node.Task;
+            var idKey  = t.HasTfsLink ? $"T:{t.TfsId}" : $"I:{t.Id}";
+            var estado = t.TfsState ?? "—";
+            var inicio = t.Start.ToString("dd/MM/yy");
+            var fim    = t.Finish.ToString("dd/MM/yy");
+            var hh     = t.EstimatedHours.HasValue ? $"{t.EstimatedHours:0} HH" : "—";
+            var pc     = $"{t.PercentComplete:0}%";
+            var recurso = t.Resources.Count > 0
+                ? string.Join(", ", t.Resources.Select(r => r.Resource?.Name ?? r.ResourceId.ToString()))
+                : "—";
+
+            var panel = new StackPanel { Margin = new Thickness(6, 4, 6, 4), MaxWidth = 340 };
+
+            void AddRow(string label, string value)
+            {
+                var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+                row.Children.Add(new TextBlock
+                {
+                    Text = label + ": ", FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White, FontSize = 11, Width = 72
+                });
+                row.Children.Add(new TextBlock
+                {
+                    Text = value, Foreground = Brushes.LightCyan, FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap, MaxWidth = 250
+                });
+                panel.Children.Add(row);
+            }
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = t.Name, FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White, FontSize = 12,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            AddRow("ID",       idKey);
+            AddRow("Tipo",     t.TfsType ?? "—");
+            AddRow("Estado",   estado);
+            AddRow("Início",   inicio);
+            AddRow("Fim",      fim);
+            AddRow("HH Est.",  hh);
+            AddRow("Concluído", pc);
+            AddRow("Recurso",  recurso);
+
+            if (!string.IsNullOrWhiteSpace(t.TfsIterationPath))
+                AddRow("Sprint", t.TfsIterationPath.Split('\\').Last());
+
+            return new ToolTip
+            {
+                Content    = panel,
+                Background = new SolidColorBrush(Color.FromRgb(30, 30, 50)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 120)),
+                BorderThickness = new Thickness(1),
+                HasDropShadow = true
+            };
+        }
+
         // ── Zoom / Reset ─────────────────────────────────────────────────────
+
+        private void OnScrollWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (!Keyboard.IsKeyDown(Key.LeftCtrl) && !Keyboard.IsKeyDown(Key.RightCtrl)) return;
+            e.Handled = true;
+            _zoom = Math.Clamp(_zoom + (e.Delta > 0 ? 0.1 : -0.1), 0.3, 3.0);
+            _scale.ScaleX = _zoom;
+            _scale.ScaleY = _zoom;
+            ZoomLabel.Text = $"{_zoom:0%}";
+        }
 
         private void OnResetZoom(object sender, RoutedEventArgs e)
         {
             _zoom = 1.0;
-            DiagramViewbox.Width  = double.NaN;
-            DiagramViewbox.Height = double.NaN;
+            _scale.ScaleX = 1.0;
+            _scale.ScaleY = 1.0;
+            ZoomLabel.Text = "100%";
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────
