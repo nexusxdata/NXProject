@@ -129,6 +129,42 @@ namespace NXProject.Views
             StatusText.Text = "Configuração de Alocação salva localmente.";
         }
 
+        private void OnSaveCostConfigClick(object sender, RoutedEventArgs e)
+        {
+            CommitPendingEdits();
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title      = "Salvar configuração de custo",
+                Filter     = NXProject.Services.ResourceCostConfigService.FileFilter,
+                FileName   = NXProject.Services.ResourceCostConfigService.DefaultFileName,
+                DefaultExt = ".nxcost"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            NXProject.Services.ResourceCostConfigService.Save(dlg.FileName, _vm.Project.Resources);
+            StatusText.Text = $"Config de custo salva em {System.IO.Path.GetFileName(dlg.FileName)}.";
+        }
+
+        private void OnLoadCostConfigClick(object sender, RoutedEventArgs e)
+        {
+            CommitPendingEdits();
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title  = "Carregar configuração de custo",
+                Filter = NXProject.Services.ResourceCostConfigService.FileFilter
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            int n = NXProject.Services.ResourceCostConfigService.Load(dlg.FileName, _vm.Project.Resources);
+            // Atualiza as linhas exibidas
+            foreach (var row in _rows)
+            {
+                var r = row.Resource;
+                row.CostTypeLabel = r.CostType.ToString();
+                row.HourlyRate    = r.CostPerHour;
+                row.MonthlyRate   = r.MonthlyRate;
+            }
+            StatusText.Text = $"Config de custo carregada: {n} recurso(s) atualizados.";
+        }
+
         private void OnRecalcClick(object sender, RoutedEventArgs e)
         {
             CommitPendingEdits();

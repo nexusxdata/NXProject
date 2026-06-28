@@ -35,6 +35,15 @@
                     Click="OnSaveLocalClick"
                     Background="#5B3270" Foreground="White"
                     ToolTip="Salva a configuração de Alocação (Project/Internal) de cada pessoa localmente. Preservada ao re-importar do TFS."/>
+            <Separator Margin="12,4" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"/>
+            <Button Content="💰 Salvar config de custo..." Width="165" Height="28"
+                    Click="OnSaveCostConfigClick"
+                    Background="#1B5E20" Foreground="White"
+                    ToolTip="Salva os valores de custo (R$/hora e R$/mês) em arquivo separado do cronograma, para sigilo."/>
+            <Button Content="📂 Carregar config de custo..." Width="175" Height="28" Margin="6,0,0,0"
+                    Click="OnLoadCostConfigClick"
+                    Background="#0D47A1" Foreground="White"
+                    ToolTip="Carrega os valores de custo de um arquivo .nxcost."/>
             <TextBlock x:Name="CountLabel" VerticalAlignment="Center" Margin="16,0,0,0"
                        FontSize="12" Foreground="#666"/>
         </StackPanel>
