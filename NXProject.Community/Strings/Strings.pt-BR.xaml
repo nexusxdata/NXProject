@@ -39,6 +39,7 @@
     <sys:String x:Key="Menu_Manage_HealthCheck">_Progresso do Projeto e Curva S...</sys:String>
     <sys:String x:Key="Menu_Manage_StoryStatusChart">_Status de Stories e Incidentes...</sys:String>
     <sys:String x:Key="Menu_Manage_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
+    <sys:String x:Key="Menu_Manage_ActivityDiagram">_Diagrama de Atividades...</sys:String>
     <sys:String x:Key="Menu_Manage_Baseline">_Baseline</sys:String>
     <sys:String x:Key="Menu_Manage_Baseline_Save">_Salvar Baseline</sys:String>
     <sys:String x:Key="Menu_Manage_Baseline_Open">_Abrir Baseline</sys:String>

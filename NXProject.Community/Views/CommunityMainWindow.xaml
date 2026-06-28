@@ -76,6 +76,7 @@
                 <MenuItem Header="{DynamicResource Menu_Manage_HealthCheck}" Click="OnDelayedTasksClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_StoryStatusChart}" Click="OnStoryStatusChartClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_AllocationMap}" Click="OnAllocationMapClick"/>
+                <MenuItem Header="{DynamicResource Menu_Manage_ActivityDiagram}" Click="OnActivityDiagramClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Manage_Baseline}" SubmenuOpened="OnBaselineMenuOpened">
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Save}"  Click="OnBaselineSaveClick"/>
