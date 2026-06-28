@@ -1262,20 +1262,37 @@ namespace NXProject.Controls
             if (percent > 0)
             {
                 var barHeight = RowHeight - BarPadding * 2;
+                var progressW = Math.Min(width, width * percent / 100.0);
+
+                // Faixa de progresso — ocupa metade superior da barra (estilo MS Project)
                 var progress = new Rectangle
                 {
-                    Width = width * percent / 100.0,
-                    Height = 4,
-                    Fill = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
-                    Stroke = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
-                    StrokeThickness = 0.5,
-                    RadiusX = 1,
-                    RadiusY = 1
+                    Width   = progressW,
+                    Height  = barHeight / 2,
+                    Fill    = new SolidColorBrush(Color.FromArgb(180, 17, 24, 39)),
+                    RadiusX = 2,
+                    RadiusY = 2
                 };
                 AttachTaskMetadata(progress, task);
                 Canvas.SetLeft(progress, x);
-                Canvas.SetTop(progress, y + BarPadding + (barHeight - progress.Height) / 2.0);
+                Canvas.SetTop(progress, y + BarPadding);
                 GanttCanvas.Children.Add(progress);
+
+                // Texto de % centralizado na barra (visível se a barra for larga o suficiente)
+                if (width >= 30)
+                {
+                    var pctLabel = new TextBlock
+                    {
+                        Text       = $"{percent:0}%",
+                        FontSize   = 8,
+                        Foreground = Brushes.White,
+                        FontWeight = FontWeights.SemiBold
+                    };
+                    AttachTaskMetadata(pctLabel, task);
+                    Canvas.SetLeft(pctLabel, x + 3);
+                    Canvas.SetTop(pctLabel, y + BarPadding + 1);
+                    GanttCanvas.Children.Add(pctLabel);
+                }
             }
 
 
