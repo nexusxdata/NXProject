@@ -76,6 +76,11 @@
                 <MenuItem Header="{DynamicResource Menu_Manage_HealthCheck}" Click="OnDelayedTasksClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_StoryStatusChart}" Click="OnStoryStatusChartClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_AllocationMap}" Click="OnAllocationMapClick"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu_Manage_Baseline}">
+                    <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Save}"  Click="OnBaselineSaveClick"/>
+                    <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Clear}" Click="OnBaselineClearClick"/>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Ai}">
                 <MenuItem Header="{DynamicResource Menu_Ai_Assistant}" Click="OnAiAssistantClick"/>

@@ -1131,7 +1131,42 @@ namespace NXProject.Controls
                     RenderSummaryBar(vm, x, y, width, isSelected, isPredecessor);
                 else
                     RenderTaskBar(vm, x, y, width, vm.PercentComplete, isSelected, isPredecessor);
+
+                if (vm.HasBaseline && !vm.DisplayAsMilestone)
+                    RenderBaselineBar(vm, y);
             }
+        }
+
+        private static readonly SolidColorBrush BaselineBrush =
+            new(Color.FromArgb(200, 80, 80, 80));
+
+        private void RenderBaselineBar(TaskViewModel vm, double y)
+        {
+            if (vm.BaselineStart == null || vm.BaselineFinish == null) return;
+
+            var bStartOffset = (vm.BaselineStart.Value - ProjectStart).TotalDays;
+            var bEndOffset   = (vm.BaselineFinish.Value - ProjectStart).TotalDays;
+            var bx    = LeftPadding + bStartOffset * DayWidth;
+            var bw    = Math.Max(2, (bEndOffset - bStartOffset) * DayWidth);
+            var barH  = RowHeight - BarPadding * 2;
+
+            var bar = new Rectangle
+            {
+                Width           = bw,
+                Height          = 3,
+                Fill            = BaselineBrush,
+                RadiusX         = 1,
+                RadiusY         = 1,
+                IsHitTestVisible = false,
+                ToolTip         = new ToolTip
+                {
+                    Content = $"Baseline: {vm.BaselineStart.Value:dd/MM/yyyy} → {vm.BaselineFinish.Value:dd/MM/yyyy}" +
+                              (vm.BaselineHours.HasValue ? $"  ({vm.BaselineHours.Value:0.#}h)" : "")
+                }
+            };
+            Canvas.SetLeft(bar, bx);
+            Canvas.SetTop(bar, y + BarPadding + barH);   // logo abaixo da barra principal
+            GanttCanvas.Children.Add(bar);
         }
 
         private void RenderDependencies()

@@ -93,6 +93,12 @@ namespace NXProject.Models
         // Data de fim fixada (prazo comprometido). true → envia Data_Fim ao TFS.
         public bool FinishFixed { get; set; } = false;
 
+        // ── Baseline ─────────────────────────────────────────────────────────
+        // Gravado externamente no .nxb; aplicado em memória para exibição no Gantt.
+        public DateTime? BaselineStart  { get; set; }
+        public DateTime? BaselineFinish { get; set; }
+        public double?   BaselineHours  { get; set; }
+
         // Controle de concorrência de sincronização TFS.
         // SyncVersion: valor lido no último import (null = nunca importado).
         // HasSyncConflict: true quando outro usuário gravou após o nosso último import.

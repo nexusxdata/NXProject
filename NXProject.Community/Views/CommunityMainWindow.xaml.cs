@@ -2142,6 +2142,39 @@ namespace NXProject.Views
             new ProjectAllocationMapWindow() { Owner = this }.ShowDialog();
         }
 
+        private void OnBaselineSaveClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var filePath = vm.Project?.FilePath;
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                MessageBox.Show("Salve o projeto antes de gravar o Baseline.", "Baseline",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var all = vm.FlatTasks.Select(t => t.Model).ToList();
+            BaselineService.Save(filePath, all);
+            BaselineService.Load(filePath, all);
+            GanttCtrl.ForceRender();
+            vm.StatusMessage = $"Baseline salvo em {Path.GetFileName(Path.ChangeExtension(filePath, ".nxb"))}.";
+        }
+
+        private void OnBaselineClearClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var filePath = vm.Project?.FilePath;
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            var r = MessageBox.Show("Limpar o Baseline apaga o arquivo .nxb. Confirma?", "Baseline",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (r != MessageBoxResult.Yes) return;
+
+            BaselineService.Clear(filePath, vm.FlatTasks.Select(t => t.Model));
+            GanttCtrl.ForceRender();
+            vm.StatusMessage = "Baseline removido.";
+        }
+
         private void OnPeopleClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm)

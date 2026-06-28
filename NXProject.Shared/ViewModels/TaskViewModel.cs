@@ -409,6 +409,11 @@ namespace NXProject.ViewModels
             }
         }
 
+        public DateTime? BaselineStart  => _task.BaselineStart;
+        public DateTime? BaselineFinish => _task.BaselineFinish;
+        public double?   BaselineHours  => _task.BaselineHours;
+        public bool      HasBaseline    => _task.BaselineStart.HasValue;
+
         public double DurationHours
         {
             // Duração = HH Atual + HH Restante; para summaries agrega filhos sem modificar o modelo.
