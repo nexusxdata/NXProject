@@ -77,9 +77,12 @@
                 <MenuItem Header="{DynamicResource Menu_Manage_StoryStatusChart}" Click="OnStoryStatusChartClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_AllocationMap}" Click="OnAllocationMapClick"/>
                 <Separator/>
-                <MenuItem Header="{DynamicResource Menu_Manage_Baseline}">
+                <MenuItem Header="{DynamicResource Menu_Manage_Baseline}" SubmenuOpened="OnBaselineMenuOpened">
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Save}"  Click="OnBaselineSaveClick"/>
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Open}"  Click="OnBaselineOpenClick"/>
+                    <MenuItem x:Name="BaselineToggleItem"
+                              Header="Desativar Baseline"
+                              Click="OnBaselineToggleClick"/>
                     <Separator/>
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Clear}" Click="OnBaselineClearClick"/>
                     <Separator/>

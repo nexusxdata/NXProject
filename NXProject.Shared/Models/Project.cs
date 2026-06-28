@@ -86,6 +86,9 @@ namespace NXProject.Models
         // Caminho do arquivo salvo
         public string? FilePath { get; set; }
 
+        // Baseline ativo = barras cinzas aparecem no Gantt. false = baseline desativado visualmente (mas .nxb existe).
+        public bool BaselineActive { get; set; } = true;
+
         public bool IsDirty { get; set; } = false;
 
         public SprintSettingsProfile GetSprintSettingsProfile()

@@ -658,7 +658,7 @@ namespace NXProject.ViewModels
                     RebuildFlatTasks();
                     ApplyVirtualPredecessorsToAll();
                     var opts = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
-                    if (opts.AutoLoadBaseline)
+                    if (opts.AutoLoadBaseline && project.BaselineActive)
                         BaselineService.Load(dlg.FileName, FlatTasks.Select(t => t.Model));
                     StatusMessage = $"Projeto aberto: {dlg.FileName}";
                 }

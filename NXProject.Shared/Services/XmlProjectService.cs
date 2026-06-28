@@ -38,6 +38,7 @@ namespace NXProject.Services
                     new XElement(EXT + "DevOpsProjectName", project.DevOpsProjectName ?? ""),
                     new XElement(EXT + "DevOpsRootWorkItemId", project.DevOpsRootWorkItemId),
                     new XElement(EXT + "UseHierarchyColors", project.UseHierarchyColors),
+                    new XElement(EXT + "BaselineActive", project.BaselineActive),
                     new XElement(EXT + "HierarchyLevelColors",
                         project.HierarchyLevelColors.Select((c, i) =>
                             new XElement(EXT + "Color", new XAttribute("depth", i), c))),
@@ -237,6 +238,7 @@ namespace NXProject.Services
                     ? null : root.Element(EXT + "DevOpsProjectName")!.Value,
                 DevOpsRootWorkItemId = int.TryParse(root.Element(EXT + "DevOpsRootWorkItemId")?.Value, out var devOpsId) ? devOpsId : 0,
                 UseHierarchyColors = bool.TryParse(root.Element(EXT + "UseHierarchyColors")?.Value, out var uhc) && uhc,
+                BaselineActive     = !bool.TryParse(root.Element(EXT + "BaselineActive")?.Value, out var ba) || ba,
                 FilePath = filePath
             };
 

@@ -2190,6 +2190,45 @@ namespace NXProject.Views
             Services.TfsConnectionStore.Save(opts, !string.IsNullOrWhiteSpace(opts.PersonalAccessToken), "NXProject.Community");
         }
 
+        private void OnBaselineMenuOpened(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm && vm.Project != null)
+                BaselineToggleItem.Header = vm.Project.BaselineActive ? "Desativar Baseline" : "Ativar Baseline";
+
+            BaselineToggleItem.IsEnabled = DataContext is MainViewModel v && v.Project != null
+                && BaselineService.HasBaseline(v.Project.FilePath ?? "");
+        }
+
+        private void OnBaselineToggleClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm || vm.Project == null) return;
+
+            vm.Project.BaselineActive = !vm.Project.BaselineActive;
+            vm.Project.IsDirty = true;
+
+            if (vm.Project.BaselineActive)
+            {
+                // Reativar: recarrega baseline do .nxb
+                var fp = vm.Project.FilePath;
+                if (!string.IsNullOrWhiteSpace(fp))
+                    BaselineService.Load(fp, vm.FlatTasks.Select(t => t.Model));
+            }
+            else
+            {
+                // Desativar: limpa os campos em memória mas NÃO apaga o .nxb
+                foreach (var t in vm.FlatTasks)
+                {
+                    t.Model.BaselineStart  = null;
+                    t.Model.BaselineFinish = null;
+                    t.Model.BaselineHours  = null;
+                }
+            }
+
+            BaselineToggleItem.Header = vm.Project.BaselineActive ? "Desativar Baseline" : "Ativar Baseline";
+            GanttCtrl.ForceRender();
+            vm.StatusMessage = vm.Project.BaselineActive ? "Baseline ativado." : "Baseline desativado.";
+        }
+
         private void OnBaselineClearClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
