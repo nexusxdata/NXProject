@@ -89,6 +89,10 @@ namespace NXProject.Models
         // Baseline ativo = barras cinzas aparecem no Gantt. false = baseline desativado visualmente (mas .nxb existe).
         public bool BaselineActive { get; set; } = true;
 
+        // Preferências do Diagrama de Atividades: larguras por nível e nível de expansão
+        public string DiagramLevelWidths   { get; set; } = "";   // CSV: "160,160,160,..."
+        public string DiagramExpandedLevels { get; set; } = "";  // CSV: "0,1"
+
         public bool IsDirty { get; set; } = false;
 
         public SprintSettingsProfile GetSprintSettingsProfile()

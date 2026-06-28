@@ -41,6 +41,10 @@
                 <Separator Margin="12,0"/>
                 <Button Content="↺ Resetar zoom" Height="26" Padding="8,0" Click="OnResetZoom" FontSize="11"/>
                 <TextBlock x:Name="ZoomLabel" Text="100%" VerticalAlignment="Center" Margin="6,0" FontSize="11" Foreground="#555"/>
+                <Separator Margin="12,0"/>
+                <Button x:Name="SavePrefsBtn" Content="💾 Salvar preferências" Height="26" Padding="8,0"
+                        Click="OnSavePreferences" FontSize="11"
+                        Background="#2B579A" Foreground="White" BorderThickness="0"/>
             </StackPanel>
         </Border>
 

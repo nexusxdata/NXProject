@@ -15,11 +15,21 @@ namespace NXProject.Views
     public partial class ActivityDiagramWindow : Window
     {
         // ── Layout constants ────────────────────────────────────────────────
-        private const double NodeW      = 160;
         private const double NodeH      = 44;
         private const double HGap       = 40;   // horizontal gap between columns
         private const double VGap       = 16;   // vertical gap between nodes
         private const double ColPadding = 20;   // padding inside a column group
+        private const double HandleW    = 8;    // resize handle width
+
+        // Per-level widths (resizable by the user)
+        private double[] _levelWidths = Enumerable.Repeat(160.0, 10).ToArray();
+
+        // Resize drag state
+        private int    _resizingLevel   = -1;
+        private double _resizeDragStart;
+        private double _resizeWidthStart;
+
+        private double NodeW(int level) => _levelWidths[Math.Min(level, _levelWidths.Length - 1)];
 
         // ── Model ───────────────────────────────────────────────────────────
         private readonly List<ProjectTask> _roots;
@@ -90,15 +100,57 @@ namespace NXProject.Views
         };
 
         private readonly ScaleTransform _scale = new(1.0, 1.0);
+        private NXProject.Models.Project? _project;
 
-        public ActivityDiagramWindow(IEnumerable<ProjectTask> roots)
+        public ActivityDiagramWindow(IEnumerable<ProjectTask> roots, NXProject.Models.Project? project = null)
         {
             InitializeComponent();
-            _roots = roots.ToList();
+            _roots   = roots.ToList();
+            _project = project;
             DiagramViewbox.RenderTransform = _scale;
             DiagramViewbox.RenderTransformOrigin = new Point(0, 0);
             DiagramScroll.PreviewMouseWheel += OnScrollWheel;
+            if (project != null) LoadPreferences(project);
             Loaded += (_, _) => Build();
+        }
+
+        private void LoadPreferences(NXProject.Models.Project p)
+        {
+            if (!string.IsNullOrWhiteSpace(p.DiagramLevelWidths))
+            {
+                var parts = p.DiagramLevelWidths.Split(',');
+                for (int i = 0; i < parts.Length && i < _levelWidths.Length; i++)
+                    if (double.TryParse(parts[i], System.Globalization.NumberStyles.Any,
+                                        System.Globalization.CultureInfo.InvariantCulture, out var w) && w >= 80)
+                        _levelWidths[i] = w;
+            }
+        }
+
+        private void ApplyExpandedLevels(string csv)
+        {
+            if (string.IsNullOrWhiteSpace(csv)) return;
+            var expanded = csv.Split(',')
+                              .Select(s => int.TryParse(s.Trim(), out var d) ? d : -1)
+                              .Where(d => d >= 0).ToHashSet();
+            foreach (var li in _levelItems)
+                li.IsExpanded = expanded.Contains(li.Depth);
+        }
+
+        private void OnSavePreferences(object sender, RoutedEventArgs e)
+        {
+            if (_project == null) return;
+
+            _project.DiagramLevelWidths = string.Join(",",
+                _levelWidths.Select(w => w.ToString("0", System.Globalization.CultureInfo.InvariantCulture)));
+
+            _project.DiagramExpandedLevels = string.Join(",",
+                _levelItems.Where(li => li.IsExpanded).Select(li => li.Depth.ToString()));
+
+            _project.IsDirty = true;
+            SavePrefsBtn.Content = "✔ Salvo";
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            t.Tick += (_, _) => { SavePrefsBtn.Content = "💾 Salvar preferências"; t.Stop(); };
+            t.Start();
         }
 
         // ── Build ────────────────────────────────────────────────────────────
@@ -112,9 +164,12 @@ namespace NXProject.Views
             _levelItems  = BuildLevelItems(maxDepth);
             LevelCheckList.ItemsSource = _levelItems;
 
-            // Default: expand first two levels
-            foreach (var li in _levelItems.Take(2))
-                li.IsExpanded = true;
+            // Restore saved expansion or default to first two levels
+            if (_project != null && !string.IsNullOrWhiteSpace(_project.DiagramExpandedLevels))
+                ApplyExpandedLevels(_project.DiagramExpandedLevels);
+            else
+                foreach (var li in _levelItems.Take(2))
+                    li.IsExpanded = true;
 
             ApplyLevelExpansion();
             Render();
@@ -209,10 +264,11 @@ namespace NXProject.Views
                 node.Y = y;
                 allNodes.Add(node);
 
+                double nw = NodeW(node.Level);
                 if (node.IsExpanded && node.Children.Count > 0)
                 {
                     // Children go to the right in a new column
-                    double childX    = x + NodeW + HGap;
+                    double childX    = x + nw + HGap;
                     double childStartY = y;
                     double childEndY   = LayoutColumn(
                         node.Children, depth + 1,
@@ -230,7 +286,7 @@ namespace NXProject.Views
                     y += NodeH + VGap;
                 }
 
-                maxW = Math.Max(maxW, node.X + NodeW);
+                maxW = Math.Max(maxW, node.X + nw);
                 maxH = Math.Max(maxH, node.Y + NodeH);
             }
 
@@ -254,11 +310,12 @@ namespace NXProject.Views
                 : Color.FromRgb(180, 140, 80);
 
             var bg = new LinearGradientBrush(bgTop, levelColor, 90);
+            double nw = NodeW(node.Level);
 
             // Shadow
             var shadow = new Rectangle
             {
-                Width = NodeW, Height = NodeH,
+                Width = nw, Height = NodeH,
                 RadiusX = 6, RadiusY = 6,
                 Fill = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0))
             };
@@ -272,7 +329,7 @@ namespace NXProject.Views
             // Main box
             var rect = new Rectangle
             {
-                Width = NodeW, Height = NodeH,
+                Width = nw, Height = NodeH,
                 RadiusX = 6, RadiusY = 6,
                 Fill    = bg,
                 Stroke  = new SolidColorBrush(levelColor),
@@ -295,7 +352,7 @@ namespace NXProject.Views
                     Foreground = new SolidColorBrush(Colors.White),
                     Opacity    = 0.8
                 };
-                Canvas.SetLeft(indicator, node.X + NodeW - 14);
+                Canvas.SetLeft(indicator, node.X + nw - 14);
                 Canvas.SetTop(indicator,  node.Y + 4);
                 indicator.MouseLeftButtonDown += (_, _) => OnNodeClick(node);
                 DiagramCanvas.Children.Add(indicator);
@@ -310,7 +367,7 @@ namespace NXProject.Views
                 Foreground = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
                 FontWeight = FontWeights.Bold
             };
-            Canvas.SetLeft(idBadge, node.X + NodeW - 8 - idKey.Length * 5);
+            Canvas.SetLeft(idBadge, node.X + nw - 8 - idKey.Length * 5);
             Canvas.SetTop(idBadge,  node.Y + NodeH - 14);
             idBadge.MouseLeftButtonDown += (_, _) => OnNodeClick(node);
             DiagramCanvas.Children.Add(idBadge);
@@ -323,7 +380,7 @@ namespace NXProject.Views
                 FontWeight    = node.Level == 0 ? FontWeights.Bold : FontWeights.Normal,
                 Foreground    = Brushes.White,
                 TextWrapping  = TextWrapping.NoWrap,
-                Width         = NodeW - 16,
+                Width         = nw - 16,
                 ToolTip       = node.Task.Name
             };
             Canvas.SetLeft(label, node.X + 8);
@@ -347,7 +404,7 @@ namespace NXProject.Views
                 // Progress bar inside node
                 var pBar = new Rectangle
                 {
-                    Width  = Math.Max(2, (NodeW - 16) * node.Task.PercentComplete / 100.0),
+                    Width  = Math.Max(2, (nw - 16) * node.Task.PercentComplete / 100.0),
                     Height = 3,
                     Fill   = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)),
                     RadiusX = 1, RadiusY = 1
@@ -356,6 +413,43 @@ namespace NXProject.Views
                 Canvas.SetTop(pBar,  node.Y + NodeH - 7);
                 DiagramCanvas.Children.Add(pBar);
             }
+
+            // Resize handle (right edge) — arrastando ajusta largura de todos do mesmo nível
+            int capturedLevel = node.Level;
+            var handle = new Rectangle
+            {
+                Width   = HandleW,
+                Height  = NodeH,
+                Fill    = new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)),
+                Cursor  = Cursors.SizeWE,
+                RadiusX = 3, RadiusY = 3,
+                ToolTip = "Arraste para redimensionar todas as caixas deste nível"
+            };
+            Canvas.SetLeft(handle, node.X + nw - HandleW);
+            Canvas.SetTop(handle,  node.Y);
+            handle.MouseLeftButtonDown += (_, e) =>
+            {
+                _resizingLevel   = capturedLevel;
+                _resizeDragStart = e.GetPosition(DiagramCanvas).X;
+                _resizeWidthStart = NodeW(_resizingLevel);
+                handle.CaptureMouse();
+                e.Handled = true;
+            };
+            handle.MouseMove += (_, e) =>
+            {
+                if (_resizingLevel < 0 || !handle.IsMouseCaptured) return;
+                double delta = e.GetPosition(DiagramCanvas).X - _resizeDragStart;
+                double newW  = Math.Max(80, _resizeWidthStart + delta);
+                _levelWidths[Math.Min(_resizingLevel, _levelWidths.Length - 1)] = newW;
+                Render();
+            };
+            handle.MouseLeftButtonUp += (_, e) =>
+            {
+                _resizingLevel = -1;
+                handle.ReleaseMouseCapture();
+                e.Handled = true;
+            };
+            DiagramCanvas.Children.Add(handle);
         }
 
         // ── Node click ───────────────────────────────────────────────────────
@@ -427,14 +521,14 @@ namespace NXProject.Views
             if (sameColumn)
             {
                 // Vertical arrow: bottom-center → top-center
-                x1 = from.X + NodeW / 2; y1 = from.Y + NodeH;
-                x2 = to.X   + NodeW / 2; y2 = to.Y;
+                x1 = from.X + NodeW(from.Level) / 2; y1 = from.Y + NodeH;
+                x2 = to.X   + NodeW(to.Level)   / 2; y2 = to.Y;
             }
             else
             {
                 // Horizontal arrow: right-center → left-center
-                x1 = from.X + NodeW; y1 = from.Y + NodeH / 2;
-                x2 = to.X;           y2 = to.Y   + NodeH / 2;
+                x1 = from.X + NodeW(from.Level); y1 = from.Y + NodeH / 2;
+                x2 = to.X;                        y2 = to.Y   + NodeH / 2;
             }
 
             var line = new Line

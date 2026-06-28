@@ -2149,7 +2149,7 @@ namespace NXProject.Views
         private void OnActivityDiagramClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm || vm.Project == null) return;
-            new ActivityDiagramWindow(vm.Project.Tasks) { Owner = this }.ShowDialog();
+            new ActivityDiagramWindow(vm.Project.Tasks, vm.Project) { Owner = this }.ShowDialog();
         }
 
         private void OnBaselineSaveClick(object sender, RoutedEventArgs e)
