@@ -371,8 +371,10 @@ namespace NXProject.Views
 
         private void DrawArrows(List<DiagramNode> allNodes)
         {
-            // Build id→node map
-            var idMap = allNodes.ToDictionary(n => n.Task.Id);
+            // Build id→node map (ignora IDs duplicados, ex: Id=0 em tasks recém-criadas)
+            var idMap = new Dictionary<int, DiagramNode>();
+            foreach (var n in allNodes)
+                idMap.TryAdd(n.Task.Id, n);
             var arrowBrush = new SolidColorBrush(Color.FromRgb(100, 100, 100));
 
             foreach (var node in allNodes)
