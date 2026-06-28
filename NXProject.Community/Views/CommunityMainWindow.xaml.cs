@@ -639,11 +639,15 @@ namespace NXProject.Views
                 .Select(c => c.TfsId!.Value).ToHashSet();
 
             NXProject.Models.ProjectTask? firstAdded = null;
+            int nextId = vm.FlatTasks.Count > 0
+                ? vm.FlatTasks.Max(t => t.Model.Id) + 1
+                : 1;
             foreach (var r in rows)
             {
                 if (existingIds.Contains(r.TaskId)) continue;
                 var pt = new NXProject.Models.ProjectTask
                 {
+                    Id               = nextId++,
                     Name             = r.Title,
                     TfsId            = r.TaskId,
                     TfsType          = "Task",
