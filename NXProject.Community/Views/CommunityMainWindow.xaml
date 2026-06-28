@@ -78,6 +78,14 @@
                 <MenuItem Header="{DynamicResource Menu_Manage_AllocationMap}" Click="OnAllocationMapClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_ActivityDiagram}" Click="OnActivityDiagramClick"/>
                 <Separator/>
+                <MenuItem x:Name="CriticalPathToggleItem"
+                          Header="Caminho Crítico"
+                          IsCheckable="True"
+                          Click="OnCriticalPathToggleClick"
+                          SubmenuOpened="OnCriticalPathMenuOpened">
+                    <MenuItem Header="Ver lista de atividades críticas..." Click="OnCriticalPathWindowClick"/>
+                </MenuItem>
+                <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Manage_Baseline}" SubmenuOpened="OnBaselineMenuOpened">
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Save}"  Click="OnBaselineSaveClick"/>
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Open}"  Click="OnBaselineOpenClick"/>
@@ -458,7 +466,8 @@
                                    FirstSprintNumber="{Binding FirstSprintNumber}"
                                    SprintNumberingMode="{Binding SprintNumberingMode}"
                                    SprintDurationDays="{Binding SprintDurationDays}"
-                                   Sprints="{Binding Sprints}"/>
+                                   Sprints="{Binding Sprints}"
+                                   ShowCriticalPath="{Binding Project.ShowCriticalPath}"/>
         </Grid>
     </DockPanel>
 </Window>

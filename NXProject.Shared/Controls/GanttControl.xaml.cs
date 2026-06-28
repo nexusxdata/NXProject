@@ -61,6 +61,14 @@ namespace NXProject.Controls
             DependencyProperty.Register(nameof(DayHeaderMode), typeof(int),
                 typeof(GanttControl), new PropertyMetadata(0, OnLayoutChanged));
 
+        public static readonly DependencyProperty CriticalTaskIdsProperty =
+            DependencyProperty.Register(nameof(CriticalTaskIds), typeof(HashSet<int>),
+                typeof(GanttControl), new PropertyMetadata(null, OnLayoutChanged));
+
+        public static readonly DependencyProperty ShowCriticalPathProperty =
+            DependencyProperty.Register(nameof(ShowCriticalPath), typeof(bool),
+                typeof(GanttControl), new PropertyMetadata(false, OnLayoutChanged));
+
         private const double RowHeight = 22;
         private const double BarPadding = 4;
         private const double LeftPadding = 16;
@@ -169,6 +177,19 @@ namespace NXProject.Controls
                 SetValue(DayHeaderModeProperty, value);
                 SetValue(ShowDayHeaderProperty, value > 0);
             }
+        }
+
+        // IDs de tarefas no caminho crítico (calculados em CriticalPathService)
+        public HashSet<int>? CriticalTaskIds
+        {
+            get => (HashSet<int>?)GetValue(CriticalTaskIdsProperty);
+            set => SetValue(CriticalTaskIdsProperty, value);
+        }
+
+        public bool ShowCriticalPath
+        {
+            get => (bool)GetValue(ShowCriticalPathProperty);
+            set => SetValue(ShowCriticalPathProperty, value);
         }
 
         // IDs de tarefas destacadas (predecessoras da task selecionada via botão)
@@ -1254,6 +1275,25 @@ namespace NXProject.Controls
             Canvas.SetLeft(bg, x);
             Canvas.SetTop(bg, y + BarPadding);
             GanttCanvas.Children.Add(bg);
+
+            // Borda vermelha do caminho crítico
+            if (ShowCriticalPath && CriticalTaskIds != null && CriticalTaskIds.Contains(task.Model.Id))
+            {
+                var critBorder = new Rectangle
+                {
+                    Width           = width,
+                    Height          = RowHeight - BarPadding * 2,
+                    Stroke          = new SolidColorBrush(Color.FromRgb(192, 57, 43)),
+                    StrokeThickness = 2,
+                    Fill            = Brushes.Transparent,
+                    RadiusX         = 2,
+                    RadiusY         = 2,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(critBorder, x);
+                Canvas.SetTop(critBorder, y + BarPadding);
+                GanttCanvas.Children.Add(critBorder);
+            }
 
             var dotColor = isSelected ? Color.FromRgb(255, 165, 0) : Color.FromRgb(100, 100, 100);
             var dot = new Ellipse

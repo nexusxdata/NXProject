@@ -52,7 +52,13 @@ namespace NXProject.Views
             vm.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(vm.Project))
+                {
                     UpdateDevOpsProjectBanner(vm.Project.DevOpsProjectName, vm.Project.DevOpsRootWorkItemId);
+                    // Recalcula caminho crítico se estava ativo no projeto salvo
+                    if (vm.Project.ShowCriticalPath)
+                        Dispatcher.InvokeAsync(() => RefreshCriticalPath(vm),
+                            System.Windows.Threading.DispatcherPriority.Background);
+                }
             };
             vm.FlatTasks.CollectionChanged += (_, _) => UpdateEpicHours(vm);
             vm.PropertyChanged += (_, args) =>
@@ -2150,6 +2156,46 @@ namespace NXProject.Views
         {
             if (DataContext is not MainViewModel vm || vm.Project == null) return;
             new ActivityDiagramWindow(vm.Project.Tasks, vm.Project) { Owner = this }.ShowDialog();
+        }
+
+        // ── Caminho Crítico ──────────────────────────────────────────────────
+
+        private void OnCriticalPathMenuOpened(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm || vm.Project == null) return;
+            CriticalPathToggleItem.IsChecked = vm.Project.ShowCriticalPath;
+        }
+
+        private void OnCriticalPathToggleClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm || vm.Project == null) return;
+            vm.Project.ShowCriticalPath = CriticalPathToggleItem.IsChecked;
+            vm.Project.IsDirty = true;
+            RefreshCriticalPath(vm);
+        }
+
+        private void OnCriticalPathWindowClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm || vm.Project == null) return;
+            var allTasks = vm.FlatTasks.Select(t => t.Model);
+            new CriticalPathWindow(allTasks) { Owner = this }.ShowDialog();
+        }
+
+        private void RefreshCriticalPath(MainViewModel vm)
+        {
+            if (vm.Project?.ShowCriticalPath == true)
+            {
+                var entries = NXProject.Services.CriticalPathService.Compute(
+                    vm.FlatTasks.Select(t => t.Model));
+                GanttCtrl.CriticalTaskIds = entries
+                    .Where(e => e.TotalFloat < 0.5)
+                    .Select(e => e.Task.Id)
+                    .ToHashSet();
+            }
+            else
+            {
+                GanttCtrl.CriticalTaskIds = null;
+            }
         }
 
         private void OnBaselineSaveClick(object sender, RoutedEventArgs e)

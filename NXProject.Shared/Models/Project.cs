@@ -90,8 +90,11 @@ namespace NXProject.Models
         public bool BaselineActive { get; set; } = true;
 
         // Preferências do Diagrama de Atividades: larguras por nível e nível de expansão
-        public string DiagramLevelWidths   { get; set; } = "";   // CSV: "160,160,160,..."
-        public string DiagramExpandedLevels { get; set; } = "";  // CSV: "0,1"
+        public string DiagramLevelWidths    { get; set; } = "";   // CSV: "160,160,160,..."
+        public string DiagramExpandedLevels { get; set; } = "";   // CSV: "0,1"
+
+        // Caminho Crítico: exibe borda vermelha nas tarefas críticas no Gantt
+        public bool ShowCriticalPath { get; set; } = false;
 
         public bool IsDirty { get; set; } = false;
 

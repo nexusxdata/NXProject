@@ -1,0 +1,104 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Windows;
+using System.Windows.Data;
+using System.Windows.Media;
+using NXProject.Models;
+using NXProject.Services;
+
+namespace NXProject.Views
+{
+    public partial class CriticalPathWindow : Window
+    {
+        public sealed class CpRow
+        {
+            public string  IdKey      { get; init; } = "";
+            public string? TfsType    { get; init; }
+            public string  Name       { get; init; } = "";
+            public string  ESText     { get; init; } = "";
+            public string  EFText     { get; init; } = "";
+            public string  DurText    { get; init; } = "";
+            public string  FloatText  { get; init; } = "";
+            public string  PredText   { get; init; } = "";
+            public bool    IsCritical { get; init; }
+            public Brush   FloatColor { get; init; } = Brushes.Black;
+            public FontWeight FloatWeight { get; init; } = FontWeights.Normal;
+        }
+
+        private readonly List<CpRow> _allRows = new();
+        private readonly ICollectionView _view;
+
+        public CriticalPathWindow(IEnumerable<ProjectTask> allTasks)
+        {
+            InitializeComponent();
+
+            var entries = CriticalPathService.Compute(allTasks);
+            var taskById = allTasks.ToDictionary(t => t.Id);
+
+            foreach (var e in entries)
+            {
+                var t         = e.Task;
+                var idKey     = t.HasTfsLink ? $"T:{t.TfsId}" : $"I:{t.Id}";
+                var dur       = (e.EF - e.ES).TotalDays;
+                var predNames = t.PredecessorIds
+                    .Select(id => taskById.TryGetValue(id, out var pt)
+                        ? (pt.HasTfsLink ? $"T:{pt.TfsId}" : $"I:{pt.Id}")
+                        : id.ToString())
+                    .ToList();
+
+                bool critical = e.TotalFloat < 0.5;
+
+                _allRows.Add(new CpRow
+                {
+                    IdKey      = idKey,
+                    TfsType    = t.TfsType,
+                    Name       = t.Name,
+                    ESText     = e.ES.ToString("dd/MM/yy"),
+                    EFText     = e.EF.ToString("dd/MM/yy"),
+                    DurText    = $"{dur:0}d",
+                    FloatText  = critical ? "Crítica" : $"{e.TotalFloat:0.#}d",
+                    PredText   = predNames.Count > 0 ? string.Join(", ", predNames) : "—",
+                    IsCritical = critical,
+                    FloatColor = critical
+                        ? new SolidColorBrush(Color.FromRgb(192, 57, 43))
+                        : new SolidColorBrush(Color.FromRgb(39, 174, 96)),
+                    FloatWeight = critical ? FontWeights.Bold : FontWeights.Normal
+                });
+            }
+
+            int critCount = _allRows.Count(r => r.IsCritical);
+            SubtitleText.Text = $"{_allRows.Count} atividades analisadas — {critCount} críticas";
+
+            _view = CollectionViewSource.GetDefaultView(_allRows);
+            _view.Filter = FilterRow;
+            PathGrid.ItemsSource = _view;
+            UpdateCount();
+        }
+
+        private bool FilterRow(object obj)
+        {
+            if (obj is not CpRow row) return false;
+            if (OnlyCriticalCheck.IsChecked == true && !row.IsCritical) return false;
+            var q = FilterBox.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(q)) return true;
+            return row.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || row.IdKey.Contains(q, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void OnFilterChanged(object sender, EventArgs e)
+        {
+            _view.Refresh();
+            UpdateCount();
+        }
+
+        private void UpdateCount()
+        {
+            int visible = _allRows.Count(r => FilterRow(r));
+            CountText.Text = $"{visible} exibidas";
+        }
+
+        private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+    }
+}

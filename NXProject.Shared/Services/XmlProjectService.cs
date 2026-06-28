@@ -41,6 +41,7 @@ namespace NXProject.Services
                     new XElement(EXT + "BaselineActive", project.BaselineActive),
                     new XElement(EXT + "DiagramLevelWidths",    project.DiagramLevelWidths    ?? ""),
                     new XElement(EXT + "DiagramExpandedLevels", project.DiagramExpandedLevels ?? ""),
+                    new XElement(EXT + "ShowCriticalPath",      project.ShowCriticalPath),
                     new XElement(EXT + "HierarchyLevelColors",
                         project.HierarchyLevelColors.Select((c, i) =>
                             new XElement(EXT + "Color", new XAttribute("depth", i), c))),
@@ -243,6 +244,7 @@ namespace NXProject.Services
                 BaselineActive        = !bool.TryParse(root.Element(EXT + "BaselineActive")?.Value, out var ba) || ba,
                 DiagramLevelWidths    = root.Element(EXT + "DiagramLevelWidths")?.Value    ?? "",
                 DiagramExpandedLevels = root.Element(EXT + "DiagramExpandedLevels")?.Value ?? "",
+                ShowCriticalPath      = bool.TryParse(root.Element(EXT + "ShowCriticalPath")?.Value, out var scp) && scp,
                 FilePath = filePath
             };
 
