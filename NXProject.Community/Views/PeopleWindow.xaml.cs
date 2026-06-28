@@ -212,13 +212,19 @@ namespace NXProject.Views
             private string _email;
             private double _maxUnitsPerDay;
             private string _typeLabel;
-            private string _kindLabel;
+            private string  _kindLabel;
+            private string  _costTypeLabel;
+            private decimal _hourlyRate;
+            private decimal _monthlyRate;
 
             public static readonly string[] TypeOptions =
                 { "Work", "Material", "Cost" };
 
             public static readonly string[] KindOptions =
                 { "Project", "Internal" };
+
+            public static readonly string[] CostTypeOptions =
+                { "Hourly", "Monthly" };
 
             private static readonly SolidColorBrush BrushGreen  = MakeFrozen(0x2E, 0x7D, 0x32);
             private static readonly SolidColorBrush BrushOrange = MakeFrozen(0xF5, 0x7C, 0x00);
@@ -239,8 +245,11 @@ namespace NXProject.Views
                 _email = r.Email ?? string.Empty;
                 _availPct = r.AvailabilityPercent;
                 _maxUnitsPerDay = r.MaxUnitsPerDay;
-                _typeLabel = r.Type.ToString();
-                _kindLabel = r.Kind.ToString();
+                _typeLabel     = r.Type.ToString();
+                _kindLabel     = r.Kind.ToString();
+                _costTypeLabel = r.CostType.ToString();
+                _hourlyRate    = r.CostPerHour;
+                _monthlyRate   = r.MonthlyRate;
             }
 
             // ── editable fields ─────────────────────────────────────────────
@@ -312,8 +321,29 @@ namespace NXProject.Views
                 _     => BrushRed
             };
 
-            public IEnumerable<string> TypeOptionsSource => TypeOptions;
-            public IEnumerable<string> KindOptionsSource => KindOptions;
+            public string CostTypeLabel
+            {
+                get => _costTypeLabel;
+                set { _costTypeLabel = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsMonthly)); }
+            }
+
+            public decimal HourlyRate
+            {
+                get => _hourlyRate;
+                set { _hourlyRate = Math.Max(0, value); OnPropertyChanged(); }
+            }
+
+            public decimal MonthlyRate
+            {
+                get => _monthlyRate;
+                set { _monthlyRate = Math.Max(0, value); OnPropertyChanged(); }
+            }
+
+            public bool IsMonthly => _costTypeLabel == "Monthly";
+
+            public IEnumerable<string> TypeOptionsSource     => TypeOptions;
+            public IEnumerable<string> KindOptionsSource     => KindOptions;
+            public IEnumerable<string> CostTypeOptionsSource => CostTypeOptions;
 
             public Brush KindColor => _kindLabel == "Internal"
                 ? new SolidColorBrush(Color.FromRgb(91, 50, 112))
@@ -333,6 +363,11 @@ namespace NXProject.Views
                 Resource.Kind = Enum.TryParse<ResourceKind>(_kindLabel, out var rk)
                     ? rk
                     : ResourceKind.Project;
+                Resource.CostType    = Enum.TryParse<ResourceCostType>(_costTypeLabel, out var rct)
+                    ? rct
+                    : ResourceCostType.Hourly;
+                Resource.CostPerHour  = _hourlyRate;
+                Resource.MonthlyRate  = _monthlyRate;
             }
 
             public event PropertyChangedEventHandler? PropertyChanged;

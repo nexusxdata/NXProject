@@ -101,7 +101,9 @@ namespace NXProject.Services
                     new XElement(NS + "Email", r.Email ?? ""),
                     new XElement(NS + "Notes", r.Notes ?? ""),
                     new XElement(EXT + "IsImportedFromTfs", r.IsImportedFromTfs),
-                    new XElement(EXT + "Kind", r.Kind.ToString())
+                    new XElement(EXT + "Kind", r.Kind.ToString()),
+                    new XElement(EXT + "CostType",    r.CostType.ToString()),
+                    new XElement(EXT + "MonthlyRate", r.MonthlyRate)
                 ));
             }
             return el;
@@ -331,7 +333,9 @@ namespace NXProject.Services
             Email = el.Element(NS + "Email")?.Value,
             Notes = el.Element(NS + "Notes")?.Value,
             IsImportedFromTfs = bool.TryParse(el.Element(EXT + "IsImportedFromTfs")?.Value, out var importedFromTfs) && importedFromTfs,
-            Kind = Enum.TryParse<ResourceKind>(el.Element(EXT + "Kind")?.Value, out var rk) ? rk : ResourceKind.Project
+            Kind        = Enum.TryParse<ResourceKind>    (el.Element(EXT + "Kind")?.Value,     out var rk)  ? rk  : ResourceKind.Project,
+            CostType    = Enum.TryParse<ResourceCostType>(el.Element(EXT + "CostType")?.Value, out var rct) ? rct : ResourceCostType.Hourly,
+            MonthlyRate = ParseDecimal(el.Element(EXT + "MonthlyRate")?.Value) ?? 0
         };
 
         private static ProjectTask LoadTask(XElement el, ProjectTask? parent)

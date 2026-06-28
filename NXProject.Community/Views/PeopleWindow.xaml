@@ -145,6 +145,44 @@
                     </DataGridTemplateColumn.CellEditingTemplate>
                 </DataGridTemplateColumn>
 
+                <!-- Modelo de custo -->
+                <DataGridTemplateColumn Header="Custo" Width="80">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding CostTypeLabel}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding CostTypeOptionsSource}"
+                                      SelectedItem="{Binding CostTypeLabel, UpdateSourceTrigger=PropertyChanged}"
+                                      FontSize="12"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+
+                <!-- Valor/hora -->
+                <DataGridTextColumn Header="R$/hora" Width="80"
+                                    Binding="{Binding HourlyRate, StringFormat={}{0:N2}}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="HorizontalAlignment" Value="Right"/>
+                            <Setter Property="Margin" Value="0,0,4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+
+                <!-- Valor/mês -->
+                <DataGridTextColumn Header="R$/mês" Width="90"
+                                    Binding="{Binding MonthlyRate, StringFormat={}{0:N2}}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="HorizontalAlignment" Value="Right"/>
+                            <Setter Property="Margin" Value="0,0,4,0"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+
                 <!-- Tarefas -->
                 <DataGridTextColumn Header="Atividades" Width="80"
                                     Binding="{Binding TaskCount, Mode=OneWay}" IsReadOnly="True">

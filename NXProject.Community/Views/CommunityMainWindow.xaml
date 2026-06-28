@@ -77,6 +77,7 @@
                 <MenuItem Header="{DynamicResource Menu_Manage_StoryStatusChart}" Click="OnStoryStatusChartClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_AllocationMap}" Click="OnAllocationMapClick"/>
                 <MenuItem Header="{DynamicResource Menu_Manage_ActivityDiagram}" Click="OnActivityDiagramClick"/>
+                <MenuItem Header="💰 Custo por Recurso..." Click="OnResourceCostClick"/>
                 <Separator/>
                 <MenuItem x:Name="CriticalPathToggleItem"
                           Header="Caminho Crítico"

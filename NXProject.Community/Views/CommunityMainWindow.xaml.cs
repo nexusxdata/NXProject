@@ -2158,6 +2158,13 @@ namespace NXProject.Views
             new ActivityDiagramWindow(vm.Project.Tasks, vm.Project) { Owner = this }.ShowDialog();
         }
 
+        private void OnResourceCostClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm || vm.Project == null) return;
+            new ResourceCostWindow(vm.FlatTasks.Select(t => t.Model), vm.Project.Resources)
+                { Owner = this }.ShowDialog();
+        }
+
         // ── Caminho Crítico ──────────────────────────────────────────────────
 
         private void OnCriticalPathMenuOpened(object sender, RoutedEventArgs e)

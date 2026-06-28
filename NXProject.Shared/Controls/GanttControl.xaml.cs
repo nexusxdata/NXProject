@@ -1159,7 +1159,7 @@ namespace NXProject.Controls
         }
 
         private static readonly SolidColorBrush BaselineBrush =
-            new(Color.FromArgb(200, 80, 80, 80));
+            new(Color.FromArgb(220, 30, 120, 210));  // azul claro, distinto do cinza do Gantt
 
         private void RenderBaselineBar(TaskViewModel vm, double y)
         {

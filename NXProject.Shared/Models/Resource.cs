@@ -14,8 +14,14 @@ namespace NXProject.Models
         // Capacidade em horas por dia (padrão 8h)
         public double MaxUnitsPerDay { get; set; } = 8.0;
 
-        // Custo por hora (opcional)
+        // Custo por hora (opcional, legado)
         public decimal CostPerHour { get; set; } = 0;
+
+        // Modelo de custo: por hora ou por mês
+        public ResourceCostType CostType { get; set; } = ResourceCostType.Hourly;
+
+        // Valor mensal (quando CostType == Monthly)
+        public decimal MonthlyRate { get; set; } = 0;
 
         public string? Email { get; set; }
         public string? Notes { get; set; }
@@ -39,6 +45,12 @@ namespace NXProject.Models
         Work,       // Pessoa
         Material,   // Material/Equipamento
         Cost        // Custo fixo
+    }
+
+    public enum ResourceCostType
+    {
+        Hourly,   // Valor/hora × HH estimadas
+        Monthly   // Valor/mês distribuído pelo % de HH no mês
     }
 
     public enum ResourceKind
