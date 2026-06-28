@@ -115,6 +115,9 @@ namespace NXProject.Services
         /// <summary>Habilita log de diagnóstico em %LocalAppData%\NXProject.Community\sprint_alert_debug.log.</summary>
         public bool DebugLogEnabled { get; set; } = false;
 
+        /// <summary>Carrega automaticamente o .nxb ao abrir o projeto. false = apenas via menu Abrir Baseline.</summary>
+        public bool AutoLoadBaseline { get; set; } = true;
+
         /// <summary>Mapeamentos customizados de estado TFS → label do gráfico de status.</summary>
         public List<StoryStatusMapping> StoryStatusMappings { get; set; } = [];
 
@@ -211,6 +214,7 @@ namespace NXProject.Services
             public List<string> PortfolioProjectPaths { get; set; } = [];
             public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
             public bool DebugLogEnabled { get; set; } = false;
+            public bool AutoLoadBaseline { get; set; } = true;
             public Dictionary<string, TypeFieldConfig> TypeFieldMappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -265,7 +269,8 @@ namespace NXProject.Services
                 options.StoryStatusMappings = stored.StoryStatusMappings ?? [];
                 options.PortfolioProjectPaths = stored.PortfolioProjectPaths ?? [];
                 options.PortfolioProjectConfigs = stored.PortfolioProjectConfigs ?? [];
-                options.DebugLogEnabled = stored.DebugLogEnabled;
+                options.DebugLogEnabled  = stored.DebugLogEnabled;
+                options.AutoLoadBaseline = stored.AutoLoadBaseline;
                 options.TypeFieldMappings = stored.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase);
             }
             catch
@@ -308,7 +313,8 @@ namespace NXProject.Services
                 StoryStatusMappings = options.StoryStatusMappings ?? [],
                 PortfolioProjectPaths = options.PortfolioProjectPaths ?? [],
                 PortfolioProjectConfigs = options.PortfolioProjectConfigs ?? [],
-                DebugLogEnabled = options.DebugLogEnabled,
+                DebugLogEnabled  = options.DebugLogEnabled,
+                AutoLoadBaseline = options.AutoLoadBaseline,
                 TypeFieldMappings = options.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase)
             };
 

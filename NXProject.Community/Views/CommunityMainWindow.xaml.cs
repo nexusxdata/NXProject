@@ -2160,6 +2160,36 @@ namespace NXProject.Views
             vm.StatusMessage = $"Baseline salvo em {Path.GetFileName(Path.ChangeExtension(filePath, ".nxb"))}.";
         }
 
+        private void OnBaselineOpenClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var filePath = vm.Project?.FilePath;
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                MessageBox.Show("Abra um projeto antes de carregar o Baseline.", "Baseline",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (!BaselineService.HasBaseline(filePath))
+            {
+                MessageBox.Show("Nenhum arquivo .nxb encontrado ao lado do projeto.", "Baseline",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            BaselineService.Load(filePath, vm.FlatTasks.Select(t => t.Model));
+            GanttCtrl.ForceRender();
+            vm.StatusMessage = "Baseline carregado.";
+        }
+
+        private void OnBaselineAutoLoadToggle(object sender, RoutedEventArgs e)
+        {
+            var opts = Services.TfsConnectionStore.Load("NXProject.Community");
+            opts.AutoLoadBaseline = BaselineAutoLoadItem.IsChecked;
+            Services.TfsConnectionStore.Save(opts, !string.IsNullOrWhiteSpace(opts.PersonalAccessToken), "NXProject.Community");
+        }
+
         private void OnBaselineClearClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
@@ -2219,6 +2249,8 @@ namespace NXProject.Views
 
         private void OnCommunityWindowLoaded(object sender, RoutedEventArgs e)
         {
+            var opts = Services.TfsConnectionStore.Load("NXProject.Community");
+            BaselineAutoLoadItem.IsChecked = opts.AutoLoadBaseline;
 
             if (_licenseAccepted)
                 return;

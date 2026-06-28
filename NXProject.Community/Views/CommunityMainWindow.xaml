@@ -79,7 +79,14 @@
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Manage_Baseline}">
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Save}"  Click="OnBaselineSaveClick"/>
+                    <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Open}"  Click="OnBaselineOpenClick"/>
+                    <Separator/>
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Clear}" Click="OnBaselineClearClick"/>
+                    <Separator/>
+                    <MenuItem x:Name="BaselineAutoLoadItem"
+                              Header="{DynamicResource Menu_Manage_Baseline_AutoLoad}"
+                              IsCheckable="True" IsChecked="True"
+                              Click="OnBaselineAutoLoadToggle"/>
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Ai}">

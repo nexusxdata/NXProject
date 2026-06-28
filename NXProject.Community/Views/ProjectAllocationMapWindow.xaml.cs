@@ -158,9 +158,23 @@ namespace NXProject.Views
         private bool OnlyCurrentHours => OnlyCurrentHoursBox?.IsChecked == true;
 
         private static double GetHoursForMode(ProjectTask task, TaskResource tr, bool onlyCurrentHours)
-            => onlyCurrentHours
-                ? (task.CurrentHours ?? 0)
-                : NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
+        {
+            if (!onlyCurrentHours)
+                return NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr);
+
+            var current = task.CurrentHours ?? 0;
+            if (current > 0)
+                return current;
+
+            // Task em aberto sem HH lançado: usa estimado mas só até o mês atual
+            bool isOpen = string.IsNullOrWhiteSpace(task.TfsState) ||
+                          !task.TfsState.Equals("Closed",   StringComparison.OrdinalIgnoreCase) &&
+                          !task.TfsState.Equals("Done",     StringComparison.OrdinalIgnoreCase) &&
+                          !task.TfsState.Equals("Resolved", StringComparison.OrdinalIgnoreCase);
+            return isOpen
+                ? NXProject.Services.TaskScheduleService.GetAssignmentHours(task, tr)
+                : 0;
+        }
 
         private static double ComputeHours(Project project, string resourceName,
                                             DateTime monthStart, DateTime monthEnd,
@@ -178,7 +192,11 @@ namespace NXProject.Views
                     if (hours <= 0) continue;
 
                     var tStart = task.Start.Date;
-                    var tEnd   = task.Finish.Date;
+                    // Para tasks em aberto sem HH lançado, limita distribuição até o mês atual
+                    var tEnd = (onlyCurrentHours && (task.CurrentHours ?? 0) == 0)
+                        ? new DateTime(DateTime.Today.Year, DateTime.Today.Month,
+                              DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month))
+                        : task.Finish.Date;
                     if (tEnd < monthStart || tStart > monthEnd) continue;
 
                     if (tStart >= tEnd)
@@ -2050,7 +2068,10 @@ namespace NXProject.Views
             if (hours <= 0) return 0;
 
             var tStart = task.Start.Date;
-            var tEnd   = task.Finish.Date;
+            var tEnd = (onlyCurrentHours && (task.CurrentHours ?? 0) == 0)
+                ? new DateTime(DateTime.Today.Year, DateTime.Today.Month,
+                      DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month))
+                : task.Finish.Date;
             if (tEnd < monthStart || tStart > monthEnd) return 0;
 
             if (tStart >= tEnd) return hours;

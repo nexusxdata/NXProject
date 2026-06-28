@@ -41,7 +41,9 @@
     <sys:String x:Key="Menu_Manage_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
     <sys:String x:Key="Menu_Manage_Baseline">_Baseline</sys:String>
     <sys:String x:Key="Menu_Manage_Baseline_Save">_Salvar Baseline</sys:String>
+    <sys:String x:Key="Menu_Manage_Baseline_Open">_Abrir Baseline</sys:String>
     <sys:String x:Key="Menu_Manage_Baseline_Clear">_Limpar Baseline</sys:String>
+    <sys:String x:Key="Menu_Manage_Baseline_AutoLoad">_Carregar automaticamente ao abrir projeto</sys:String>
 
     <!-- Menu Exibir -->
     <sys:String x:Key="Menu_View">_Exibir</sys:String>
