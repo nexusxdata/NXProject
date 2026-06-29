@@ -289,6 +289,30 @@ namespace NXProject.Services
             public SyncLogEntry(SyncLogLevel level, string message) { Level = level; Message = message; }
         }
 
+        public sealed class SyncConflictItem
+        {
+            public ProjectTask Task { get; init; } = null!;
+            public int TfsVersion { get; init; }
+            public int LocalVersion { get; init; }
+            public string ChangedBy { get; init; } = "";
+            // Snapshot dos valores TFS no momento do conflito
+            public string TfsTitle  { get; init; } = "";
+            public string TfsState  { get; init; } = "";
+            public string TfsTags   { get; init; } = "";
+            public double? TfsHours { get; init; }
+            public DateTime? TfsStart  { get; init; }
+            public DateTime? TfsFinish { get; init; }
+            // Valores locais (lidos diretamente da tarefa)
+            public string LocalTitle  => Task.Name ?? "";
+            public string LocalState  => Task.TfsState ?? "";
+            public string LocalTags   => Task.Tags ?? "";
+            public double? LocalHours => Task.EstimatedHours;
+            public DateTime? LocalStart  => Task.Start == default ? null : Task.Start;
+            public DateTime? LocalFinish => Task.Finish == default ? null : Task.Finish;
+            public string TfsType => Task.TfsType ?? "";
+            public int TfsId => Task.TfsId ?? 0;
+        }
+
         public sealed class SyncReport
         {
             public int Updated;
@@ -301,6 +325,8 @@ namespace NXProject.Services
             public List<SyncLogEntry> Log = new();
             // Features/Stories que ficaram sem sprint (IterationPath vazio).
             public List<string> WithoutSprint = new();
+            // Itens com conflito de concorrência, para resolução manual.
+            public List<SyncConflictItem> ConflictItems = new();
 
             // Mantido para compatibilidade; redireciona para Log.
             public List<string> Messages => Log
@@ -342,7 +368,8 @@ namespace NXProject.Services
         ///    e reparenta no DevOps se o pai hierárquico mudou (validando antes).
         /// </summary>
         public static async Task<SyncReport> SyncAsync(
-            Project project, TfsConnectionOptions options, CancellationToken cancellationToken = default)
+            Project project, TfsConnectionOptions options, CancellationToken cancellationToken = default,
+            HashSet<int>? forceOverwriteIds = null)
         {
             if (project == null) throw new ArgumentNullException(nameof(project));
             if (options == null) throw new ArgumentNullException(nameof(options));
@@ -468,6 +495,15 @@ namespace NXProject.Services
                         var createClassField = classEnabled
                             ? ResolveForType(task.TfsType, c => c.ClassificationField, null)
                             : null;
+                        // Se Feature não tem ClassificationField configurado, usa Custom.Type automaticamente.
+                        // Valor: TfsClassification se definido, senão "Feature" como padrão.
+                        if (createClassField == null
+                            && string.Equals(task.TfsType, "Feature", StringComparison.OrdinalIgnoreCase))
+                        {
+                            createClassField = "Custom.Type";
+                            if (string.IsNullOrWhiteSpace(task.TfsClassification))
+                                task.TfsClassification = "Feature";
+                        }
                         var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields, createClassField);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
@@ -491,7 +527,8 @@ namespace NXProject.Services
                     if (syncVersionRef != null && task.SyncVersion.HasValue)
                     {
                         var tfsVersion = (int)(ReadDouble(wi, syncVersionRef) ?? 0);
-                        if (tfsVersion > task.SyncVersion.Value)
+                        bool forcedOverwrite = forceOverwriteIds != null && task.TfsId.HasValue && forceOverwriteIds.Contains(task.TfsId.Value);
+                        if (!forcedOverwrite && tfsVersion > task.SyncVersion.Value)
                         {
                             var whoSaved = ReadSyncUserName(wi, syncNameRef);
                             if (IsCurrentSyncUser(whoSaved))
@@ -507,6 +544,22 @@ namespace NXProject.Services
                                 report.Conflicts++;
                                 var by = string.IsNullOrWhiteSpace(whoSaved) ? "" : $" (por {whoSaved})";
                                 report.LogError($"⚠ CONFLITO {TaskSyncLabel(task)} ({task.Name}): versão TFS={tfsVersion} > local={task.SyncVersion.Value}{by}. Alterações descartadas — reimporte para atualizar.");
+                                var typeHoursRefConflict  = ResolveForType(task.TfsType, c => c.EffortField, hoursRef);
+                                var typeStartRefConflict  = ResolveForType(task.TfsType, c => c.StartField,  startRef);
+                                var typeFinishRefConflict = ResolveForType(task.TfsType, c => c.FinishField, finishRef);
+                                report.ConflictItems.Add(new SyncConflictItem
+                                {
+                                    Task         = task,
+                                    TfsVersion   = tfsVersion,
+                                    LocalVersion = task.SyncVersion.Value,
+                                    ChangedBy    = whoSaved ?? "",
+                                    TfsTitle     = wi.Title,
+                                    TfsState     = wi.State,
+                                    TfsTags      = wi.Tags,
+                                    TfsHours     = ReadDouble(wi, typeHoursRefConflict),
+                                    TfsStart     = ReadDate(wi, typeStartRefConflict),
+                                    TfsFinish    = ReadDate(wi, typeFinishRefConflict),
+                                });
                                 report.Skipped++;
                                 continue;
                             }

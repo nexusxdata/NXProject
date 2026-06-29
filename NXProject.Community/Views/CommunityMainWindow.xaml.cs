@@ -962,6 +962,25 @@ namespace NXProject.Views
                     $"Erro ao abrir resultado:\n{ex.Message}\n\nTipo: {ex.GetType().Name}\n\n{ex.StackTrace}",
                     "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+
+            if (report.ConflictItems.Count > 0)
+            {
+                try
+                {
+                    new TfsSyncConflictWindow(report.ConflictItems, vm.Project, options)
+                    {
+                        Owner = this
+                    }.ShowDialog();
+                    vm.RefreshTasks();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"Erro ao abrir resolução de conflitos:\n{ex.Message}",
+                        "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+
             // Garante que grid e Gantt reflitam conflitos após fechar o log.
             GanttCtrl.ForceRender();
             TaskGridCtrl.RefreshRows();

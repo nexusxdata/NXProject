@@ -84,6 +84,7 @@ namespace NXProject.Controls
         private TaskDragState? _dragState;
         private TaskResizeState? _resizeState;
         private bool _magnifierEnabled = false;
+        private string? _blockedDragReason;
 
         public bool MagnifierEnabled
         {
@@ -334,19 +335,35 @@ namespace NXProject.Controls
                 if (e.ChangedButton == MouseButton.Left)
                 {
                     var dragTask = FindDragTaskFromVisual(source);
-                    // Não permite arrastar início de tarefas que já começaram (início antes de hoje)
-                    if (dragTask != null && !dragTask.IsSummary && dragTask.Start.Date >= DateTime.Today)
+                    if (dragTask != null)
                     {
-                        _dragState = new TaskDragState(
-                            dragTask,
-                            e.GetPosition(GanttCanvas),
-                            dragTask.Start,
-                            dragTask.DurationDays);
+                        bool ctrlHeld = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+                        if (!ctrlHeld)
+                        {
+                            _blockedDragReason = "Segure Ctrl ao clicar para arrastar a atividade.";
+                        }
+                        else if (dragTask.IsSummary)
+                        {
+                            _blockedDragReason = "Sumários não podem ser arrastados diretamente.";
+                        }
+                        else if (dragTask.Start.Date < DateTime.Today)
+                        {
+                            _blockedDragReason = "Atividades já iniciadas não podem ser movidas.";
+                        }
+                        else
+                        {
+                            _blockedDragReason = null;
+                            _dragState = new TaskDragState(
+                                dragTask,
+                                e.GetPosition(GanttCanvas),
+                                dragTask.Start,
+                                dragTask.DurationDays);
 
-                        TaskClicked?.Invoke(dragTask);
-                        GanttCanvas.CaptureMouse();
-                        e.Handled = true;
-                        return;
+                            TaskClicked?.Invoke(dragTask);
+                            GanttCanvas.CaptureMouse();
+                            e.Handled = true;
+                            return;
+                        }
                     }
                 }
 
@@ -483,7 +500,16 @@ namespace NXProject.Controls
 
         private void OnCanvasMouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_dragState == null || e.ChangedButton != MouseButton.Left)
+            if (e.ChangedButton != MouseButton.Left)
+                return;
+
+            if (_blockedDragReason != null)
+            {
+                ShowDragHint(_blockedDragReason, e.GetPosition(GanttCanvas));
+                _blockedDragReason = null;
+            }
+
+            if (_dragState == null)
                 return;
 
             EndDrag();
@@ -1740,6 +1766,40 @@ namespace NXProject.Controls
             }
 
             return null;
+        }
+
+        private void ShowDragHint(string message, Point canvasPos)
+        {
+            var border = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF3, 0xCD)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xE6, 0xAC, 0x00)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(10, 6, 10, 6),
+                Child = new TextBlock
+                {
+                    Text = message,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x3D, 0x2B, 0x00))
+                }
+            };
+
+            Canvas.SetLeft(border, Math.Max(0, canvasPos.X - 10));
+            Canvas.SetTop(border, Math.Max(0, canvasPos.Y - 40));
+            Canvas.SetZIndex(border, 9999);
+            GanttCanvas.Children.Add(border);
+
+            var timer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(2.5)
+            };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                GanttCanvas.Children.Remove(border);
+            };
+            timer.Start();
         }
 
         private void EndDrag()

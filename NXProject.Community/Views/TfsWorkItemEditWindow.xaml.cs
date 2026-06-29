@@ -26,7 +26,9 @@ namespace NXProject.Views
             IdBox.Text = task.TfsId?.ToString() ?? string.Empty;
             SelectByText(TypeBox, task.TfsType);
             SelectByText(StateBox, task.TfsState);
+            RefreshFeatureTypePanel(task.TfsType, task.TfsClassification);
 
+            TypeBox.SelectionChanged += OnTypeBoxChanged;
             TagsBox.Text = task.Tags ?? string.Empty;
             _suppressBlockToggle = true;
             BlockCheck.IsChecked = HasTag(TagsBox.Text, "Block");
@@ -69,7 +71,6 @@ namespace NXProject.Views
                         var proj = Uri.EscapeDataString(conn.TeamProject.Trim());
                         _devOpsItemUrl = $"{org}/{proj}/_workitems/edit/{task.TfsId}";
                         OpenInDevOpsButton.Visibility = Visibility.Visible;
-                        LoadOnlineTasksButton.Visibility = Visibility.Visible;
 
                         // Botão de exclusão apenas para Stories com ID real
                         if (TfsImportService.IsStoryTypePublic(task.TfsType))
@@ -177,44 +178,6 @@ namespace NXProject.Views
             Close();
         }
 
-        private async void OnLoadOnlineTasksClick(object sender, RoutedEventArgs e)
-        {
-            if (_task.TfsId is not > 0)
-                return;
-
-            try
-            {
-                SetOnlineTaskLoading(true, "Buscando Tasks online...");
-                SetOnlineTaskLoading(false);
-
-                new TfsOnlineChildTasksWindow(_task.Model)
-                {
-                    Owner = this
-                }.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                SetOnlineTaskLoading(false);
-                StatusText.Text = $"Nao foi possivel ler Tasks online.\n{ex.Message}";
-                StatusText.Visibility = Visibility.Visible;
-            }
-        }
-
-        private void SetOnlineTaskLoading(bool isLoading, string? message = null)
-        {
-            LoadOnlineTasksButton.IsEnabled = !isLoading;
-            OpenInDevOpsButton.IsEnabled = !isLoading;
-            if (message != null)
-            {
-                StatusText.Text = message;
-                StatusText.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                StatusText.Visibility = Visibility.Collapsed;
-            }
-        }
-
         private sealed record ChildTaskRow(int TfsId, string Name, string State)
         {
             public string TfsIdText => $"#{TfsId}";
@@ -232,6 +195,20 @@ namespace NXProject.Views
             if (BlockCheck.IsChecked == true)
                 tags.Add("Block");
             TagsBox.Text = string.Join("; ", tags);
+        }
+
+        private void OnTypeBoxChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var type = (TypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            RefreshFeatureTypePanel(type, null);
+        }
+
+        private void RefreshFeatureTypePanel(string? tfsType, string? currentClassification)
+        {
+            bool isFeature = string.Equals(tfsType, "Feature", StringComparison.OrdinalIgnoreCase);
+            FeatureTypePanel.Visibility = isFeature ? Visibility.Visible : Visibility.Collapsed;
+            if (isFeature)
+                SelectByText(FeatureTypeBox, currentClassification ?? "Feature");
         }
 
         private void OnOkClick(object sender, RoutedEventArgs e)
@@ -264,6 +241,9 @@ namespace NXProject.Views
             _task.TfsType = (TypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
             _task.TfsState = (StateBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
             _task.Tags = string.Join("; ", SplitTags(TagsBox.Text));
+
+            if (FeatureTypePanel.Visibility == Visibility.Visible)
+                _task.TfsClassification = (FeatureTypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
 
             if (CentroCustoPanel.Visibility == Visibility.Visible)
             {

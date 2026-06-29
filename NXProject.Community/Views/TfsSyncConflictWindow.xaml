@@ -1,0 +1,182 @@
+<Window x:Class="NXProject.Views.TfsSyncConflictWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Conflitos de Sincronização"
+        Width="860" Height="580"
+        MinWidth="640" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <Style x:Key="DiffCell" TargetType="TextBlock">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+
+        <Style x:Key="DiffRow" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="18">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="180"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Cabeçalho -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                <TextBlock Text="⚠ Conflitos de Concorrência"
+                           FontSize="15" FontWeight="SemiBold" Foreground="#B00020"/>
+                <TextBlock Text="Outro usuário alterou estes itens no DevOps. Selecione os que deseja sobrescrever com os valores locais."
+                           FontSize="12" Foreground="#555" Margin="0,3,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <!-- Lista de itens conflitados -->
+            <DataGrid x:Name="ConflictGrid"
+                      Grid.Row="1"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      CanUserResizeRows="False"
+                      SelectionMode="Single"
+                      GridLinesVisibility="Horizontal"
+                      BorderThickness="1" BorderBrush="#D0D7E0"
+                      RowHeaderWidth="0" FontSize="12"
+                      SelectionChanged="OnConflictSelectionChanged">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="36" CanUserResize="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Tipo"        Binding="{Binding TfsType}"     Width="70"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="ID"          Binding="{Binding TfsId}"        Width="65"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Alterado por" Binding="{Binding ChangedBy}"   Width="110" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Ver. Local→TFS" Binding="{Binding VersionLabel}" Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Nome"        Binding="{Binding LocalTitle}"   Width="*"   IsReadOnly="True"/>
+                    <DataGridTemplateColumn Header="Diferenças" Width="90" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DiffSummary}" FontSize="11"
+                                           Foreground="#B00020" FontWeight="SemiBold"
+                                           Padding="4,0" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="White"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="Background" Value="#FFF8E1"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+            </DataGrid>
+
+            <!-- Separador com título do detalhe -->
+            <Border Grid.Row="2" Background="#F0F4FA" BorderBrush="#C5D5EA" BorderThickness="0,1,0,1"
+                    Padding="10,5" Margin="0,10,0,0">
+                <TextBlock x:Name="DetailHeader"
+                           Text="Selecione um item acima para ver a comparação de atributos"
+                           FontSize="11" FontWeight="SemiBold" Foreground="#2B579A"/>
+            </Border>
+
+            <!-- Grid de comparação de atributos -->
+            <DockPanel Grid.Row="3" Margin="0,2,0,0">
+                <!-- Cabeçalho fixo -->
+                <Border DockPanel.Dock="Top" Background="#2B579A">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Atributo"       Foreground="White" FontWeight="SemiBold" FontSize="11" Padding="6,4"/>
+                        <TextBlock Grid.Column="1" Text="Local (seu)"    Foreground="White" FontWeight="SemiBold" FontSize="11" Padding="6,4"/>
+                        <TextBlock Grid.Column="2" Text="DevOps (deles)" Foreground="White" FontWeight="SemiBold" FontSize="11" Padding="6,4"/>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="DiffList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource DiffRow}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.Background>
+                                            <Binding Path="RowBackground"/>
+                                        </Grid.Background>
+
+                                        <Border Grid.Column="0" Background="#F5F7FA" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource DiffCell}"
+                                                       FontWeight="SemiBold" FontSize="11" Foreground="#444"/>
+                                        </Border>
+
+                                        <Border Grid.Column="1" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0"
+                                                Background="{Binding LocalBackground}">
+                                            <TextBlock Text="{Binding LocalValue}" Style="{StaticResource DiffCell}"
+                                                       FontWeight="{Binding DiffWeight}"
+                                                       Foreground="{Binding DiffForeground}"
+                                                       ToolTip="{Binding LocalTooltip}"/>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Background="{Binding TfsBackground}">
+                                            <TextBlock Text="{Binding TfsValue}" Style="{StaticResource DiffCell}"
+                                                       FontWeight="{Binding DiffWeight}"
+                                                       Foreground="{Binding DiffForeground}"
+                                                       ToolTip="{Binding TfsTooltip}"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+
+            <!-- Botões -->
+            <Grid Grid.Row="4" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="Marcar todos"   Padding="8,3" FontSize="11" Margin="0,0,6,0" Click="OnSelectAll"/>
+                <Button Grid.Column="1" Content="Desmarcar todos" Padding="8,3" FontSize="11" Click="OnDeselectAll"/>
+                <TextBlock Grid.Column="2" x:Name="SummaryText"
+                           FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                <Button Grid.Column="3" x:Name="OverwriteButton"
+                        Content="Sobrescrever selecionados no DevOps"
+                        Height="30" Padding="14,0" Margin="0,0,10,0"
+                        Background="#C62828" Foreground="White"
+                        BorderThickness="0" FontWeight="SemiBold"
+                        Cursor="Hand" IsEnabled="False"
+                        Click="OnOverwriteClick"/>
+                <Button Grid.Column="4" Content="Fechar" Width="90" Height="30" IsCancel="True"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

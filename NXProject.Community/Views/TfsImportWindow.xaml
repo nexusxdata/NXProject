@@ -243,7 +243,7 @@
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="Valores do picklist (um por linha)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
                                     <TextBox x:Name="ClassificationPicklistBox" Height="66" Padding="6,4"
-                                             AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="Off"
+                                             AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
                                              ToolTip="Valores separados por nova linha. Deixe vazio para usar os padrões embutidos."/>
                                 </StackPanel>
                             </Grid>
