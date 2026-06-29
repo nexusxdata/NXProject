@@ -56,6 +56,9 @@ namespace NXProject.Models
         public int? TfsParentId { get; set; }
         // Tipo no DevOps: Project, Epic, Feature, Story.
         public string? TfsType { get; set; }
+        // Valor do campo de classificação (picklist customizado obrigatório na criação,
+        // ex.: Custom.Type). Default = TfsType ao criar; editável no NXProject.
+        public string? TfsClassification { get; set; }
         // Estado no DevOps: New, Active, Block, Closed, Removed, Resolved.
         public string? TfsState { get; set; }
         // Descrição (System.Description) importada do DevOps, usada na sincronização.

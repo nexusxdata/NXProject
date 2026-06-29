@@ -162,6 +162,16 @@ namespace NXProject.ViewModels
             }
         }
 
+        public string? TfsClassification
+        {
+            get => _task.TfsClassification;
+            set
+            {
+                _task.TfsClassification = value;
+                OnPropertyChanged();
+            }
+        }
+
         public string? TfsState
         {
             get => _task.TfsState;
@@ -441,9 +451,20 @@ namespace NXProject.ViewModels
                         : value;
                     _task.EstimatedHours = remaining;
                     SyncAssignmentEstimatedHours(remaining);
-                    var totalH = _task.CurrentHours is > 0 ? _task.CurrentHours.Value + remaining : remaining;
                     if (!_task.FinishFixed)
-                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, totalH);
+                    {
+                        // Aplica o fator de alocação: HH trabalho ÷ alloc% = tempo calendário.
+                        var effectiveH = Services.TaskScheduleService.GetEffectiveDurationHours(_task);
+                        if (_task.CurrentHours is > 0)
+                        {
+                            var allocFactor = _task.Resources.Count > 0
+                                ? Services.TaskScheduleService.NormalizeAllocationPercent(_task.Resources[0].AllocationPercent) / 100.0
+                                : 1.0;
+                            effectiveH += _task.CurrentHours.Value / Math.Max(0.01, allocFactor);
+                        }
+                        var totalH = _task.CurrentHours is > 0 ? _task.CurrentHours.Value + remaining : remaining;
+                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, effectiveH > 0 ? effectiveH : totalH);
+                    }
                     if (_task.PercentComplete < 0.0001)
                     {
                         _task.OriginalEstimatedHours = remaining;
@@ -639,7 +660,8 @@ namespace NXProject.ViewModels
                     OnPropertyChanged(nameof(EstimatedHoursDisplay));
                     if (!_task.FinishFixed && originalH > 0)
                     {
-                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, originalH);
+                        var effectiveOrigH = Services.TaskScheduleService.GetEffectiveDurationHours(_task);
+                        _task.Finish = ProjectCalendarService.AddWorkingHours(_task.Start, effectiveOrigH > 0 ? effectiveOrigH : originalH);
                         OnPropertyChanged(nameof(Finish));
                         OnPropertyChanged(nameof(FinishDisplay));
                         OnPropertyChanged(nameof(DurationDays));

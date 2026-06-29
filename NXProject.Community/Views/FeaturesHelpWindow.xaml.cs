@@ -431,7 +431,7 @@ namespace NXProject.Views
                      "• O caminho do arquivo fica salvo nas configurações do usuário e recarregado automaticamente."),
                     ("Usar na importação",
                      "Na tela de importação (Arquivo → Importar → TFS / Azure DevOps), um ComboBox exibe os projetos da lista. Selecione o projeto e o campo de ID raiz é preenchido automaticamente.\n" +
-                     "Use o botão ⚙ Gerenciar Lista... para abrir o CRUD diretamente pela tela de importação."),
+                     "Use o botão ⚙ Gerenciar Portfólio... para abrir o cadastro diretamente pela tela de importação."),
                     ("Banner no cronograma",
                      "Após importar, o nome do projeto vinculado aparece em um banner azul claro no topo do cronograma, facilitando a identificação visual de qual projeto está aberto.")
                 },
@@ -564,6 +564,119 @@ namespace NXProject.Views
                      "O Assistente IA requer conexão com internet e chave de API configurada. Na edição Community, está disponível em modo limitado. A edição Enterprise inclui integração completa com OpenAI e Claude.")
                 },
                 "Use o Assistente IA para o primeiro brainstorm de tarefas — depois refine manualmente na grade com os detalhes do seu contexto."
+            ),
+            (
+                "Baseline",
+                "Registre um snapshot do cronograma para comparar o planejado original com a execução atual.",
+                new()
+                {
+                    ("O que é o Baseline",
+                     "O Baseline é uma fotografia do cronograma em um momento específico — datas de início, fim e horas estimadas de cada atividade.\n\n" +
+                     "Ele permite responder: 'O projeto está adiantado ou atrasado em relação ao plano original?'"),
+                    ("Como usar",
+                     "Gestão → Baseline → Salvar Baseline: grava um arquivo .nxb ao lado do .nxp.\n" +
+                     "Gestão → Baseline → Abrir Baseline: carrega e exibe a linha azul no Gantt.\n" +
+                     "Gestão → Baseline → Desativar/Ativar Baseline: mostra ou oculta a linha sem apagar o .nxb.\n" +
+                     "Gestão → Baseline → Limpar: remove o .nxb e apaga os dados em memória."),
+                    ("Linha azul no Gantt",
+                     "Quando o baseline está ativo, uma linha azul fina aparece abaixo de cada barra do Gantt indicando a data original de início e fim planejados.\n" +
+                     "A diferença entre a barra atual e a linha azul indica avanço (barra à esquerda da linha) ou atraso (barra à direita)."),
+                    ("Arquivo separado",
+                     "O .nxb é salvo ao lado do .nxp mas NÃO faz parte do cronograma. Isso evita que dados de planejamento inicial polua o arquivo de trabalho.\n" +
+                     "Ao compartilhar o .nxp com a equipe, o .nxb pode ser mantido localmente ou compartilhado separadamente."),
+                    ("Carregamento automático",
+                     "Por padrão, ao abrir um .nxp o NXProject carrega automaticamente o .nxb correspondente (se existir).\n" +
+                     "Desative em Gestão → Baseline → Carregar automaticamente ao abrir para controlar isso manualmente.")
+                },
+                "Salve o Baseline logo após o kick-off do projeto — antes de qualquer ajuste de data. Esse snapshot é a referência para medir atrasos."
+            ),
+            (
+                "Caminho Crítico",
+                "Identifica as atividades que, se atrasarem, atrasam todo o projeto.",
+                new()
+                {
+                    ("O que é o Caminho Crítico",
+                     "O Caminho Crítico é a sequência de atividades com folga zero — ou seja, qualquer atraso nelas atrasa a data de entrega do projeto.\n\n" +
+                     "O NXProject usa o algoritmo CPM (Critical Path Method) com passagem forward/backward para calcular as folgas."),
+                    ("Como habilitar",
+                     "Gestão → Caminho Crítico (checkbox): liga e desliga o destaque visual.\n" +
+                     "Gestão → Caminho Crítico → Ver lista de atividades críticas: abre a janela com a grade completa.\n" +
+                     "O estado (ligado/desligado) é salvo no arquivo .nxp."),
+                    ("Borda vermelha no Gantt",
+                     "Quando ativado, as atividades no caminho crítico exibem uma borda vermelha ao redor da barra no Gantt.\n" +
+                     "A cor de fundo da barra não muda — só a borda é destacada para não confundir com outros alertas visuais."),
+                    ("Janela de atividades críticas",
+                     "Exibe uma grade com:\n" +
+                     "• ID (T:xxx para TFS, I:xxx para interno)\n" +
+                     "• Tipo, Nome, Início, Fim, Duração\n" +
+                     "• Folga: 'Crítica' (vermelho) ou número de dias de folga (verde)\n" +
+                     "• Predecessoras\n\n" +
+                     "Filtros disponíveis: por nome, por recurso e checkbox 'Só críticas'."),
+                    ("Interpretação da folga",
+                     "Folga = dias que a atividade pode atrasar sem comprometer o prazo final.\n" +
+                     "Folga 0 = crítica. Folga 5d = pode atrasar até 5 dias úteis sem impacto no projeto.")
+                },
+                "Foque primeiro nas atividades críticas ao replanejar. Um atraso de 1 dia em uma atividade com folga 0 equivale a atrasar o projeto inteiro."
+            ),
+            (
+                "Diagrama de Atividades",
+                "Visualize a hierarquia do projeto em forma de diagrama horizontal com dependências.",
+                new()
+                {
+                    ("Como abrir",
+                     "Gestão → Diagrama de Atividades. O diagrama é gerado automaticamente a partir da hierarquia do cronograma."),
+                    ("Níveis e expansão",
+                     "O diagrama exibe a hierarquia em colunas horizontais: Épico → Feature → Story → Task.\n" +
+                     "Use os checkboxes no topo (Épico, Feature, Story, Task) para expandir ou recolher níveis.\n" +
+                     "Clique em um nó para expandir/recolher seus filhos individualmente."),
+                    ("Cores dos nós",
+                     "• Azul escuro: Épico\n• Azul: Feature\n• Verde: Story\n• Roxo: Task\n" +
+                     "• Marrom/laranja: atividade interna (I:xxx) — criada localmente, ainda não sincronizada com o DevOps."),
+                    ("Identificação T: / I:",
+                     "Cada nó exibe um badge no canto inferior direito:\n" +
+                     "• T:1234 = work item do Azure DevOps com ID 1234\n" +
+                     "• I:45 = atividade interna com ID sequencial local\n" +
+                     "Após sincronizar com o DevOps, o I: é automaticamente promovido a T:."),
+                    ("Tooltip ao passar o mouse",
+                     "Passe o mouse sobre qualquer nó para ver: ID, Tipo, Estado, Início, Fim, HH Estimadas, % Concluído, Recurso e Sprint."),
+                    ("Zoom e redimensionamento",
+                     "• Ctrl + scroll: aumenta ou diminui o zoom (30% a 300%).\n" +
+                     "• Arraste a borda direita de qualquer nó para redimensionar todas as caixas do mesmo nível.\n" +
+                     "• Clique em '↺ Resetar zoom' para voltar a 100%.\n" +
+                     "• '💾 Salvar preferências' grava as larguras e nível de expansão no .nxp para a próxima abertura.")
+                },
+                "Use o Diagrama de Atividades para comunicar o escopo do projeto para stakeholders — é mais legível que o Gantt para quem não tem familiaridade com cronogramas."
+            ),
+            (
+                "Custo por Recurso",
+                "Calcule o custo do projeto por recurso com suporte a modelo por hora ou por mês.",
+                new()
+                {
+                    ("Configurar custo na tela Pessoas",
+                     "Gestão → Recursos (Pessoas) → grade de recursos.\n\n" +
+                     "Colunas de custo:\n" +
+                     "• Custo: 'Hourly' (por hora) ou 'Monthly' (por mês)\n" +
+                     "• R$/hora: valor cobrado por hora trabalhada\n" +
+                     "• R$/mês: valor mensal quando o recurso é alocado por mês"),
+                    ("Modelo por hora (Hourly)",
+                     "Custo = HH estimadas da atividade × R$/hora × % de alocação.\n" +
+                     "Ideal para freelancers, consultores ou qualquer profissional contratado por demanda."),
+                    ("Modelo por mês (Monthly)",
+                     "O valor mensal é distribuído proporcionalmente entre as atividades do recurso naquele mês:\n\n" +
+                     "Custo da atividade no mês = (HH da atividade no mês ÷ total de HH do recurso no mês) × R$/mês\n\n" +
+                     "Ideal para funcionários CLT, estagiários ou qualquer profissional com remuneração fixa mensal."),
+                    ("Janela de custo",
+                     "Gestão → Custo por Recurso: exibe a grade com Feature, Recurso, Mês, HH e Custo calculado.\n" +
+                     "Agrupe por Recurso, Feature ou Mês. Filtre por recurso ou período.\n" +
+                     "O total geral aparece no cabeçalho e no rodapé."),
+                    ("Arquivo de custo (.nxcost) — criptografado",
+                     "Os dados de custo NÃO são gravados no .nxp para preservar o sigilo salarial.\n\n" +
+                     "Na tela Pessoas:\n" +
+                     "• '💰 Salvar config de custo': escolha um local, defina uma senha → gera arquivo .nxcost criptografado.\n" +
+                     "• '📂 Carregar config de custo': escolha o arquivo, informe a senha → os valores são aplicados aos recursos.\n\n" +
+                     "O arquivo usa AES-256-GCM com PBKDF2-SHA256 (100.000 iterações). Sem a senha, o arquivo é indecifrável — guarde-a com segurança.")
+                },
+                "Use o modelo Monthly para funcionários fixos e Hourly para prestadores. O arquivo .nxcost pode ser mantido restrito ao gestor — não precisa acompanhar o .nxp no compartilhamento com a equipe."
             ),
             (
                 "Configurações",
@@ -1000,6 +1113,119 @@ namespace NXProject.Views
                      "The AI Assistant requires an internet connection and a configured API key. In the Community edition it is available in limited mode. The Enterprise edition includes full integration with OpenAI and Claude.")
                 },
                 "Use the AI Assistant for the initial task brainstorm — then manually refine in the grid with your specific context."
+            ),
+            (
+                "Baseline",
+                "Record a schedule snapshot to compare original planning against actual execution.",
+                new()
+                {
+                    ("What is a Baseline",
+                     "A Baseline is a snapshot of the schedule at a specific moment — start dates, end dates, and estimated hours for each activity.\n\n" +
+                     "It answers: 'Is the project ahead of or behind the original plan?'"),
+                    ("How to use",
+                     "Management → Baseline → Save Baseline: creates a .nxb file alongside the .nxp.\n" +
+                     "Management → Baseline → Open Baseline: loads and displays the blue bar in the Gantt.\n" +
+                     "Management → Baseline → Disable/Enable Baseline: shows or hides the bar without deleting the .nxb.\n" +
+                     "Management → Baseline → Clear: removes the .nxb and clears in-memory data."),
+                    ("Blue bar in the Gantt",
+                     "When the baseline is active, a thin blue bar appears below each Gantt bar showing the originally planned start and end dates.\n" +
+                     "The gap between the current bar and the blue bar indicates advance (bar left of the line) or delay (bar right of the line)."),
+                    ("Separate file",
+                     "The .nxb is saved beside the .nxp but is NOT part of the schedule. This prevents initial planning data from polluting the working file.\n" +
+                     "When sharing the .nxp with the team, the .nxb can be kept locally or shared separately."),
+                    ("Auto-load",
+                     "By default, when opening a .nxp, NXProject automatically loads the corresponding .nxb (if it exists).\n" +
+                     "Disable this in Management → Baseline → Load automatically on open to control it manually.")
+                },
+                "Save the Baseline right after the project kick-off — before any date adjustments. That snapshot is the reference for measuring delays."
+            ),
+            (
+                "Critical Path",
+                "Identifies the activities that, if delayed, delay the entire project.",
+                new()
+                {
+                    ("What is the Critical Path",
+                     "The Critical Path is the sequence of activities with zero float — any delay in them delays the project delivery date.\n\n" +
+                     "NXProject uses the CPM (Critical Path Method) algorithm with forward/backward pass to calculate floats."),
+                    ("How to enable",
+                     "Management → Critical Path (checkbox): toggles the visual highlight on/off.\n" +
+                     "Management → Critical Path → View critical activity list: opens the window with the full grid.\n" +
+                     "The state (on/off) is saved in the .nxp file."),
+                    ("Red border in the Gantt",
+                     "When enabled, activities on the critical path display a red border around their Gantt bar.\n" +
+                     "The bar background color does not change — only the border is highlighted to avoid confusion with other visual alerts."),
+                    ("Critical activities window",
+                     "Displays a grid with:\n" +
+                     "• ID (T:xxx for DevOps, I:xxx for internal)\n" +
+                     "• Type, Name, Start, End, Duration\n" +
+                     "• Float: 'Critical' (red) or number of days of float (green)\n" +
+                     "• Predecessors\n\n" +
+                     "Available filters: by name, by resource, and 'Critical only' checkbox."),
+                    ("Interpreting float",
+                     "Float = days the activity can be delayed without impacting the final deadline.\n" +
+                     "Float 0 = critical. Float 5d = can be delayed up to 5 working days with no project impact.")
+                },
+                "Focus on critical activities first when replanning. A 1-day delay in a zero-float activity equals a full project delay."
+            ),
+            (
+                "Activity Diagram",
+                "Visualize the project hierarchy as a horizontal diagram with dependencies.",
+                new()
+                {
+                    ("How to open",
+                     "Management → Activity Diagram. The diagram is generated automatically from the schedule hierarchy."),
+                    ("Levels and expansion",
+                     "The diagram displays the hierarchy in horizontal columns: Epic → Feature → Story → Task.\n" +
+                     "Use the checkboxes at the top (Epic, Feature, Story, Task) to expand or collapse levels.\n" +
+                     "Click a node to expand/collapse its children individually."),
+                    ("Node colors",
+                     "• Dark blue: Epic\n• Blue: Feature\n• Green: Story\n• Purple: Task\n" +
+                     "• Brown/orange: internal activity (I:xxx) — created locally, not yet synced with DevOps."),
+                    ("T: / I: badge",
+                     "Each node displays a badge in the bottom-right corner:\n" +
+                     "• T:1234 = Azure DevOps work item with ID 1234\n" +
+                     "• I:45 = internal activity with local sequential ID\n" +
+                     "After syncing with DevOps, the I: is automatically promoted to T:."),
+                    ("Tooltip on hover",
+                     "Hover over any node to see: ID, Type, State, Start, End, Estimated Hours, % Complete, Resource and Sprint."),
+                    ("Zoom and resize",
+                     "• Ctrl + scroll: zoom in or out (30% to 300%).\n" +
+                     "• Drag the right edge of any node to resize all nodes at the same level.\n" +
+                     "• Click '↺ Reset zoom' to return to 100%.\n" +
+                     "• '💾 Save preferences' stores widths and expansion state in the .nxp for next opening.")
+                },
+                "Use the Activity Diagram to communicate project scope to stakeholders — it is more readable than the Gantt for those unfamiliar with schedules."
+            ),
+            (
+                "Resource Cost",
+                "Calculate project cost per resource with support for hourly or monthly billing models.",
+                new()
+                {
+                    ("Configure cost in the People screen",
+                     "Management → Resources (People) → resource grid.\n\n" +
+                     "Cost columns:\n" +
+                     "• Cost: 'Hourly' (per hour) or 'Monthly' (per month)\n" +
+                     "• $/hour: rate charged per hour worked\n" +
+                     "• $/month: monthly rate when the resource is allocated by month"),
+                    ("Hourly model",
+                     "Cost = estimated hours for the activity × $/hour × allocation %.\n" +
+                     "Ideal for freelancers, consultants, or any professional hired on demand."),
+                    ("Monthly model",
+                     "The monthly rate is distributed proportionally across the resource's activities in that month:\n\n" +
+                     "Activity cost in month = (activity hours in month ÷ total resource hours in month) × $/month\n\n" +
+                     "Ideal for salaried employees, interns, or any professional with fixed monthly compensation."),
+                    ("Cost window",
+                     "Management → Resource Cost: displays the grid with Feature, Resource, Month, Hours and calculated Cost.\n" +
+                     "Group by Resource, Feature or Month. Filter by resource or period.\n" +
+                     "The grand total appears in the header and footer."),
+                    ("Cost file (.nxcost) — encrypted",
+                     "Cost data is NOT stored in the .nxp to preserve salary confidentiality.\n\n" +
+                     "In the People screen:\n" +
+                     "• '💰 Save cost config': choose a location, set a password → generates an encrypted .nxcost file.\n" +
+                     "• '📂 Load cost config': choose the file, enter the password → values are applied to resources.\n\n" +
+                     "The file uses AES-256-GCM with PBKDF2-SHA256 (100,000 iterations). Without the password, the file is unreadable — keep it safe.")
+                },
+                "Use the Monthly model for salaried staff and Hourly for contractors. The .nxcost file can be kept restricted to the project manager — it does not need to accompany the .nxp when sharing with the team."
             ),
             (
                 "Settings",

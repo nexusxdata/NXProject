@@ -54,10 +54,9 @@ namespace NXProject.Views
                 if (args.PropertyName == nameof(vm.Project))
                 {
                     UpdateDevOpsProjectBanner(vm.Project.DevOpsProjectName, vm.Project.DevOpsRootWorkItemId);
-                    // Recalcula caminho crítico se estava ativo no projeto salvo
-                    if (vm.Project.ShowCriticalPath)
-                        Dispatcher.InvokeAsync(() => RefreshCriticalPath(vm),
-                            System.Windows.Threading.DispatcherPriority.Background);
+                    vm.Project.ShowCriticalPath = true;
+                    Dispatcher.InvokeAsync(() => RefreshCriticalPath(vm),
+                        System.Windows.Threading.DispatcherPriority.Background);
                 }
             };
             vm.FlatTasks.CollectionChanged += (_, _) => UpdateEpicHours(vm);
@@ -116,6 +115,7 @@ namespace NXProject.Views
             TaskGridCtrl.HighlightPredecessorsRequested += task =>
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
+            TaskGridCtrl.EditClassificationRequested += OnEditClassification;
             vm.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(vm.ShowOriginalHoursColumn))
@@ -885,6 +885,19 @@ namespace NXProject.Views
             }
         }
 
+        private void OnEditClassification(TaskViewModel task)
+        {
+            if (DataContext is not MainViewModel vm) return;
+
+            var current = task.TfsClassification ?? task.TfsType ?? "";
+            var dlg = new ClassificationEditWindow(current, task.TfsType ?? "") { Owner = this };
+            if (dlg.ShowDialog() == true && dlg.SelectedValue != null)
+            {
+                task.TfsClassification = dlg.SelectedValue;
+                vm.Project.IsDirty = true;
+            }
+        }
+
         private async void OnSyncTfsClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm)
@@ -1114,6 +1127,12 @@ namespace NXProject.Views
         }
 
         private void OnImportTfsClick(object sender, RoutedEventArgs e) => OpenTfsImport();
+        private void OnConfigureAzureDevOpsClick(object sender, RoutedEventArgs e)
+        {
+            new TfsImportWindow("NXProject.Community") { Owner = this, ConfigOnly = true }.ShowDialog();
+        }
+        private void OnImportTfsToolbarClick(object sender, RoutedEventArgs e) => OpenTfsImport();
+        private void OnSyncTfsToolbarClick(object sender, RoutedEventArgs e) => OnSyncTfsClick(sender, e);
 
         private void OpenTfsImport()
         {
@@ -2161,48 +2180,49 @@ namespace NXProject.Views
         private void OnResourceCostClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm || vm.Project == null) return;
-            new ResourceCostWindow(vm.FlatTasks.Select(t => t.Model), vm.Project.Resources)
+            new ResourceCostWindow(AllTasksFlat(vm), vm.Project.Resources)
                 { Owner = this }.ShowDialog();
         }
 
         // ── Caminho Crítico ──────────────────────────────────────────────────
 
-        private void OnCriticalPathMenuOpened(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is not MainViewModel vm || vm.Project == null) return;
-            CriticalPathToggleItem.IsChecked = vm.Project.ShowCriticalPath;
-        }
-
-        private void OnCriticalPathToggleClick(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is not MainViewModel vm || vm.Project == null) return;
-            vm.Project.ShowCriticalPath = CriticalPathToggleItem.IsChecked;
-            vm.Project.IsDirty = true;
-            RefreshCriticalPath(vm);
-        }
-
         private void OnCriticalPathWindowClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm || vm.Project == null) return;
-            var allTasks = vm.FlatTasks.Select(t => t.Model);
-            new CriticalPathWindow(allTasks) { Owner = this }.ShowDialog();
+            new CriticalPathWindow(AllTasksFlat(vm)) { Owner = this }.ShowDialog();
         }
 
         private void RefreshCriticalPath(MainViewModel vm)
         {
             if (vm.Project?.ShowCriticalPath == true)
             {
-                var entries = NXProject.Services.CriticalPathService.Compute(
-                    vm.FlatTasks.Select(t => t.Model));
-                GanttCtrl.CriticalTaskIds = entries
+                var entries = NXProject.Services.CriticalPathService.Compute(AllTasksFlat(vm));
+                var ids = entries
                     .Where(e => e.TotalFloat < 0.5)
                     .Select(e => e.Task.Id)
                     .ToHashSet();
+                GanttCtrl.ShowCriticalPath = true;
+                GanttCtrl.CriticalTaskIds  = ids;
             }
             else
             {
-                GanttCtrl.CriticalTaskIds = null;
+                GanttCtrl.ShowCriticalPath = false;
+                GanttCtrl.CriticalTaskIds  = null;
             }
+            GanttCtrl.ForceRender();
+        }
+
+        private static IEnumerable<NXProject.Models.ProjectTask> AllTasksFlat(MainViewModel vm)
+        {
+            IEnumerable<NXProject.Models.ProjectTask> Recurse(IEnumerable<NXProject.Models.ProjectTask> tasks)
+            {
+                foreach (var t in tasks)
+                {
+                    yield return t;
+                    foreach (var c in Recurse(t.Children)) yield return c;
+                }
+            }
+            return Recurse(vm.Project?.Tasks ?? Enumerable.Empty<NXProject.Models.ProjectTask>());
         }
 
         private void OnBaselineSaveClick(object sender, RoutedEventArgs e)
@@ -2321,6 +2341,20 @@ namespace NXProject.Views
             {
                 MessageBox.Show($"Erro ao abrir Pessoas:\n{ex.Message}", "Pessoas",
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OnPeopleCostClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            try
+            {
+                new PeopleWindow(vm, focusCost: true) { Owner = this }.ShowDialog();
+                GanttCtrl.ForceRender();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

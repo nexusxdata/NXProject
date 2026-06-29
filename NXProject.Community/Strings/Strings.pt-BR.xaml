@@ -161,6 +161,10 @@
     <sys:String x:Key="Help_Topic_Export">📤  Exportação</sys:String>
     <sys:String x:Key="Help_Topic_HealthCheck">❤  Health Check</sys:String>
     <sys:String x:Key="Help_Topic_AI">🤖  Assistente IA</sys:String>
+    <sys:String x:Key="Help_Topic_Baseline">📐  Baseline</sys:String>
+    <sys:String x:Key="Help_Topic_CriticalPath">🔴  Caminho Crítico</sys:String>
+    <sys:String x:Key="Help_Topic_ActivityDiagram">🗂  Diagrama de Atividades</sys:String>
+    <sys:String x:Key="Help_Topic_ResourceCost">💰  Custo por Recurso</sys:String>
     <sys:String x:Key="Help_Topic_Settings">⚙  Configurações</sys:String>
 
     <!-- Toolbar — botões de hierarquia -->

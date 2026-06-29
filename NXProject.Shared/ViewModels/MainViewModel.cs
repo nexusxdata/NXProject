@@ -1561,6 +1561,7 @@ namespace NXProject.ViewModels
                 Start = start,
                 Finish = ProjectCalendarService.AddWorkingHours(start, ProjectCalendarService.WorkingHoursPerDay),
                 TfsType = selected?.Model.TfsType,
+                TfsClassification = selected?.Model.TfsType, // default = tipo; editável pelo usuário
                 TfsIterationPath = selected?.Model.TfsIterationPath,
                 // TfsId=0 indica "criar no TFS"; negativo = No DevOps (local, único para predecessoras)
                 TfsId = IsNoDevOpsType(selected?.Model.TfsType)

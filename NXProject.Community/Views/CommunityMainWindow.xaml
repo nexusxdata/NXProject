@@ -39,6 +39,8 @@
                     <MenuItem Header="{DynamicResource Menu_File_Export_SyncTfs}" Click="OnSyncTfsClick"/>
                 </MenuItem>
                 <Separator/>
+                <MenuItem Header="Configurar Integração Azure DevOps..." Click="OnConfigureAzureDevOpsClick"/>
+                <Separator/>
                 <MenuItem Header="{DynamicResource Menu_File_Exit}" Click="OnExitClick"/>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Edit}">
@@ -67,6 +69,7 @@
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsList}" Click="OnDevOpsProjectListClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
+                <MenuItem Header="👥 Custo — Pessoas..." Click="OnPeopleCostClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_View_Language}" Click="OnLanguageClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_Settings}" Click="OnAppSettingsClick"/>
@@ -79,13 +82,7 @@
                 <MenuItem Header="{DynamicResource Menu_Manage_ActivityDiagram}" Click="OnActivityDiagramClick"/>
                 <MenuItem Header="💰 Custo por Recurso..." Click="OnResourceCostClick"/>
                 <Separator/>
-                <MenuItem x:Name="CriticalPathToggleItem"
-                          Header="Caminho Crítico"
-                          IsCheckable="True"
-                          Click="OnCriticalPathToggleClick"
-                          SubmenuOpened="OnCriticalPathMenuOpened">
-                    <MenuItem Header="Ver lista de atividades críticas..." Click="OnCriticalPathWindowClick"/>
-                </MenuItem>
+                <MenuItem Header="Caminho Crítico — Ver atividades críticas..." Click="OnCriticalPathWindowClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Manage_Baseline}" SubmenuOpened="OnBaselineMenuOpened">
                     <MenuItem Header="{DynamicResource Menu_Manage_Baseline_Save}"  Click="OnBaselineSaveClick"/>
@@ -133,6 +130,44 @@
             <Button Style="{StaticResource ToolbarButtonStyle}" Command="{Binding SaveProjectCommand}" ToolTip="{DynamicResource Toolbar_Save}">
                 <TextBlock Text="&#x1F4BE;" FontSize="14"/>
             </Button>
+
+            <!-- Importar do Azure DevOps -->
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnImportTfsToolbarClick"
+                    ToolTip="Importar do Azure DevOps — monta o cronograma a partir de Epics, Features e Stories">
+                <Viewbox Width="26" Height="20" Stretch="Uniform">
+                    <Canvas Width="72" Height="56">
+                        <!-- Nuvem DevOps -->
+                        <Path Fill="#0078D4"
+                              Data="M 36,6 C 26,6 18,13 17,22 C 11,23 6,28 6,35 C 6,43 12,48 20,48 L 52,48 C 60,48 66,43 66,35 C 66,28 61,23 55,22 C 54,13 46,6 36,6 Z"/>
+                        <!-- Seta para baixo (download/import) -->
+                        <Path Stroke="White" StrokeThickness="4" Fill="Transparent"
+                              Data="M 36,20 L 36,38 M 28,31 L 36,40 L 44,31"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
+
+            <!-- Sincronizar com Azure DevOps -->
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnSyncTfsToolbarClick"
+                    ToolTip="Sincronizar com Azure DevOps — envia alterações e atualiza datas/estados">
+                <Viewbox Width="26" Height="20" Stretch="Uniform">
+                    <Canvas Width="72" Height="56">
+                        <!-- Nuvem DevOps -->
+                        <Path Fill="#107C10"
+                              Data="M 36,6 C 26,6 18,13 17,22 C 11,23 6,28 6,35 C 6,43 12,48 20,48 L 52,48 C 60,48 66,43 66,35 C 66,28 61,23 55,22 C 54,13 46,6 36,6 Z"/>
+                        <!-- Setas de sincronização circulares -->
+                        <Path Stroke="White" StrokeThickness="3.5" Fill="Transparent"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 24,34 C 24,27 30,22 37,23"/>
+                        <Polygon Points="21,27 21,35 28,31" Fill="White"/>
+                        <Path Stroke="White" StrokeThickness="3.5" Fill="Transparent"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 48,24 C 48,31 42,36 35,35"/>
+                        <Polygon Points="51,31 51,23 44,27" Fill="White"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
+
             <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnOpenSelectedTaskInDevOpsClick" ToolTip="Abrir no DevOps ↗">
                 <Viewbox Width="28" Height="16" Stretch="Uniform">
                     <Canvas Width="100" Height="56">
@@ -468,7 +503,7 @@
                                    SprintNumberingMode="{Binding SprintNumberingMode}"
                                    SprintDurationDays="{Binding SprintDurationDays}"
                                    Sprints="{Binding Sprints}"
-                                   ShowCriticalPath="{Binding Project.ShowCriticalPath}"/>
+                                   ShowCriticalPath="False"/>
         </Grid>
     </DockPanel>
 </Window>

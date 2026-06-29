@@ -21,14 +21,14 @@ if ($RecreateCertificate) {
     Write-Host "==> Removendo certificado(s) anterior(es) e chaves quebradas..." -ForegroundColor Yellow
     $thumbprints = @($certificates | ForEach-Object Thumbprint)
 
-    foreach ($storePath in @(
-        "Cert:\CurrentUser\My",
-        "Cert:\CurrentUser\TrustedPublisher",
-        "Cert:\CurrentUser\Root"
-    )) {
-        Get-ChildItem $storePath -ErrorAction SilentlyContinue |
-            Where-Object { $_.Thumbprint -in $thumbprints -or $_.Subject -eq $CertSubject } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+    foreach ($storeName in @("My", "TrustedPublisher", "Root")) {
+        try {
+            $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, "CurrentUser")
+            $store.Open("ReadWrite")
+            $toRemove = $store.Certificates | Where-Object { $_.Thumbprint -in $thumbprints -or $_.Subject -eq $CertSubject }
+            foreach ($c in $toRemove) { $store.Remove($c) }
+            $store.Close()
+        } catch { }
     }
 
     $cert = $null
@@ -51,12 +51,15 @@ if (-not $cert) {
 
 # Exporta e instala como confiavel apenas para o usuario atual.
 Write-Host "==> Instalando certificado como confiavel para o usuario atual..." -ForegroundColor Cyan
-$certFile = "$env:TEMP\NXProjectDev.cer"
-Export-Certificate -Cert $cert -FilePath $certFile -Force -ErrorAction Stop | Out-Null
-
 try {
-    Import-Certificate -FilePath $certFile -CertStoreLocation "Cert:\CurrentUser\TrustedPublisher" | Out-Null
-    Import-Certificate -FilePath $certFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    # Usa API .NET direta para evitar prompts de confirmacao do Windows
+    $stores = @("Root", "TrustedPublisher")
+    foreach ($storeName in $stores) {
+        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, "CurrentUser")
+        $store.Open("ReadWrite")
+        $store.Add($cert)
+        $store.Close()
+    }
     Write-Host "   Certificado instalado como confiavel." -ForegroundColor Green
 } catch {
     Write-Host "   Erro ao instalar: $_" -ForegroundColor Red

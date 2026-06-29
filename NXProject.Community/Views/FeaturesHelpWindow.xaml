@@ -60,6 +60,10 @@
                     <ListBoxItem Content="{DynamicResource Help_Topic_Export}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_HealthCheck}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_AI}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_Baseline}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_CriticalPath}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_ActivityDiagram}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_ResourceCost}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Settings}"/>
                 </ListBox>
             </DockPanel>

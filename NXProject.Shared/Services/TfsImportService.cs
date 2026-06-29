@@ -438,9 +438,9 @@ namespace NXProject.Services
                             // Se o pai tem TfsType != "No DevOps" e está no cronograma, é provável
                             // que o pai precise ser criado primeiro e está fora da ordem de coleção.
                             if (parentTask != null && !string.Equals(parentTask.TfsType?.Trim(), "No DevOps", StringComparison.OrdinalIgnoreCase))
-                                report.LogWarning($"\"{task.Name}\": o pai \"{parentTask.Name}\" ainda não tem vínculo DevOps. Sincronize novamente após vincular/criar o pai.");
+                                report.LogWarning($"{TaskSyncLabel(task)} ({task.Name}): o pai \"{parentTask.Name}\" ainda não tem vínculo DevOps. Sincronize novamente após vincular/criar o pai.");
                             else
-                                report.LogWarning($"\"{task.Name}\": pai sem vínculo DevOps; vincule/crie o pai primeiro.");
+                                report.LogWarning($"{TaskSyncLabel(task)} ({task.Name}): pai sem vínculo DevOps; vincule/crie o pai primeiro.");
                             continue;
                         }
 
@@ -463,12 +463,17 @@ namespace NXProject.Services
                         var createFinishRef = ResolveForType(task.TfsType, c => c.FinishField,        finishRef);
                         var createPercAloc  = ResolveForType(task.TfsType, c => c.PercAlocField,      percAlocRef);
                         var createPercConc  = ResolveForType(task.TfsType, c => c.PercConclusaoField, percConclusaoRef);
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields);
+                        var classEnabled = !options.TypeFieldMappings.TryGetValue(task.TfsType ?? "", out var cfgForClass)
+                            || cfgForClass.ClassificationEnabled;
+                        var createClassField = classEnabled
+                            ? ResolveForType(task.TfsType, c => c.ClassificationField, null)
+                            : null;
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields, createClassField);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
                         report.Created++;
-                        report.LogSuccess($"Criado #{newId} — {task.Name} ({createType})");
+                        report.LogSuccess($"{createType} - #{newId} ({task.Name}): criado.");
                         continue;
                     }
 
@@ -476,7 +481,7 @@ namespace NXProject.Services
                     if (!current.TryGetValue(task.TfsId.Value, out var wi))
                     {
                         report.NotFound++;
-                        report.LogError($"#{task.TfsId} ({task.Name}): não encontrado no DevOps.");
+                        report.LogError($"{TaskSyncLabel(task)} ({task.Name}): não encontrado no DevOps.");
                         continue;
                     }
 
@@ -494,14 +499,14 @@ namespace NXProject.Services
                                 var previousLocalVersion = task.SyncVersion.Value;
                                 task.SyncVersion = tfsVersion;
                                 task.HasSyncConflict = false;
-                                report.LogWarning($"#{task.TfsId} — {task.Name}: versão TFS={tfsVersion} > local={previousLocalVersion}, mas a última gravação foi do usuário atual ({whoSaved}); sincronização liberada.");
+                                report.LogWarning($"{TaskSyncLabel(task)} ({task.Name}): versão TFS={tfsVersion} > local={previousLocalVersion}, mas a última gravação foi do usuário atual ({whoSaved}); sincronização liberada.");
                             }
                             else
                             {
                                 task.HasSyncConflict = true;
                                 report.Conflicts++;
                                 var by = string.IsNullOrWhiteSpace(whoSaved) ? "" : $" (por {whoSaved})";
-                                report.LogError($"⚠ CONFLITO #{task.TfsId} — {task.Name}: versão TFS={tfsVersion} > local={task.SyncVersion.Value}{by}. Alterações descartadas — reimporte para atualizar.");
+                                report.LogError($"⚠ CONFLITO {TaskSyncLabel(task)} ({task.Name}): versão TFS={tfsVersion} > local={task.SyncVersion.Value}{by}. Alterações descartadas — reimporte para atualizar.");
                                 report.Skipped++;
                                 continue;
                             }
@@ -879,7 +884,7 @@ namespace NXProject.Services
                     // Sync_Name identity) e itens fechados sejam gravados sem bloqueio de regras.
                     await PatchWorkItemAsync(orgBase, auth, task.TfsId.Value, ops, cancellationToken, bypassRules: true);
                     report.Updated++;
-                    report.LogSuccess($"#{task.TfsId} — {task.Name ?? "(sem nome)"} [{string.Join(", ", changes)}]");
+                    report.LogSuccess($"{TaskSyncLabel(task)} ({task.Name ?? "(sem nome)"}): [{string.Join(", ", changes)}]");
                     if (reparent)
                     {
                         report.Reparented++;
@@ -888,7 +893,7 @@ namespace NXProject.Services
                 }
                 catch (Exception ex)
                 {
-                    report.LogError($"#{task.TfsId} ({task.Name}): erro — {ex.Message}");
+                    report.LogError($"{TaskSyncLabel(task)} ({task.Name}): erro — {ex.Message}");
                 }
             }
 
@@ -962,6 +967,21 @@ namespace NXProject.Services
         /// Resolve o pai DevOps de uma task subindo a árvore até encontrar um ancestral com TfsId > 0.
         /// Se nenhum ancestral tiver TfsId, usa rootWorkItemId como pai.
         /// </summary>
+        private static string TaskSyncLabel(ProjectTask task)
+        {
+            var type = task.TfsType?.Trim() switch
+            {
+                "Epic"                              => "Epic",
+                "Feature"                           => "Feature",
+                "User Story" or "Story"             => "Story",
+                "Task"                              => "Task",
+                { } t when !string.IsNullOrEmpty(t) => t,
+                _                                   => "Item"
+            };
+            var id = task.TfsId is > 0 ? $"#{task.TfsId}" : $"I:{task.Id}";
+            return $"{type} - {id}";
+        }
+
         private static int ResolveDesiredParent(ProjectTask task, int rootWorkItemId)
         {
             var p = task.Parent;
@@ -1263,7 +1283,8 @@ namespace NXProject.Services
             string? originalHoursRef = null,
             string? remainingHoursRef = null,
             string? realizedHoursRef = null,
-            IEnumerable<ExtraWorkItemField>? extraFields = null)
+            IEnumerable<ExtraWorkItemField>? extraFields = null,
+            string? classificationField = null)
         {
             bool isTaskCreate        = IsTaskType(task.TfsType);
             bool isEpicOrFeatureCreate = IsEpicOrFeatureType(task.TfsType);
@@ -1272,6 +1293,16 @@ namespace NXProject.Services
             {
                 PatchAdd("/fields/System.Title", task.Name ?? "Novo item")
             };
+
+            // Campo de classificação (picklist obrigatório, ex.: Custom.Type).
+            // Usa task.TfsClassification se definido, senão cai para TfsType como padrão.
+            if (!string.IsNullOrWhiteSpace(classificationField))
+            {
+                var classValue = !string.IsNullOrWhiteSpace(task.TfsClassification)
+                    ? task.TfsClassification
+                    : task.TfsType ?? "";
+                ops.Add(PatchAdd($"/fields/{classificationField}", classValue));
+            }
 
             // Campos fixos obrigatórios do processo do cliente (ex.: Custom.Type).
             if (extraFields != null)
@@ -2796,8 +2827,8 @@ namespace NXProject.Services
                         {
                             var fields = string.Join(", ", missingFields.Where(f => !string.IsNullOrEmpty(f)));
                             return $"O DevOps rejeitou a criação porque o(s) campo(s) obrigatório(s) não foram preenchidos: {fields}.\n\n" +
-                                   $"Para corrigir: em Arquivo → Configurações do Azure DevOps → Campos extras na criação, " +
-                                   $"adicione uma entrada para cada campo com o valor padrão que o DevOps exige.\n\n" +
+                                   $"Para corrigir: vá em Arquivo → Configurar Integração Azure DevOps → expanda \"⚙ Campos avançados\" → seção \"Campos obrigatórios na criação\", " +
+                                   $"e adicione uma entrada para cada campo com o valor padrão que o DevOps exige.\n\n" +
                                    $"Exemplo: campo \"{missingFields[0]}\" com o valor que o processo do seu DevOps aceita (ex.: \"Atividade\", \"Development\", etc.).";
                         }
                     }

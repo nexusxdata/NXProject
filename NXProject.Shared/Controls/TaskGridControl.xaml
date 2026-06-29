@@ -268,6 +268,12 @@
                                                       Click="OnAddInternalTaskClick"
                                                       Visibility="Collapsed"
                                                       ToolTip="Cria uma atividade interna sem vínculo com DevOps"/>
+                                            <Separator x:Name="ClassificationSeparator" Visibility="Collapsed"/>
+                                            <MenuItem x:Name="EditClassificationMenuItem"
+                                                      Header="🏷 Alterar Classificação..."
+                                                      Click="OnEditClassificationClick"
+                                                      Visibility="Collapsed"
+                                                      ToolTip="Altera o valor do campo de classificação (picklist obrigatório na criação no DevOps)"/>
                                             <Separator/>
                                             <MenuItem Header="{DynamicResource Ctx_EditDescription}"
                                                       Click="OnEditDescriptionClick"/>

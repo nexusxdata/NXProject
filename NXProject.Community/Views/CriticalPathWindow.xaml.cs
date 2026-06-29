@@ -89,6 +89,7 @@ namespace NXProject.Views
 
         private void OnFilterChanged(object sender, EventArgs e)
         {
+            if (_view == null) return;
             _view.Refresh();
             UpdateCount();
         }

@@ -142,6 +142,13 @@ namespace NXProject.Services
         /// </summary>
         public Dictionary<string, TypeFieldConfig> TypeFieldMappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Valores do picklist de classificação (campo customizado obrigatório na criação).
+        /// Exibidos no dropdown "Alterar Classificação" no NXProject.
+        /// Vazio = usa os valores padrão embutidos.
+        /// </summary>
+        public List<string> ClassificationPicklistValues { get; set; } = [];
+
         /// <summary>Lista de categorias de atividade (campo Activity do DevOps). Configurável pelo usuário.</summary>
         public List<string> TaskActivityList { get; set; } =
         [
@@ -180,6 +187,14 @@ namespace NXProject.Services
 
         /// <summary>Campo de percentual de conclusão.</summary>
         public string? PercConclusaoField { get; set; }
+
+        /// <summary>
+        /// Campo de classificação/picklist obrigatório na criação (ex.: "Custom.Type").
+        /// Quando preenchido e ClassificationEnabled=true, é enviado com o valor TfsClassification
+        /// da tarefa (padrão = tipo do item). Default: ativo.
+        /// </summary>
+        public string? ClassificationField { get; set; }
+        public bool ClassificationEnabled { get; set; } = true;
     }
 
     /// <summary>
@@ -216,6 +231,8 @@ namespace NXProject.Services
             public bool DebugLogEnabled { get; set; } = false;
             public bool AutoLoadBaseline { get; set; } = true;
             public Dictionary<string, TypeFieldConfig> TypeFieldMappings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+            public List<string> ClassificationPicklistValues { get; set; } = [];
+            public List<ExtraWorkItemField> ExtraCreateFields { get; set; } = [];
         }
 
         public static TfsConnectionOptions Load(string storageKey = "NXProject.Community")
@@ -272,6 +289,8 @@ namespace NXProject.Services
                 options.DebugLogEnabled  = stored.DebugLogEnabled;
                 options.AutoLoadBaseline = stored.AutoLoadBaseline;
                 options.TypeFieldMappings = stored.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase);
+                options.ClassificationPicklistValues = stored.ClassificationPicklistValues ?? [];
+                options.ExtraCreateFields = stored.ExtraCreateFields ?? [];
             }
             catch
             {
@@ -315,7 +334,9 @@ namespace NXProject.Services
                 PortfolioProjectConfigs = options.PortfolioProjectConfigs ?? [],
                 DebugLogEnabled  = options.DebugLogEnabled,
                 AutoLoadBaseline = options.AutoLoadBaseline,
-                TypeFieldMappings = options.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase)
+                TypeFieldMappings = options.TypeFieldMappings ?? new(StringComparer.OrdinalIgnoreCase),
+                ClassificationPicklistValues = options.ClassificationPicklistValues ?? [],
+                ExtraCreateFields = options.ExtraCreateFields ?? []
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });

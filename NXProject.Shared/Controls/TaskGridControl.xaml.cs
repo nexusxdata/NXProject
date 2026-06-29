@@ -175,6 +175,9 @@ namespace NXProject.Controls
         /// <summary>Disparado quando o usuário quer editar o % de alocação de uma tarefa via menu de contexto.</summary>
         public event Action<TaskViewModel>? EditPercAlocRequested;
 
+        /// <summary>Disparado quando o usuário quer alterar a classificação (picklist DevOps) de uma tarefa.</summary>
+        public event Action<TaskViewModel>? EditClassificationRequested;
+
         /// <summary>Disparado quando o usuário clica em "Ver Atividades Online..." no menu de contexto do nome.</summary>
         public event Action<TaskViewModel>? ViewOnlineChildrenRequested;
 
@@ -1359,6 +1362,23 @@ namespace NXProject.Controls
             if (sepAdd      != null) sepAdd.Visibility      = showAdd ? Visibility.Visible : Visibility.Collapsed;
             if (addDevOps   != null) addDevOps.Visibility   = (showAdd && hasDevOps) ? Visibility.Visible : Visibility.Collapsed;
             if (addInternal != null) addInternal.Visibility = showAdd ? Visibility.Visible : Visibility.Collapsed;
+
+            // "Alterar Classificação" — visível para itens que vão ser criados no DevOps (TfsId=0)
+            // ou já existentes (quando o campo de classificação pode precisar de ajuste).
+            bool isPendingCreate = vm.Model.TfsId == 0 || vm.Model.IsPendingTfsCreate;
+            bool showClassif = !vm.Model.IsSummary && !vm.Model.IsMilestone
+                               && !string.Equals(vm.Model.TfsType, "No DevOps", StringComparison.OrdinalIgnoreCase)
+                               && (isPendingCreate || vm.Model.TfsId is > 0);
+            var classifSep  = cm.Items.OfType<Separator>().FirstOrDefault(s => s.Name == "ClassificationSeparator");
+            var classifItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "EditClassificationMenuItem");
+            if (classifSep  != null) classifSep.Visibility  = showClassif ? Visibility.Visible : Visibility.Collapsed;
+            if (classifItem != null)
+            {
+                classifItem.Visibility = showClassif ? Visibility.Visible : Visibility.Collapsed;
+                var current = vm.TfsClassification ?? vm.TfsType ?? "";
+                if (!string.IsNullOrEmpty(current))
+                    classifItem.Header = $"🏷 Classificação: {current}  (alterar...)";
+            }
         }
 
         private void OnToggleTaskBlockClick(object sender, RoutedEventArgs e)
@@ -1909,6 +1929,13 @@ namespace NXProject.Controls
             }
 
             return null;
+        }
+
+        private void OnEditClassificationClick(object sender, RoutedEventArgs e)
+        {
+            var vm = GetTaskViewModelFromContextSender(sender);
+            if (vm != null)
+                EditClassificationRequested?.Invoke(vm);
         }
 
         private void OnEditPercAlocClick(object sender, RoutedEventArgs e)

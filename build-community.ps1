@@ -9,7 +9,7 @@ param(
 $SolutionDir = $PSScriptRoot
 $ProjectFile = Join-Path $SolutionDir "NXProject.Community\NXProject.Community.csproj"
 $OutputDir = Join-Path $SolutionDir "NXProject.Community\bin\$Configuration\net10.0-windows"
-$Exe = Join-Path $OutputDir "NXProject.Community.exe"
+
 $SharedDllLockPattern = "because it is being used by another process"
 
 function Write-Step($msg) {
@@ -84,6 +84,7 @@ Write-Host "Build Community concluido com sucesso!" -ForegroundColor Green
 Write-Host "  Saida: $OutputDir" -ForegroundColor DarkGray
 
 if ($Run) {
-    Write-Step "Iniciando aplicacao..."
-    Start-Process $Exe
+    Write-Step "Assinando e iniciando aplicacao..."
+    $runScript = Join-Path $SolutionDir "run-community.ps1"
+    . $runScript -Configuration $Configuration
 }
