@@ -1,0 +1,114 @@
+<Window x:Class="NXProject.Views.CostDrillDownWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Detalhamento de Custo"
+        Width="680" Height="480"
+        MinWidth="480" MinHeight="300"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cabeçalho -->
+        <Border Grid.Row="0" Background="#2B579A" Padding="16,10">
+            <StackPanel>
+                <TextBlock x:Name="TitleText" FontSize="13" FontWeight="SemiBold" Foreground="White"/>
+                <TextBlock x:Name="SubtitleText" FontSize="11" Foreground="#BBCCE8" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Grid de stories -->
+        <Border Grid.Row="1" Margin="0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- Cabeçalho da tabela -->
+                    <Border Background="#EEF2F8" BorderBrush="#C0CCE0" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Feature" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="#2B579A" Padding="8,6" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="Story / Tarefa" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="#2B579A" Padding="8,6" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="Recurso" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="#2B579A" Padding="8,6" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="HH" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="#2B579A" Padding="8,6" HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="Custo (R$)" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="#2B579A" Padding="8,6" HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <ItemsControl x:Name="StoryList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#E0E8F0" BorderThickness="0,0,0,1"
+                                        Background="{Binding RowBg}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="160"/>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="100"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding FeatureName}"
+                                                   FontSize="11" Foreground="#1A4080" Padding="8,5"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" ToolTip="{Binding FeatureName}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StoryName}"
+                                                   FontSize="11" Foreground="#333" Padding="8,5"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" ToolTip="{Binding StoryName}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding ResourceName}"
+                                                   FontSize="11" Foreground="#555" Padding="8,5"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding HoursText}"
+                                                   FontSize="11" Foreground="#333" Padding="8,5"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding CostText}"
+                                                   FontSize="11" Foreground="{Binding CostFg}" Padding="8,5"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   FontWeight="SemiBold"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Totais -->
+        <Border Grid.Row="2" Background="#EEF2F8" BorderBrush="#C0CCE0" BorderThickness="0,1,0,0" Padding="0,4">
+            <Grid Margin="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="200"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="100"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Grid.ColumnSpan="3" Text="TOTAL" FontSize="12" FontWeight="Bold"
+                           Foreground="#193C78" Padding="8,6" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="3" x:Name="TotalHours" FontSize="12" FontWeight="Bold"
+                           Foreground="#193C78" Padding="8,6" HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="4" x:Name="TotalCost" FontSize="12" FontWeight="Bold"
+                           Foreground="#193C78" Padding="8,6" HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

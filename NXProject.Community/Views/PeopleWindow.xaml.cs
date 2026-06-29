@@ -17,13 +17,31 @@ namespace NXProject.Views
         private readonly MainViewModel _vm;
         private List<PersonRow> _rows = new();
 
-        public PeopleWindow(MainViewModel vm)
+        public PeopleWindow(MainViewModel vm, bool focusCost = false)
         {
             InitializeComponent();
             _vm = vm;
             Loaded += (_, _) =>
             {
-                try { Refresh(); }
+                try
+                {
+                    Refresh();
+                    if (focusCost)
+                    {
+                        Title = "Pessoas — Configuração de Custo";
+                        ColCostType.Visibility   = Visibility.Visible;
+                        ColHourlyRate.Visibility = Visibility.Visible;
+                        ColMonthlyRate.Visibility = Visibility.Visible;
+                        CostSeparator.Visibility = Visibility.Visible;
+                        SaveCostBtn.Visibility   = Visibility.Visible;
+                        LoadCostBtn.Visibility   = Visibility.Visible;
+                        // Painel lateral de edição
+                        CostEditPanel.Visibility = Visibility.Visible;
+                        CostPanelColumn.Width    = new System.Windows.GridLength(240);
+                        Width += 240;
+                        PeopleGrid.SelectionChanged += OnPeopleGridSelectionChanged;
+                    }
+                }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Erro ao carregar pessoas:\n{ex.Message}", "Pessoas",
@@ -133,26 +151,14 @@ namespace NXProject.Views
         {
             CommitPendingEdits();
 
-            var pwdDlg = new PasswordDialog(
-                "Digite uma senha para criptografar o arquivo de custo.\n" +
-                "Mínimo 6 caracteres. Você precisará desta senha para abrir o arquivo.",
-                confirmMode: true) { Owner = this };
-            if (pwdDlg.ShowDialog() != true) return;
-
-            var fileDlg = new Microsoft.Win32.SaveFileDialog
-            {
-                Title      = "Salvar configuração de custo",
-                Filter     = NXProject.Services.ResourceCostConfigService.FileFilter,
-                FileName   = NXProject.Services.ResourceCostConfigService.DefaultFileName,
-                DefaultExt = ".nxcost"
-            };
-            if (fileDlg.ShowDialog(this) != true) return;
+            var dlg = new SaveCostConfigDialog { Owner = this };
+            if (dlg.ShowDialog() != true) return;
 
             try
             {
                 NXProject.Services.ResourceCostConfigService.Save(
-                    fileDlg.FileName, _vm.Project.Resources, pwdDlg.Password);
-                StatusText.Text = $"Config de custo salva (criptografada) em {System.IO.Path.GetFileName(fileDlg.FileName)}.";
+                    dlg.FilePath, _vm.Project.Resources, dlg.Password);
+                StatusText.Text = $"Config de custo salva em {System.IO.Path.GetFileName(dlg.FilePath)}.";
             }
             catch (Exception ex)
             {
@@ -447,6 +453,86 @@ namespace NXProject.Views
             public event PropertyChangedEventHandler? PropertyChanged;
             private void OnPropertyChanged([CallerMemberName] string? name = null)
                 => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
+        // ── Painel de edição de custo ────────────────────────────────────────
+        private PersonRow? _editingRow;
+        private bool _suppressCostEvents;
+
+        private void OnPeopleGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _editingRow = PeopleGrid.SelectedItem as PersonRow;
+            if (_editingRow == null) { CostPersonName.Text = ""; return; }
+
+            _suppressCostEvents = true;
+            CostPersonName.Text = _editingRow.Name;
+            bool isInternal = _editingRow.Resource.Kind == ResourceKind.Internal;
+            InternalNotice.Visibility  = isInternal ? Visibility.Visible   : Visibility.Collapsed;
+            CostFieldsPanel.Visibility = isInternal ? Visibility.Collapsed : Visibility.Visible;
+
+            if (!isInternal)
+            {
+                bool isMonthly = _editingRow.Resource.CostType == ResourceCostType.Monthly;
+                CostTypeCombo.SelectedIndex = isMonthly ? 1 : 0;
+                HourlyRateBox.Text  = _editingRow.HourlyRate  > 0 ? _editingRow.HourlyRate.ToString("F2")  : "";
+                MonthlyRateBox.Text = _editingRow.MonthlyRate > 0 ? _editingRow.MonthlyRate.ToString("F2") : "";
+                HourlyPanel.Visibility  = isMonthly ? Visibility.Collapsed : Visibility.Visible;
+                MonthlyPanel.Visibility = isMonthly ? Visibility.Visible   : Visibility.Collapsed;
+            }
+            CostAppliedText.Visibility = Visibility.Collapsed;
+            _suppressCostEvents = false;
+        }
+
+        private void OnCostTypeComboChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressCostEvents) return;
+            bool isMonthly = CostTypeCombo.SelectedIndex == 1;
+            HourlyPanel.Visibility  = isMonthly ? Visibility.Collapsed : Visibility.Visible;
+            MonthlyPanel.Visibility = isMonthly ? Visibility.Visible   : Visibility.Collapsed;
+        }
+
+        private void OnCostFieldChanged(object sender, TextChangedEventArgs e) { }
+
+        private void OnApplyCostClick(object sender, RoutedEventArgs e)
+        {
+            if (_editingRow == null) return;
+            bool isMonthly = CostTypeCombo.SelectedIndex == 1;
+            _editingRow.Resource.CostType = isMonthly ? ResourceCostType.Monthly : ResourceCostType.Hourly;
+
+            if (isMonthly)
+            {
+                if (!decimal.TryParse(MonthlyRateBox.Text.Replace(",", "."),
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out decimal monthly) || monthly < 0)
+                {
+                    MessageBox.Show("Informe um valor mensal válido.", "Valor inválido",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                _editingRow.Resource.CostPerHour = 0;
+                _editingRow.Resource.MonthlyRate = monthly;
+                _editingRow.HourlyRate  = 0;
+                _editingRow.MonthlyRate = monthly;
+            }
+            else
+            {
+                if (!decimal.TryParse(HourlyRateBox.Text.Replace(",", "."),
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out decimal hourly) || hourly < 0)
+                {
+                    MessageBox.Show("Informe um valor por hora válido.", "Valor inválido",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                _editingRow.Resource.CostPerHour = hourly;
+                _editingRow.Resource.MonthlyRate = 0;
+                _editingRow.HourlyRate  = hourly;
+                _editingRow.MonthlyRate = 0;
+            }
+
+            _editingRow.CostTypeLabel = isMonthly ? "Monthly" : "Hourly";
+            PeopleGrid.Items.Refresh();
+            CostAppliedText.Visibility = Visibility.Visible;
         }
     }
 

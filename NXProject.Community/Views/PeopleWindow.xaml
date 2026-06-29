@@ -35,21 +35,28 @@
                     Click="OnSaveLocalClick"
                     Background="#5B3270" Foreground="White"
                     ToolTip="Salva a configuração de Alocação (Project/Internal) de cada pessoa localmente. Preservada ao re-importar do TFS."/>
-            <Separator Margin="12,4" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"/>
-            <Button Content="💰 Salvar config de custo..." Width="165" Height="28"
-                    Click="OnSaveCostConfigClick"
+            <Separator x:Name="CostSeparator" Margin="12,4" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Visibility="Collapsed"/>
+            <Button x:Name="SaveCostBtn" Content="💰 Salvar config de custo..." Width="165" Height="28"
+                    Click="OnSaveCostConfigClick" Visibility="Collapsed"
                     Background="#1B5E20" Foreground="White"
                     ToolTip="Salva os valores de custo (R$/hora e R$/mês) em arquivo separado do cronograma, para sigilo."/>
-            <Button Content="📂 Carregar config de custo..." Width="175" Height="28" Margin="6,0,0,0"
-                    Click="OnLoadCostConfigClick"
+            <Button x:Name="LoadCostBtn" Content="📂 Carregar config de custo..." Width="175" Height="28" Margin="6,0,0,0"
+                    Click="OnLoadCostConfigClick" Visibility="Collapsed"
                     Background="#0D47A1" Foreground="White"
                     ToolTip="Carrega os valores de custo de um arquivo .nxcost."/>
             <TextBlock x:Name="CountLabel" VerticalAlignment="Center" Margin="16,0,0,0"
                        FontSize="12" Foreground="#666"/>
         </StackPanel>
 
+        <!-- Grade de pessoas + painel de edição de custo -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="CostPanelColumn" Width="0"/>
+            </Grid.ColumnDefinitions>
+
         <!-- Grade de pessoas -->
-        <DataGrid x:Name="PeopleGrid" Grid.Row="2"
+        <DataGrid x:Name="PeopleGrid" Grid.Column="0"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
                   CanUserDeleteRows="False"
@@ -154,25 +161,20 @@
                     </DataGridTemplateColumn.CellEditingTemplate>
                 </DataGridTemplateColumn>
 
-                <!-- Modelo de custo -->
-                <DataGridTemplateColumn Header="Custo" Width="80">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding CostTypeLabel}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                    <DataGridTemplateColumn.CellEditingTemplate>
-                        <DataTemplate>
-                            <ComboBox ItemsSource="{Binding CostTypeOptionsSource}"
-                                      SelectedItem="{Binding CostTypeLabel, UpdateSourceTrigger=PropertyChanged}"
-                                      FontSize="12"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellEditingTemplate>
-                </DataGridTemplateColumn>
+                <!-- Modelo de custo (somente leitura — editar no painel lateral) -->
+                <DataGridTextColumn x:Name="ColCostType" Header="Custo" Width="80" Visibility="Collapsed"
+                                    IsReadOnly="True" Binding="{Binding CostTypeLabel}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                            <Setter Property="Foreground" Value="#555"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
 
-                <!-- Valor/hora -->
-                <DataGridTextColumn Header="R$/hora" Width="80"
-                                    Binding="{Binding HourlyRate, StringFormat={}{0:N2}}">
+                <!-- Valor/hora (somente leitura) -->
+                <DataGridTextColumn x:Name="ColHourlyRate" Header="R$/hora" Width="80" Visibility="Collapsed"
+                                    IsReadOnly="True" Binding="{Binding HourlyRate, StringFormat={}{0:N2}}">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -181,9 +183,9 @@
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
 
-                <!-- Valor/mês -->
-                <DataGridTextColumn Header="R$/mês" Width="90"
-                                    Binding="{Binding MonthlyRate, StringFormat={}{0:N2}}">
+                <!-- Valor/mês (somente leitura) -->
+                <DataGridTextColumn x:Name="ColMonthlyRate" Header="R$/mês" Width="90" Visibility="Collapsed"
+                                    IsReadOnly="True" Binding="{Binding MonthlyRate, StringFormat={}{0:N2}}">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -207,6 +209,65 @@
                                         Binding="{Binding IsImportedFromTfs, Mode=OneWay}" IsReadOnly="True"/>
             </DataGrid.Columns>
         </DataGrid>
+
+            <!-- Painel lateral de edição de custo -->
+            <Border x:Name="CostEditPanel" Grid.Column="1" Visibility="Collapsed"
+                    Background="#FAFAFA" BorderBrush="#DDD" BorderThickness="1,0,0,0"
+                    Margin="8,0,0,0">
+                <StackPanel Margin="16,12">
+                    <TextBlock Text="⚙ Configuração de Custo" FontSize="13" FontWeight="SemiBold"
+                               Foreground="#1B5E20" Margin="0,0,0,12"/>
+
+                    <TextBlock x:Name="CostPersonName" FontSize="12" FontWeight="SemiBold"
+                               Foreground="#2B579A" Margin="0,0,0,14" TextWrapping="Wrap"/>
+
+                    <!-- Aviso para recurso Interno -->
+                    <Border x:Name="InternalNotice" Background="#FFF8E1" BorderBrush="#F9A825"
+                            BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,12"
+                            Visibility="Collapsed">
+                        <TextBlock Text="🔒 Recurso Interno — não possui custo de projeto."
+                                   FontSize="11" Foreground="#795548" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <!-- Tipo de custo -->
+                    <StackPanel x:Name="CostFieldsPanel">
+                    <TextBlock Text="Tipo de custo" FontSize="11" Foreground="#555" Margin="0,0,0,4"/>
+                    <ComboBox x:Name="CostTypeCombo" Height="30" FontSize="12"
+                              SelectionChanged="OnCostTypeComboChanged">
+                        <ComboBoxItem Content="Por Hora (R$/hora)" Tag="Hourly"/>
+                        <ComboBoxItem Content="Mensal (R$/mês)"    Tag="Monthly"/>
+                    </ComboBox>
+
+                    <Border Height="1" Background="#E0E0E0" Margin="0,14,0,14"/>
+
+                    <!-- R$/hora -->
+                    <StackPanel x:Name="HourlyPanel">
+                        <TextBlock Text="Valor por hora (R$)" FontSize="11" Foreground="#555" Margin="0,0,0,4"/>
+                        <TextBox x:Name="HourlyRateBox" Height="32" FontSize="13" Padding="8,4"
+                                 TextChanged="OnCostFieldChanged"/>
+                        <TextBlock Text="Ex: 150,00" FontSize="10" Foreground="#999" Margin="0,3,0,0"/>
+                    </StackPanel>
+
+                    <!-- R$/mês -->
+                    <StackPanel x:Name="MonthlyPanel" Visibility="Collapsed">
+                        <TextBlock Text="Valor mensal (R$)" FontSize="11" Foreground="#555" Margin="0,0,0,4"/>
+                        <TextBox x:Name="MonthlyRateBox" Height="32" FontSize="13" Padding="8,4"
+                                 TextChanged="OnCostFieldChanged"/>
+                        <TextBlock FontSize="10" Foreground="#777" Margin="0,6,0,0" TextWrapping="Wrap"
+                                   Text="O custo total de todas as HH do recurso no projeto equivale a 1 salário mensal. O valor é rateado por feature proporcionalmente às horas."/>
+                    </StackPanel>
+
+                    <Border Height="1" Background="#E0E0E0" Margin="0,14,0,14"/>
+
+                    <Button x:Name="ApplyCostBtn" Content="✔ Aplicar" Height="32" FontSize="12"
+                            FontWeight="SemiBold" Background="#1B5E20" Foreground="White"
+                            Click="OnApplyCostClick"/>
+                    <TextBlock x:Name="CostAppliedText" Text="Salvo." FontSize="11"
+                               Foreground="#2E7D32" Margin="0,6,0,0" Visibility="Collapsed"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- Rodapé -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">

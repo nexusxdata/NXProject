@@ -129,4 +129,21 @@ if (-not (Invoke-SignBinaries $exe)) {
     exit 1
 }
 
-Start-Process $exe
+Write-Host "Iniciando NXProject..." -ForegroundColor Cyan
+$t0 = [datetime]::UtcNow
+$proc = Start-Process $exe -PassThru
+$proc.WaitForExit(3000) | Out-Null   # aguarda ate 3s para ver se fecha imediatamente
+
+if ($proc.HasExited -and ([datetime]::UtcNow - $t0).TotalSeconds -lt 3) {
+    # Fechou em menos de 3s: provavelmente bloqueado pelo Smart App Control
+    Write-Host "Aplicacao bloqueada (Smart App Control). Recriando certificado e tentando novamente..." -ForegroundColor Yellow
+    if (-not (Invoke-UserCertificateSetup -Recreate)) {
+        Write-Host "Falha ao recriar certificado. Abortando." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "Reiniciando NXProject..." -ForegroundColor Cyan
+    & $exe
+} elseif (-not $proc.HasExited) {
+    # App esta rodando normalmente — aguarda encerrar
+    $proc.WaitForExit()
+}

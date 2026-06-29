@@ -1,117 +1,179 @@
 <Window x:Class="NXProject.Views.ResourceCostWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Custo por Recurso" Width="1100" Height="620"
-        MinWidth="800" MinHeight="460"
+        Title="Custo por Recurso" Width="1300" Height="680"
+        MinWidth="1000" MinHeight="500"
         WindowStartupLocation="CenterOwner"
         Background="#F5F5F5">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="*"/>     <!-- Corpo (filtros + grid) -->
+            <RowDefinition Height="Auto"/>  <!-- Footer -->
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <Border Grid.Row="0" Background="#1B5E20" Padding="16,10">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="💰 Custo por Recurso" FontSize="16" FontWeight="Bold"
+                <TextBlock Text="💰 Custo por Recurso — Feature" FontSize="15" FontWeight="Bold"
                            Foreground="White" VerticalAlignment="Center"/>
                 <TextBlock x:Name="TotalText" FontSize="12" Foreground="#A5D6A7"
                            VerticalAlignment="Center" Margin="20,0,0,0"/>
             </StackPanel>
         </Border>
 
-        <!-- Toolbar -->
-        <Border Grid.Row="1" Background="White" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="12,6">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Agrupar por:" VerticalAlignment="Center" FontSize="12" Margin="0,0,8,0"/>
-                <ComboBox x:Name="GroupByCombo" Width="130" Height="26" FontSize="12"
-                          SelectionChanged="OnGroupByChanged">
-                    <ComboBoxItem Content="Recurso" IsSelected="True"/>
-                    <ComboBoxItem Content="Feature"/>
-                    <ComboBoxItem Content="Mês"/>
-                </ComboBox>
-                <Separator Margin="12,0"/>
-                <TextBlock Text="Recurso:" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
-                <ComboBox x:Name="ResourceFilter" Width="160" Height="26" FontSize="12"
-                          SelectionChanged="OnFilterChanged"/>
-                <Separator Margin="12,0"/>
-                <TextBlock Text="Mês:" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
-                <ComboBox x:Name="MonthFilter" Width="110" Height="26" FontSize="12"
-                          SelectionChanged="OnFilterChanged"/>
-                <Separator Margin="12,0"/>
-                <TextBlock x:Name="CountText" VerticalAlignment="Center" FontSize="11" Foreground="#555"/>
-            </StackPanel>
-        </Border>
+        <!-- Corpo: painel de filtros à esquerda + grid à direita -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190"/>  <!-- Filtros -->
+                <ColumnDefinition Width="*"/>    <!-- Grid -->
+            </Grid.ColumnDefinitions>
 
-        <!-- Grid -->
-        <DataGrid Grid.Row="2" x:Name="CostGrid"
-                  AutoGenerateColumns="False" IsReadOnly="True"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                  AlternatingRowBackground="#F1F8E9" RowBackground="White"
-                  BorderThickness="0" FontSize="12"
-                  CanUserReorderColumns="False" CanUserResizeRows="False">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Recurso"  Binding="{Binding ResourceName}" Width="160"/>
-                <DataGridTextColumn Header="Tipo"     Binding="{Binding CostTypeLabel}" Width="70"/>
-                <DataGridTextColumn Header="Feature"  Binding="{Binding FeatureName}"  Width="*"/>
-                <DataGridTextColumn Header="Mês"      Binding="{Binding MonthLabel}"   Width="90"/>
-                <DataGridTextColumn Header="HH"       Binding="{Binding HoursText}"    Width="70">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="HorizontalAlignment" Value="Right"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTemplateColumn Header="Custo (R$)" Width="110">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding CostText}" FontWeight="SemiBold"
-                                       HorizontalAlignment="Right" Foreground="#1B5E20"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-            <DataGrid.GroupStyle>
-                <GroupStyle>
-                    <GroupStyle.ContainerStyle>
-                        <Style TargetType="GroupItem">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="GroupItem">
-                                        <Expander IsExpanded="True" Background="#E8F5E9">
-                                            <Expander.Header>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0"/>
-                                                    <TextBlock Text="{Binding ItemCount, StringFormat='({0} itens)'}"
-                                                               Foreground="#555" Margin="8,0" FontSize="11"/>
-                                                </StackPanel>
-                                            </Expander.Header>
-                                            <ItemsPresenter/>
-                                        </Expander>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </GroupStyle.ContainerStyle>
-                </GroupStyle>
-            </DataGrid.GroupStyle>
-        </DataGrid>
+            <!-- Painel de filtros -->
+            <Border Grid.Column="0" Background="White" BorderBrush="#DDD" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <!-- Botões no topo do painel -->
+                    <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#DDD"
+                            BorderThickness="0,0,0,1" Padding="8,6">
+                        <StackPanel>
+                            <CheckBox x:Name="OnlyWithCostBox" Content="Apenas com custo"
+                                      FontSize="11" IsChecked="True"
+                                      Checked="OnFilterChanged" Unchecked="OnFilterChanged"/>
+                            <Button Content="📊 Exportar para Excel" Height="24" Margin="0,6,0,0"
+                                    FontSize="11" Click="OnExportExcelClick"/>
+                        </StackPanel>
+                    </Border>
 
-        <!-- Footer totals -->
-        <Border Grid.Row="3" Background="White" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="12,8">
+                    <!-- Listas de filtro -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <!-- Recursos -->
+                            <Border Background="#EEEEEE" Padding="8,5">
+                                <TextBlock Text="Recursos" FontSize="11" FontWeight="SemiBold" Foreground="#333"/>
+                            </Border>
+                            <ListBox x:Name="ResourceFilterList"
+                                     SelectionMode="Multiple"
+                                     BorderThickness="0"
+                                     MaxHeight="200"
+                                     FontSize="11"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding}"
+                                                  IsChecked="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                                                  Focusable="False" FontSize="11"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <!-- Separador -->
+                            <Border Height="1" Background="#DDD" Margin="0,4"/>
+
+                            <!-- Features -->
+                            <Border Background="#EEEEEE" Padding="8,5">
+                                <TextBlock Text="Features" FontSize="11" FontWeight="SemiBold" Foreground="#333"/>
+                            </Border>
+                            <ListBox x:Name="FeatureFilterList"
+                                     SelectionMode="Multiple"
+                                     BorderThickness="0"
+                                     FontSize="11"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding}"
+                                                  IsChecked="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                                                  Focusable="False" FontSize="11"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Grid de dados -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44"/>  <!-- Cabeçalho de colunas -->
+                    <RowDefinition Height="*"/>   <!-- Dados -->
+                </Grid.RowDefinitions>
+
+                <!-- Cabeçalho fixo esquerda + meses -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="590"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="#2B579A" BorderBrush="#1D3F73" BorderThickness="0,0,1,1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Recurso" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       Width="150" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                            <TextBlock Text="EPIC" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       Width="180" VerticalAlignment="Center"/>
+                            <TextBlock Text="Feature" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       Width="220" VerticalAlignment="Center"/>
+                            <TextBlock Text="Tipo" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                                       Width="40" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer x:Name="HeaderScroll" Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="HeaderPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Dados -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="590"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <ScrollViewer x:Name="LeftScroll" Grid.Column="0"
+                                  VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                                  ScrollChanged="OnLeftScrollChanged">
+                        <ItemsControl x:Name="LeftPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <ScrollViewer x:Name="MainScroll" Grid.Column="1"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  ScrollChanged="OnMainScrollChanged">
+                        <ItemsControl x:Name="DataPanel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="White" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="12,7">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontSize="12" Foreground="#333"/>
+                <TextBlock x:Name="SummaryText" Grid.Column="0" VerticalAlignment="Center"
+                           FontSize="12" Foreground="#333"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock x:Name="CountText" VerticalAlignment="Center" FontSize="11"
+                               Foreground="#555" Margin="0,0,16,0"/>
+                    <Button Content="Fechar" Width="80" Height="28" IsCancel="True" Click="OnCloseClick"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="Fechar" Width="80" Height="28" IsCancel="True" Click="OnCloseClick"/>
             </Grid>
         </Border>
     </Grid>
