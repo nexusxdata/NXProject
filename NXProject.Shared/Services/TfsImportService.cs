@@ -311,6 +311,9 @@ namespace NXProject.Services
             public DateTime? LocalFinish => Task.Finish == default ? null : Task.Finish;
             public string TfsType => Task.TfsType ?? "";
             public int TfsId => Task.TfsId ?? 0;
+            // Atividade já iniciada (% > 0) não deve ser sobrescrita automaticamente no merge.
+            public double LocalPercentComplete => Task.PercentComplete;
+            public bool IsStarted => Task.PercentComplete > 0.0001;
         }
 
         public sealed class SyncReport
@@ -630,18 +633,17 @@ namespace NXProject.Services
                             }
                         }
 
-                        // HH Original.
+                        // HH Original — só envia se o valor realmente diferir do TFS.
                         if (originalHoursRef != null && task.OriginalEstimatedHours is > 0)
                         {
                             var currentOrigH = ReadDouble(wi, originalHoursRef);
-                            bool tfsMissing = currentOrigH == null || currentOrigH.Value < 0.0001;
-                            bool taskNotStarted = task.PercentComplete < 0.0001;
-                            if (tfsMissing || taskNotStarted)
+                            bool differs = currentOrigH == null
+                                || Math.Abs(currentOrigH.Value - task.OriginalEstimatedHours.Value) > 0.0001;
+                            if (differs)
                             {
                                 ops.Add(PatchAdd($"/fields/{originalHoursRef}", task.OriginalEstimatedHours.Value));
-                                changes.Add(tfsMissing
-                                    ? $"HH Original: {task.OriginalEstimatedHours.Value:0.##}h"
-                                    : $"HH Original: {currentOrigH!.Value:0.##}→{task.OriginalEstimatedHours.Value:0.##}h");
+                                var oldH = currentOrigH.HasValue ? $"{currentOrigH.Value:0.##}→" : "";
+                                changes.Add($"HH Original: {oldH}{task.OriginalEstimatedHours.Value:0.##}h");
                             }
                         }
 
@@ -729,11 +731,10 @@ namespace NXProject.Services
                                     .Where(t => !fixedTagAliases.Any(tag => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)));
                                 ops.Add(PatchAdd("/fields/System.Tags", string.Join("; ", parts)));
                                 changes.Add($"tag: -{string.Join("/", fixedTagAliases)}");
-                                if (startRef != null && ReadDate(wi, startRef) != null)
-                                {
-                                    ops.Add(PatchRemove($"/fields/{startRef}"));
-                                    changes.Add("início negociado removido");
-                                }
+                                // Não fazemos PatchRemove do campo de data aqui: ao deixar de ser
+                                // fixada, a data calculada prevalece e já é gravada pelo bloco
+                                // acima (typeStartRef), evitando duas atualizações do mesmo campo
+                                // no mesmo patch (erro VS403691 do DevOps).
                             }
                         }
 

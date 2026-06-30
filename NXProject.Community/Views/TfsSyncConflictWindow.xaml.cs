@@ -77,7 +77,7 @@ namespace NXProject.Views
 
         private void OnSelectAll(object sender, RoutedEventArgs e)
         {
-            foreach (var r in _rows) r.IsSelected = true;
+            foreach (var r in _rows.Where(r => r.CanSelect)) r.IsSelected = true;
         }
 
         private void OnDeselectAll(object sender, RoutedEventArgs e)
@@ -147,14 +147,24 @@ namespace NXProject.Views
             public bool IsSelected
             {
                 get => _isSelected;
-                set { _isSelected = value; OnPropertyChanged(); }
+                set
+                {
+                    if (Item.IsStarted && value) return; // não pode selecionar iniciada
+                    _isSelected = value; OnPropertyChanged();
+                }
             }
+
+            public bool IsStarted => Item.IsStarted;
+            public bool CanSelect => !Item.IsStarted;
 
             public string TfsType      => Item.TfsType;
             public int    TfsId        => Item.TfsId;
             public string ChangedBy    => Item.ChangedBy;
             public string VersionLabel => $"{Item.LocalVersion} → {Item.TfsVersion}";
             public string LocalTitle   => Item.LocalTitle;
+            public string StartedLabel => Item.IsStarted
+                ? $"Iniciada ({Item.LocalPercentComplete:0}%) — não sobrescrever"
+                : "";
 
             public string DiffSummary
             {

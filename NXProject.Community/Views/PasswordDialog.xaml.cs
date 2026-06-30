@@ -18,7 +18,7 @@ namespace NXProject.Views
 
         private void OnPasswordChanged(object sender, RoutedEventArgs e)
         {
-            bool hasPass = PasswordBox1.Password.Length >= 6;
+            bool hasPass = PasswordBox1.Password.Length > 0;
             bool match   = ConfirmPanel.Visibility != Visibility.Visible
                            || PasswordBox1.Password == PasswordBox2.Password;
 

@@ -58,6 +58,8 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding CanSelect}"
+                                          ToolTip="{Binding StartedLabel}"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -76,6 +78,16 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Status" Width="150" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StartedLabel}" FontSize="11"
+                                           Foreground="#8A6D00" FontStyle="Italic"
+                                           Padding="4,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
@@ -83,6 +95,10 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                 <Setter Property="Background" Value="#FFF8E1"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsStarted}" Value="True">
+                                <Setter Property="Background" Value="#F2F2F2"/>
+                                <Setter Property="Foreground" Value="#888888"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -164,7 +180,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="Marcar todos"   Padding="8,3" FontSize="11" Margin="0,0,6,0" Click="OnSelectAll"/>
+                <Button Grid.Column="0" Content="Marcar não iniciadas" Padding="8,3" FontSize="11" Margin="0,0,6,0" Click="OnSelectAll"/>
                 <Button Grid.Column="1" Content="Desmarcar todos" Padding="8,3" FontSize="11" Click="OnDeselectAll"/>
                 <TextBlock Grid.Column="2" x:Name="SummaryText"
                            FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="12,0,0,0"/>
