@@ -96,8 +96,8 @@ public partial class PercAlocEditWindow : Window
             return;
         }
 
-        // % = horas necessárias / horas disponíveis × 100
-        int perc = (int)Math.Round(hours / availableHours * 100.0);
+        // % = horas necessárias / horas disponíveis × 100 (trunca para não antecipar a data)
+        int perc = (int)(hours / availableHours * 100.0);
         perc = Math.Clamp(perc, 1, _maxPercent);
         PercAlocBox.Text = perc.ToString();
 
