@@ -358,11 +358,11 @@ namespace NXProject.Controls
             ("HH Restante",   EstimatedHoursColumn),
             ("Início",        StartColumn),
             ("Fim",           FinishColumn),
+            ("TKs",           TksColumn),
             ("% Compl.",      PercentColumn),
             ("Predecessoras", PredecessorColumn),
             ("Recursos",      ResourcesColumn),
             ("Sprint",        SprintColumn),
-            ("TKs",           TksColumn),
         ];
 
         public void ShowColumnCustomizer(string hiddenDefault, string hiddenExpanded)

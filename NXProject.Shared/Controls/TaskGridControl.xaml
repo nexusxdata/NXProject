@@ -535,6 +535,19 @@
                 </DataGridTemplateColumn.CellEditingTemplate>
             </DataGridTemplateColumn>
 
+            <!-- TKs: quantidade de Tasks filhas no DevOps (só modo expandido) -->
+            <DataGridTemplateColumn x:Name="TksColumn" Header="TKs" Width="40" IsReadOnly="True">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding TksCountDisplay}"
+                                   Foreground="{Binding TksBrush}"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
             <!-- % Completo -->
             <DataGridTemplateColumn x:Name="PercentColumn" Header="{DynamicResource Col_PercentComplete}" Width="70">
                 <DataGridTemplateColumn.CellTemplate>
@@ -712,19 +725,6 @@
                         </ComboBox>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellEditingTemplate>
-            </DataGridTemplateColumn>
-
-            <!-- TKs: quantidade de Tasks filhas no DevOps (só modo expandido) -->
-            <DataGridTemplateColumn x:Name="TksColumn" Header="TKs" Width="40" IsReadOnly="True">
-                <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding TksCountDisplay}"
-                                   Foreground="{Binding TksBrush}"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
         </DataGrid.Columns>
