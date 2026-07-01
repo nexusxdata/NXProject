@@ -1,0 +1,203 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using NXProject.Models;
+using NXProject.Services;
+
+namespace NXProject.Views
+{
+    public partial class TfsDevOpsConfigWindow : Window
+    {
+        private readonly string _storageKey;
+        private string _devOpsProjectListPath = string.Empty;
+        private readonly System.Collections.ObjectModel.ObservableCollection<ExtraWorkItemField> _extraFields = new();
+        private readonly System.Collections.ObjectModel.ObservableCollection<ClassificationMapping> _classificationMappings = new();
+
+        public sealed class ClassificationMapping
+        {
+            public static readonly string[] AllTypes       = ["Epic", "Feature", "Story", "Task", "Todos"];
+            public static readonly string[] AllFieldTypes  = ["Picklist", "Integer", "Text", "Date"];
+            public string[] AvailableTypes      => AllTypes;
+            public string[] AvailableFieldTypes => AllFieldTypes;
+            public string DevOpsType { get; set; } = "Feature";
+            public string FieldRef   { get; set; } = string.Empty;
+            public string FieldType  { get; set; } = "Picklist";
+            /// <summary>Valores separados por vírgula; viram o combo ao editar classificação deste tipo.</summary>
+            public string Values     { get; set; } = string.Empty;
+        }
+
+        public TfsDevOpsConfigWindow(string storageKey = "NXProject.Community")
+        {
+            InitializeComponent();
+            _storageKey = string.IsNullOrWhiteSpace(storageKey) ? "NXProject.Community" : storageKey.Trim();
+
+            var saved = TfsConnectionStore.Load(_storageKey);
+            OrgUrlBox.Text = saved.OrganizationUrl;
+            ProjectBox.Text = saved.TeamProject;
+            EffortFieldBox.Text = saved.EffortFieldName;
+            StartFieldBox.Text = saved.StartFieldName;
+            FinishFieldBox.Text = saved.FinishFieldName;
+            PercAlocFieldBox.Text = saved.PercAlocFieldName;
+            FixedStartTagBox.Text = saved.FixedStartTagName;
+            SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
+            FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
+
+            foreach (var f in saved.ExtraCreateFields)
+                _extraFields.Add(new ExtraWorkItemField { Ref = f.Ref, Value = f.Value });
+            ExtraFieldsList.ItemsSource = _extraFields;
+
+            // Carrega mapeamentos de classificação por tipo
+            foreach (var kv in saved.TypeFieldMappings)
+            {
+                foreach (var fd in kv.Value.CustomDevopsFields)
+                    _classificationMappings.Add(new ClassificationMapping
+                    {
+                        DevOpsType = kv.Key,
+                        FieldRef   = fd.Field,
+                        FieldType  = fd.FieldType,
+                        Values     = fd.Values ?? string.Empty,
+                    });
+            }
+            // Padrão: Feature → Custom.Type (Picklist) com valores de exemplo
+            if (_classificationMappings.Count == 0)
+                _classificationMappings.Add(new ClassificationMapping
+                {
+                    DevOpsType = "Feature", FieldRef = "Custom.Type", FieldType = "Picklist",
+                    Values = "Architecture,Burocracy,Docs,Feature,Hotfix,Refactor",
+                });
+            ClassificationMappingsList.ItemsSource = _classificationMappings;
+
+            if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
+            {
+                PatBox.Password = saved.PersonalAccessToken;
+                RememberTokenCheck.IsChecked = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(saved.DevOpsProjectListPath))
+            {
+                _devOpsProjectListPath = saved.DevOpsProjectListPath;
+                ListPathLabel.Text = _devOpsProjectListPath;
+            }
+        }
+
+        private void OnManageListClick(object sender, RoutedEventArgs e)
+        {
+            var dlg = new DevOpsProjectListWindow(_devOpsProjectListPath) { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                _devOpsProjectListPath = dlg.ResultFilePath ?? string.Empty;
+                ListPathLabel.Text = string.IsNullOrWhiteSpace(_devOpsProjectListPath)
+                    ? "(nenhum portfólio carregado — clique em ⚙ Gerenciar Portfólio)"
+                    : _devOpsProjectListPath;
+            }
+        }
+
+        private void OnOpenCalendarClick(object sender, RoutedEventArgs e)
+        {
+            var control = new NXProject.Controls.CalendarSettingsControl("NXProject.Community");
+            var window = new Window
+            {
+                Title = "Calendário de trabalho",
+                Owner = this,
+                Width = 720,
+                Height = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = control
+            };
+            control.Saved += (_, _) => { window.Close(); };
+            window.ShowDialog();
+        }
+
+        private void OnAddClassificationMapping(object sender, RoutedEventArgs e)
+            => _classificationMappings.Add(new ClassificationMapping { DevOpsType = "Feature", FieldRef = string.Empty });
+
+        private void OnRemoveClassificationMapping(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is ClassificationMapping m)
+                _classificationMappings.Remove(m);
+        }
+
+        private void OnAddExtraField(object sender, RoutedEventArgs e)
+            => _extraFields.Add(new ExtraWorkItemField());
+
+        private void OnRemoveExtraField(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is ExtraWorkItemField field)
+                _extraFields.Remove(field);
+        }
+
+        private void ShowStatus(string message)
+        {
+            StatusText.Text = message;
+            StatusText.Visibility = Visibility.Visible;
+        }
+
+        private void OnSaveClick(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(OrgUrlBox.Text) || string.IsNullOrWhiteSpace(PatBox.Password))
+            {
+                ShowStatus("Informe a URL da organização e o Personal Access Token antes de salvar.");
+                return;
+            }
+
+            var options = BuildOptions();
+            TfsConnectionStore.Save(options, RememberTokenCheck.IsChecked == true, _storageKey);
+            DialogResult = true;
+            Close();
+        }
+
+        private TfsConnectionOptions BuildOptions() => new()
+        {
+            OrganizationUrl     = OrgUrlBox.Text?.Trim() ?? string.Empty,
+            TeamProject         = ProjectBox.Text?.Trim() ?? string.Empty,
+            PersonalAccessToken = PatBox.Password,
+            RootWorkItemId      = TfsConnectionStore.Load(_storageKey).RootWorkItemId,
+            HoursPerDay         = ProjectCalendarService.WorkingHoursPerDay,
+            EffortFieldName     = string.IsNullOrWhiteSpace(EffortFieldBox.Text)    ? "HH Estimado"   : EffortFieldBox.Text.Trim(),
+            StartFieldName      = string.IsNullOrWhiteSpace(StartFieldBox.Text)     ? "Data_Inicio"   : StartFieldBox.Text.Trim(),
+            FinishFieldName     = string.IsNullOrWhiteSpace(FinishFieldBox.Text)    ? "Data_Fim"      : FinishFieldBox.Text.Trim(),
+            PercAlocFieldName   = string.IsNullOrWhiteSpace(PercAlocFieldBox.Text)  ? "Perc_Alocação" : PercAlocFieldBox.Text.Trim(),
+            FixedStartTagName   = string.IsNullOrWhiteSpace(FixedStartTagBox.Text)  ? "DT-INI-NEG"   : FixedStartTagBox.Text.Trim(),
+            SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
+            FutureSprintDays    = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90,
+            DevOpsProjectListPath = _devOpsProjectListPath,
+            ExtraCreateFields   = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))],
+            ClassificationPicklistValues = TfsConnectionStore.Load(_storageKey).ClassificationPicklistValues,
+            TypeFieldMappings = BuildTypeFieldMappings()
+        };
+
+        private Dictionary<string, TypeFieldConfig> BuildTypeFieldMappings()
+        {
+            var saved = TfsConnectionStore.Load(_storageKey);
+            var mappings = new Dictionary<string, TypeFieldConfig>(saved.TypeFieldMappings, StringComparer.OrdinalIgnoreCase);
+
+            // Limpa CustomDevopsFields de todos os tipos antes de reaplicar
+            foreach (var cfg in mappings.Values)
+                cfg.CustomDevopsFields = [];
+
+            // Agrupa por tipo DevOps e salva lista de campos
+            var grouped = _classificationMappings
+                .Where(m => !string.IsNullOrWhiteSpace(m.FieldRef))
+                .GroupBy(m => string.Equals(m.DevOpsType, "Todos", StringComparison.OrdinalIgnoreCase) ? "*" : m.DevOpsType,
+                         StringComparer.OrdinalIgnoreCase);
+
+            foreach (var g in grouped)
+            {
+                if (!mappings.TryGetValue(g.Key, out var cfg))
+                    cfg = new TypeFieldConfig();
+                cfg.CustomDevopsFields = g.Select(m => new ClassificationFieldDef
+                {
+                    Field     = m.FieldRef.Trim(),
+                    FieldType = string.IsNullOrWhiteSpace(m.FieldType) ? "Picklist" : m.FieldType.Trim(),
+                    Values    = string.IsNullOrWhiteSpace(m.Values)    ? null       : m.Values.Trim(),
+                }).ToList();
+                mappings[g.Key] = cfg;
+            }
+
+            return mappings;
+        }
+    }
+}

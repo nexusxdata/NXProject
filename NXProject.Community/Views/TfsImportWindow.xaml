@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Importar do Azure DevOps"
         Loaded="OnWindowLoaded"
-        Width="600" Height="660"
+        Width="600" Height="460"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="White">
@@ -18,45 +18,31 @@
 
             <!-- Cabeçalho -->
             <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                <TextBlock Text="Importar do Azure DevOps"
-                           FontSize="20" FontWeight="SemiBold" Foreground="#2B579A"/>
-                <TextBlock Text="Conecte ao DevOps, escolha o projeto e monte o cronograma."
-                           FontSize="12" Foreground="#666" Margin="0,4,0,0"/>
+                <Grid>
+                    <TextBlock Text="Importar do Azure DevOps"
+                               FontSize="20" FontWeight="SemiBold" Foreground="#2B579A"/>
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Content="⚙ Configurar DevOps" Padding="10,4" FontSize="11"
+                            Click="OnOpenConfigClick"
+                            ToolTip="Abre a configuração da integração com Azure DevOps"/>
+                </Grid>
+                <TextBlock Text="Escolha o projeto e o ID raiz para montar o cronograma."
+                           FontSize="12" Foreground="#666" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
             <StackPanel>
 
-                <!-- ══ PASSO 1 ══ Conexão ══════════════════════════════════════ -->
-                <Border Background="#F0F4FA" BorderBrush="#C5D5EA" BorderThickness="1"
-                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <Border Background="#2B579A" CornerRadius="10" Width="20" Height="20">
-                                <TextBlock Text="1" Foreground="White" FontSize="11" FontWeight="Bold"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBlock Text="  Conexão com o Azure DevOps"
-                                       FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Foreground="#2B579A"/>
-                        </StackPanel>
-
-                        <TextBlock Text="URL da organização" FontSize="11" Foreground="#555" Margin="0,0,0,3"/>
-                        <TextBox x:Name="OrgUrlBox" Height="28" Padding="6,4" FontSize="12"
-                                 ToolTip="Ex.: https://dev.azure.com/sua-org  ou  https://suaorg.visualstudio.com"/>
-
-                        <TextBlock Text="Team Project (nome exato do projeto no DevOps)" FontSize="11" Foreground="#555" Margin="0,10,0,3"/>
-                        <TextBox x:Name="ProjectBox" Height="28" Padding="6,4" FontSize="12"
-                                 ToolTip="Nome do projeto conforme aparece no Azure DevOps"/>
-
-                        <TextBlock Text="Personal Access Token  (escopo mínimo: Work Items → Read)" FontSize="11" Foreground="#555" Margin="0,10,0,3"/>
-                        <PasswordBox x:Name="PatBox" Height="28" Padding="6,4" FontSize="12"/>
-                        <CheckBox x:Name="RememberTokenCheck"
-                                  Content="Lembrar o token neste computador (salvo de forma criptografada)"
-                                  FontSize="11" Foreground="#444" Margin="0,6,0,0"/>
+                <!-- Aviso de conexão não configurada -->
+                <Border x:Name="NotConfiguredHint" Background="#FFF3E0" BorderBrush="#F0C36D" BorderThickness="1"
+                        CornerRadius="6" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚠ Conexão com o Azure DevOps ainda não configurada. " FontSize="11.5" Foreground="#5D4037" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        <Button Content="Configurar..." Padding="8,3" FontSize="11" Click="OnOpenConfigClick" Margin="6,0,0,0"/>
                     </StackPanel>
                 </Border>
 
-                <!-- ══ PASSO 2 ══ Portfólio ═══════════════════════════════════ -->
+                <!-- ══ PASSO 1 ══ Portfólio ═══════════════════════════════════ -->
                 <Border Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1"
                         CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
                     <StackPanel>
@@ -67,7 +53,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
                                 <Border Background="#2B579A" CornerRadius="10" Width="20" Height="20">
-                                    <TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold"
+                                    <TextBlock Text="1" Foreground="White" FontSize="11" FontWeight="Bold"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <TextBlock Text="  Portfólio de projetos"
@@ -81,7 +67,7 @@
                         </Grid>
 
                         <TextBlock FontSize="11" Foreground="#555" Margin="0,0,0,6" TextWrapping="Wrap"
-                                   Text="Selecione o projeto cadastrado no portfólio. Os campos de conexão acima serão preenchidos automaticamente."/>
+                                   Text="Selecione o projeto cadastrado no portfólio."/>
 
                         <ComboBox x:Name="DevOpsProjectCombo"
                                   Height="30" Padding="6,4" FontSize="12"
@@ -95,7 +81,7 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ══ PASSO 3 ══ Projeto raiz ════════════════════════════════ -->
+                <!-- ══ PASSO 2 ══ Projeto raiz ════════════════════════════════ -->
                 <Border x:Name="RootIdSection" Background="#F5F9F5" BorderBrush="#B5D5B5" BorderThickness="1"
                         CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
                     <Grid>
@@ -107,7 +93,7 @@
                         <StackPanel Grid.Column="0">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <Border Background="#2E7D32" CornerRadius="10" Width="20" Height="20">
-                                    <TextBlock Text="3" Foreground="White" FontSize="11" FontWeight="Bold"
+                                    <TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <TextBlock Text="  ID do item raiz (tipo Project)"
@@ -133,126 +119,6 @@
                     <TextBlock TextWrapping="Wrap" Foreground="#5D4037" FontSize="11.5"
                                Text="💡 Regras de cronograma: o esforço (HH Estimado) de cada Story é convertido em dias úteis. Se Data_Inicio estiver preenchida no DevOps, a barra começa nela; Data_Fim, se preenchida, é usada diretamente. Stories sem datas são encadeadas a partir da data de início do projeto."/>
                 </Border>
-
-                <!-- Avançado -->
-                <Expander x:Name="AdvancedExpander" Header="⚙  Campos avançados" Margin="0,0,0,4" Foreground="#2B579A" FontSize="12">
-                    <Border Background="#FAFAFA" BorderBrush="#DDD" BorderThickness="1"
-                            CornerRadius="6" Padding="12,10" Margin="0,6,0,0">
-                    <StackPanel>
-                        <TextBlock Text="Nomes dos campos no DevOps (deixe em branco para usar os padrões)"
-                                   FontSize="11" Foreground="#666" Margin="0,0,0,10" TextWrapping="Wrap"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Campo esforço (horas)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                                <TextBox x:Name="EffortFieldBox" Height="26" Padding="6,3"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Campo data início" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                                <TextBox x:Name="StartFieldBox" Height="26" Padding="6,3"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="4">
-                                <TextBlock Text="Campo data fim" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                                <TextBox x:Name="FinishFieldBox" Height="26" Padding="6,3"/>
-                            </StackPanel>
-                        </Grid>
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="2*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Campo % alocação (Perc_Aloc)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                                <TextBox x:Name="PercAlocFieldBox" Height="26" Padding="6,3"/>
-                            </StackPanel>
-                        </Grid>
-                        <StackPanel Margin="0,8,0,0">
-                            <TextBlock Text="Tag de data negociada (início fixado)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                            <TextBox x:Name="FixedStartTagBox" Height="26" Padding="6,3" Width="220" HorizontalAlignment="Left"/>
-                        </StackPanel>
-                        <CheckBox x:Name="SyncPredecessorLinksCheck"
-                                  Content="Sincronizar links de predecessora no DevOps"
-                                  IsChecked="True" Margin="0,10,0,0" FontSize="11"/>
-                        <StackPanel Margin="0,10,0,0">
-                            <TextBlock Text="Sprints futuras no dropdown (dias a partir de hoje)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="FutureSprintDaysBox" Height="26" Padding="6,3" Width="80" Text="90"/>
-                                <TextBlock Text="  (0 = só sprints com itens)" FontSize="11"
-                                           Foreground="#888" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </StackPanel>
-                        <StackPanel Margin="0,12,0,0">
-                            <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,4" TextWrapping="Wrap"
-                                       Text="Campos obrigatórios na criação (quando o DevOps exige campos que o NXProject não preenche automaticamente):"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Referência do campo (ex.: Custom.Type)" FontSize="10" Foreground="#888" Margin="0,0,0,2"/>
-                                <TextBlock Grid.Column="2" Text="Valor padrão (ex.: Atividade)" FontSize="10" Foreground="#888" Margin="0,0,0,2"/>
-                            </Grid>
-                            <ItemsControl x:Name="ExtraFieldsList" Margin="0,2,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="8"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="8"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0" Height="26" Padding="6,3" Text="{Binding Ref, UpdateSourceTrigger=PropertyChanged}"/>
-                                            <TextBox Grid.Column="2" Height="26" Padding="6,3" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
-                                            <Button Grid.Column="4" Content="✕" Width="26" Height="26" Padding="0"
-                                                    Tag="{Binding}" Click="OnRemoveExtraField"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Content="+ Adicionar campo" HorizontalAlignment="Left" Padding="8,4"
-                                    Margin="0,4,0,0" Click="OnAddExtraField"/>
-                        </StackPanel>
-                        <!-- Campo de classificação (picklist customizado por tipo) -->
-                        <StackPanel Margin="0,14,0,0">
-                            <CheckBox x:Name="ClassificationEnabledCheck"
-                                      Content="Ativar campo de classificação (picklist obrigatório na criação)"
-                                      IsChecked="True" FontSize="11" Margin="0,0,0,6"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="10"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Referência do campo (ex.: Custom.Type)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                                    <TextBox x:Name="ClassificationFieldBox" Height="26" Padding="6,3"
-                                             ToolTip="Nome de referência do campo picklist customizado obrigatório na criação de Features"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Valores do picklist (um por linha)" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
-                                    <TextBox x:Name="ClassificationPicklistBox" Height="66" Padding="6,4"
-                                             AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
-                                             ToolTip="Valores separados por nova linha. Deixe vazio para usar os padrões embutidos."/>
-                                </StackPanel>
-                            </Grid>
-                            <TextBlock Text="O campo de classificação é enviado para o tipo Feature (e outros configurados em TypeFieldMappings.ClassificationField).&#10;Default do valor = TfsClassification da tarefa (editável via menu de contexto → 🏷 Classificação)."
-                                       FontSize="10" Foreground="#888" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </StackPanel>
-                    </Border>
-                </Expander>
 
                 <TextBlock x:Name="StatusText"
                            Foreground="#B00020" TextWrapping="Wrap"

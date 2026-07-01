@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,13 +15,7 @@ namespace NXProject.Views
         private bool _isImporting;
         private string _devOpsProjectListPath = string.Empty;
         private List<DevOpsProject> _devOpsProjects = new();
-        private readonly System.Collections.ObjectModel.ObservableCollection<ExtraWorkItemField> _extraFields = new();
-
-        /// <summary>
-        /// Quando true: abre em modo configuração (sem importar). Expande "Campos avançados"
-        /// automaticamente e troca o botão para "Salvar".
-        /// </summary>
-        public bool ConfigOnly { get; init; }
+        private TfsConnectionOptions _savedOptions = new();
 
         /// <summary>Projeto importado quando o diálogo retorna true.</summary>
         public Project? ImportedProject { get; private set; }
@@ -32,41 +25,12 @@ namespace NXProject.Views
             InitializeComponent();
             _storageKey = string.IsNullOrWhiteSpace(storageKey) ? "NXProject.Community" : storageKey.Trim();
 
-            var saved = TfsConnectionStore.Load(_storageKey);
-            OrgUrlBox.Text = saved.OrganizationUrl;
-            ProjectBox.Text = saved.TeamProject;
-            // HoursPerDay vem do calendário de trabalho — não exibido aqui
-            EffortFieldBox.Text = saved.EffortFieldName;
-            StartFieldBox.Text = saved.StartFieldName;
-            FinishFieldBox.Text = saved.FinishFieldName;
-            PercAlocFieldBox.Text = saved.PercAlocFieldName;
-            FixedStartTagBox.Text = saved.FixedStartTagName;
-            SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
-            FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
+            _savedOptions = TfsConnectionStore.Load(_storageKey);
 
-            foreach (var f in saved.ExtraCreateFields)
-                _extraFields.Add(new ExtraWorkItemField { Ref = f.Ref, Value = f.Value });
-            ExtraFieldsList.ItemsSource = _extraFields;
-
-            // Campo de classificação
-            var featCfg = saved.TypeFieldMappings.TryGetValue("Feature", out var fc) ? fc : null;
-            ClassificationEnabledCheck.IsChecked = featCfg?.ClassificationEnabled ?? true;
-            ClassificationFieldBox.Text = featCfg?.ClassificationField ?? string.Empty;
-            ClassificationPicklistBox.Text = saved.ClassificationPicklistValues.Count > 0
-                ? string.Join("\n", saved.ClassificationPicklistValues)
-                : string.Empty;
-
-            if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
-            {
-                PatBox.Password = saved.PersonalAccessToken;
-                RememberTokenCheck.IsChecked = true;
-            }
-
-            // Carrega lista de projetos DevOps do path salvo
-            if (!string.IsNullOrWhiteSpace(saved.DevOpsProjectListPath))
-                LoadProjectList(saved.DevOpsProjectListPath, saved.RootWorkItemId);
-            else if (saved.RootWorkItemId > 0)
-                RootIdBox.Text = saved.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
+            if (!string.IsNullOrWhiteSpace(_savedOptions.DevOpsProjectListPath))
+                LoadProjectList(_savedOptions.DevOpsProjectListPath, _savedOptions.RootWorkItemId);
+            else if (_savedOptions.RootWorkItemId > 0)
+                RootIdBox.Text = _savedOptions.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
         }
 
         private void LoadProjectList(string path, int selectId = 0)
@@ -110,7 +74,17 @@ namespace NXProject.Views
 
                 var saved = TfsConnectionStore.Load(_storageKey);
                 saved.DevOpsProjectListPath = newPath;
-                TfsConnectionStore.Save(saved, RememberTokenCheck.IsChecked == true, _storageKey);
+                TfsConnectionStore.Save(saved, !string.IsNullOrEmpty(saved.PersonalAccessToken), _storageKey);
+            }
+        }
+
+        private void OnOpenConfigClick(object sender, RoutedEventArgs e)
+        {
+            var dlg = new TfsDevOpsConfigWindow(_storageKey) { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                _savedOptions = TfsConnectionStore.Load(_storageKey);
+                UpdateConfigHint();
             }
         }
 
@@ -121,17 +95,10 @@ namespace NXProject.Views
 
             HideStatus();
 
-            if (ConfigOnly)
+            _savedOptions = TfsConnectionStore.Load(_storageKey);
+            if (string.IsNullOrWhiteSpace(_savedOptions.OrganizationUrl) || string.IsNullOrWhiteSpace(_savedOptions.PersonalAccessToken))
             {
-                // Modo config: salva as configurações sem importar.
-                if (string.IsNullOrWhiteSpace(OrgUrlBox.Text) || string.IsNullOrWhiteSpace(PatBox.Password))
-                {
-                    ShowStatus("Informe a URL da organização e o Personal Access Token antes de salvar.");
-                    return;
-                }
-                var configOptions = BuildOptions(rootId: 0);
-                TfsConnectionStore.Save(configOptions, RememberTokenCheck.IsChecked == true, _storageKey);
-                Close();
+                ShowStatus("Conexão com o Azure DevOps não configurada. Clique em \"Configurar...\" acima.");
                 return;
             }
 
@@ -141,13 +108,9 @@ namespace NXProject.Views
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(PatBox.Password))
-            {
-                ShowStatus("Informe o Personal Access Token.");
-                return;
-            }
-
-            var options = BuildOptions(rootId);
+            var options = _savedOptions;
+            options.RootWorkItemId = rootId;
+            options.DevOpsProjectListPath = _devOpsProjectListPath;
 
             SetImporting(true);
             try
@@ -165,7 +128,7 @@ namespace NXProject.Views
                     project.DevOpsRootWorkItemId = rootId;
                 }
 
-                TfsConnectionStore.Save(options, RememberTokenCheck.IsChecked == true, _storageKey);
+                TfsConnectionStore.Save(options, !string.IsNullOrEmpty(options.PersonalAccessToken), _storageKey);
 
                 ResourceKindConfigService.ApplyTo(project.Resources);
                 ImportedProject = project;
@@ -190,18 +153,14 @@ namespace NXProject.Views
 
         private void OnWindowLoaded(object sender, RoutedEventArgs e)
         {
-            bool hasClassField = !string.IsNullOrWhiteSpace(ClassificationFieldBox.Text);
-            if (ConfigOnly || _extraFields.Count > 0 || hasClassField)
-                AdvancedExpander.IsExpanded = true;
+            UpdateConfigHint();
+        }
 
-            if (ConfigOnly)
-            {
-                Title = "Configurar Integração Azure DevOps";
-                ImportButton.Content = "Salvar";
-                // Esconde seções de importação que não fazem sentido no modo config
-                ImportHintBorder.Visibility = Visibility.Collapsed;
-                RootIdSection.Visibility    = Visibility.Collapsed;
-            }
+        private void UpdateConfigHint()
+        {
+            bool configured = !string.IsNullOrWhiteSpace(_savedOptions.OrganizationUrl)
+                && !string.IsNullOrWhiteSpace(_savedOptions.PersonalAccessToken);
+            NotConfiguredHint.Visibility = configured ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private void OnOpenCalendarClick(object sender, RoutedEventArgs e)
@@ -237,56 +196,6 @@ namespace NXProject.Views
         private void HideStatus()
         {
             StatusText.Visibility = Visibility.Collapsed;
-        }
-
-        private TfsConnectionOptions BuildOptions(int rootId) => new()
-        {
-            OrganizationUrl     = OrgUrlBox.Text?.Trim() ?? string.Empty,
-            TeamProject         = ProjectBox.Text?.Trim() ?? string.Empty,
-            PersonalAccessToken = PatBox.Password,
-            RootWorkItemId      = rootId,
-            HoursPerDay         = ProjectCalendarService.WorkingHoursPerDay,
-            EffortFieldName     = string.IsNullOrWhiteSpace(EffortFieldBox.Text)    ? "HH Estimado"   : EffortFieldBox.Text.Trim(),
-            StartFieldName      = string.IsNullOrWhiteSpace(StartFieldBox.Text)     ? "Data_Inicio"   : StartFieldBox.Text.Trim(),
-            FinishFieldName     = string.IsNullOrWhiteSpace(FinishFieldBox.Text)    ? "Data_Fim"      : FinishFieldBox.Text.Trim(),
-            PercAlocFieldName   = string.IsNullOrWhiteSpace(PercAlocFieldBox.Text)  ? "Perc_Alocação" : PercAlocFieldBox.Text.Trim(),
-            FixedStartTagName   = string.IsNullOrWhiteSpace(FixedStartTagBox.Text)  ? "DT-INI-NEG"   : FixedStartTagBox.Text.Trim(),
-            SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
-            FutureSprintDays    = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90,
-            DevOpsProjectListPath = _devOpsProjectListPath,
-            ExtraCreateFields   = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))],
-            ClassificationPicklistValues = [..
-                (ClassificationPicklistBox.Text ?? string.Empty)
-                    .Split('\n')
-                    .Select(s => s.Trim())
-                    .Where(s => !string.IsNullOrEmpty(s))
-            ],
-            TypeFieldMappings = BuildTypeFieldMappings()
-        };
-
-        private Dictionary<string, TypeFieldConfig> BuildTypeFieldMappings()
-        {
-            // Parte do saved para não perder configs de outros tipos.
-            var saved = TfsConnectionStore.Load(_storageKey);
-            var mappings = new Dictionary<string, TypeFieldConfig>(saved.TypeFieldMappings, StringComparer.OrdinalIgnoreCase);
-
-            var classField = ClassificationFieldBox.Text?.Trim() ?? string.Empty;
-            var classEnabled = ClassificationEnabledCheck.IsChecked == true;
-            if (!mappings.TryGetValue("Feature", out var featCfg))
-                featCfg = new TypeFieldConfig();
-            featCfg.ClassificationField   = string.IsNullOrWhiteSpace(classField) ? featCfg.ClassificationField : classField;
-            featCfg.ClassificationEnabled = classEnabled;
-            mappings["Feature"] = featCfg;
-            return mappings;
-        }
-
-        private void OnAddExtraField(object sender, RoutedEventArgs e)
-            => _extraFields.Add(new ExtraWorkItemField());
-
-        private void OnRemoveExtraField(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is ExtraWorkItemField field)
-                _extraFields.Remove(field);
         }
     }
 }

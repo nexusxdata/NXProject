@@ -39,8 +39,6 @@
                     <MenuItem Header="{DynamicResource Menu_File_Export_SyncTfs}" Click="OnSyncTfsClick"/>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="Configurar Integração Azure DevOps..." Click="OnConfigureAzureDevOpsClick"/>
-                <Separator/>
                 <MenuItem Header="{DynamicResource Menu_File_Exit}" Click="OnExitClick"/>
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_Edit}">

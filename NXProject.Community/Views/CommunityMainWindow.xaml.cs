@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -116,6 +117,11 @@ namespace NXProject.Views
                 GanttCtrl.HighlightPredecessors(task?.Model.PredecessorIds ?? []);
             TaskGridCtrl.EditPercAlocRequested += OnEditPercAloc;
             TaskGridCtrl.EditClassificationRequested += OnEditClassification;
+            TaskGridCtrl.ConfigureClassificationRequested += () =>
+            {
+                new TfsDevOpsConfigWindow("NXProject.Community") { Owner = this }.ShowDialog();
+                ApplyClassificationTypesToGrid();
+            };
             vm.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(vm.ShowOriginalHoursColumn))
@@ -127,6 +133,7 @@ namespace NXProject.Views
             };
             TaskGridCtrl.ShowOriginalHoursColumn = vm.ShowOriginalHoursColumn;
             TaskGridCtrl.ApplyHiddenColumns(vm.HiddenColumns, vm.HiddenColumnsExpanded, _expandedLayout);
+            ApplyClassificationTypesToGrid();
             TaskGridCtrl.ColumnSettingsSaved += (hiddenDefault, hiddenExpanded) =>
             {
                 vm.HiddenColumns = hiddenDefault;
@@ -889,11 +896,25 @@ namespace NXProject.Views
         {
             if (DataContext is not MainViewModel vm) return;
 
-            var current = task.TfsClassification ?? task.TfsType ?? "";
-            var dlg = new ClassificationEditWindow(current, task.TfsType ?? "") { Owner = this };
-            if (dlg.ShowDialog() == true && dlg.SelectedValue != null)
+            var currentValues = new Dictionary<string, string>(task.Model.CustomDevopsFieldValues, StringComparer.OrdinalIgnoreCase);
+            // Compat: se ainda não tem dict mas tem TfsClassification, tenta preencher o campo primário
+            if (currentValues.Count == 0 && !string.IsNullOrWhiteSpace(task.TfsClassification))
             {
-                task.TfsClassification = dlg.SelectedValue;
+                var opts = Services.TfsConnectionStore.Load("NXProject.Community");
+                opts.TypeFieldMappings.TryGetValue(task.TfsType ?? "", out var cfg);
+                if (cfg == null) opts.TypeFieldMappings.TryGetValue("*", out cfg);
+                var prim = cfg?.CustomDevopsFields.FirstOrDefault()?.Field;
+                if (prim != null) currentValues[prim] = task.TfsClassification;
+            }
+
+            var dlg = new CustomDevOpsEditWindow(task.TfsType ?? "", currentValues) { Owner = this };
+            if (dlg.ShowDialog() == true && dlg.FieldValues.Count > 0)
+            {
+                foreach (var kv in dlg.FieldValues)
+                    task.Model.CustomDevopsFieldValues[kv.Key] = kv.Value;
+                // Atualiza TfsClassification com o valor do primeiro campo (compat)
+                var first = dlg.FieldValues.Values.FirstOrDefault();
+                if (first != null) task.TfsClassification = first;
                 vm.Project.IsDirty = true;
             }
         }
@@ -1146,9 +1167,19 @@ namespace NXProject.Views
         }
 
         private void OnImportTfsClick(object sender, RoutedEventArgs e) => OpenTfsImport();
+        private void ApplyClassificationTypesToGrid()
+        {
+            var opts = Services.TfsConnectionStore.Load("NXProject.Community");
+            var types = opts.TypeFieldMappings
+                .Where(kv => kv.Value.CustomDevopsFields.Count > 0)
+                .Select(kv => kv.Key);
+            TaskGridCtrl.SetClassificationTypes(types);
+        }
+
         private void OnConfigureAzureDevOpsClick(object sender, RoutedEventArgs e)
         {
-            new TfsImportWindow("NXProject.Community") { Owner = this, ConfigOnly = true }.ShowDialog();
+            new TfsDevOpsConfigWindow("NXProject.Community") { Owner = this }.ShowDialog();
+            ApplyClassificationTypesToGrid();
         }
         private void OnImportTfsToolbarClick(object sender, RoutedEventArgs e) => OpenTfsImport();
         private void OnSyncTfsToolbarClick(object sender, RoutedEventArgs e) => OnSyncTfsClick(sender, e);

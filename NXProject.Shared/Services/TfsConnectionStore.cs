@@ -188,13 +188,19 @@ namespace NXProject.Services
         /// <summary>Campo de percentual de conclusão.</summary>
         public string? PercConclusaoField { get; set; }
 
-        /// <summary>
-        /// Campo de classificação/picklist obrigatório na criação (ex.: "Custom.Type").
-        /// Quando preenchido e ClassificationEnabled=true, é enviado com o valor TfsClassification
-        /// da tarefa (padrão = tipo do item). Default: ativo.
-        /// </summary>
-        public string? ClassificationField { get; set; }
-        public bool ClassificationEnabled { get; set; } = true;
+        /// <summary>Lista de campos Custom DevOps configurados para este tipo (ex.: Custom.Type).</summary>
+        public List<ClassificationFieldDef> CustomDevopsFields { get; set; } = [];
+    }
+
+    /// <summary>Definição de um campo Custom DevOps dentro de um TypeFieldConfig.</summary>
+    public sealed class ClassificationFieldDef
+    {
+        /// <summary>Referência do campo no DevOps (ex.: "Custom.Type").</summary>
+        public string Field { get; set; } = string.Empty;
+        /// <summary>Tipo do campo no DevOps: Picklist, Integer, Text, Date.</summary>
+        public string FieldType { get; set; } = "Picklist";
+        /// <summary>Valores separados por vírgula; viram combo ao editar classificação.</summary>
+        public string? Values { get; set; }
     }
 
     /// <summary>

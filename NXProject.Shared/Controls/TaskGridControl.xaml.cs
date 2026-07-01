@@ -153,6 +153,20 @@ namespace NXProject.Controls
                 ctrl.OriginalHoursColumn.Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        // Tipos DevOps que têm campo de classificação configurado.
+        // "*" = todos os tipos. Populado pela janela principal com base nos TypeFieldMappings.
+        private HashSet<string> _classificationTypes = new(StringComparer.OrdinalIgnoreCase);
+
+        public void SetClassificationTypes(IEnumerable<string> types)
+            => _classificationTypes = new HashSet<string>(types, StringComparer.OrdinalIgnoreCase);
+
+        private bool HasClassificationForType(string? tfsType)
+        {
+            if (_classificationTypes.Count == 0) return false;
+            if (_classificationTypes.Contains("*") || _classificationTypes.Contains("Todos")) return true;
+            return !string.IsNullOrEmpty(tfsType) && _classificationTypes.Contains(tfsType);
+        }
+
         /// <summary>Disparado quando o usuário alterna o modo de visualização do Gantt (original/restante).</summary>
         public event Action? GanttViewToggled;
 
@@ -177,6 +191,9 @@ namespace NXProject.Controls
 
         /// <summary>Disparado quando o usuário quer alterar a classificação (picklist DevOps) de uma tarefa.</summary>
         public event Action<TaskViewModel>? EditClassificationRequested;
+
+        /// <summary>Disparado quando o usuário quer configurar o mapeamento de classificação.</summary>
+        public event Action? ConfigureClassificationRequested;
 
         /// <summary>Disparado quando o usuário clica em "Ver Atividades Online..." no menu de contexto do nome.</summary>
         public event Action<TaskViewModel>? ViewOnlineChildrenRequested;
@@ -296,7 +313,7 @@ namespace NXProject.Controls
         };
         private static readonly HashSet<string> DefaultVisibleColumnsExpanded = new()
         {
-            "ID", "T·E (DevOps)", "Dur.(h)", "SFP", "OrgH", "HH Atual", "HH Restante",
+            "ID", "T·E (DevOps)", "Dur.(h)", "OrgH", "HH Atual", "HH Restante",
             "Início", "Fim", "% Compl.", "Predecessoras", "Recursos", "Sprint"
         };
 
@@ -632,11 +649,20 @@ namespace NXProject.Controls
                 var header = FindChild<DataGridColumnHeadersPresenter>(ctrl.TaskGrid);
                 if (header != null && header.ActualHeight > 0)
                     ctrl.PublishRowTops(header.ActualHeight);
+                ctrl.RefreshPriorityColumnVisibility();
             });
+        }
+
+        private void RefreshPriorityColumnVisibility()
+        {
+            bool hasDevOpsTasks = Tasks?.Any(t => t.IsDevOpsTask) == true;
+            PriorityColumn.Visibility = hasDevOpsTasks ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void OnTasksCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
+            RefreshPriorityColumnVisibility();
+
             if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset
                 && _scrollViewer != null)
             {
@@ -1363,22 +1389,29 @@ namespace NXProject.Controls
             if (addDevOps   != null) addDevOps.Visibility   = (showAdd && hasDevOps) ? Visibility.Visible : Visibility.Collapsed;
             if (addInternal != null) addInternal.Visibility = showAdd ? Visibility.Visible : Visibility.Collapsed;
 
-            // "Alterar Classificação" — visível para itens que vão ser criados no DevOps (TfsId=0)
-            // ou já existentes (quando o campo de classificação pode precisar de ajuste).
+            // "Alterar Classificação" — visível apenas para tipos com campo de classificação configurado
             bool isPendingCreate = vm.Model.TfsId == 0 || vm.Model.IsPendingTfsCreate;
-            bool showClassif = !vm.Model.IsSummary && !vm.Model.IsMilestone
-                               && !string.Equals(vm.Model.TfsType, "No DevOps", StringComparison.OrdinalIgnoreCase)
-                               && (isPendingCreate || vm.Model.TfsId is > 0);
-            var classifSep  = cm.Items.OfType<Separator>().FirstOrDefault(s => s.Name == "ClassificationSeparator");
-            var classifItem = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "EditClassificationMenuItem");
-            if (classifSep  != null) classifSep.Visibility  = showClassif ? Visibility.Visible : Visibility.Collapsed;
+            bool isDevOpsItem = !vm.Model.IsMilestone
+                                && !string.Equals(vm.Model.TfsType, "No DevOps", StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrEmpty(vm.Model.TfsType)
+                                && (isPendingCreate || vm.Model.TfsId is > 0);
+            var classifSep    = cm.Items.OfType<Separator>().FirstOrDefault(s => s.Name == "ClassificationSeparator");
+            var classifItem   = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "EditClassificationMenuItem");
+            var configClassif = cm.Items.OfType<MenuItem>().FirstOrDefault(m => m.Name == "ConfigureClassificationMenuItem");
+
+            if (classifSep != null) classifSep.Visibility = isDevOpsItem ? Visibility.Visible : Visibility.Collapsed;
+
             if (classifItem != null)
             {
-                classifItem.Visibility = showClassif ? Visibility.Visible : Visibility.Collapsed;
-                var current = vm.TfsClassification ?? vm.TfsType ?? "";
-                if (!string.IsNullOrEmpty(current))
-                    classifItem.Header = $"🏷 Classificação: {current}  (alterar...)";
+                classifItem.Visibility = isDevOpsItem ? Visibility.Visible : Visibility.Collapsed;
+                var current = vm.TfsClassification ?? "";
+                classifItem.Header = string.IsNullOrEmpty(current)
+                    ? "🏷 Custom DevOps  (definir...)"
+                    : $"🏷 Custom DevOps: {current}  (alterar...)";
             }
+
+            if (configClassif != null)
+                configClassif.Visibility = Visibility.Collapsed;
         }
 
         private void OnToggleTaskBlockClick(object sender, RoutedEventArgs e)
@@ -1937,6 +1970,9 @@ namespace NXProject.Controls
             if (vm != null)
                 EditClassificationRequested?.Invoke(vm);
         }
+
+        private void OnConfigureClassificationClick(object sender, RoutedEventArgs e)
+            => ConfigureClassificationRequested?.Invoke();
 
         private void OnEditPercAlocClick(object sender, RoutedEventArgs e)
         {

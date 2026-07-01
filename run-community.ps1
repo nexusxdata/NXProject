@@ -16,37 +16,6 @@ function Get-ExePath($configuration) {
     return $null
 }
 
-function Invoke-UserCertificateSetup {
-    param(
-        [switch]$Recreate
-    )
-
-    Write-Host ""
-    if ($Recreate) {
-        Write-Host "A chave local esta ausente ou quebrada. Recriando automaticamente..." -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "Preparando assinatura local do usuario..." -ForegroundColor Cyan
-    }
-
-    $arguments = @()
-    if ($Recreate) {
-        $arguments += "-RecreateCertificate"
-    }
-
-    $signScript = Join-Path $PSScriptRoot "sign-nxproject.ps1"
-    $processArguments = @(
-        "-NoProfile"
-        "-ExecutionPolicy"
-        "Bypass"
-        "-File"
-        $signScript
-    ) + $arguments
-
-    & powershell.exe @processArguments
-    return $LASTEXITCODE -eq 0
-}
-
 if ($PSBoundParameters.ContainsKey('Configuration')) {
     $exe = Get-ExePath $Configuration
     if ($null -eq $exe) {
@@ -68,78 +37,57 @@ else {
     }
 }
 
-# Assina os binarios com certificado local para contornar Smart App Control / WDAC
-function Invoke-SignBinaries($exePath) {
-    $certSubject = "CN=NXProject Dev Local"
+# Assina arquivos ainda não assinados (build já assina, mas garante caso o usuário rode sem build)
+$certSubject = "CN=NXProject Dev Local"
+$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
+        Where-Object { $_.Subject -eq $certSubject } |
+        Select-Object -First 1
+
+if (-not $cert) {
+    Write-Host "Certificado local nao encontrado. Execute build-community.ps1 para criar." -ForegroundColor Yellow
+    Write-Host "Tentando criar agora via sign-nxproject.ps1..." -ForegroundColor Cyan
+    $signScript = Join-Path $PSScriptRoot "sign-nxproject.ps1"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $signScript
     $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
             Where-Object { $_.Subject -eq $certSubject } |
             Select-Object -First 1
-
-    if (-not $cert) {
-        if (-not (Invoke-UserCertificateSetup)) {
-            return $false
-        }
-
-        $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
-                Where-Object { $_.Subject -eq $certSubject } |
-                Select-Object -First 1
-
-        if (-not $cert) {
-            return $false
-        }
-    }
-
-    $dir = Split-Path $exePath
-    $files = Get-ChildItem $dir -Include "*.exe","*.dll" -Recurse -ErrorAction SilentlyContinue
-    foreach ($f in $files) {
-        $sig = Get-AuthenticodeSignature $f.FullName -ErrorAction SilentlyContinue
-        if ($sig.Status -ne "Valid") {
-            try {
-                $result = Set-AuthenticodeSignature -FilePath $f.FullName -Certificate $cert -ErrorAction Stop
-                if ($result.Status -ne "Valid") {
-                    if (-not (Invoke-UserCertificateSetup -Recreate)) {
-                        return $false
-                    }
-                    break
-                }
-            }
-            catch {
-                if (-not (Invoke-UserCertificateSetup -Recreate)) {
-                    return $false
-                }
-                break
-            }
-        }
-    }
-
-    $exeSignature = Get-AuthenticodeSignature $exePath -ErrorAction SilentlyContinue
-    if ($exeSignature.Status -ne "Valid") {
-        Write-Host "O executavel permaneceu sem uma assinatura valida." -ForegroundColor Red
-        return $false
-    }
-
-    return $true
 }
 
-if (-not (Invoke-SignBinaries $exe)) {
-    Write-Host "O executavel nao sera iniciado enquanto a assinatura nao estiver valida." -ForegroundColor Red
-    Write-Host "A assinatura local nao exige permissao de administrador." -ForegroundColor Yellow
-    Write-Host "Para tentar manualmente:" -ForegroundColor Yellow
-    Write-Host "  powershell -ExecutionPolicy Bypass -File `"$PSScriptRoot\sign-nxproject.ps1`" -RecreateCertificate" -ForegroundColor Cyan
+if ($cert) {
+    $dir = Split-Path $exe
+    $files = Get-ChildItem $dir -Include "*.exe","*.dll" -Recurse -ErrorAction SilentlyContinue
+    if ($files) {
+        Write-Host "Assinando $($files.Count) arquivo(s)..." -ForegroundColor DarkGray
+        foreach ($f in $files) {
+            Set-AuthenticodeSignature -FilePath $f.FullName -Certificate $cert -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
+}
+
+$exeSig = Get-AuthenticodeSignature $exe -ErrorAction SilentlyContinue
+if ($exeSig.Status -ne "Valid") {
+    Write-Host "Executavel sem assinatura valida. Rode build-community.ps1 primeiro." -ForegroundColor Red
     exit 1
 }
 
 Write-Host "Iniciando NXProject..." -ForegroundColor Cyan
-$t0 = [datetime]::UtcNow
 & $exe
-$elapsed = ([datetime]::UtcNow - $t0).TotalSeconds
+$exitCode = $LASTEXITCODE
 
-if ($elapsed -lt 3) {
-    Write-Host "App encerrou em $([math]::Round($elapsed,1))s. Provavel bloqueio de certificado. Recriando e tentando novamente..." -ForegroundColor Yellow
-    if (-not (Invoke-UserCertificateSetup -Recreate)) {
-        Write-Host "Falha ao recriar certificado. Abortando." -ForegroundColor Red
-        exit 1
+if ($exitCode -ne 0 -and $null -ne $exitCode) {
+    Write-Host "App encerrou com codigo $exitCode." -ForegroundColor Yellow
+
+    # 0xE0434352 = crash de excecao .NET nao tratada (SAC bloqueando DLL)
+    if ($exitCode -eq -532462766 -and $cert) {
+        Write-Host "Possivel bloqueio SAC. Re-assinando e tentando novamente..." -ForegroundColor Cyan
+        $dir = Split-Path $exe
+        Get-ChildItem $dir -Include "*.exe","*.dll" -Recurse -ErrorAction SilentlyContinue |
+            ForEach-Object { Set-AuthenticodeSignature -FilePath $_.FullName -Certificate $cert -ErrorAction SilentlyContinue | Out-Null }
+        Write-Host "Iniciando NXProject (segunda tentativa)..." -ForegroundColor Cyan
+        & $exe
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0 -and $null -ne $exitCode) {
+            Write-Host "Falhou novamente (codigo $exitCode). Verifique o Event Log do Windows." -ForegroundColor Red
+        }
     }
-    Write-Host "Reiniciando NXProject..." -ForegroundColor Cyan
-    & $exe
 }

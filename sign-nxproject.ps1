@@ -49,18 +49,21 @@ if (-not $cert) {
     Write-Host "   Certificado ja existe: $($cert.Thumbprint)" -ForegroundColor Green
 }
 
-# Exporta e instala como confiavel apenas para o usuario atual.
-Write-Host "==> Instalando certificado como confiavel para o usuario atual..." -ForegroundColor Cyan
+# Exporta e instala como confiavel apenas para o usuario atual (so se ainda nao estiver la).
+Write-Host "==> Verificando certificado nos stores confiaveis..." -ForegroundColor Cyan
 try {
-    # Usa API .NET direta para evitar prompts de confirmacao do Windows
     $stores = @("Root", "TrustedPublisher")
     foreach ($storeName in $stores) {
         $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, "CurrentUser")
         $store.Open("ReadWrite")
-        $store.Add($cert)
+        $alreadyThere = $store.Certificates | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
+        if (-not $alreadyThere) {
+            Write-Host "   Adicionando ao store $storeName..." -ForegroundColor Cyan
+            $store.Add($cert)
+        }
         $store.Close()
     }
-    Write-Host "   Certificado instalado como confiavel." -ForegroundColor Green
+    Write-Host "   Certificado confiavel." -ForegroundColor Green
 } catch {
     Write-Host "   Erro ao instalar: $_" -ForegroundColor Red
     exit 1

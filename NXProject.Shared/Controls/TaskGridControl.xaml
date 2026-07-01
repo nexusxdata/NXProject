@@ -274,6 +274,11 @@
                                                       Click="OnEditClassificationClick"
                                                       Visibility="Collapsed"
                                                       ToolTip="Altera o valor do campo de classificação (picklist obrigatório na criação no DevOps)"/>
+                                            <MenuItem x:Name="ConfigureClassificationMenuItem"
+                                                      Header="⚙ Mapeamento de classificação..."
+                                                      Click="OnConfigureClassificationClick"
+                                                      Visibility="Collapsed"
+                                                      ToolTip="Configura quais tipos DevOps usam campo de classificação e qual campo usar"/>
                                             <Separator/>
                                             <MenuItem Header="{DynamicResource Ctx_EditDescription}"
                                                       Click="OnEditDescriptionClick"/>

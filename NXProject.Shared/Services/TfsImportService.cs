@@ -134,6 +134,12 @@ namespace NXProject.Services
             if (syncVersionRef != null) requestedFields.Add(syncVersionRef);
             if (syncNameRef != null) requestedFields.Add(syncNameRef);
 
+            // Campos Custom DevOps mapeados por tipo — adiciona ao requestedFields
+            foreach (var kv in options.TypeFieldMappings)
+                foreach (var fd in kv.Value.CustomDevopsFields)
+                    if (!string.IsNullOrWhiteSpace(fd.Field) && !requestedFields.Contains(fd.Field))
+                        requestedFields.Add(fd.Field);
+
             var items = await LoadWorkItemsAsync(
                 orgBase, authHeader, allIds, requestedFields, cancellationToken, expandRelations: true);
 
@@ -200,7 +206,10 @@ namespace NXProject.Services
                 ParentByChild = parentByChild,
                 Project = project,
                 ResourcesByKey = resourcesByKey,
-                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim()
+                FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
+                CustomDevopsFieldsByType = options.TypeFieldMappings
+                    .Where(kv => kv.Value.CustomDevopsFields.Count > 0)
+                    .ToDictionary(kv => kv.Key, kv => kv.Value.CustomDevopsFields, StringComparer.OrdinalIgnoreCase)
             };
 
             // Filhos diretos do raiz viram ramos do cronograma quando forem
@@ -493,21 +502,19 @@ namespace NXProject.Services
                         var createFinishRef = ResolveForType(task.TfsType, c => c.FinishField,        finishRef);
                         var createPercAloc  = ResolveForType(task.TfsType, c => c.PercAlocField,      percAlocRef);
                         var createPercConc  = ResolveForType(task.TfsType, c => c.PercConclusaoField, percConclusaoRef);
-                        var classEnabled = !options.TypeFieldMappings.TryGetValue(task.TfsType ?? "", out var cfgForClass)
-                            || cfgForClass.ClassificationEnabled;
-                        var createClassField = classEnabled
-                            ? ResolveForType(task.TfsType, c => c.ClassificationField, null)
-                            : null;
-                        // Se Feature não tem ClassificationField configurado, usa Custom.Type automaticamente.
-                        // Valor: TfsClassification se definido, senão "Feature" como padrão.
-                        if (createClassField == null
+                        // Campos de classificação configurados para este tipo
+                        options.TypeFieldMappings.TryGetValue(task.TfsType ?? "", out var cfgForClass);
+                        if (cfgForClass == null) options.TypeFieldMappings.TryGetValue("*", out cfgForClass);
+                        var classFields = cfgForClass?.CustomDevopsFields ?? [];
+                        // Compat: Feature sem mapeamento → Custom.Type como padrão
+                        if (classFields.Count == 0
                             && string.Equals(task.TfsType, "Feature", StringComparison.OrdinalIgnoreCase))
                         {
-                            createClassField = "Custom.Type";
+                            classFields = [new ClassificationFieldDef { Field = "Custom.Type", FieldType = "Picklist" }];
                             if (string.IsNullOrWhiteSpace(task.TfsClassification))
                                 task.TfsClassification = "Feature";
                         }
-                        var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields, createClassField);
+                        var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields, classFields);
                         var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                         task.TfsId = newId;
                         task.TfsParentId = desiredParent;
@@ -854,6 +861,24 @@ namespace NXProject.Services
                     {
                         ops.Add(PatchAdd("/fields/System.State", task.TfsState.Trim()));
                         changes.Add($"estado: {task.TfsState.Trim()}");
+                    }
+
+                    // Campos Custom DevOps: sincroniza valores que mudaram no NXProject → DevOps
+                    if (task.CustomDevopsFieldValues.Count > 0
+                        && options.TypeFieldMappings.TryGetValue(task.TfsType ?? "", out var cfgCustom)
+                        && cfgCustom.CustomDevopsFields.Count > 0)
+                    {
+                        foreach (var fd in cfgCustom.CustomDevopsFields)
+                        {
+                            if (!task.CustomDevopsFieldValues.TryGetValue(fd.Field, out var desiredVal)
+                                || string.IsNullOrWhiteSpace(desiredVal)) continue;
+                            var currentVal = ReadString(wi, fd.Field) ?? "";
+                            if (!string.Equals(desiredVal, currentVal, StringComparison.Ordinal))
+                            {
+                                ops.Add(PatchAdd($"/fields/{fd.Field}", desiredVal));
+                                changes.Add($"{fd.Field}: {desiredVal}");
+                            }
+                        }
                     }
 
                     // Parent: reparenta SÓ se o pai mudou em relação ao que está no DevOps.
@@ -1338,7 +1363,7 @@ namespace NXProject.Services
             string? remainingHoursRef = null,
             string? realizedHoursRef = null,
             IEnumerable<ExtraWorkItemField>? extraFields = null,
-            string? classificationField = null)
+            IReadOnlyList<ClassificationFieldDef>? classificationFields = null)
         {
             bool isTaskCreate        = IsTaskType(task.TfsType);
             bool isEpicOrFeatureCreate = IsEpicOrFeatureType(task.TfsType);
@@ -1348,14 +1373,23 @@ namespace NXProject.Services
                 PatchAdd("/fields/System.Title", task.Name ?? "Novo item")
             };
 
-            // Campo de classificação (picklist obrigatório, ex.: Custom.Type).
-            // Usa task.TfsClassification se definido, senão cai para TfsType como padrão.
-            if (!string.IsNullOrWhiteSpace(classificationField))
+            // Campos de classificação (picklist obrigatórios na criação, ex.: Custom.Type).
+            if (classificationFields != null)
             {
-                var classValue = !string.IsNullOrWhiteSpace(task.TfsClassification)
-                    ? task.TfsClassification
-                    : task.TfsType ?? "";
-                ops.Add(PatchAdd($"/fields/{classificationField}", classValue));
+                bool first = true;
+                foreach (var fd in classificationFields.Where(f => !string.IsNullOrWhiteSpace(f.Field)))
+                {
+                    // Valor: dict por campo → TfsClassification (só para o primeiro campo, compat) → TfsType
+                    string classValue;
+                    if (task.CustomDevopsFieldValues.TryGetValue(fd.Field, out var dictVal) && !string.IsNullOrWhiteSpace(dictVal))
+                        classValue = dictVal;
+                    else if (first && !string.IsNullOrWhiteSpace(task.TfsClassification))
+                        classValue = task.TfsClassification;
+                    else
+                        classValue = task.TfsType ?? "";
+                    ops.Add(PatchAdd($"/fields/{fd.Field}", classValue));
+                    first = false;
+                }
             }
 
             // Campos fixos obrigatórios do processo do cliente (ex.: Custom.Type).
@@ -1539,6 +1573,8 @@ namespace NXProject.Services
             public string? SyncVersionRef;
             public string? TipoCentroCustoRef;
             public string? CurrentHoursRef;
+            /// <summary>Campos Custom DevOps por tipo DevOps (ex: "Feature" → [Custom.Type, ...]).</summary>
+            public Dictionary<string, List<ClassificationFieldDef>> CustomDevopsFieldsByType = new(StringComparer.OrdinalIgnoreCase);
             public double HoursPerDay = 8.0;
             public DateTime ProjectStart;
 
@@ -1762,6 +1798,24 @@ namespace NXProject.Services
                 Notes = $"TFS #{item.Id} · {item.WorkItemType} · {effectiveState}"
                     + (string.IsNullOrWhiteSpace(item.Assignee) ? "" : $" · {item.Assignee}")
             };
+
+            // Lê valores dos campos Custom DevOps mapeados para este tipo
+            if (ctx.CustomDevopsFieldsByType.TryGetValue(item.WorkItemType ?? "", out var customFields)
+                || ctx.CustomDevopsFieldsByType.TryGetValue("*", out customFields))
+            {
+                foreach (var fd in customFields)
+                {
+                    var val = ReadString(item, fd.Field);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        task.CustomDevopsFieldValues[fd.Field] = val;
+                        // compat: primeiro campo → TfsClassification
+                        if (string.IsNullOrWhiteSpace(task.TfsClassification))
+                            task.TfsClassification = val;
+                    }
+                }
+            }
+
             AssignResource(ctx, task, item, hours);
 
             // Recalcula o fim considerando o % de alocação do recurso (apenas quando não fixado).

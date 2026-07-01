@@ -122,12 +122,13 @@ namespace NXProject.Views
             TasksGrid.ItemsSource = _view;
             RefreshRowNumbers();
 
-            // Preenche duração da story (primeira story selecionada)
+            // Preenche duração da story: OriginalEstimatedHours → EstimatedHours → horas de calendário
             if (_stories.Count > 0)
             {
                 var s = _stories[0];
-                double h = NXProject.Services.ProjectCalendarService.CountWorkingHours(s.Start, s.Finish);
-                StoryDurationBox.Text = h.ToString("0.#");
+                double h = s.OriginalEstimatedHours ?? s.EstimatedHours
+                    ?? NXProject.Services.ProjectCalendarService.CountWorkingHours(s.Start, s.Finish);
+                StoryDurationBox.Text = (h > 0 ? h : 0).ToString("0.#");
             }
 
             UpdateTotals();
@@ -371,25 +372,21 @@ namespace NXProject.Views
                 return;
             }
 
-            // Usa HH Original e HH Atual da story (via StoryTask) para ratear separadamente
-            var storyTask    = allVisible.FirstOrDefault()?.StoryTask;
-            double storyOrig = storyTask?.OriginalEstimatedHours ?? 0;
-            double storyCur  = storyTask?.CurrentHours ?? 0;
             int n = eligible.Count;
 
-            // Rateio de HH Original
-            double usedOrig   = allVisible.Where(r => r.EstimatedHours > 0).Sum(r => r.EstimatedHours);
-            double remainOrig = storyOrig > 0 ? Math.Max(0, storyOrig - usedOrig) : 0;
-            double perOrig    = remainOrig > 0 ? remainOrig / n
-                              : storyOrig > 0 ? storyOrig / Math.Max(1, allVisible.Count)
-                              : storyHours / Math.Max(1, allVisible.Count);
+            // Rateio de HH Original: usa o valor do campo Duração Story como fonte definitiva
+            double usedOrig = allVisible.Where(r => r.EstimatedHours > 0).Sum(r => r.EstimatedHours);
+            double remainOrig = Math.Max(0, storyHours - usedOrig);
+            double perOrig = remainOrig > 0 ? remainOrig / n : storyHours / Math.Max(1, allVisible.Count);
 
-            // Rateio de HH Atual (só se story tem HH Atual)
-            double usedCur   = allVisible.Where(r => r.CompletedHours > 0).Sum(r => r.CompletedHours);
+            // Rateio de HH Atual: usa HH Atual da story se disponível, senão não distribui
+            var storyTask = allVisible.FirstOrDefault()?.StoryTask;
+            double storyCur = storyTask?.CurrentHours ?? 0;
+            double usedCur = allVisible.Where(r => r.CompletedHours > 0).Sum(r => r.CompletedHours);
             double remainCur = storyCur > 0 ? Math.Max(0, storyCur - usedCur) : 0;
-            double perCur    = remainCur > 0 ? remainCur / n
-                             : storyCur > 0 ? storyCur / Math.Max(1, allVisible.Count)
-                             : 0;
+            double perCur = remainCur > 0 ? remainCur / n
+                          : storyCur > 0 ? storyCur / Math.Max(1, allVisible.Count)
+                          : 0;
 
             foreach (var r in eligible)
             {
@@ -407,6 +404,37 @@ namespace NXProject.Views
                 ? $"Rateio aplicado em {n} task(s): HH Original = {perOrig:0.#}h | HH Atual = {perCur:0.#}h"
                 : $"Rateio aplicado em {n} task(s): HH Original = {perOrig:0.#}h";
             MessageBox.Show(msg, "Rateio", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void OnZerarClick(object sender, RoutedEventArgs e)
+        {
+            var allVisible = (_view?.Cast<TaskReviewRow>() ?? _allRows).ToList();
+            var eligible = allVisible
+                .Where(r => !string.Equals(r.State, "Closed", StringComparison.OrdinalIgnoreCase)
+                         && !string.Equals(r.State, "Done",   StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (eligible.Count == 0)
+            {
+                MessageBox.Show("Não há tasks não encerradas visíveis.", "Zerar estimativas", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Zerar HH Estimado e HH Atual de {eligible.Count} task(s) não encerrada(s)?",
+                "Zerar estimativas", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            foreach (var r in eligible)
+            {
+                r.EstimatedHours  = 0;
+                r.CompletedHours  = 0;
+                r.IsDirty = true;
+            }
+
+            SaveChangesButton.IsEnabled = true;
+            DirtyHint.Visibility = Visibility.Visible;
+            UpdateTotals();
         }
 
         // ── Drag-drop para reordenar por prioridade ──────────────────────────────
