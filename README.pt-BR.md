@@ -226,10 +226,13 @@ Em qualquer tarefa vinculada, o botão **"Abrir no DevOps ↗"** abre o work ite
 - **Alocação de recursos**: visão de carga por pessoa e período
 - **Health Check do Projeto**: lista tarefas atrasadas e sem responsável
 - **Calendário configurável**: feriados, dias úteis, horas por dia
-- **Exportação**: MS Project XML, OpenProj, Excel XML, CSV
+- **Exportação**: MS Project XML, OpenProj, Excel XML, CSV, **PDF (paisagem)**
 - **Assistente IA** para sugestão de estrutura de tarefas
-
----
+- **Janela Tech Lead**: busca, cria e edita Tasks DevOps por Story; seleção em cascata Epic → Feature → Story pela toolbar, ou abertura direta pelo menu de contexto da Story
+- **Coluna TKs** (modo expandido): exibe a contagem de Tasks filhas de cada Story no Azure DevOps — vermelho quando zero, para identificar Stories sem Tasks técnicas criadas
+- **Campos Custom DevOps**: campos de classificação configuráveis por tipo de work item (Epic, Feature, Story); valores lidos na importação e editáveis via menu de contexto
+- **Duplo clique para editar** o nome da atividade, evitando alterações acidentais ao navegar na grade
+- **Multilíngue**: Português (Brasil) e Inglês, detectado automaticamente pelo Windows e alternável nas Configurações
 
 ---
 

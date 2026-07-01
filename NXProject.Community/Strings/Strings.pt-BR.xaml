@@ -147,6 +147,8 @@
     <sys:String x:Key="Help_WindowTitle">Guia de Funcionalidades — NXProject Community</sys:String>
     <sys:String x:Key="Help_Subtitle">Guia de Funcionalidades</sys:String>
     <sys:String x:Key="Help_Topic_Overview">🗂  Visão Geral</sys:String>
+    <sys:String x:Key="Help_Topic_DevOpsHierarchy">📐  Epic / Feature / Story / Task</sys:String>
+    <sys:String x:Key="Help_Topic_TechLead">👷  Tech Lead</sys:String>
     <sys:String x:Key="Help_Topic_Schedule">📅  Cronograma</sys:String>
     <sys:String x:Key="Help_Topic_ActivityDates">📆  Datas da Atividade</sys:String>
     <sys:String x:Key="Help_Topic_Gantt">📊  Gráfico Gantt</sys:String>

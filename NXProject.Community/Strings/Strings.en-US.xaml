@@ -139,6 +139,8 @@
     <sys:String x:Key="Help_WindowTitle">Features Guide — NXProject Community</sys:String>
     <sys:String x:Key="Help_Subtitle">Features Guide</sys:String>
     <sys:String x:Key="Help_Topic_Overview">🗂  Overview</sys:String>
+    <sys:String x:Key="Help_Topic_DevOpsHierarchy">📐  DevOps Hierarchy</sys:String>
+    <sys:String x:Key="Help_Topic_TechLead">👷  Tech Lead</sys:String>
     <sys:String x:Key="Help_Topic_Schedule">📅  Schedule</sys:String>
     <sys:String x:Key="Help_Topic_ActivityDates">📆  Activity Dates</sys:String>
     <sys:String x:Key="Help_Topic_Gantt">📊  Gantt Chart</sys:String>

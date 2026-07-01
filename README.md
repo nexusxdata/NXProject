@@ -228,6 +228,10 @@ On any linked task, the **"Open in DevOps ↗"** button opens the work item in t
 - **Configurable calendar**: holidays, working hours per day, weekdays
 - **Export**: MS Project XML, OpenProj, Excel XML, CSV, **PDF (landscape)**
 - **AI Assistant** for task structure suggestions
+- **Tech Lead window**: fetch, create and edit DevOps Tasks per Story; cascade Epic → Feature → Story selection from the toolbar, or open directly from a Story's context menu
+- **TKs column** (expanded mode): shows the count of DevOps child Tasks per Story — red when zero, so Stories with no technical tasks are immediately visible
+- **Custom DevOps Fields**: configurable classification fields per work item type (Epic, Feature, Story); values are read on import and editable via right-click context menu
+- **Double-click to edit** task names, preventing accidental edits when navigating the grid
 - **Multilingual**: Portuguese (Brazil) and English, auto-detected from Windows, switchable in Settings
 
 ---

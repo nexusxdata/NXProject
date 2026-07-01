@@ -111,6 +111,7 @@ namespace NXProject.Views
         {
             (
                 "Visão Geral",
+
                 "O NXProject é um gerenciador de projetos de TI que une o rigor técnico do Azure DevOps com a visão de cronograma que gestores e líderes precisam para tomar decisões.",
                 new()
                 {
@@ -132,6 +133,7 @@ namespace NXProject.Views
                 },
                 "Use Arquivo → Importar → TFS / Azure DevOps para criar o cronograma a partir do seu backlog existente."
             ),
+            // ── Tópico 1: Epic / Feature / Story / Task ──────────────────────
             (
                 "Epic / Feature / Story / Task",
                 "Entenda o papel de cada nível da hierarquia do Azure DevOps no NXProject e as regras que governam campos, datas e sincronização.",
@@ -177,6 +179,34 @@ namespace NXProject.Views
                 },
                 "A hierarquia Epic → Feature → Story → Task espelha o backlog do Azure DevOps. O NXProject planeja até a Story e oferece visibilidade das Tasks sem engessá-las."
             ),
+            // ── Tópico 2: Tech Lead ──────────────────────────────────────────
+            (
+                "Tech Lead",
+                "A janela Tech Lead é o ponto de controle de Tasks técnicas: busca as Tasks de cada Story diretamente no Azure DevOps, permite criar, editar e sincronizar Tasks sem sair do NXProject.",
+                new()
+                {
+                    ("Abrir pelo botão da toolbar",
+                     "Clique no ícone 👷 Tech Lead na toolbar para abrir a janela em modo cascata:\n\n" +
+                     "1. Selecione um Epic na combo → as Features daquele Epic são carregadas automaticamente.\n" +
+                     "2. Selecione uma Feature → as Stories daquela Feature são carregadas.\n" +
+                     "3. Selecione a Story desejada (ou '(Todas)' para ver todas as Stories da Feature) → clique 🔍 Buscar Tasks.\n\n" +
+                     "As Tasks são buscadas diretamente no Azure DevOps no momento do clique."),
+                    ("Abrir pelo menu de contexto da Story",
+                     "Clique com o botão direito em uma Story na grade → 'Grid de Tasks (DevOps)...'.\n\n" +
+                     "A janela abre com a Story já pré-selecionada e as Tasks são carregadas automaticamente — sem precisar usar as combos de Epic e Feature."),
+                    ("O que o Tech Lead pode fazer",
+                     "• Visualizar todas as Tasks de uma ou mais Stories (ID, título, estado, HH, prioridade, responsável).\n" +
+                     "• Editar estimativas (HH Estimado, HH Atual), prioridade, responsável, estado e tipo de atividade.\n" +
+                     "• Criar novas Tasks pendentes — serão criadas no Azure DevOps na próxima sincronização.\n" +
+                     "• Adicionar Tasks ao cronograma: Tasks do DevOps ainda não presentes no cronograma podem ser incluídas com um clique.\n" +
+                     "• Sincronizar alterações de volta ao Azure DevOps (botão 'Salvar Alterações')."),
+                    ("Coluna TKs",
+                     "Ao buscar Tasks no Tech Lead, a coluna TKs no cronograma é atualizada automaticamente com a contagem de Tasks encontradas por Story.\n\n" +
+                     "Isso permite enxergar de relance quais Stories já têm Tasks técnicas criadas no DevOps e quais ainda não têm (valor 0 em vermelho).")
+                },
+                "Use o modo cascata (toolbar) para planejar as Tasks de uma Feature inteira de uma vez. Use o menu de contexto da Story para acesso rápido a uma Story específica durante a execução."
+            ),
+            // ── Tópico 3: Cronograma ─────────────────────────────────────────
             (
                 "Cronograma",
                 "A grade de tarefas é onde você visualiza e edita a estrutura do projeto: hierarquia, datas, duração, recursos, percentual de conclusão e dependências.",
@@ -218,7 +248,19 @@ namespace NXProject.Views
                      "Sincronização da tag Block:\n" +
                      "• Se a Story no NXProject tem Block e o DevOps não tem → a tag é adicionada no DevOps ao sincronizar.\n" +
                      "• Se a Story no NXProject não tem Block e o DevOps tem → a tag é removida do DevOps ao sincronizar.\n\n" +
-                     "Na importação, o NXProject lê a tag Block tanto da própria Story (registrada nas tags da atividade) quanto das Tasks filhas (refletida como bloqueio herdado).")
+                     "Na importação, o NXProject lê a tag Block tanto da própria Story (registrada nas tags da atividade) quanto das Tasks filhas (refletida como bloqueio herdado)."),
+                    ("Editar o nome da atividade",
+                     "A coluna Nome da atividade requer duplo clique para entrar em modo de edição, evitando alterações acidentais ao navegar pelas células.\n\n" +
+                     "As demais colunas (Início, Fim, Dur.(h), % Compl. etc.) continuam ativando a edição com um único clique."),
+                    ("Coluna TKs",
+                     "A coluna TKs (visível apenas no modo expandido) exibe a quantidade de Tasks filhas de cada Story no Azure DevOps.\n\n" +
+                     "• Valor numérico: quantidade de Tasks encontradas no DevOps para esta Story.\n" +
+                     "• 0 em vermelho: Story sem nenhuma Task técnica criada no DevOps.\n" +
+                     "• Célula vazia: contagem ainda não calculada (Story não importada do DevOps ou não consultada via Tech Lead).\n\n" +
+                     "O valor é atualizado automaticamente:\n" +
+                     "• Na importação do Azure DevOps.\n" +
+                     "• Ao buscar Tasks no Tech Lead.\n" +
+                     "• Ao adicionar Tasks ao cronograma ou criar Tasks na Grid de Tasks.")
                 },
                 "Informe Início e Dur.(h) — o Fim é calculado pelo calendário. Para dependências, use a coluna Pred."
             ),
@@ -413,7 +455,16 @@ namespace NXProject.Views
                      "• Predecessoras fora do escopo importado, com identificação se é Story ou outro tipo.\n" +
                      "• Filtros de Info / Aviso / Erro para facilitar a revisão."),
                     ("Abrir work item no DevOps",
-                     "Na janela de Vínculo DevOps (clique no ID da tarefa na grade), o botão Abrir no DevOps ↗ abre o work item diretamente no browser. A janela também exibe as Tasks filhas vinculadas com ID, nome e estado.")
+                     "Na janela de Vínculo DevOps (clique no ID da tarefa na grade), o botão Abrir no DevOps ↗ abre o work item diretamente no browser. A janela também exibe as Tasks filhas vinculadas com ID, nome e estado."),
+                    ("Campos Custom DevOps por Tipo",
+                     "O NXProject suporta campos de classificação personalizados por tipo de work item (Epic, Feature, Story ou todos).\n\n" +
+                     "Configure em ⚙ → Configuração Azure DevOps → aba 'Campos Custom DevOps':\n" +
+                     "• Adicione campos para cada tipo (Epic, Feature, Story ou * para todos os tipos).\n" +
+                     "• Cada campo tem um rótulo de exibição e o Reference Name do campo no DevOps (ex: Custom.Type).\n" +
+                     "• Na importação, o valor do campo é lido do DevOps e armazenado na atividade.\n" +
+                     "• Para editar o valor de uma atividade, clique com o botão direito → 'Campos Custom DevOps...'.\n" +
+                     "• Se nenhum campo estiver configurado, um link direto para a janela de configuração é exibido.\n\n" +
+                     "Os campos Custom DevOps são apenas de leitura/classificação — não são sincronizados de volta ao DevOps pela sincronização padrão.")
                 },
                 "Os nomes de campos (HH Estimado, Data_Inicio, Data_Fim) podem ser personalizados na área Campos (avançado) da tela de importação."
             ),
@@ -727,6 +778,73 @@ namespace NXProject.Views
                 "Use File → Import → TFS / Azure DevOps to create the schedule from your existing backlog."
             ),
             (
+                "DevOps Hierarchy",
+                "Understand the role of each Azure DevOps hierarchy level in NXProject and the rules governing fields, dates and sync.",
+                new()
+                {
+                    ("Epic",
+                     "An Epic represents a large initiative or strategic objective, typically spanning months.\n\n" +
+                     "In NXProject:\n" +
+                     "• It groups Features — its dates are derived from child Feature dates.\n" +
+                     "• Has no own Estimated HH; duration is derived from children.\n" +
+                     "• Can have predecessors to sequence large blocks of work.\n" +
+                     "• Syncs with DevOps: State, title and dates (if configured).\n" +
+                     "• Appears in the Gantt as a grouping bar (blue-grey color)."),
+                    ("Feature",
+                     "A Feature represents a deliverable business capability, typically grouping several Stories.\n\n" +
+                     "In NXProject:\n" +
+                     "• Groups Stories — dates and % complete are derived from children.\n" +
+                     "• Can have predecessors between Features (delivery dependencies).\n" +
+                     "• Estimated HH: computed as the sum of child Story hours.\n" +
+                     "• Sprint alert is shown when the Feature spans more than one sprint without being complete.\n" +
+                     "• Syncs State and dates with DevOps."),
+                    ("Story (User Story / PBI)",
+                     "The Story is the central planning unit in NXProject. It represents a unit of user value.\n\n" +
+                     "In NXProject:\n" +
+                     "• Has Estimated HH, Start Date, Finish Date, Sprint and an allocated Resource.\n" +
+                     "• Dates are calculated by resource queue and HH duration.\n" +
+                     "• % complete comes from the configured DevOps field (e.g. Perc_Conclusao).\n" +
+                     "• Block: if the Story has the 'Block' tag in DevOps, it shows ⛔ in the schedule.\n" +
+                     "• Child Tasks: can be fetched/expanded in the schedule via context menu.\n" +
+                     "• Syncs: Estimated HH, dates, state, % complete, allocation and predecessors."),
+                    ("Task",
+                     "A Task represents a technical activity inside a Story, executed by a developer.\n\n" +
+                     "In NXProject:\n" +
+                     "• Main fields: Estimated HH (Original Estimate), Current HH (Completed Work), Priority, Assignee, State and Activity.\n" +
+                     "• Estimated HH = 0 and Current HH = 0: proportional split of Story duration when added to schedule.\n" +
+                     "• Priority determines execution order within the Story.\n" +
+                     "• Task Grid: accessible via Story context menu → 'Task Grid (DevOps)'. Allows editing, reordering by drag-drop and syncing with DevOps.\n" +
+                     "• Syncs: Title, Original Estimate, Completed Work, Priority, AssignedTo, State and Activity.")
+                },
+                "The Epic → Feature → Story → Task hierarchy mirrors the Azure DevOps backlog. NXProject plans down to the Story and provides Task visibility without constraining them."
+            ),
+            (
+                "Tech Lead",
+                "The Tech Lead window is the control point for technical Tasks: it fetches Tasks from DevOps per Story, lets you create, edit and sync Tasks without leaving NXProject.",
+                new()
+                {
+                    ("Open from toolbar button",
+                     "Click the 👷 Tech Lead icon in the toolbar to open the window in cascade mode:\n\n" +
+                     "1. Select an Epic → the Features of that Epic are loaded automatically.\n" +
+                     "2. Select a Feature → the Stories of that Feature are loaded.\n" +
+                     "3. Select the desired Story (or '(All)' to see all Stories in the Feature) → click 🔍 Fetch Tasks.\n\n" +
+                     "Tasks are fetched directly from Azure DevOps at that moment."),
+                    ("Open from Story context menu",
+                     "Right-click a Story in the grid → 'Task Grid (DevOps)...'.\n\n" +
+                     "The window opens with the Story already pre-selected and Tasks are loaded automatically — no need to use the Epic and Feature combos."),
+                    ("What Tech Lead can do",
+                     "• View all Tasks for one or more Stories (ID, title, state, HH, priority, assignee).\n" +
+                     "• Edit estimates (Estimated HH, Current HH), priority, assignee, state and activity type.\n" +
+                     "• Create new pending Tasks — they will be created in Azure DevOps on the next sync.\n" +
+                     "• Add Tasks to the schedule: DevOps Tasks not yet in the schedule can be added with one click.\n" +
+                     "• Sync changes back to Azure DevOps ('Save Changes' button)."),
+                    ("TKs column",
+                     "When fetching Tasks in Tech Lead, the TKs column in the schedule is automatically updated with the count of Tasks found per Story.\n\n" +
+                     "This lets you see at a glance which Stories already have technical Tasks created in DevOps, and which do not (value 0 shown in red).")
+                },
+                "Use cascade mode (toolbar) to plan Tasks for an entire Feature at once. Use the Story context menu for quick access to a specific Story during execution."
+            ),
+            (
                 "Schedule",
                 "The task grid is where you view and edit the project structure: hierarchy, dates, duration, resources, percent complete and dependencies.",
                 new()
@@ -767,7 +885,19 @@ namespace NXProject.Views
                      "Block tag sync:\n" +
                      "• If the Story in NXProject has Block and DevOps does not → the tag is added in DevOps on sync.\n" +
                      "• If the Story in NXProject does not have Block and DevOps does → the tag is removed from DevOps on sync.\n\n" +
-                     "On import, NXProject reads the Block tag from the Story itself and from child Tasks (reflected as inherited blocking).")
+                     "On import, NXProject reads the Block tag from the Story itself and from child Tasks (reflected as inherited blocking)."),
+                    ("Editing the activity name",
+                     "The Name column requires a double-click to enter edit mode, preventing accidental edits when navigating through cells.\n\n" +
+                     "All other columns (Start, Finish, Dur.(h), % Compl., etc.) still activate editing with a single click."),
+                    ("TKs column",
+                     "The TKs column (visible only in expanded mode) shows the count of child Tasks each Story has in Azure DevOps.\n\n" +
+                     "• Numeric value: number of Tasks found in DevOps for this Story.\n" +
+                     "• 0 in red: Story with no technical Tasks created in DevOps.\n" +
+                     "• Empty cell: count not yet calculated (Story not imported from DevOps or not queried via Tech Lead).\n\n" +
+                     "The value is updated automatically:\n" +
+                     "• On Azure DevOps import.\n" +
+                     "• When fetching Tasks in the Tech Lead window.\n" +
+                     "• When adding Tasks to the schedule or creating Tasks in the Task Grid.")
                 },
                 "Enter Start and Dur.(h) — Finish is calculated from the calendar. For dependencies, use the Pred. column."
             ),
@@ -962,7 +1092,16 @@ namespace NXProject.Views
                      "• Predecessors outside the imported scope, identified whether they are Stories or other types.\n" +
                      "• Info / Warning / Error filters to ease review."),
                     ("Open work item in DevOps",
-                     "In the DevOps Link window (click the task ID in the grid), the Open in DevOps ↗ button opens the work item directly in the browser. The window also shows child Tasks linked with ID, name and state.")
+                     "In the DevOps Link window (click the task ID in the grid), the Open in DevOps ↗ button opens the work item directly in the browser. The window also shows child Tasks linked with ID, name and state."),
+                    ("Custom DevOps Fields by Type",
+                     "NXProject supports custom classification fields per DevOps work item type (Epic, Feature, Story or all types).\n\n" +
+                     "Configure under ⚙ → Azure DevOps Configuration → 'Custom DevOps Fields' tab:\n" +
+                     "• Add one or more fields for each type (Epic, Feature, Story or * for all types).\n" +
+                     "• Each field has a display label and the DevOps Reference Name (e.g. Custom.Type).\n" +
+                     "• On import, the field value is read from DevOps and stored on the activity.\n" +
+                     "• To edit a value, right-click the activity → 'Custom DevOps Fields...'.\n" +
+                     "• If no fields are configured, a direct link to the configuration window is shown.\n\n" +
+                     "Custom DevOps Fields are read-only / classification-only — they are not written back to DevOps by the standard sync.")
                 },
                 "Field names (Estimated HH, Data_Inicio, Data_Fim) can be customized in the Fields (advanced) section of the import screen."
             ),

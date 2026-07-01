@@ -46,6 +46,8 @@
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Overview}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_DevOpsHierarchy}"/>
+                    <ListBoxItem Content="{DynamicResource Help_Topic_TechLead}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Schedule}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_ActivityDates}"/>
                     <ListBoxItem Content="{DynamicResource Help_Topic_Gantt}"/>
