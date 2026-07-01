@@ -337,6 +337,7 @@ namespace NXProject.ViewModels
         }
 
         public bool HasSyncConflict => _task.HasSyncConflict;
+        public bool HasBrokenPredecessorLink => _task.HasBrokenPredecessorLink;
 
         public DateTime? CalculatedFinish => _task.CalculatedFinish;
 

@@ -154,6 +154,7 @@ namespace NXProject.Services
                 new XElement(EXT + "Description", task.Description ?? ""),
                 new XElement(EXT + "SyncVersion", task.SyncVersion?.ToString() ?? ""),
                 new XElement(EXT + "HasSyncConflict", task.HasSyncConflict),
+                new XElement(EXT + "HasBrokenPredecessorLink", task.HasBrokenPredecessorLink),
                 new XElement(EXT + "StartFixed", task.StartFixed),
                 new XElement(EXT + "Justificativa", task.Justificativa ?? "")
             );
@@ -380,6 +381,7 @@ namespace NXProject.Services
                 Description = string.IsNullOrWhiteSpace(el.Element(EXT + "Description")?.Value) ? null : el.Element(EXT + "Description")?.Value,
                 SyncVersion = int.TryParse(el.Element(EXT + "SyncVersion")?.Value, out var sv) ? sv : null,
                 HasSyncConflict = bool.TryParse(el.Element(EXT + "HasSyncConflict")?.Value, out var hsc) && hsc,
+                HasBrokenPredecessorLink = bool.TryParse(el.Element(EXT + "HasBrokenPredecessorLink")?.Value, out var hbpl) && hbpl,
                 StartFixed    = bool.TryParse(el.Element(EXT + "StartFixed")?.Value, out var sf) && sf,
                 Justificativa = string.IsNullOrWhiteSpace(el.Element(EXT + "Justificativa")?.Value) ? null : el.Element(EXT + "Justificativa")?.Value,
                 Parent = parent

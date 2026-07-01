@@ -462,6 +462,10 @@ namespace NXProject.Services
 
             foreach (var task in tasks)
             {
+                // Declarados antes do try para ficarem acessíveis no catch (retry sem predecessoras).
+                var ops              = new List<object>();
+                var changes          = new List<string>();
+                var predecessorAddOps = new List<object>();
                 try
                 {
                     // Tarefas marcadas como "No DevOps" ou com TfsId negativo nunca são enviadas ao TFS.
@@ -582,8 +586,9 @@ namespace NXProject.Services
                         }
                     }
 
-                    var ops = new List<object>();
-                    var changes = new List<string>();
+                    ops.Clear();
+                    changes.Clear();
+                    predecessorAddOps.Clear();
 
                     bool isTask             = IsTaskType(task.TfsType);
                     bool isEpicOrFeature    = IsEpicOrFeatureType(task.TfsType);
@@ -921,7 +926,11 @@ namespace NXProject.Services
                             foreach (var predecessorId in desiredPredecessors)
                             {
                                 if (!currentPredecessors.Contains(predecessorId))
-                                    ops.Add(AddPredecessorRelation(orgBase, predecessorId));
+                                {
+                                    var predOp = AddPredecessorRelation(orgBase, predecessorId);
+                                    ops.Add(predOp);
+                                    predecessorAddOps.Add(predOp);
+                                }
                             }
                             changes.Add("predecessoras");
                         }
@@ -948,6 +957,7 @@ namespace NXProject.Services
                     // Sem mudanças reais → pula sem incrementar versão.
                     if (ops.Count == 0)
                     {
+                        task.HasBrokenPredecessorLink = false;
                         report.Skipped++;
                         continue;
                     }
@@ -968,6 +978,7 @@ namespace NXProject.Services
                     // bypassRules=true garante que campos customizados (Perc_Aloc, Sync_version,
                     // Sync_Name identity) e itens fechados sejam gravados sem bloqueio de regras.
                     await PatchWorkItemAsync(orgBase, auth, task.TfsId.Value, ops, cancellationToken, bypassRules: true);
+                    task.HasBrokenPredecessorLink = false;
                     report.Updated++;
                     report.LogSuccess($"{TaskSyncLabel(task)} ({task.Name ?? "(sem nome)"}): [{string.Join(", ", changes)}]");
                     if (reparent)
@@ -978,7 +989,41 @@ namespace NXProject.Services
                 }
                 catch (Exception ex)
                 {
-                    report.LogError($"{TaskSyncLabel(task)} ({task.Name}): erro — {ex.Message}");
+                    // 404 de acesso a link (work item predecessora excluído ou sem permissão):
+                    // retry sem as ops de predecessora e marca a task no cronograma.
+                    var msg = ex.Message;
+                    var linkMatch = System.Text.RegularExpressions.Regex.Match(
+                        msg, @"Work item (\d+) does not exist", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (linkMatch.Success && msg.Contains("404") && msg.Contains("WorkItemLink")
+                        && predecessorAddOps.Count > 0 && task.TfsId.HasValue)
+                    {
+                        var missingId   = int.Parse(linkMatch.Groups[1].Value);
+                        var missingName = tasks.FirstOrDefault(t => t.TfsId == missingId)?.Name ?? $"#{missingId}";
+                        report.LogWarning(
+                            $"{TaskSyncLabel(task)} ({task.Name}): predecessora \"{missingName}\" (#{missingId}) não existe mais no DevOps — link marcado no cronograma.");
+
+                        // Retry sem ops de predecessora (demais campos ainda precisam ser sincronizados).
+                        var opsWithoutPredecessors = ops.Except(predecessorAddOps).ToList();
+                        try
+                        {
+                            if (opsWithoutPredecessors.Count > 0)
+                            {
+                                await PatchWorkItemAsync(orgBase, auth, task.TfsId.Value, opsWithoutPredecessors, cancellationToken, bypassRules: true);
+                                report.Updated++;
+                                report.LogSuccess($"{TaskSyncLabel(task)} ({task.Name}): sincronizado sem predecessora quebrada.");
+                            }
+                        }
+                        catch (Exception retryEx)
+                        {
+                            report.LogError($"{TaskSyncLabel(task)} ({task.Name}): erro no retry — {retryEx.Message}");
+                        }
+
+                        task.HasBrokenPredecessorLink = true;
+                    }
+                    else
+                    {
+                        report.LogError($"{TaskSyncLabel(task)} ({task.Name}): erro — {msg}");
+                    }
                 }
             }
 

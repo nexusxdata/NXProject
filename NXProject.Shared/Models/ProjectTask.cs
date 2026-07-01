@@ -116,6 +116,8 @@ namespace NXProject.Models
         // HasSyncConflict: true quando outro usuário gravou após o nosso último import.
         public int? SyncVersion { get; set; }
         public bool HasSyncConflict { get; set; }
+        // Predecessora com TfsId inexistente/inacessível no DevOps — link quebrado.
+        public bool HasBrokenPredecessorLink { get; set; }
 
         // Quantidade de Tasks filhas no DevOps (null = não calculado, 0 = sem tasks → vermelho).
         public int? DevopsTaskCount { get; set; }
