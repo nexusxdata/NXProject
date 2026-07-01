@@ -230,10 +230,17 @@ namespace NXProject.ViewModels
             ? new SolidColorBrush(Color.FromRgb(0xC0, 0x20, 0x20))
             : new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20));
 
+        // Visível apenas em Stories (não-summary) vinculadas ao DevOps com contagem calculada
+        public System.Windows.Visibility TksButtonVisibility =>
+            (_task.DevopsTaskCount.HasValue && !_task.IsSummary && _task.TfsId is > 0)
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+
         public void NotifyTksChanged()
         {
             OnPropertyChanged(nameof(TksCountDisplay));
             OnPropertyChanged(nameof(TksBrush));
+            OnPropertyChanged(nameof(TksButtonVisibility));
         }
 
         private static string TypeShort(string? type) => (type?.Trim().ToLowerInvariant()) switch

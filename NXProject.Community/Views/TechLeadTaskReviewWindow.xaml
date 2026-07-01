@@ -23,7 +23,8 @@
             <RowDefinition Height="Auto"/>  <!-- filtros -->
             <RowDefinition Height="*"/>     <!-- grid -->
             <RowDefinition Height="Auto"/>  <!-- totais -->
-            <RowDefinition Height="Auto"/>  <!-- botões -->
+            <RowDefinition Height="Auto"/>  <!-- botões cronograma -->
+            <RowDefinition Height="Auto"/>  <!-- botões devops -->
         </Grid.RowDefinitions>
 
         <!-- Cabeçalho -->
@@ -49,37 +50,25 @@
 
         <!-- Filtros -->
         <WrapPanel Grid.Row="2" Margin="0,0,0,8" Orientation="Horizontal">
+            <TextBlock Text="Epic:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+            <ComboBox x:Name="EpicFilterBox" Width="170" FontSize="12" Margin="0,0,12,0"
+                      SelectionChanged="OnEpicFilterChanged"/>
             <TextBlock Text="Feature:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
             <ComboBox x:Name="FeatureFilterBox" Width="170" FontSize="12" Margin="0,0,12,0"
                       SelectionChanged="OnFeatureFilterChanged"/>
             <TextBlock Text="Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
             <ComboBox x:Name="StoryFilterBox" Width="170" FontSize="12" Margin="0,0,12,0"
                       SelectionChanged="OnStoryFilterChanged"/>
+            <Button x:Name="BuscarButton" Content="🔍 Buscar Tasks"
+                    Click="OnBuscarClick"
+                    Padding="8,3" FontSize="12" Margin="0,0,12,0"
+                    Background="#2B579A" Foreground="White"
+                    Visibility="Collapsed"/>
             <TextBlock Text="Status:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
             <ComboBox x:Name="StateFilterBox" Width="120" FontSize="12" Margin="0,0,12,0"
                       SelectionChanged="OnStateFilterChanged"/>
             <Button Content="🔄 Recarregar" Click="OnReloadClick"
                     Padding="8,3" FontSize="12" Margin="0,0,8,0"/>
-            <Separator Margin="4,0"/>
-            <TextBlock Text="Duração Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
-            <TextBox x:Name="StoryDurationBox" Width="60" FontSize="12" Margin="0,0,4,0"
-                     VerticalContentAlignment="Center" ToolTip="Duração total da Story em horas"/>
-            <TextBlock Text="h" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
-            <Button Content="⚖ Ratear HH nas Tasks" x:Name="RatearButton"
-                    Click="OnRatearClick"
-                    Padding="8,3" FontSize="12" Margin="0,0,8,0"
-                    Background="#7B3F00" Foreground="White"
-                    ToolTip="Distribui as horas da Story entre as Tasks com HH Estimado e HH Atual zerados"/>
-            <Button Content="✕ Zerar estimativas" x:Name="ZerarButton"
-                    Click="OnZerarClick"
-                    Padding="8,3" FontSize="12" Margin="0,0,8,0"
-                    Background="#555" Foreground="White"
-                    ToolTip="Zera HH Estimado e HH Atual das Tasks não encerradas (Status ≠ Closed/Done)"/>
-            <Separator Margin="4,0"/>
-            <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
-                    Click="OnSaveChangesClick"
-                    Padding="8,3" FontSize="12" Margin="0,0,8,0"
-                    Background="#217346" Foreground="White" IsEnabled="False"/>
         </WrapPanel>
 
         <!-- Grid de Tasks editável -->
@@ -321,22 +310,54 @@
                        x:Name="DirtyHint" Visibility="Collapsed"/>
         </StackPanel>
 
-        <!-- Botões rodapé -->
-        <DockPanel Grid.Row="5" Margin="0,10,0,0">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                <Button x:Name="ExpandAllButton" Content="📂 Expandir todas no cronograma"
-                        Click="OnExpandAllClick" Height="30" Padding="10,0" Margin="0,0,8,0"
-                        Background="#5C3E8F" Foreground="White" Visibility="Collapsed"/>
-                <Button x:Name="AddSelectedButton" Content="📥 Incluir selecionadas no cronograma"
-                        Click="OnAddSelectedClick" Height="30" Padding="10,0" Margin="0,0,8,0"
-                        Background="#2B579A" Foreground="White" IsEnabled="False" Visibility="Collapsed"/>
-                <Button x:Name="ReleaseButton" Content="🔓 Liberar atividade"
-                        Click="OnReleaseClick" Height="30" Padding="10,0" Margin="0,0,8,0"
-                        Background="#C0392B" Foreground="White" Visibility="Collapsed"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Fechar" Click="OnCloseClick" Width="90" Height="30"/>
-            </StackPanel>
-        </DockPanel>
+        <!-- Botões Cronograma -->
+        <Border Grid.Row="5" Margin="0,10,0,4" BorderBrush="#D0D8E8" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+            <DockPanel>
+                <TextBlock Text="Cronograma" FontSize="10" Foreground="#888" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,12,0" DockPanel.Dock="Left"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button x:Name="ExpandAllButton" Content="📂 Expandir todas no cronograma"
+                            Click="OnExpandAllClick" Height="28" Padding="10,0" Margin="0,0,8,0"
+                            Background="#5C3E8F" Foreground="White" Visibility="Collapsed"/>
+                    <Button x:Name="AddSelectedButton" Content="📥 Incluir selecionadas no cronograma"
+                            Click="OnAddSelectedClick" Height="28" Padding="10,0" Margin="0,0,8,0"
+                            Background="#2B579A" Foreground="White" IsEnabled="False" Visibility="Collapsed"/>
+                    <Button x:Name="ReleaseButton" Content="🔓 Liberar atividade"
+                            Click="OnReleaseClick" Height="28" Padding="10,0" Margin="0,0,8,0"
+                            Background="#C0392B" Foreground="White" Visibility="Collapsed"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Fechar" Click="OnCloseClick" Width="90" Height="28"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Botões DevOps -->
+        <Border Grid.Row="6" Margin="0,0,0,0" BorderBrush="#D0D8E8" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+            <DockPanel>
+                <TextBlock Text="DevOps" FontSize="10" Foreground="#888" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,12,0" DockPanel.Dock="Left"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Duração Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                    <TextBox x:Name="StoryDurationBox" Width="60" FontSize="12" Margin="0,0,4,0"
+                             VerticalContentAlignment="Center" ToolTip="Duração total da Story em horas"/>
+                    <TextBlock Text="h" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12"/>
+                    <Button Content="⚖ Ratear HH nas Tasks" x:Name="RatearButton"
+                            Click="OnRatearClick"
+                            Height="28" Padding="10,0" Margin="0,0,8,0"
+                            Background="#7B3F00" Foreground="White"
+                            ToolTip="Distribui as horas da Story entre as Tasks com HH Estimado e HH Atual zerados"/>
+                    <Button Content="✕ Zerar estimativas" x:Name="ZerarButton"
+                            Click="OnZerarClick"
+                            Height="28" Padding="10,0" Margin="0,0,8,0"
+                            Background="#555" Foreground="White"
+                            ToolTip="Zera HH Estimado e HH Atual das Tasks não encerradas (Status ≠ Closed/Done)"/>
+                    <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
+                            Click="OnSaveChangesClick"
+                            Height="28" Padding="10,0" Margin="0,0,0,0"
+                            Background="#217346" Foreground="White" IsEnabled="False"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>

@@ -206,6 +206,7 @@ namespace NXProject.Controls
 
         /// <summary>Disparado quando o usuário clica em "Buscar Tasks (DevOps)" no menu do nome da tarefa.</summary>
         public event Action<TaskViewModel>? FetchChildTasksRequested;
+        public event Action<TaskViewModel>? TksClickRequested;
         public event Action<TaskViewModel>? ExpandChildTasksRequested;
 
         /// <summary>Disparado quando o usuário clica em "Suprimir Tasks do cronograma".</summary>
@@ -1287,6 +1288,12 @@ namespace NXProject.Controls
         private void OnToggleOrgHColumnClick(object sender, RoutedEventArgs e)
         {
             ShowOriginalHoursColumn = !ShowOriginalHoursColumn;
+        }
+
+        private void OnTksClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is TaskViewModel vm)
+                TksClickRequested?.Invoke(vm);
         }
 
         private void OnFetchTaskHoursClick(object sender, RoutedEventArgs e)

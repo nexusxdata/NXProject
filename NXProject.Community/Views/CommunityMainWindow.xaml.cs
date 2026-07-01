@@ -107,6 +107,7 @@ namespace NXProject.Views
             TaskGridCtrl.EditDescriptionRequested += OnEditDescription;
             TaskGridCtrl.FetchTaskHoursRequested += OnFetchTaskHoursFromDevOps;
             TaskGridCtrl.FetchChildTasksRequested    += OnFetchChildTasksFromDevOps;
+            TaskGridCtrl.TksClickRequested           += OpenTaskReviewForStory;
             TaskGridCtrl.ExpandChildTasksRequested   += OnExpandChildTasks;
             TaskGridCtrl.SuppressChildTasksRequested += OnSuppressChildTasks;
             TaskGridCtrl.ReleaseStoryRequested       += OnReleaseStory;
