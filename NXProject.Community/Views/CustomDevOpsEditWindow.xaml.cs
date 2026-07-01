@@ -51,12 +51,23 @@ namespace NXProject.Views
             {
                 FieldsPanel.Children.Add(new TextBlock
                 {
-                    Text = "Nenhum campo Custom DevOps configurado para este tipo.\nConfigure em ⚙ Configuração Integração Azure DevOps.",
+                    Text = "Nenhum campo Custom DevOps configurado para este tipo.",
                     FontSize = 11,
                     Foreground = System.Windows.Media.Brushes.Gray,
                     TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 8, 0, 0)
+                    Margin = new Thickness(0, 8, 0, 6)
                 });
+
+                var link = new System.Windows.Documents.Hyperlink(
+                    new System.Windows.Documents.Run("⚙ Abrir Configuração Azure DevOps"));
+                link.Click += (_, _) =>
+                {
+                    var cfg = new TfsDevOpsConfigWindow { Owner = this };
+                    cfg.ShowDialog();
+                    Close();
+                };
+                FieldsPanel.Children.Add(new TextBlock(link) { FontSize = 11 });
+
                 OkButton.IsEnabled = false;
             }
         }
