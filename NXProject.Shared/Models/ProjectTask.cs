@@ -117,6 +117,9 @@ namespace NXProject.Models
         public int? SyncVersion { get; set; }
         public bool HasSyncConflict { get; set; }
 
+        // Quantidade de Tasks filhas no DevOps (null = não calculado, 0 = sem tasks → vermelho).
+        public int? DevopsTaskCount { get; set; }
+
         // Justificativa de atraso ou observação relevante. Persiste na description
         // do DevOps como "Justificativa: <texto>." e é lida de volta no import.
         public string? Justificativa { get; set; }

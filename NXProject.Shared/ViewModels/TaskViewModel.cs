@@ -222,6 +222,20 @@ namespace NXProject.ViewModels
             _ => new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70))           // cinza (New/none)
         };
 
+        public string TksCountDisplay => _task.DevopsTaskCount.HasValue
+            ? _task.DevopsTaskCount.Value.ToString()
+            : string.Empty;
+
+        public Brush TksBrush => (_task.DevopsTaskCount is 0)
+            ? new SolidColorBrush(Color.FromRgb(0xC0, 0x20, 0x20))
+            : new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20));
+
+        public void NotifyTksChanged()
+        {
+            OnPropertyChanged(nameof(TksCountDisplay));
+            OnPropertyChanged(nameof(TksBrush));
+        }
+
         private static string TypeShort(string? type) => (type?.Trim().ToLowerInvariant()) switch
         {
             "project" => "PRJ",

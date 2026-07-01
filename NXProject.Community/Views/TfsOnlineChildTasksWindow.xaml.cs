@@ -139,6 +139,8 @@ namespace NXProject.Views
             _parent.Children.Add(task);
             _parent.IsSummary = true;
             _parent.RecalcSummary();
+            if (string.Equals(ChildType, "Task", StringComparison.OrdinalIgnoreCase))
+                _parent.DevopsTaskCount = (_parent.DevopsTaskCount ?? 0) + 1;
             _mainVm.Project.IsDirty = true;
             _mainVm.RebuildFlatTasks();
             _changed = true;

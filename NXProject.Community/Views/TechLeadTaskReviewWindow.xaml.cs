@@ -17,11 +17,17 @@ namespace NXProject.Views
     public partial class TechLeadTaskReviewWindow : Window
     {
         private readonly Project _project;
-        private readonly List<ProjectTask> _stories;
+        private List<ProjectTask> _stories;
         private readonly List<string> _activityList;
         private readonly ObservableCollection<TaskReviewRow> _allRows = [];
         private ICollectionView? _view;
         private static readonly List<string> KnownStates = ["New", "Active", "Resolved", "Closed", "Blocked"];
+
+        // Modo cascata (ícone do menu): seleção Epic→Feature→Story antes de buscar
+        private readonly bool _cascadeMode;
+        private List<ProjectTask> _epicTaskList = [];
+        private List<ProjectTask> _featureTaskList = [];
+        private List<ProjectTask> _storyTaskList = [];
 
         // Drag-drop
         private Point _dragStart;
@@ -35,11 +41,13 @@ namespace NXProject.Views
         public Func<IEnumerable<TaskReviewRow>, ProjectTask?>? AddToScheduleCallback { get; set; }
         public Action? ReleaseCallback { get; set; }
 
+        // Chamado pelo botão direito na Story — pré-seleciona e carrega direto
         public TechLeadTaskReviewWindow(Project project, List<ProjectTask> stories, List<string>? activityList = null)
         {
             _project = project;
             _activityList = activityList ?? ["Deployment", "Design", "Development", "Documentation", "Requirements", "Testing"];
             _stories = stories;
+            _cascadeMode = false;
             InitializeComponent();
             Loaded += async (_, _) => await LoadAsync();
             Loaded += (_, _) =>
@@ -48,6 +56,52 @@ namespace NXProject.Views
                 ExpandAllButton.Visibility   = AddToScheduleCallback != null ? Visibility.Visible : Visibility.Collapsed;
                 AddSelectedButton.Visibility = AddToScheduleCallback != null ? Visibility.Visible : Visibility.Collapsed;
             };
+        }
+
+        // Chamado pelo ícone do menu — seleção em cascata Epic→Feature→Story
+        public TechLeadTaskReviewWindow(Project project, List<string>? activityList = null)
+        {
+            _project = project;
+            _activityList = activityList ?? ["Deployment", "Design", "Development", "Documentation", "Requirements", "Testing"];
+            _stories = [];
+            _cascadeMode = true;
+            InitializeComponent();
+            Loaded += (_, _) => InitCascadeMode();
+        }
+
+        private void InitCascadeMode()
+        {
+            BuscarButton.Visibility = Visibility.Visible;
+
+            _epicTaskList = FlattenAll(_project.Tasks)
+                .Where(t => string.Equals(t.TfsType, "Epic", StringComparison.OrdinalIgnoreCase) && t.TfsId is > 0)
+                .ToList();
+
+            EpicFilterBox.ItemsSource = new[] { "(Todos)" }.Concat(_epicTaskList.Select(e => e.Name ?? "")).ToList();
+            EpicFilterBox.SelectedIndex = 0;
+
+            FeatureFilterBox.ItemsSource = new[] { "(Todas)" };
+            FeatureFilterBox.SelectedIndex = 0;
+            FeatureFilterBox.IsEnabled = false;
+
+            StoryFilterBox.ItemsSource = new[] { "(Todas)" };
+            StoryFilterBox.SelectedIndex = 0;
+            StoryFilterBox.IsEnabled = false;
+
+            BuscarButton.IsEnabled = false;
+            StatusText.Text = "Selecione Epic → Feature → Story e clique em 🔍 Buscar Tasks.";
+        }
+
+        private static IEnumerable<ProjectTask> FlattenAll(System.Collections.ObjectModel.ObservableCollection<ProjectTask> tasks)
+        {
+            foreach (var t in tasks) { yield return t; foreach (var c in FlattenAll(t.Children)) yield return c; }
+        }
+
+        private static bool IsDescendantOf(ProjectTask task, ProjectTask ancestor)
+        {
+            var p = task.Parent;
+            while (p != null) { if (ReferenceEquals(p, ancestor)) return true; p = p.Parent; }
+            return false;
         }
 
         private async Task LoadAsync()
@@ -98,18 +152,26 @@ namespace NXProject.Views
                 }
             }
 
+            // Atualiza contagem de TKs por story (para coluna TKs no cronograma)
+            foreach (var story in _stories)
+                story.DevopsTaskCount = rows.Count(r => r.StoryId == story.TfsId);
+
             _allRows.Clear();
             foreach (var r in rows) _allRows.Add(r);
 
-            var distinctFeatures = rows.Select(r => r.FeatureName).Where(f => !string.IsNullOrEmpty(f)).Distinct().OrderBy(f => f).ToList();
-            var featureNames = new[] { "(Todas)" }.Concat(distinctFeatures).ToList();
-            FeatureFilterBox.ItemsSource = featureNames;
-            FeatureFilterBox.SelectedIndex = distinctFeatures.Count == 1 ? 1 : 0;
+            if (!_cascadeMode)
+            {
+                var distinctFeatures = rows.Select(r => r.FeatureName).Where(f => !string.IsNullOrEmpty(f)).Distinct().OrderBy(f => f).ToList();
+                FeatureFilterBox.ItemsSource = new[] { "(Todas)" }.Concat(distinctFeatures).ToList();
+                FeatureFilterBox.SelectedIndex = 0;
 
-            var distinctStories = rows.Select(r => r.StoryName).Distinct().OrderBy(s => s).ToList();
-            var storyNames = new[] { "(Todas)" }.Concat(distinctStories).ToList();
-            StoryFilterBox.ItemsSource = storyNames;
-            StoryFilterBox.SelectedIndex = distinctStories.Count == 1 ? 1 : 0;
+                var distinctStories = rows.Select(r => r.StoryName).Distinct().OrderBy(s => s).ToList();
+                StoryFilterBox.ItemsSource = new[] { "(Todas)" }.Concat(distinctStories).ToList();
+                StoryFilterBox.SelectedIndex = 0;
+
+                EpicFilterBox.ItemsSource = new[] { "(Todos)" };
+                EpicFilterBox.SelectedIndex = 0;
+            }
 
             var states = new[] { "(Todos)" }.Concat(rows.Select(r => r.State).Distinct().OrderBy(s => s)).ToList();
             StateFilterBox.ItemsSource = states;
@@ -151,12 +213,15 @@ namespace NXProject.Views
         private bool ApplyFilter(object obj)
         {
             if (obj is not TaskReviewRow r) return true;
-            var featureFilter = FeatureFilterBox.SelectedItem as string;
-            var storyFilter   = StoryFilterBox.SelectedItem as string;
-            var stateFilter   = StateFilterBox.SelectedItem as string;
-            if (!string.IsNullOrEmpty(featureFilter) && featureFilter != "(Todas)" && r.FeatureName != featureFilter) return false;
-            if (!string.IsNullOrEmpty(storyFilter)   && storyFilter   != "(Todas)" && r.StoryName != storyFilter) return false;
-            if (!string.IsNullOrEmpty(stateFilter)   && stateFilter   != "(Todos)" && r.State != stateFilter) return false;
+            var stateFilter = StateFilterBox.SelectedItem as string;
+            if (!string.IsNullOrEmpty(stateFilter) && stateFilter != "(Todos)" && r.State != stateFilter) return false;
+            if (!_cascadeMode)
+            {
+                var featureFilter = FeatureFilterBox.SelectedItem as string;
+                var storyFilter   = StoryFilterBox.SelectedItem as string;
+                if (!string.IsNullOrEmpty(featureFilter) && featureFilter != "(Todas)" && r.FeatureName != featureFilter) return false;
+                if (!string.IsNullOrEmpty(storyFilter)   && storyFilter   != "(Todas)" && r.StoryName   != storyFilter)  return false;
+            }
             return true;
         }
 
@@ -178,20 +243,100 @@ namespace NXProject.Views
                 visible[i].RowNumber = i + 1;
         }
 
+        private void OnEpicFilterChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_cascadeMode) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); return; }
+
+            var epicName = EpicFilterBox.SelectedItem as string;
+            var selectedEpic = epicName != "(Todos)" ? _epicTaskList.FirstOrDefault(ep => ep.Name == epicName) : null;
+
+            _featureTaskList = FlattenAll(_project.Tasks)
+                .Where(t => string.Equals(t.TfsType, "Feature", StringComparison.OrdinalIgnoreCase) && t.TfsId is > 0)
+                .Where(t => selectedEpic == null || IsDescendantOf(t, selectedEpic) || ReferenceEquals(t.Parent, selectedEpic))
+                .ToList();
+
+            FeatureFilterBox.ItemsSource = new[] { "(Todas)" }.Concat(_featureTaskList.Select(f => f.Name ?? "")).ToList();
+            FeatureFilterBox.SelectedIndex = 0;
+            FeatureFilterBox.IsEnabled = true;
+
+            StoryFilterBox.ItemsSource = new[] { "(Todas)" };
+            StoryFilterBox.SelectedIndex = 0;
+            StoryFilterBox.IsEnabled = false;
+
+            BuscarButton.IsEnabled = true;
+        }
+
         private void OnFeatureFilterChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Ao mudar feature, refiltra stories disponíveis
-            var featureFilter = FeatureFilterBox.SelectedItem as string;
-            var filtered = string.IsNullOrEmpty(featureFilter) || featureFilter == "(Todas)"
-                ? _allRows.Select(r => r.StoryName)
-                : _allRows.Where(r => r.FeatureName == featureFilter).Select(r => r.StoryName);
-            var storyNames = new[] { "(Todas)" }.Concat(filtered.Distinct().OrderBy(s => s)).ToList();
-            StoryFilterBox.ItemsSource = storyNames;
+            if (!_cascadeMode)
+            {
+                // Modo normal: refiltra stories disponíveis nas rows carregadas
+                var featureFilter = FeatureFilterBox.SelectedItem as string;
+                var filtered = string.IsNullOrEmpty(featureFilter) || featureFilter == "(Todas)"
+                    ? _allRows.Select(r => r.StoryName)
+                    : _allRows.Where(r => r.FeatureName == featureFilter).Select(r => r.StoryName);
+                var storyNames = new[] { "(Todas)" }.Concat(filtered.Distinct().OrderBy(s => s)).ToList();
+                StoryFilterBox.ItemsSource = storyNames;
+                StoryFilterBox.SelectedIndex = 0;
+                _view?.Refresh(); RefreshRowNumbers(); UpdateTotals();
+                return;
+            }
+
+            // Modo cascata: popula Story combo a partir da Feature selecionada
+            var featureName = FeatureFilterBox.SelectedItem as string;
+            var selectedFeature = featureName != "(Todas)" ? _featureTaskList.FirstOrDefault(f => f.Name == featureName) : null;
+            var epicName = EpicFilterBox.SelectedItem as string;
+            var selectedEpic = epicName != "(Todos)" ? _epicTaskList.FirstOrDefault(ep => ep.Name == epicName) : null;
+
+            _storyTaskList = FlattenAll(_project.Tasks)
+                .Where(t => (TfsImportService.IsStoryTypePublic(t.TfsType) ||
+                             string.Equals(t.TfsType, "Feature", StringComparison.OrdinalIgnoreCase)) && t.TfsId is > 0)
+                .Where(t =>
+                {
+                    if (selectedFeature != null) return IsDescendantOf(t, selectedFeature) || ReferenceEquals(t.Parent, selectedFeature);
+                    if (selectedEpic != null) return IsDescendantOf(t, selectedEpic) || ReferenceEquals(t.Parent, selectedEpic);
+                    return true;
+                })
+                .ToList();
+
+            StoryFilterBox.ItemsSource = new[] { "(Todas)" }.Concat(_storyTaskList.Select(s => s.Name ?? "")).ToList();
             StoryFilterBox.SelectedIndex = 0;
-            _view?.Refresh(); RefreshRowNumbers(); UpdateTotals();
+            StoryFilterBox.IsEnabled = true;
+            BuscarButton.IsEnabled = true;
         }
+
         private void OnStoryFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); }
         private void OnStateFilterChanged(object sender, SelectionChangedEventArgs e) { _view?.Refresh(); RefreshRowNumbers(); UpdateTotals(); }
+
+        private async void OnBuscarClick(object sender, RoutedEventArgs e)
+        {
+            var storyName   = StoryFilterBox.SelectedItem as string;
+            var featureName = FeatureFilterBox.SelectedItem as string;
+            var epicName    = EpicFilterBox.SelectedItem as string;
+
+            if (storyName != null && storyName != "(Todas)")
+                _stories = [.. _storyTaskList.Where(s => s.Name == storyName)];
+            else if (featureName != null && featureName != "(Todas)")
+                _stories = _storyTaskList;
+            else if (epicName != null && epicName != "(Todos)")
+                _stories = _storyTaskList;
+            else
+                _stories = FlattenAll(_project.Tasks)
+                    .Where(t => (TfsImportService.IsStoryTypePublic(t.TfsType) ||
+                                 string.Equals(t.TfsType, "Feature", StringComparison.OrdinalIgnoreCase)) && t.TfsId is > 0)
+                    .ToList();
+
+            if (_stories.Count == 0)
+            {
+                StatusText.Text = "Nenhuma Story/Feature vinculada ao DevOps encontrada para a seleção.";
+                return;
+            }
+
+            _allRows.Clear();
+            BuscarButton.IsEnabled = false;
+            await LoadAsync();
+            BuscarButton.IsEnabled = true;
+        }
 
         private void OnTasksGridSelectionChanged(object sender, SelectionChangedEventArgs e)
         {

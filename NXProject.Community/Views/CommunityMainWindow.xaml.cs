@@ -692,6 +692,9 @@ namespace NXProject.Views
 
             if (firstAdded != null)
             {
+                // Recalcula TKs da story com base nos filhos do tipo Task
+                story.DevopsTaskCount = story.Children.Count(c =>
+                    string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
                 vm.Project.IsDirty = true;
                 vm.RebuildFlatTasks();
                 GanttCtrl.ForceRender();
@@ -765,7 +768,7 @@ namespace NXProject.Views
                 return;
             }
 
-            var win = new TechLeadTaskReviewWindow(vm.Project, storiesWithDevOps.Select(t => t.Model).ToList()) { Owner = this };
+            var win = new TechLeadTaskReviewWindow(vm.Project) { Owner = this };
             win.ShowDialog();
             if (win.HasChanges)
             {

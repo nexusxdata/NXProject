@@ -314,7 +314,7 @@ namespace NXProject.Controls
         private static readonly HashSet<string> DefaultVisibleColumnsExpanded = new()
         {
             "ID", "T·E (DevOps)", "Dur.(h)", "OrgH", "HH Atual", "HH Restante",
-            "Início", "Fim", "% Compl.", "Predecessoras", "Recursos", "Sprint"
+            "Início", "Fim", "% Compl.", "Predecessoras", "Recursos", "Sprint", "TKs"
         };
 
         /// <summary>Disparado quando o usuário salva as configurações de colunas. Args: (hiddenDefault, hiddenExpanded).</summary>
@@ -362,6 +362,7 @@ namespace NXProject.Controls
             ("Predecessoras", PredecessorColumn),
             ("Recursos",      ResourcesColumn),
             ("Sprint",        SprintColumn),
+            ("TKs",           TksColumn),
         ];
 
         public void ShowColumnCustomizer(string hiddenDefault, string hiddenExpanded)
@@ -909,6 +910,15 @@ namespace NXProject.Controls
         {
             if (e.Row?.Item is not TaskViewModel task)
                 return;
+
+            // Coluna de nome exige duplo clique para entrar em edição
+            if (e.Column == NameColumn
+                && e.EditingEventArgs is System.Windows.Input.MouseButtonEventArgs mb
+                && mb.ClickCount < 2)
+            {
+                e.Cancel = true;
+                return;
+            }
 
             if (!CanEditCell(task, e.Column))
             {

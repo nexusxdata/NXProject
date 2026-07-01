@@ -450,6 +450,12 @@ namespace NXProject.Services
             if (syncNameRef != null) requested.Add(syncNameRef);
             requested.Add("Microsoft.VSTS.Common.Priority"); // Priority para Tasks
 
+            // Campos Custom DevOps — necessário para comparar valor atual antes de enviar patch
+            foreach (var kv in options.TypeFieldMappings)
+                foreach (var fd in kv.Value.CustomDevopsFields)
+                    if (!string.IsNullOrWhiteSpace(fd.Field) && !requested.Contains(fd.Field))
+                        requested.Add(fd.Field);
+
             var current = existingIds.Count > 0
                 ? await LoadWorkItemsAsync(orgBase, auth, existingIds, requested, cancellationToken, expandRelations: true)
                 : new Dictionary<int, WorkItem>();
@@ -1652,6 +1658,23 @@ namespace NXProject.Services
                 Justificativa = ParseJustificativa(item.Description),
                 TipoCentroCusto = ReadTipoCentroCusto(item, ctx.TipoCentroCustoRef)
             };
+
+            // Lê valores dos campos Custom DevOps para Epic/Feature
+            if (ctx.CustomDevopsFieldsByType.TryGetValue(item.WorkItemType ?? "", out var summaryCustomFields)
+                || ctx.CustomDevopsFieldsByType.TryGetValue("*", out summaryCustomFields))
+            {
+                foreach (var fd in summaryCustomFields)
+                {
+                    var val = ReadString(item, fd.Field);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        task.CustomDevopsFieldValues[fd.Field] = val;
+                        if (string.IsNullOrWhiteSpace(task.TfsClassification))
+                            task.TfsClassification = val;
+                    }
+                }
+            }
+
             AssignResource(ctx, task, item);
 
             foreach (var childId in OrderedChildren(ctx.ChildrenByParent, id, ctx.Items))
@@ -1844,6 +1867,11 @@ namespace NXProject.Services
                     }
                 }
             }
+
+            // Conta Tasks filhas no DevOps para a coluna TKs
+            task.DevopsTaskCount = ctx.ChildrenByParent.TryGetValue(item.Id, out var tkChildren)
+                ? tkChildren.Count(cid => ctx.Items.TryGetValue(cid, out var tk) && IsType(tk, "Task"))
+                : 0;
 
             return task;
         }
