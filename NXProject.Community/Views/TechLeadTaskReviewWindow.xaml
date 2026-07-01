@@ -18,22 +18,46 @@
 
     <Grid Margin="18">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>  <!-- cabeçalho -->
+            <RowDefinition Height="Auto"/>  <!-- cabeçalho + botões devops -->
             <RowDefinition Height="Auto"/>  <!-- breadcrumb seleção -->
             <RowDefinition Height="Auto"/>  <!-- filtros -->
             <RowDefinition Height="*"/>     <!-- grid -->
             <RowDefinition Height="Auto"/>  <!-- totais -->
             <RowDefinition Height="Auto"/>  <!-- botões cronograma -->
-            <RowDefinition Height="Auto"/>  <!-- botões devops -->
         </Grid.RowDefinitions>
 
-        <!-- Cabeçalho -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,8">
-            <TextBlock Text="Revisão de Tasks — Tech Lead"
-                       FontSize="18" FontWeight="SemiBold" Foreground="#2B579A"/>
-            <TextBlock x:Name="StatusText" FontSize="11" Foreground="#666" Margin="0,2,0,0"
-                       Text="Carregando Tasks do DevOps..."/>
-        </StackPanel>
+        <!-- Cabeçalho + Botões DevOps (direita) -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="False">
+            <StackPanel DockPanel.Dock="Left">
+                <TextBlock Text="Revisão de Tasks — Tech Lead"
+                           FontSize="18" FontWeight="SemiBold" Foreground="#2B579A"/>
+                <TextBlock x:Name="StatusText" FontSize="11" Foreground="#666" Margin="0,2,0,0"
+                           Text="Carregando Tasks do DevOps..."/>
+            </StackPanel>
+            <!-- Botões DevOps -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="DevOps" FontSize="10" Foreground="#888" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="Duração Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                <TextBox x:Name="StoryDurationBox" Width="60" FontSize="12" Margin="0,0,4,0"
+                         VerticalContentAlignment="Center" ToolTip="Duração total da Story em horas"/>
+                <TextBlock Text="h" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12"/>
+                <Button Content="⚖ Ratear HH nas Tasks" x:Name="RatearButton"
+                        Click="OnRatearClick"
+                        Height="28" Padding="10,0" Margin="0,0,8,0"
+                        Background="#7B3F00" Foreground="White"
+                        ToolTip="Distribui as horas da Story entre as Tasks com HH Estimado e HH Atual zerados"/>
+                <Button Content="✕ Zerar estimativas" x:Name="ZerarButton"
+                        Click="OnZerarClick"
+                        Height="28" Padding="10,0" Margin="0,0,8,0"
+                        Background="#555" Foreground="White"
+                        ToolTip="Zera HH Estimado e HH Atual das Tasks não encerradas (Status ≠ Closed/Done)"/>
+                <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
+                        Click="OnSaveChangesClick"
+                        Height="28" Padding="10,0" Margin="0,0,0,0"
+                        Background="#217346" Foreground="White" IsEnabled="False"/>
+            </StackPanel>
+        </DockPanel>
 
         <!-- Breadcrumb da task selecionada: Epic > Feature > Story -->
         <Border Grid.Row="1" Background="#F3F6FC" CornerRadius="4" Padding="10,6"
@@ -332,32 +356,5 @@
             </DockPanel>
         </Border>
 
-        <!-- Botões DevOps -->
-        <Border Grid.Row="6" Margin="0,0,0,0" BorderBrush="#D0D8E8" BorderThickness="0,1,0,0" Padding="0,8,0,0">
-            <DockPanel>
-                <TextBlock Text="DevOps" FontSize="10" Foreground="#888" FontWeight="SemiBold"
-                           VerticalAlignment="Center" Margin="0,0,12,0" DockPanel.Dock="Left"/>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Duração Story:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
-                    <TextBox x:Name="StoryDurationBox" Width="60" FontSize="12" Margin="0,0,4,0"
-                             VerticalContentAlignment="Center" ToolTip="Duração total da Story em horas"/>
-                    <TextBlock Text="h" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12"/>
-                    <Button Content="⚖ Ratear HH nas Tasks" x:Name="RatearButton"
-                            Click="OnRatearClick"
-                            Height="28" Padding="10,0" Margin="0,0,8,0"
-                            Background="#7B3F00" Foreground="White"
-                            ToolTip="Distribui as horas da Story entre as Tasks com HH Estimado e HH Atual zerados"/>
-                    <Button Content="✕ Zerar estimativas" x:Name="ZerarButton"
-                            Click="OnZerarClick"
-                            Height="28" Padding="10,0" Margin="0,0,8,0"
-                            Background="#555" Foreground="White"
-                            ToolTip="Zera HH Estimado e HH Atual das Tasks não encerradas (Status ≠ Closed/Done)"/>
-                    <Button Content="💾 Salvar alterações no DevOps" x:Name="SaveChangesButton"
-                            Click="OnSaveChangesClick"
-                            Height="28" Padding="10,0" Margin="0,0,0,0"
-                            Background="#217346" Foreground="White" IsEnabled="False"/>
-                </StackPanel>
-            </DockPanel>
-        </Border>
     </Grid>
 </Window>
