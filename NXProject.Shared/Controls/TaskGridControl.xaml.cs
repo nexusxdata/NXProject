@@ -1605,6 +1605,8 @@ namespace NXProject.Controls
                 TaskGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 TaskGrid.CommitEdit(DataGridEditingUnit.Row, true);
                 ClearEditSnapshot();
+                Dispatcher.InvokeAsync(() => RefreshGridPreservingSelection(vm, StartColumn),
+                    System.Windows.Threading.DispatcherPriority.Background);
                 return;
             }
             else
