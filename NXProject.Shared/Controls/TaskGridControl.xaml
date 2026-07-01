@@ -51,6 +51,10 @@
                         <Setter Property="Background" Value="#FFE0E0"/>
                         <Setter Property="Foreground" Value="#A4262C"/>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding HasUnresolvedPredecessor}" Value="True">
+                        <Setter Property="Background" Value="#FFE0E0"/>
+                        <Setter Property="Foreground" Value="#A4262C"/>
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>

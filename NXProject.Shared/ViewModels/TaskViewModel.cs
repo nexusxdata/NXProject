@@ -338,6 +338,11 @@ namespace NXProject.ViewModels
 
         public bool HasSyncConflict => _task.HasSyncConflict;
         public bool HasBrokenPredecessorLink => _task.HasBrokenPredecessorLink;
+        // Verdadeiro quando algum PredecessorId não resolve para uma tarefa existente no projeto.
+        public bool HasUnresolvedPredecessor =>
+            FindByInternalId != null &&
+            _task.PredecessorIds.Count > 0 &&
+            _task.PredecessorIds.Any(id => FindByInternalId(id) == null);
 
         public DateTime? CalculatedFinish => _task.CalculatedFinish;
 
