@@ -1079,6 +1079,7 @@
     <sys:String x:Key="Sprint_FilterNoEpic">(no EPIC)</sys:String>
     <sys:String x:Key="Sprint_FilterOpenProject">📂 Open Project</sys:String>
     <sys:String x:Key="Sprint_StoryAll">All</sys:String>
+    <sys:String x:Key="Sprint_StoryNone">Clear all</sys:String>
     <sys:String x:Key="Sprint_StoryApply">Apply</sys:String>
     <sys:String x:Key="Sprint_StateFilter">States ▾</sys:String>
     <sys:String x:Key="Sprint_EditMode">Edit (move cards)</sys:String>

@@ -113,23 +113,6 @@
         </DockPanel>
         <!-- Filtros (quebram linha se faltar espaço) -->
         <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <!-- Filtro de Projeto: primeiro da barra, antes da escolha da Sprint. -->
-            <ToggleButton x:Name="StoryFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
-                          Padding="8,2" Margin="0,0,14,0" Content="{DynamicResource Sprint_StoryFilter}"/>
-            <Popup PlacementTarget="{Binding ElementName=StoryFilterToggle}" Placement="Bottom"
-                   IsOpen="{Binding IsChecked, ElementName=StoryFilterToggle}" StaysOpen="False" AllowsTransparency="True">
-                <Border Background="White" BorderBrush="#C9D3CC" BorderThickness="1" Padding="6">
-                    <DockPanel MaxHeight="380" MaxWidth="420">
-                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="{DynamicResource Sprint_StoryAll}" Click="OnStoryFilterAll" Padding="8,2" Margin="0,0,6,0"/>
-                            <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnStoryFilterApply" Padding="8,2"/>
-                        </StackPanel>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
-                            <StackPanel x:Name="StoryFilterList"/>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-            </Popup>
             <TextBlock Text="{DynamicResource Sprint_Pick}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ToggleButton x:Name="SprintFilterToggle" VerticalAlignment="Center" Padding="8,2" MinWidth="240"
                           Content="{DynamicResource Sprint_AllSprints}" ToolTip="{DynamicResource Sprint_MultiTip}"
@@ -155,6 +138,24 @@
                     Content="📍" ToolTip="{DynamicResource Sprint_CurrentTip}"/>
             <Button x:Name="ReloadButton" VerticalAlignment="Center" Padding="6,2" Margin="4,0,0,0"
                     Click="OnReloadClick" Content="🔄" ToolTip="{DynamicResource Sprint_Reload}"/>
+            <!-- Filtro de Projeto: logo depois da escolha da Sprint. -->
+            <ToggleButton x:Name="StoryFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
+                          Padding="8,2" Margin="0,0,14,0" Content="{DynamicResource Sprint_StoryFilter}"/>
+            <Popup PlacementTarget="{Binding ElementName=StoryFilterToggle}" Placement="Bottom"
+                   IsOpen="{Binding IsChecked, ElementName=StoryFilterToggle}" StaysOpen="False" AllowsTransparency="True">
+                <Border Background="White" BorderBrush="#C9D3CC" BorderThickness="1" Padding="6">
+                    <DockPanel MaxHeight="380" MaxWidth="420">
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="{DynamicResource Sprint_StoryAll}" Click="OnStoryFilterAll" Padding="8,2" Margin="0,0,6,0"/>
+                            <Button Content="{DynamicResource Sprint_StoryNone}" Click="OnStoryFilterNone" Padding="8,2" Margin="0,0,6,0"/>
+                            <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnStoryFilterApply" Padding="8,2"/>
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                            <StackPanel x:Name="StoryFilterList"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Popup>
             <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Sprint_Person}" VerticalAlignment="Center" Margin="14,0,6,0"/>
             <ToggleButton x:Name="PersonFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
                           Padding="8,2" MinWidth="150" Content="{DynamicResource Sprint_PersonAll}"/>

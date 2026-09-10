@@ -418,11 +418,19 @@ namespace NXProject.Views
                 _selectedPeople.RemoveWhere(p => !people.Contains(p, StringComparer.CurrentCultureIgnoreCase));
                 PopulatePersonFilter(people);
                 _storyById = _board.Stories.Where(s => s.Id > 0).ToDictionary(s => s.Id);
+                // Trocar de sprint NAO joga fora o recorte de Projeto: mantem as Stories que
+                // continuam existindo na nova selecao de sprints. So quando nao sobra nenhuma
+                // (ou nunca houve recorte) e que volta o padrao — as Stories do cronograma aberto.
+                var kept = _selectedStoryIds.Where(_storyById.ContainsKey).ToList();
                 _selectedStoryIds.Clear();
-                // Com projeto aberto: por padrão filtra só as Stories dele (Todo Portfólio desmarcado).
-                var openIds = _board.Stories.Where(s => s.Id > 0 && _scheduleIds.Contains(s.Id)).Select(s => s.Id).ToList();
-                if (openIds.Count > 0)
+                if (kept.Count > 0)
+                    foreach (var id in kept) _selectedStoryIds.Add(id);
+                else
+                {
+                    // Com projeto aberto: por padrão filtra só as Stories dele (Todo Portfólio desmarcado).
+                    var openIds = _board.Stories.Where(s => s.Id > 0 && _scheduleIds.Contains(s.Id)).Select(s => s.Id).ToList();
                     foreach (var oid in openIds) _selectedStoryIds.Add(oid);
+                }
                 // Na PRIMEIRA carga: restaura os filtros salvos (ou o padrão: esconder Closed).
                 // Nos reloads seguintes: PRESERVA a seleção do usuário (só descarta estados que
                 // sumiram do board), para não voltar a esconder Closed a cada troca de sprint.
@@ -1793,6 +1801,17 @@ namespace NXProject.Views
             foreach (var cb in AllStoryCheckBoxes()) cb.IsChecked = true;
             PopulateStoryFilter(); // re-marca as raízes
             Render();
+        }
+
+        /// <summary>
+        /// Desmarca tudo na arvore SEM aplicar: e o ponto de partida para escolher poucos itens
+        /// (o caminho contrario do "Todas"). Nada muda no board ate clicar em Aplicar — la, se
+        /// continuar tudo desmarcado, o filtro sai de cena e o board volta a mostrar tudo.
+        /// </summary>
+        private void OnStoryFilterNone(object sender, RoutedEventArgs e)
+        {
+            foreach (var cb in AllStoryCheckBoxes()) cb.IsChecked = false;
+            RefreshFilterGroupStates();
         }
 
         private void OnStoryFilterApply(object sender, RoutedEventArgs e)
