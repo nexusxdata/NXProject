@@ -145,7 +145,7 @@ function Invoke-DotnetCommandWithRetry {
     )
 
     $attempt = 1
-    while ($attempt -le 2) {
+    while ($attempt -le 3) {
         $output = & $Command 2>&1
         $exitCode = $LASTEXITCODE
         if ($output) {
@@ -168,14 +168,27 @@ function Invoke-DotnetCommandWithRetry {
         }
 
         $hasDllLock = $combinedOutput -match [regex]::Escape($SharedDllLockPattern)
-        if (-not $hasDllLock -or $attempt -eq 2) {
+        # NETSDK1047: o projeto temporario do WPF (*_wpftmp) reescreve o project.assets.json
+        # SEM o RID durante o proprio publish. Quando isso acontece o assets fica invalido para
+        # o self-contained e o publish morre — mas basta refazer o restore COM o RID (o ultimo a
+        # escrever o arquivo passa a ser ele) e publicar de novo. Por isso este erro tambem e
+        # tratado como temporario, e nao como falha do build.
+        $hasMissingRidTarget = $combinedOutput -match 'NETSDK1047'
+        if ((-not $hasDllLock -and -not $hasMissingRidTarget) -or $attempt -eq 3) {
             Write-Host ""
             Write-Host "$ActionLabel falhou." -ForegroundColor Red
             exit 1
         }
 
-        Write-Step "Detectado bloqueio temporario de DLL do .NET. Reiniciando build server e tentando novamente..."
-        dotnet build-server shutdown | Out-Host
+        if ($hasMissingRidTarget) {
+            Write-Step "assets.json ficou sem o alvo '$Runtime' (NETSDK1047). Refazendo o restore com RID e tentando de novo..."
+            dotnet build-server shutdown 2>&1 | Out-Null
+            dotnet restore $ProjectFile -r $Runtime -p:SelfContained=true --nologo -v q --force | Out-Host
+        }
+        else {
+            Write-Step "Detectado bloqueio temporario de DLL do .NET. Reiniciando build server e tentando novamente..."
+            dotnet build-server shutdown | Out-Host
+        }
         Start-Sleep -Seconds 1
         $attempt++
     }
