@@ -25,6 +25,12 @@ namespace NXProject.Views
     {
         private readonly TfsConnectionOptions _options;
         private readonly IReadOnlySet<int> _scheduleIds;
+        // Work item raiz do cronograma aberto no NX (0 = nenhum): no filtro esse no vem
+        // marcado e rotulado com "(Aberto no NX)".
+        private readonly int _openRootId;
+        // Grupos da arvore do filtro (pai -> folhas), da folha para a raiz: o estado de cada
+        // pai (marcado / desmarcado / parcial) e recalculado a cada clique.
+        private readonly List<(CheckBox Parent, List<CheckBox> Leaves)> _filterGroups = new();
         // Id do work item → posição no cronograma aberto (vazio quando aberto sem cronograma).
         private readonly Dictionary<int, int> _scheduleRank = new();
         private readonly Action<int>? _openInSchedule;
@@ -143,6 +149,7 @@ namespace NXProject.Views
             public bool AutoOpen { get; set; }   // abrir o TaskBoard ao iniciar o NX
             public int? WipLimit { get; set; }   // limite de Tasks em andamento POR PESSOA (0 = sem limite; null = 3)
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
+            public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
             public bool? ShowProjCol { get; set; } // coluna Projeto na visão Projeto & Story (null = mostra)
             public bool? ShowFeatCol { get; set; } // coluna Feature na visão Pessoa & Task (null = mostra)
             public bool? ShowEpicCol { get; set; } // coluna EPIC na visão Projeto & Story (null = mostra)
@@ -218,8 +225,9 @@ namespace NXProject.Views
             || s.Equals("Completed", StringComparison.OrdinalIgnoreCase);
 
         public TfsSprintWindow(IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null,
-            string? preferredSprint = null, IReadOnlyList<int>? scheduleOrder = null)
+            string? preferredSprint = null, IReadOnlyList<int>? scheduleOrder = null, int openRootId = 0)
         {
+            _openRootId = openRootId;
             InitializeComponent();
             _options = TfsConnectionStore.Load("NXProject.Community");
             _scheduleIds = scheduleIds ?? new HashSet<int>();
@@ -233,6 +241,8 @@ namespace NXProject.Views
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeBoth"));  // 0
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeTask"));  // 1
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeStory")); // 2
+            SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeLevels")); // 3 = Feature/EPIC/Project
+            SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopePerson")); // 4 = responsavel
             SearchScopeCombo.SelectedIndex = 0;
             // Carrega os últimos filtros salvos (aplicados na 1ª carga do board).
             _prefs = LoadPrefs();
@@ -403,7 +413,7 @@ namespace NXProject.Views
                 _sprintPaths = paths;
                 UpdateSprintToggleText();
                 _board = await TfsImportService.BuildSprintBoardAsync(_options, paths);
-                var people = _board.People.ToList();
+                var people = BoardPeople(_board);
                 // Mantém só as pessoas ainda existentes no board (preserva a seleção múltipla).
                 _selectedPeople.RemoveWhere(p => !people.Contains(p, StringComparer.CurrentCultureIgnoreCase));
                 PopulatePersonFilter(people);
@@ -662,10 +672,27 @@ namespace NXProject.Views
                 && _board != null && MatchCurrentUser() is { } me)
             {
                 _selectedPeople.Add(me);
-                PopulatePersonFilter(_board.People.ToList());
+                PopulatePersonFilter(BoardPeople(_board));
             }
             Render();
             SavePrefs();
+        }
+
+        /// <summary>
+        /// Pessoas que realmente aparecem no board: responsavel de Story ou de Task. O
+        /// People do board vem do AssignedTo de TODO work item da sprint (Feature, EPIC e
+        /// Work Item Project inclusive), e esses nomes enchiam o filtro sem ter card algum.
+        /// </summary>
+        private static List<string> BoardPeople(TfsImportService.SprintBoard b)
+        {
+            var set = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
+            foreach (var s in b.Stories)
+            {
+                if (!s.IsLevelPlaceholder && !string.IsNullOrWhiteSpace(s.AssignedTo)) set.Add(s.AssignedTo);
+                foreach (var t in s.Tasks)
+                    if (!string.IsNullOrWhiteSpace(t.AssignedTo)) set.Add(t.AssignedTo);
+            }
+            return set.ToList();
         }
 
         // (Re)constrói a lista de checkboxes de pessoas e atualiza o texto do botão.
@@ -675,8 +702,29 @@ namespace NXProject.Views
             foreach (var p in people)
                 PersonFilterList.Children.Add(new CheckBox { Content = p, Tag = p,
                     IsChecked = _selectedPeople.Contains(p), Margin = new Thickness(0, 1, 0, 1) });
+            ApplyPersonSearch();
             UpdatePersonToggleText();
         }
+
+        /// <summary>
+        /// Busca dentro do filtro de pessoas: esconde (nao remove) os checkboxes que nao casam,
+        /// para que a marcacao de quem ficou fora da busca continue valendo no Aplicar.
+        /// Quem ja esta marcado nunca some, senao o usuario perderia a selecao de vista.
+        /// </summary>
+        private void ApplyPersonSearch()
+        {
+            var q = PersonSearchBox?.Text?.Trim();
+            foreach (var cb in PersonFilterList.Children.OfType<CheckBox>())
+            {
+                var name = cb.Tag as string ?? "";
+                cb.Visibility = string.IsNullOrEmpty(q) || cb.IsChecked == true
+                    || name.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        private void OnPersonSearchChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+            => ApplyPersonSearch();
 
         private void UpdatePersonToggleText()
         {
@@ -1415,18 +1463,42 @@ namespace NXProject.Views
             if (!string.IsNullOrEmpty(q))
             {
                 var scope = SearchScope();
-                var storyTitle = t.ParentId is int sp && _storyById.TryGetValue(sp, out var st) ? st.Title : "";
+                var storyRow = t.ParentId is int sp && _storyById.TryGetValue(sp, out var st) ? st : null;
                 bool Has(string? s) => !string.IsNullOrEmpty(s) && s.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0;
                 bool taskMatch = Has(t.Title) || Has(t.AssignedTo) || t.Id.ToString().Contains(q);
-                bool storyMatch = Has(storyTitle);
-                bool match = scope switch { 1 => taskMatch, 2 => storyMatch, _ => taskMatch || storyMatch };
+                bool storyMatch = Has(storyRow?.Title);
+                // A Task herda o casamento pelos niveis acima da Story dela.
+                bool levelMatch = storyRow != null && LevelMatches(storyRow, q);
+                bool personMatch = Has(t.AssignedTo) || Has(storyRow?.AssignedTo);
+                bool match = scope switch
+                {
+                    1 => taskMatch, 2 => storyMatch, 3 => levelMatch, 4 => personMatch,
+                    _ => taskMatch || storyMatch || levelMatch
+                };
                 if (!match) return false;
             }
             return true;
         }
 
-        // 0 = Ambos, 1 = Task, 2 = Story.
+        // 0 = Tudo, 1 = Task, 2 = Story, 3 = niveis acima (Feature / EPIC / Work Item Project),
+        // 4 = pessoa (responsavel da Task ou da Story) — atalho para quando o filtro de pessoa
+        // esta com varios marcados e o que se quer e so isolar um deles.
         private int SearchScope() => SearchScopeCombo?.SelectedIndex is int i && i >= 0 ? i : 0;
+
+        /// <summary>
+        /// A Story casa com a busca pelos niveis ACIMA dela: Feature, EPIC e Work Item Project
+        /// (nome ou id). Assim da para achar "tudo do projeto X" ou "tudo da feature Y" sem
+        /// precisar abrir o filtro em arvore.
+        /// </summary>
+        private static bool LevelMatches(TfsImportService.SprintStoryRow s, string q)
+        {
+            bool Has(string? v) => !string.IsNullOrEmpty(v)
+                && v.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0;
+            bool IsId(int id) => id > 0 && id.ToString().Contains(q);
+            return Has(s.FeatureTitle) || IsId(s.FeatureId)
+                || Has(s.FeatureEpicTitle) || IsId(s.FeatureEpicId)
+                || Has(s.FeatureProjectTitle) || IsId(s.FeatureProjectId);
+        }
 
         private void OnSearchChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
@@ -1450,17 +1522,193 @@ namespace NXProject.Views
 
         // Popup de filtro: raiz "Projeto Aberto" (Stories do cronograma aberto) — só se houver — e
         // "Todo Portfólio" (o restante). Em cada raiz: Features → Stories, com "sem Feature" à parte.
+        /// <summary>
+        /// Arvore do filtro na hierarquia do DevOps: Work Item Project → EPIC → Feature → Story.
+        /// Cada nivel abre no "▸" e tem checkbox proprio, que marca/desmarca tudo abaixo.
+        ///
+        /// Os Projects listados sao SO os do Portfolio do NX (nao todos os do Team Project); o
+        /// que estiver fora dele cai num no "Outros", para nenhuma Story do board ficar sem
+        /// como ser filtrada. O item raiz do cronograma aberto vem marcado, expandido e com
+        /// "(Aberto no NX)" no rotulo.
+        /// </summary>
         private void PopulateStoryFilter()
         {
             StoryFilterList.Children.Clear();
+            _filterGroups.Clear();
             if (_board == null) return;
-            var stories = _board.Stories.Where(s => s.Id > 0).ToList();
-            var openStories = stories.Where(s => _scheduleIds.Contains(s.Id)).ToList();
-            var others = openStories.Count > 0 ? stories.Where(s => !_scheduleIds.Contains(s.Id)).ToList() : stories;
 
-            if (openStories.Count > 0)
-                AddFilterRoot(AppStrings.Get("Sprint_FilterOpenProject"), openStories);
-            AddFilterRoot(AppStrings.Get("Sprint_FilterAllPortfolio"), others);
+            var stories = _board.Stories.Where(s => s.Id > 0 && !s.IsLevelPlaceholder).ToList();
+            if (stories.Count == 0) return;
+
+            var portfolio = LoadPortfolioProjects();
+            // Sem filtro salvo, marca so o cronograma aberto (quando ele aparece na arvore);
+            // sem cronograma aberto, tudo marcado — o padrao de "sem recorte".
+            var hasSaved = _selectedStoryIds.Count > 0;
+            var openInTree = _openRootId > 0 && stories.Any(s =>
+                s.FeatureProjectId == _openRootId || s.FeatureEpicId == _openRootId || s.FeatureId == _openRootId);
+
+            bool StoryChecked(TfsImportService.SprintStoryRow s)
+            {
+                if (hasSaved) return _selectedStoryIds.Contains(s.Id);
+                if (!openInTree) return true;
+                return s.FeatureProjectId == _openRootId || s.FeatureEpicId == _openRootId
+                    || s.FeatureId == _openRootId || s.Id == _openRootId;
+            }
+
+            // Raiz do Portfolio a que a Story pertence. A coluna do cadastro e "Root Work Item":
+            // essa raiz NAO e necessariamente do tipo Project — pode ser um Epic ou uma Feature.
+            // Por isso procuramos o id cadastrado em qualquer nivel da ancestralidade, do topo
+            // para baixo; so o que nao casar com nenhuma raiz vai para o no "Outros".
+            int PortfolioRootOf(TfsImportService.SprintStoryRow s)
+            {
+                if (portfolio.ContainsKey(s.FeatureProjectId)) return s.FeatureProjectId;
+                if (portfolio.ContainsKey(s.FeatureEpicId)) return s.FeatureEpicId;
+                if (portfolio.ContainsKey(s.FeatureId)) return s.FeatureId;
+                return portfolio.ContainsKey(s.Id) ? s.Id : 0;
+            }
+
+            // A arvore lista TODO o Portfolio do NX, na ordem em que esta cadastrado — inclusive
+            // o projeto que nao tem Story nesta sprint (entra vazio, com o checkbox desligado).
+            // Assim o filtro espelha o cadastro e nao "some" projeto por causa da sprint aberta.
+            // O no "Outros" (id 0) vai ao fim e so aparece quando ha Story fora do Portfolio.
+            var byRoot = stories.GroupBy(PortfolioRootOf)
+                                .ToDictionary(g => g.Key, g => g.ToList());
+            var roots = portfolio.Keys.ToList();
+            if (byRoot.ContainsKey(0)) roots.Add(0);
+
+            foreach (var projId in roots)
+            {
+                var pg = byRoot.TryGetValue(projId, out var found)
+                    ? found : new List<TfsImportService.SprintStoryRow>();
+                // O nome vem do cadastro do Portfolio: e ele que o usuario reconhece, e a raiz
+                // pode nem ser um work item do tipo Project (nesse caso nao ha titulo de Project).
+                var projTitle = projId == 0
+                    ? AppStrings.Get("Sprint_FilterOtherProjects")
+                    : portfolio.GetValueOrDefault(projId, $"#{projId}");
+
+                var epicElements = new List<UIElement>();
+                var projLeaves = new List<CheckBox>();
+
+                foreach (var eg in pg
+                             .GroupBy(s => s.FeatureEpicId)
+                             .OrderBy(g => g.Key == 0 ? 1 : 0)
+                             .ThenBy(g => g.Min(FilterOrderOf)))
+                {
+                    var featElements = new List<UIElement>();
+                    var epicLeaves = new List<CheckBox>();
+
+                    foreach (var fg in eg
+                                 .GroupBy(s => s.FeatureId)
+                                 .OrderBy(g => g.Key == 0 ? 1 : 0)
+                                 .ThenBy(g => g.Min(FilterOrderOf)))
+                    {
+                        var storyBoxes = fg
+                            .OrderBy(FilterOrderOf).ThenBy(s => s.Title, StringComparer.CurrentCultureIgnoreCase)
+                            .Select(s => new CheckBox
+                            {
+                                Content = s.Title, Tag = s.Id, Margin = new Thickness(2),
+                                IsChecked = StoryChecked(s)
+                            }).ToList();
+                        foreach (var b in storyBoxes) b.Click += (_, _) => RefreshFilterGroupStates();
+
+                        var featTitle = fg.Key == 0
+                            ? AppStrings.Get("Sprint_NoFeature")
+                            : (fg.Select(s => s.FeatureTitle).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))
+                               ?? AppStrings.Get("Sprint_NoFeature"));
+                        featElements.Add(BuildFilterBranch("📦 " + LevelLabel(fg.Key, featTitle), fg.Key,
+                            storyBoxes.Cast<UIElement>().ToList(), storyBoxes));
+                        epicLeaves.AddRange(storyBoxes);
+                    }
+
+                    var epicTitle = eg.Key == 0
+                        ? AppStrings.Get("Sprint_FilterNoEpic")
+                        : (eg.Select(s => s.FeatureEpicTitle).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))
+                           ?? AppStrings.Get("Sprint_FilterNoEpic"));
+                    epicElements.Add(BuildFilterBranch("🏔 " + LevelLabel(eg.Key, epicTitle), eg.Key,
+                        featElements, epicLeaves));
+                    projLeaves.AddRange(epicLeaves);
+                }
+
+                StoryFilterList.Children.Add(BuildFilterBranch("🗂 " + LevelLabel(projId, projTitle), projId,
+                    epicElements, projLeaves));
+            }
+
+            RefreshFilterGroupStates();
+        }
+
+        /// <summary>Rotulo do no: o do cronograma aberto ganha "(Aberto no NX)" no fim.</summary>
+        private string LevelLabel(int id, string title) =>
+            id > 0 && id == _openRootId ? $"{title} {AppStrings.Get("Sprint_FilterOpenInNx")}" : title;
+
+        /// <summary>Projects do Portfolio do NX (id do work item raiz → nome). O filtro so
+        /// mostra esses; o resto vai para o no "Outros".</summary>
+        private Dictionary<int, string> LoadPortfolioProjects()
+        {
+            var map = new Dictionary<int, string>();
+            try
+            {
+                foreach (var p in DevOpsProjectListService.Load(_options.DevOpsProjectListPath))
+                    if (p.RootWorkItemId > 0) map[p.RootWorkItemId] = p.Name;
+            }
+            catch { /* sem portfolio configurado: tudo cai em "Outros" */ }
+            return map;
+        }
+
+        /// <summary>Um no da arvore: Expander (o "▸") + checkbox que marca/desmarca tudo abaixo.</summary>
+        private FrameworkElement BuildFilterBranch(string text, int id, List<UIElement> children,
+            List<CheckBox> leaves)
+        {
+            // IsThreeState fica FALSE: o clique so alterna marcado/desmarcado. O estado parcial
+            // (null) e aplicado por codigo em RefreshFilterGroupStates, para o pai mostrar que
+            // parte dos filhos esta marcada.
+            var box = new CheckBox
+            {
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
+                // No sem Story (projeto do Portfolio fora desta sprint): nada para marcar.
+                IsEnabled = leaves.Count > 0
+            };
+            box.Click += (_, _) =>
+            {
+                var target = box.IsChecked == true;
+                foreach (var leaf in leaves) leaf.IsChecked = target;
+                RefreshFilterGroupStates();
+            };
+
+            var header = new StackPanel { Orientation = Orientation.Horizontal };
+            header.Children.Add(box);
+            header.Children.Add(new TextBlock
+            {
+                Text = text, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+                // SO o no do cronograma aberto fica em negrito azul. Antes todo Project vinha em
+                // negrito (bold), e isso se confundia com o destaque do "(Aberto no NX)".
+                FontWeight = id > 0 && id == _openRootId ? FontWeights.Bold : FontWeights.Normal,
+                Foreground = id > 0 && id == _openRootId
+                    ? new SolidColorBrush(Color.FromRgb(0x2B, 0x57, 0x9A)) : Brushes.Black
+            });
+
+            var panel = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
+            foreach (var c in children) panel.Children.Add(c);
+
+            _filterGroups.Add((box, leaves));
+            return new Expander
+            {
+                Style = (Style)FindResource("FilterBranch"),
+                Header = header, Content = panel, Margin = new Thickness(0, 1, 0, 1),
+                // O no do cronograma aberto ja nasce aberto; os demais, fechados.
+                IsExpanded = id > 0 && id == _openRootId
+            };
+        }
+
+        /// <summary>Recalcula marcado / desmarcado / parcial de cada no, das folhas para a raiz.</summary>
+        private void RefreshFilterGroupStates()
+        {
+            foreach (var (parent, leaves) in _filterGroups)
+            {
+                if (leaves.Count == 0) { parent.IsChecked = false; continue; }
+                var checkedCount = leaves.Count(l => l.IsChecked == true);
+                parent.IsChecked = checkedCount == 0 ? false
+                    : checkedCount == leaves.Count ? true : (bool?)null;
+            }
         }
 
         /// <summary>Chave de ordenação do filtro: posição no cronograma aberto quando o item está
@@ -1505,17 +1753,17 @@ namespace NXProject.Views
             root.IsChecked = StoryCheckBoxesIn(rootPanel).All(cb => cb.IsChecked == true);
         }
 
-        // Todas as checkboxes de Story (Tag = id) dentro de um painel (recursivo).
-        private static List<CheckBox> StoryCheckBoxesIn(Panel root)
+        // Todas as checkboxes de Story (Tag = id) abaixo de um elemento. Percorre a ARVORE
+        // LOGICA porque a arvore do filtro usa Expander (Header/Content), que nao e Panel.
+        private static List<CheckBox> StoryCheckBoxesIn(DependencyObject root)
         {
             var list = new List<CheckBox>();
-            void Walk(Panel p)
+            void Walk(object? node)
             {
-                foreach (var child in p.Children)
-                {
-                    if (child is CheckBox cb && cb.Tag is int) list.Add(cb);
-                    else if (child is Panel sub) Walk(sub);
-                }
+                if (node is CheckBox cb) { if (cb.Tag is int) list.Add(cb); return; }
+                if (node is DependencyObject dobj)
+                    foreach (var child in LogicalTreeHelper.GetChildren(dobj))
+                        Walk(child);
             }
             Walk(root);
             return list;
@@ -1523,7 +1771,7 @@ namespace NXProject.Views
 
         private IEnumerable<CheckBox> AllStoryCheckBoxes() => StoryCheckBoxesIn(StoryFilterList);
 
-        // Todas as checkboxes (Features + Stories) de um painel, recursivo.
+        // Todas as checkboxes (nos + Stories) abaixo de um elemento, recursivo.
         private static List<CheckBox> AllCheckBoxesIn(Panel root)
         {
             var list = new List<CheckBox>();
@@ -1563,6 +1811,7 @@ namespace NXProject.Views
         {
             SummaryHost.Items.Clear();
             BoardHost.Children.Clear();
+            HeaderHost.Children.Clear();
             if (_board == null) return;
 
             // Tasks visíveis após filtros (inclui os cards novos locais).
@@ -1980,14 +2229,20 @@ namespace NXProject.Views
             // para dentro do card seguinte, em vez de sumir.
             var showEpic = _prefs.ShowEpic ?? true;
             var showFeat = _prefs.ShowFeatCol ?? true;
-            // Colunas: Pessoa | [EPIC] | [Feature] | Story | estados.
-            var cols = new List<GridLength> { new(150) };
+            // Coluna Projeto: padrao OCULTA (quem tem um projeto so nao precisa dela; o Projeto
+            // ja aparece dentro do card quando ha varios). O checkbox fica no cabecalho do EPIC,
+            // como na visao Projeto & Story.
+            var showProj = _prefs.ShowProjPerson ?? false;
+            // Colunas: # | Pessoa | [Projeto] | [EPIC] | [Feature] | Story | estados.
+            var cols = new List<GridLength> { new(RowNumberWidth), new(150) };
+            if (showProj) cols.Add(new(150));
             if (showEpic) cols.Add(new(160));
             if (showFeat) cols.Add(new(160));
             cols.Add(new(210));
-            var cEpic = 1;                                   // só usado quando showEpic
-            var cFeat = showEpic ? 2 : 1;                    // só usado quando showFeat
-            var cStory = (showEpic ? 1 : 0) + (showFeat ? 1 : 0) + 1;
+            var cProj = 2;                                   // só usado quando showProj
+            var cEpic = showProj ? 3 : 2;                    // só usado quando showEpic
+            var cFeat = (showProj ? 1 : 0) + (showEpic ? 1 : 0) + 2;   // só usado quando showFeat
+            var cStory = (showProj ? 1 : 0) + (showEpic ? 1 : 0) + (showFeat ? 1 : 0) + 2;
             var cState0 = cStory + 1;              // 1ª coluna de estado
             foreach (var _ in states) cols.Add(new GridLength(210));
 
@@ -1996,8 +2251,21 @@ namespace NXProject.Views
             // Faixa: nesta visão os cards das colunas de estado são TASKS.
             AddCardsBandRow(cols, cState0, AppStrings.Get("Sprint_CardsAreTasks"));
             var head = MakeRowGrid(cols);
-            AddCell(head, 0, MakeHeader(AppStrings.Get("Sprint_ColPerson")));
-            if (showEpic) AddCell(head, cEpic, MakeHeader(AppStrings.Get("Sprint_ColEpic")));
+            AddCell(head, 0, MakeHeader("#"));
+            AddCell(head, 1, MakeHeader(AppStrings.Get("Sprint_ColPerson")));
+            if (showProj) AddCell(head, cProj, MakeHeader(AppStrings.Get("Sprint_ColProject")));
+            // Checkbox da coluna Projeto: fica no cabeçalho da coluna SEGUINTE que estiver
+            // visível (EPIC → Feature → Story), o mesmo padrão dos outros toggles.
+            CheckBox ProjToggle() => MakeColToggle(AppStrings.Get("Sprint_ColProject"), showProj,
+                AppStrings.Get("Sprint_ShowProjHint"), v => _prefs.ShowProjPerson = v);
+
+            if (showEpic)
+            {
+                var epicHead = new StackPanel { Orientation = Orientation.Horizontal };
+                epicHead.Children.Add(MakeHeader(AppStrings.Get("Sprint_ColEpic")));
+                epicHead.Children.Add(ProjToggle());
+                AddCell(head, cEpic, epicHead);
+            }
             // Cabeçalho da Feature + checkbox que liga/desliga a coluna do EPIC.
             if (showFeat)
             {
@@ -2005,6 +2273,7 @@ namespace NXProject.Views
                 featHead.Children.Add(MakeHeader(AppStrings.Get("Sprint_ColFeature")));
                 featHead.Children.Add(MakeColToggle(AppStrings.Get("Sprint_ColEpic"), showEpic,
                     AppStrings.Get("Sprint_ShowEpicHint"), v => _prefs.ShowEpic = v));
+                if (!showEpic) featHead.Children.Add(ProjToggle());
                 AddCell(head, cFeat, featHead);
             }
             // Cabeçalho da Story + checkbox que liga/desliga a coluna da Feature.
@@ -2017,24 +2286,43 @@ namespace NXProject.Views
             if (!showFeat)
                 storyHead.Children.Add(MakeColToggle(AppStrings.Get("Sprint_ColEpic"), showEpic,
                     AppStrings.Get("Sprint_ShowEpicHint"), v => _prefs.ShowEpic = v));
+            if (!showEpic && !showFeat) storyHead.Children.Add(ProjToggle());
             AddCell(head, cStory, storyHead);
             for (int i = 0; i < states.Count; i++) AddCell(head, i + cState0, MakeStateHeader(states[i]));
-            BoardHost.Children.Add(head);
+            HeaderHost.Children.Add(head);
+            HeaderHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xC8, 0xD0, 0xD8)) });
 
+            var rowNo = 0;
             foreach (var pg in allVisible
                          .GroupBy(t => string.IsNullOrWhiteSpace(t.AssignedTo) ? AppStrings.Get("Sprint_NoOwner") : t.AssignedTo)
                          .OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
             {
                 var firstRow = true;
-                // Ordena as Stories da pessoa por StackRank (permite reordenar por arraste); título desempata.
                 int GroupStoryId(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
                     g.FirstOrDefault(t => t.ParentId is int)?.ParentId ?? 0;
+                TfsImportService.SprintStoryRow? GroupStory(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
+                    _storyById.TryGetValue(GroupStoryId(g), out var st) ? st : null;
+                // Grupo de prioridade da linha: a MAIS ALTA (menor numero) entre as Tasks que a
+                // pessoa tem nessa Story; sem prioridade vai para o fim.
+                int GroupPrio(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
+                    g.Select(t => EffPrio(t) > 0 ? EffPrio(t) : 99).DefaultIfEmpty(99).Min();
+
+                // Ordem dentro da pessoa: grupo de prioridade da Task → Projeto → EPIC → Feature
+                // → rank da Story. O StackRank do TFS continua valendo, mas DENTRO do grupo de
+                // prioridade e da hierarquia (antes ordenava so pelo rank, e Stories de projetos
+                // diferentes ficavam intercaladas). As Tasks dentro da celula seguem a mesma
+                // regra: prioridade e depois rank (BuildStateCell).
                 foreach (var sg in pg
                              .GroupBy(t => t.ParentId is int pid && _storyById.TryGetValue(pid, out var st) ? st.Title : AppStrings.Get("Sprint_NoStory"))
-                             .OrderBy(g => StoryRankOf(GroupStoryId(g)))
+                             .OrderBy(GroupPrio)
+                             .ThenBy(g => GroupStory(g)?.FeatureProjectTitle ?? "", StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(g => GroupStory(g)?.FeatureEpicTitle ?? "", StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(g => GroupStory(g)?.FeatureTitle ?? "", StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(g => StoryRankOf(GroupStoryId(g)))
                              .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
                 {
                     var row = MakeRowGrid(cols);
+                    AddCell(row, 0, MakeRowNumber(++rowNo));
                     if (firstRow)
                     {
                         var personCell = new TextBlock { Text = pg.Key, FontWeight = FontWeights.Bold,
@@ -2061,7 +2349,7 @@ namespace NXProject.Views
                                 Foreground = new SolidColorBrush(wipN > wipMax
                                     ? Color.FromRgb(0xC0, 0x30, 0x30) : Color.FromRgb(0x5A, 0x7A, 0x5A))
                             });
-                        AddCell(row, 0, personPanel);
+                        AddCell(row, 1, personPanel);
                     }
                     var tks = sg.ToList();
                     var storySp = new StackPanel();
@@ -2177,15 +2465,20 @@ namespace NXProject.Views
                                 TextWrapping = TextWrapping.Wrap
                             });
                         }
-                        if (!showEpic && multiProject) InlineLine("🗂", featProj, false);
+                        if (!showEpic && !showProj && multiProject) InlineLine("🗂", featProj, false);
                         if (!showEpic) InlineLine("🏔", featEpic, false);
                         InlineLine("📦", featTitle, true);
                     }
+                    // Coluna Projeto (opcional): card proprio, como na visao Projeto & Story.
+                    if (showProj)
+                        AddCell(row, cProj, BuildLabelCard("🗂", featProj, strong: false,
+                            id: StoryById(storyId)?.FeatureProjectId ?? 0,
+                            state: StoryById(storyId)?.FeatureProjectState ?? ""));
                     // Coluna EPIC (opcional): card do EPIC com o Projeto (sem borda) acima quando há vários.
                     if (showEpic)
                     {
                         var epicSp = new StackPanel();
-                        if (multiProject && !string.IsNullOrWhiteSpace(featProj))
+                        if (!showProj && multiProject && !string.IsNullOrWhiteSpace(featProj))
                             epicSp.Children.Add(BuildLabelCard("🗂", featProj, strong: false, id: StoryById(storyId)?.FeatureProjectId ?? 0,
                                 state: StoryById(storyId)?.FeatureProjectState ?? ""));
                         if (!string.IsNullOrWhiteSpace(featEpic))
@@ -2199,7 +2492,8 @@ namespace NXProject.Views
                         // o EPIC/Project voltam para dentro do card (linha no nome da Feature).
                         UIElement featCell = string.IsNullOrWhiteSpace(featTitle) ? new TextBlock()
                             : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, featState: featState)
-                            : BuildFeatureCard(featId, featTitle, featOwner, featEpic, featProj, multiProject, featState: featState);
+                            : BuildFeatureCard(featId, featTitle, featOwner, featEpic,
+                                showProj ? "" : featProj, multiProject && !showProj, featState: featState);
                         AddCell(row, cFeat, featCell);
                     }
                     AddCell(row, cStory, storyBorder);
@@ -2208,8 +2502,14 @@ namespace NXProject.Views
                     BoardHost.Children.Add(row);
                     firstRow = false;
                 }
-                // separador entre pessoas
-                BoardHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xD5, 0xDD, 0xD7)), Margin = new Thickness(0, 2, 0, 4) });
+                // Separador entre pessoas: barra grossa e escura, bem diferente da linha fina
+                // que separa as Stories da MESMA pessoa — na rolagem as duas se confundiam e nao
+                // dava para ver onde os cards de uma pessoa terminam e os da outra comecam.
+                BoardHost.Children.Add(new Border
+                {
+                    Height = 3, Background = new SolidColorBrush(Color.FromRgb(0x8C, 0x9E, 0xB5)),
+                    Margin = new Thickness(0, 8, 0, 8)
+                });
             }
         }
 
@@ -2265,19 +2565,21 @@ namespace NXProject.Views
             var showProjCol = _prefs.ShowProjCol ?? true;
             var showEpicCol = _prefs.ShowEpicCol ?? true;
             // Colunas: [Projeto] | [EPIC] | Feature | estados.
-            var cols = new List<GridLength>();
+            var cols = new List<GridLength> { new(RowNumberWidth) };
             if (showProjCol) cols.Add(new(150));
             if (showEpicCol) cols.Add(new(170));
             cols.Add(new(180));
-            var cEpic = showProjCol ? 1 : 0;                  // só usado quando showEpicCol
-            var cFeat = (showProjCol ? 1 : 0) + (showEpicCol ? 1 : 0);
+            var cProjCol = 1;                                 // só usado quando showProjCol
+            var cEpic = 1 + (showProjCol ? 1 : 0);            // só usado quando showEpicCol
+            var cFeat = 1 + (showProjCol ? 1 : 0) + (showEpicCol ? 1 : 0);
             var cState0 = cFeat + 1;
             foreach (var _ in storyStates) cols.Add(new GridLength(240));
 
             // Faixa: nesta visão os cards das colunas de estado são STORIES.
             AddCardsBandRow(cols, cState0, AppStrings.Get("Sprint_CardsAreStories"));
             var head = MakeRowGrid(cols);
-            if (showProjCol) AddCell(head, 0, MakeHeader(AppStrings.Get("Sprint_ColProject")));
+            AddCell(head, 0, MakeHeader("#"));
+            if (showProjCol) AddCell(head, cProjCol, MakeHeader(AppStrings.Get("Sprint_ColProject")));
             // Cabeçalho do EPIC + checkbox que liga/desliga a coluna do Projeto.
             if (showEpicCol)
             {
@@ -2298,13 +2600,15 @@ namespace NXProject.Views
                     AppStrings.Get("Sprint_ShowProjHint"), v => _prefs.ShowProjCol = v));
             AddCell(head, cFeat, featHead2);
             for (int i = 0; i < storyStates.Count; i++) AddCell(head, i + cState0, MakeStateHeader(storyStates[i]));
-            BoardHost.Children.Add(head);
+            HeaderHost.Children.Add(head);
+            HeaderHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xC8, 0xD0, 0xD8)) });
 
             // Cards de Project/EPIC aparecem só na 1ª Feature de cada um (não repetem).
             var lastProj = (string?)null;
             var lastEpic = (string?)null;
             // Cards novos de EPIC/Feature ja renderizados (saem junto do bloco do pai).
             var newShown = new HashSet<int>();
+            var rowNo = 0;
             static string FirstText(IEnumerable<TfsImportService.SprintStoryRow> g, Func<TfsImportService.SprintStoryRow, string?> pick)
                 => g.Select(pick).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "";
             foreach (var fg in stories
@@ -2321,6 +2625,7 @@ namespace NXProject.Views
                 var realIds = groupStories.Where(s => s.Id > 0).Select(s => s.Id).ToList();
 
                 var row = MakeRowGrid(cols);
+                AddCell(row, 0, MakeRowNumber(++rowNo));
                 // Card da Feature igual ao da visão Pessoa & Task, com o "+Story" junto dos botões.
                 var featRow = fg.FirstOrDefault(s => s.FeatureEpicId > 0 || s.FeatureProjectId > 0)
                               ?? fg.FirstOrDefault(s => s.FeatureId > 0) ?? fg.First();
@@ -2337,7 +2642,7 @@ namespace NXProject.Views
                 var epicTitle = featRow?.FeatureEpicTitle ?? "";
                 var isNewBlock = epicTitle != lastEpic || projTitle != lastProj;
                 if (showProjCol)
-                    AddCell(row, 0, projTitle == lastProj ? new TextBlock()
+                    AddCell(row, cProjCol, projTitle == lastProj ? new TextBlock()
                         : BuildLabelCard("🗂", projTitle, strong: false, id: featRow?.FeatureProjectId ?? 0,
                             extra: BuildAddChildButton(featRow?.FeatureProjectId ?? 0, projTitle, "Epic"),
                             state: featRow?.FeatureProjectState ?? ""));
@@ -2420,7 +2725,15 @@ namespace NXProject.Views
 
             var q = SearchBox?.Text?.Trim();
             bool PersonOk(string who) => _selectedPeople.Count == 0 || _selectedPeople.Contains(who ?? "");
-            bool SearchOk(string title) => string.IsNullOrEmpty(q) || title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0;
+            // O card de nivel (Feature/EPIC/Project solto na sprint) casa pelo proprio nome ou id.
+            // Com o escopo restrito a Task ou Story ele sai do board durante a busca.
+            bool SearchOk(string title, int id)
+            {
+                if (string.IsNullOrEmpty(q)) return true;
+                if (SearchScope() is 1 or 2 or 4) return false;
+                return title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0
+                    || id.ToString().Contains(q);
+            }
             bool SchedOk(int id) => OnlyScheduleCheck.IsChecked != true || _scheduleIds.Contains(id);
 
             var items = _board.LevelItems;
@@ -2438,7 +2751,7 @@ namespace NXProject.Views
                     "Epic"    => epicCovered.Contains(it.Id),
                     _         => projCovered.Contains(it.Id)
                 };
-                if (covered || !PersonOk(it.AssignedTo) || !SearchOk(it.Title) || !SchedOk(it.Id)) continue;
+                if (covered || !PersonOk(it.AssignedTo) || !SearchOk(it.Title, it.Id) || !SchedOk(it.Id)) continue;
 
                 // Id negativo e fora da faixa dos cards novos (que comecam em -1): nunca colide.
                 var row = new TfsImportService.SprintStoryRow(-(1_000_000 + it.Id), it.Title, it.State, it.AssignedTo, new())
@@ -2486,6 +2799,7 @@ namespace NXProject.Views
             {
                 alreadyShown.Add(nc.TempId);
                 var row = MakeRowGrid(cols);
+                AddCell(row, 0, new TextBlock());   // linha de card novo: sem numero
                 // Onde o pai aparece, para o usuario saber sob quem o item vai nascer.
                 var parent = new TextBlock
                 {
@@ -2607,7 +2921,16 @@ namespace NXProject.Views
                 bool storyMatch = s.Title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || s.Id.ToString().Contains(q);
                 bool taskMatch = s.Tasks.Any(t => t.Title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0
                     || (!string.IsNullOrEmpty(t.AssignedTo) && t.AssignedTo.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0));
-                return scope switch { 1 => taskMatch, 2 => storyMatch, _ => storyMatch || taskMatch };
+                bool levelMatch = LevelMatches(s, q);
+                bool personMatch =
+                    (EffOwner(s.Id, s.AssignedTo) ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0
+                    || s.Tasks.Any(t => !string.IsNullOrEmpty(t.AssignedTo)
+                        && t.AssignedTo.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0);
+                return scope switch
+                {
+                    1 => taskMatch, 2 => storyMatch, 3 => levelMatch, 4 => personMatch,
+                    _ => storyMatch || taskMatch || levelMatch
+                };
             }
             return true;
         }
@@ -2950,6 +3273,17 @@ namespace NXProject.Views
             return g;
         }
         private static void AddCell(Grid g, int col, UIElement el) { Grid.SetColumn(el, col); g.Children.Add(el); }
+
+        /// <summary>Largura da coluna "#" (numero sequencial da linha), a 1a de cada visao.</summary>
+        private const double RowNumberWidth = 30;
+
+        /// <summary>Numero da linha: ancora visual para nao se perder ao rolar o board.</summary>
+        private static TextBlock MakeRowNumber(int n) => new()
+        {
+            Text = n.ToString(), FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xAD)),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 6, 6, 0)
+        };
         private static TextBlock MakeHeader(string text) => new()
         { Text = text, FontWeight = FontWeights.Bold, FontSize = 12, Margin = new Thickness(4, 2, 4, 2) };
         private Border MakeStateHeader(string state) => new()
@@ -2972,7 +3306,7 @@ namespace NXProject.Views
             };
             Grid.SetColumnSpan(label, cols.Count - firstStateCol);
             AddCell(band, firstStateCol, label);
-            BoardHost.Children.Add(band);
+            HeaderHost.Children.Add(band);
         }
 
         /// <summary>Linha de HH do card: Estimado sempre; Realizado só quando o item está
@@ -3071,13 +3405,14 @@ namespace NXProject.Views
                 border.BorderThickness = new Thickness(2);
             }
             var sp = new StackPanel();
-            var titleLine = new StackPanel { Orientation = Orientation.Horizontal };
+            var titleLine = new DockPanel { LastChildFill = true };
+            void DockLeft(UIElement el) { DockPanel.SetDock(el, Dock.Left); titleLine.Children.Add(el); }
             if (isNew)
-                titleLine.Children.Add(new TextBlock { Text = "🆕 ", VerticalAlignment = VerticalAlignment.Center });
+                DockLeft(new TextBlock { Text = "🆕 ", VerticalAlignment = VerticalAlignment.Center });
             // Task NÃO PLANEJADA: tag configurável no DevOps (padrão "NP"). Selo em destaque.
             var npTag = UnplannedTag();
             if (EffUnplanned(t.Id, t.Tags))
-                titleLine.Children.Add(new Border
+                DockLeft(new Border
                 {
                     Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xE1, 0x8A)),
                     BorderBrush = new SolidColorBrush(Color.FromRgb(0xB8, 0x7A, 0x00)),
@@ -3094,7 +3429,7 @@ namespace NXProject.Views
             // Acima do limite de WIP da pessoa: só alerta (o arrasto para Active continua livre).
             // A tag vai para o DevOps na gravação.
             if (!isNew && _wipOver.Contains(t.Id))
-                titleLine.Children.Add(new Border
+                DockLeft(new Border
                 {
                     Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xD5, 0xD5)),
                     BorderBrush = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
@@ -3109,7 +3444,10 @@ namespace NXProject.Views
                     }
                 });
             // Prioridade EDITÁVEL via ComboBox (picklist P{min}..P{max}, igual ao TFS). A mudança
-            // entra na fila do Salvar TFS. (Só para Task existente.)
+            // entra na fila do Salvar TFS. (Só para Task existente.) Ela é montada aqui, mas
+            // entra na LINHA DE BOTÕES do rodapé — assim o nome da Task fica com a largura
+            // inteira do card.
+            ComboBox? prioCombo = null;
             if (!isNew)
             {
                 var eff = EffPrio(t);
@@ -3119,7 +3457,7 @@ namespace NXProject.Views
                 {
                     Width = 52, FontSize = 10, FontWeight = FontWeights.Bold, Height = 20,
                     Cursor = System.Windows.Input.Cursors.Arrow,
-                    Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 2), VerticalAlignment = VerticalAlignment.Center,
                     Background = eff > 0 ? PriorityBrush(eff) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB8, 0xC0)),
                     BorderBrush = prioPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Gray,
                     BorderThickness = new Thickness(prioPend ? 2 : 1),
@@ -3136,15 +3474,22 @@ namespace NXProject.Views
                     UpdatePendingButton();
                     Render();
                 };
-                titleLine.Children.Add(combo);
+                prioCombo = combo;
             }
             if (isPending)
-                titleLine.Children.Add(new TextBlock { Text = "● ", Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)),
+                DockLeft(new TextBlock { Text = "● ", Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)),
                     FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,
                     ToolTip = AppStrings.Get("Sprint_UpdateTfs") });
-            var titleTb = new TextBlock { Text = EffTitle(t.Id, t.Title), TextWrapping = TextWrapping.Wrap, FontSize = 12,
+            var fullTitle = EffTitle(t.Id, t.Title);
+            var titleTb = new TextBlock
+            {
+                Text = fullTitle, TextWrapping = TextWrapping.Wrap, FontSize = 12, FontWeight = FontWeights.SemiBold,
+                // Ate 3 linhas; passando disso corta com reticencias e o hint mostra o nome inteiro.
+                MaxHeight = 50, TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = fullTitle,
                 Foreground = toDelete ? new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30))
-                    : _titlePending.ContainsKey(t.Id) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black };
+                    : _titlePending.ContainsKey(t.Id) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black
+            };
             if (toDelete) titleTb.TextDecorations = TextDecorations.Strikethrough; // marcada p/ excluir
             titleLine.Children.Add(titleTb);
             sp.Children.Add(titleLine);
@@ -3155,6 +3500,13 @@ namespace NXProject.Views
             // HH Estimado (e Realizado quando encerrada).
             if (!isNew && BuildHoursLine(t.Id, t.EstimateHours, t.CompletedHours, EffState(t)) is { } hhTask)
                 sp.Children.Add(hhTask);
+            // Data de criacao no DevOps: ajuda a ver o que entrou depois do inicio da sprint.
+            if (!isNew && t.CreatedDate is { } created)
+                sp.Children.Add(new TextBlock
+                {
+                    Text = AppStrings.Get("Sprint_CreatedOn", created.ToString("dd/MM/yyyy")),
+                    FontSize = 10, Foreground = Brushes.DimGray
+                });
             // Sprint da Task: mostra quando há mais de uma sprint no board (várias/"Todas").
             var tIter = IterLeaf(EffIter(t.Id, t.IterationPath));
             if (_sprintPaths.Count != 1 && !string.IsNullOrEmpty(tIter))
@@ -3217,6 +3569,7 @@ namespace NXProject.Views
             }
 
             var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
+            if (prioCombo != null) actions.Children.Add(prioCombo);
             var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 4, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
             open.Click += (_, _) => OpenInDevOps(t.Id);
             actions.Children.Add(open);

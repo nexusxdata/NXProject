@@ -42,6 +42,57 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Arvore do filtro: o Expander padrao do Windows desenha uma seta dentro de um
+             circulo, que fica grande e desalinhada do checkbox. Aqui o "no" e so um
+             chevron discreto (> quando fechado, v quando aberto), do tamanho do texto. -->
+        <Style x:Key="FilterBranch" TargetType="Expander">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <StackPanel>
+                            <DockPanel>
+                                <ToggleButton x:Name="Toggle" DockPanel.Dock="Left" Focusable="False"
+                                              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                              Width="14" Height="14" Margin="0,0,2,0"
+                                              VerticalAlignment="Center"
+                                              Cursor="Hand">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent">
+                                                <!-- Fechado: chevron apontando para a direita.
+                                                     Aberto: apontando para baixo (troca do Data;
+                                                     um RotateTransform nomeado nao pode ser alvo
+                                                     de Trigger dentro de ControlTemplate). -->
+                                                <Path x:Name="Arrow" Data="M 0,0 L 4,4 L 0,8 Z"
+                                                      Fill="#6B7480"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Arrow" Property="Data" Value="M 0,0 L 8,0 L 4,5 Z"/>
+                                                    <Setter TargetName="Arrow" Property="Fill" Value="#2B579A"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Arrow" Property="Fill" Value="#2B579A"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <ContentPresenter x:Name="Body" Visibility="Collapsed"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="Body" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <DockPanel Margin="10">
         <!-- Ações (sempre visíveis, fora do wrap dos filtros) -->
@@ -62,6 +113,23 @@
         </DockPanel>
         <!-- Filtros (quebram linha se faltar espaço) -->
         <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <!-- Filtro de Projeto: primeiro da barra, antes da escolha da Sprint. -->
+            <ToggleButton x:Name="StoryFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
+                          Padding="8,2" Margin="0,0,14,0" Content="{DynamicResource Sprint_StoryFilter}"/>
+            <Popup PlacementTarget="{Binding ElementName=StoryFilterToggle}" Placement="Bottom"
+                   IsOpen="{Binding IsChecked, ElementName=StoryFilterToggle}" StaysOpen="False" AllowsTransparency="True">
+                <Border Background="White" BorderBrush="#C9D3CC" BorderThickness="1" Padding="6">
+                    <DockPanel MaxHeight="380" MaxWidth="420">
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="{DynamicResource Sprint_StoryAll}" Click="OnStoryFilterAll" Padding="8,2" Margin="0,0,6,0"/>
+                            <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnStoryFilterApply" Padding="8,2"/>
+                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                            <StackPanel x:Name="StoryFilterList"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Popup>
             <TextBlock Text="{DynamicResource Sprint_Pick}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ToggleButton x:Name="SprintFilterToggle" VerticalAlignment="Center" Padding="8,2" MinWidth="240"
                           Content="{DynamicResource Sprint_AllSprints}" ToolTip="{DynamicResource Sprint_MultiTip}"
@@ -94,6 +162,10 @@
                    IsOpen="{Binding IsChecked, ElementName=PersonFilterToggle}" StaysOpen="False" AllowsTransparency="True">
                 <Border Background="White" BorderBrush="#C9D3CC" BorderThickness="1" Padding="6">
                     <DockPanel MaxHeight="380" MinWidth="220">
+                        <!-- Busca dentro do proprio filtro: com time grande a lista nao cabe na tela. -->
+                        <TextBox x:Name="PersonSearchBox" DockPanel.Dock="Top" Margin="0,0,0,4"
+                                 TextChanged="OnPersonSearchChanged"
+                                 ToolTip="{DynamicResource Sprint_PersonSearchTip}"/>
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="{DynamicResource Sprint_StoryAll}" Click="OnPersonFilterNone" Padding="8,2" Margin="0,0,6,0"/>
                             <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnPersonFilterApply" Padding="8,2"/>
@@ -112,22 +184,6 @@
                 <RadioButton x:Name="ViewPersonBtn" GroupName="BoardView" Style="{StaticResource ViewSegment}"
                              Content="{DynamicResource Sprint_ViewByPerson}" Checked="OnFilterChanged" Margin="0,-1,0,0"/>
             </StackPanel>
-            <ToggleButton x:Name="StoryFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
-                          Padding="8,2" Margin="8,0,0,0" Content="{DynamicResource Sprint_StoryFilter}"/>
-            <Popup PlacementTarget="{Binding ElementName=StoryFilterToggle}" Placement="Bottom"
-                   IsOpen="{Binding IsChecked, ElementName=StoryFilterToggle}" StaysOpen="False" AllowsTransparency="True">
-                <Border Background="White" BorderBrush="#C9D3CC" BorderThickness="1" Padding="6">
-                    <DockPanel MaxHeight="380" MaxWidth="420">
-                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="{DynamicResource Sprint_StoryAll}" Click="OnStoryFilterAll" Padding="8,2" Margin="0,0,6,0"/>
-                            <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnStoryFilterApply" Padding="8,2"/>
-                        </StackPanel>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
-                            <StackPanel x:Name="StoryFilterList"/>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-            </Popup>
             <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Sprint_Search}" VerticalAlignment="Center" Margin="14,0,4,0"/>
             <TextBox x:Name="SearchBox" DockPanel.Dock="Left" Width="150" VerticalAlignment="Center"
                      TextChanged="OnSearchChanged"/>
@@ -234,9 +290,17 @@
             </StackPanel>
         </Border>
 
-        <!-- Taskboard -->
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-            <StackPanel x:Name="BoardHost"/>
+        <!-- Taskboard. O scroll HORIZONTAL e o de fora (rola cabecalho e cards juntos, sempre
+             alinhados); o VERTICAL e o de dentro, so do conteudo — assim o cabecalho das colunas
+             fica fixo ao rolar a lista. -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <DockPanel>
+                <StackPanel x:Name="HeaderHost" DockPanel.Dock="Top" Background="White"/>
+                <ScrollViewer x:Name="BoardScroll" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="BoardHost"/>
+                </ScrollViewer>
+            </DockPanel>
         </ScrollViewer>
     </DockPanel>
 </Window>

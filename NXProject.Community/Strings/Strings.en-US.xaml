@@ -958,6 +958,7 @@
     <sys:String x:Key="Sprint_FSOnlyBlocked">Blocked only</sys:String>
     <sys:String x:Key="Sprint_FSOnlyUnplanned">Unplanned only</sys:String>
     <sys:String x:Key="Sprint_UnplannedTip">Unplanned task (DevOps tag)</sys:String>
+    <sys:String x:Key="Sprint_CreatedOn">🗓 Created on {0}</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStory">Schedule stories only</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStoryTip">Shows only the Stories present in the open schedule. Tasks still come from TFS as usual, so you can check whether the filters cover them.</sys:String>
     <sys:String x:Key="Sprint_FSOnlyScheduleStory">Schedule stories only</sys:String>
@@ -1017,7 +1018,10 @@
     <sys:String x:Key="Sprint_ScopeBoth">Story+Task</sys:String>
     <sys:String x:Key="Sprint_ScopeTask">Task only</sys:String>
     <sys:String x:Key="Sprint_ScopeStory">Story only</sys:String>
-    <sys:String x:Key="Sprint_SearchScopeTip">Where search looks: Story, Task or both.</sys:String>
+    <sys:String x:Key="Sprint_ScopeLevels">Feature/EPIC/Proj</sys:String>
+    <sys:String x:Key="Sprint_ScopePerson">Person only</sys:String>
+    <sys:String x:Key="Sprint_PersonSearchTip">Search for a person in the list. Already selected people stay visible.</sys:String>
+    <sys:String x:Key="Sprint_SearchScopeTip">Where search looks: Story, Task, the levels above (Feature, EPIC, Work Item Project), the person or everything.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Open on NX startup</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Automatically opens the TaskBoard when NX starts (ideal for the developer profile).</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Select one or more sprints</sys:String>
@@ -1068,8 +1072,11 @@
     <sys:String x:Key="Sprint_ClosedDays">Closed last (days, 0=all):</sys:String>
     <sys:String x:Key="Sprint_ColPerson">Person</sys:String>
     <sys:String x:Key="Sprint_NoOwner">(unassigned)</sys:String>
-    <sys:String x:Key="Sprint_StoryFilter">Filter ▾</sys:String>
+    <sys:String x:Key="Sprint_StoryFilter">Project ▾</sys:String>
     <sys:String x:Key="Sprint_FilterAllPortfolio">🌐 All Portfolio</sys:String>
+    <sys:String x:Key="Sprint_FilterOpenInNx">(Open in NX)</sys:String>
+    <sys:String x:Key="Sprint_FilterOtherProjects">Others (outside the NX Portfolio)</sys:String>
+    <sys:String x:Key="Sprint_FilterNoEpic">(no EPIC)</sys:String>
     <sys:String x:Key="Sprint_FilterOpenProject">📂 Open Project</sys:String>
     <sys:String x:Key="Sprint_StoryAll">All</sys:String>
     <sys:String x:Key="Sprint_StoryApply">Apply</sys:String>

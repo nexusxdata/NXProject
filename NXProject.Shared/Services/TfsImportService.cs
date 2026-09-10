@@ -448,6 +448,8 @@ namespace NXProject.Services
             public double? EstimateHours { get; init; }
             /// <summary>HH Realizado (CompletedWork) — exibido no card quando encerrada.</summary>
             public double? CompletedHours { get; init; }
+            /// <summary>Data de criação no DevOps (System.CreatedDate) — exibida no card.</summary>
+            public DateTime? CreatedDate { get; init; }
         }
         public sealed record SprintStoryRow(int Id, string Title, string State, string AssignedTo,
             System.Collections.Generic.List<SprintTaskCard> Tasks)
@@ -621,6 +623,10 @@ namespace NXProject.Services
                             && cdv.ValueKind == JsonValueKind.String
                             && DateTime.TryParse(cdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var cdd)
                             ? cdd.ToLocalTime() : (DateTime?)null;
+                        DateTime? createdOn = f.TryGetProperty("System.CreatedDate", out var crv)
+                            && crv.ValueKind == JsonValueKind.String
+                            && DateTime.TryParse(crv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var crd)
+                            ? crd.ToLocalTime() : (DateTime?)null;
                         var prio = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pv) && pv.ValueKind == JsonValueKind.Number
                             ? pv.GetInt32() : 0;
                         var compN = f.TryGetProperty("Microsoft.VSTS.Scheduling.CompletedWork", out var cwv)
@@ -629,7 +635,8 @@ namespace NXProject.Services
                         {
                             IterationPath = S("System.IterationPath"),
                             EstimateHours = double.IsNaN(effN) ? (double?)null : effN,
-                            CompletedHours = compN
+                            CompletedHours = compN,
+                            CreatedDate = createdOn
                         });
                         statesSeen.Add(state);
                     }

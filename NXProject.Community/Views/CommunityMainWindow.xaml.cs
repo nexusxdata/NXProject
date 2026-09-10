@@ -1058,7 +1058,10 @@ namespace NXProject.Views
                 .Select(g => g.Key)
                 .FirstOrDefault();
 
-            new NXProject.Views.TfsSprintWindow(scheduleIds, FocusScheduleTaskByTfsId, preferred, scheduleOrder)
+            // Item raiz do cronograma aberto: o filtro do TaskBoard marca esse no da arvore e
+            // rotula com "(Aberto no NX)".
+            var openRootId = vm?.Project?.DevOpsRootWorkItemId ?? 0;
+            new NXProject.Views.TfsSprintWindow(scheduleIds, FocusScheduleTaskByTfsId, preferred, scheduleOrder, openRootId)
                 { Owner = this }.Show();
         }
 
