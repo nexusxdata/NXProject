@@ -1508,6 +1508,22 @@ namespace NXProject.Views
                 || Has(s.FeatureProjectTitle) || IsId(s.FeatureProjectId);
         }
 
+        /// <summary>
+        /// O resumo por estado so interessa parado no topo; durante a rolagem ele so ocupava
+        /// altura que faz falta para os cards. Entao ele some ao rolar e volta ao topo.
+        /// A histerese (some acima de 24px, volta em 2px) evita o vai-e-vem: esconder o resumo
+        /// aumenta a area visivel e poderia zerar o offset, reexibindo o resumo em loop.
+        /// </summary>
+        private void OnBoardScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (SummaryBox == null) return;
+            var off = e.VerticalOffset;
+            if (off > 24 && SummaryBox.Visibility == Visibility.Visible)
+                SummaryBox.Visibility = Visibility.Collapsed;
+            else if (off <= 2 && SummaryBox.Visibility != Visibility.Visible)
+                SummaryBox.Visibility = Visibility.Visible;
+        }
+
         private void OnSearchChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
             if (_board != null) Render();

@@ -278,8 +278,9 @@
             </Popup>
         </WrapPanel>
 
-        <!-- Resumo por estado (contagem) -->
-        <Border DockPanel.Dock="Top" Background="#F3F6F4" BorderBrush="#D5DDD7" BorderThickness="1"
+        <!-- Resumo por estado (contagem). Sai de cena assim que a lista rola (OnBoardScrollChanged),
+             para nao roubar altura dos cards; volta ao chegar de novo no topo. -->
+        <Border x:Name="SummaryBox" DockPanel.Dock="Top" Background="#F3F6F4" BorderBrush="#D5DDD7" BorderThickness="1"
                 CornerRadius="4" Padding="8,6" Margin="0,0,0,8">
             <StackPanel>
                 <DockPanel Margin="0,0,0,4">
@@ -298,7 +299,8 @@
             <DockPanel>
                 <StackPanel x:Name="HeaderHost" DockPanel.Dock="Top" Background="White"/>
                 <ScrollViewer x:Name="BoardScroll" VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
+                              HorizontalScrollBarVisibility="Disabled"
+                              ScrollChanged="OnBoardScrollChanged">
                     <StackPanel x:Name="BoardHost"/>
                 </ScrollViewer>
             </DockPanel>
