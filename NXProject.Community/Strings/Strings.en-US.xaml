@@ -959,6 +959,8 @@
     <sys:String x:Key="Sprint_FSOnlyUnplanned">Unplanned only</sys:String>
     <sys:String x:Key="Sprint_UnplannedTip">Unplanned task (DevOps tag)</sys:String>
     <sys:String x:Key="Sprint_CreatedOn">🗓 Created on {0}</sys:String>
+    <sys:String x:Key="Sprint_ClosedOn">🏁 Closed on {0}</sys:String>
+    <sys:String x:Key="Sprint_StateSince">🕒 In this state since {0}</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStory">Schedule stories only</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStoryTip">Shows only the Stories present in the open schedule. Tasks still come from TFS as usual, so you can check whether the filters cover them.</sys:String>
     <sys:String x:Key="Sprint_FSOnlyScheduleStory">Schedule stories only</sys:String>
@@ -1001,6 +1003,7 @@
     <sys:String x:Key="Sprint_MoveUp">Move Story up (rank)</sys:String>
     <sys:String x:Key="Sprint_MoveDown">Move Story down (rank)</sys:String>
     <sys:String x:Key="Sprint_Loading">Loading sprint…</sys:String>
+    <sys:String x:Key="Sprint_Filtering">Applying filter...</sys:String>
     <sys:String x:Key="Sprint_Error">Failed to build the sprint: {0}</sys:String>
     <sys:String x:Key="Sprint_TaskCount">{0} tasks ({1} in schedule)</sys:String>
     <sys:String x:Key="Sprint_View">View:</sys:String>
@@ -1022,6 +1025,7 @@
     <sys:String x:Key="Sprint_ScopePerson">Person only</sys:String>
     <sys:String x:Key="Sprint_PersonSearchTip">Search for a person in the list. Already selected people stay visible.</sys:String>
     <sys:String x:Key="Sprint_SearchScopeTip">Where search looks: Story, Task, the levels above (Feature, EPIC, Work Item Project), the person or everything.</sys:String>
+    <sys:String x:Key="Sprint_SearchMinChars">Type at least {0} characters to search.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Open on NX startup</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Automatically opens the TaskBoard when NX starts (ideal for the developer profile).</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Select one or more sprints</sys:String>
@@ -1092,6 +1096,7 @@
     <sys:String x:Key="Sprint_UpdatePartial">{0} updated; {1} failed:&#10;{2}</sys:String>
     <sys:String x:Key="Sprint_UpStory">Story:</sys:String>
     <sys:String x:Key="Sprint_NoStory">(no Story)</sys:String>
+    <sys:String x:Key="Sprint_StoryNoTask">no Task</sys:String>
     <sys:String x:Key="Banner_CalGeneral">📅 Calendar: General ({0}h/day)</sys:String>
     <sys:String x:Key="Banner_CalSchedule">📅 Calendar: Schedule ({0}h/day)</sys:String>
     <sys:String x:Key="Banner_CalError">⚠ Calendar: default ({0}h/day) — failed to read General</sys:String>

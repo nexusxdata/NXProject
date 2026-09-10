@@ -450,6 +450,9 @@ namespace NXProject.Services
             public double? CompletedHours { get; init; }
             /// <summary>Data de criação no DevOps (System.CreatedDate) — exibida no card.</summary>
             public DateTime? CreatedDate { get; init; }
+            /// <summary>Desde quando a Task esta no estado atual
+            /// (Microsoft.VSTS.Common.StateChangeDate) — exibida no card.</summary>
+            public DateTime? StateChangeDate { get; init; }
         }
         public sealed record SprintStoryRow(int Id, string Title, string State, string AssignedTo,
             System.Collections.Generic.List<SprintTaskCard> Tasks)
@@ -457,6 +460,13 @@ namespace NXProject.Services
             /// <summary>Linha sintética criada pelo board para um Feature/EPIC/Project da sprint
             /// sem Story sua visível: serve só para ocupar a coluna do nível, nunca vira card.</summary>
             public bool IsLevelPlaceholder { get; init; }
+            /// <summary>Data de criação no DevOps (System.CreatedDate) — exibida no card.</summary>
+            public DateTime? CreatedDate { get; init; }
+            /// <summary>Desde quando a Story esta no estado atual
+            /// (Microsoft.VSTS.Common.StateChangeDate) — exibida no card.</summary>
+            public DateTime? StateChangeDate { get; init; }
+            /// <summary>Data de encerramento (Microsoft.VSTS.Common.ClosedDate), quando houver.</summary>
+            public DateTime? ClosedDate { get; init; }
             /// <summary>Título da Feature pai (entrega) — para agrupar as Stories na visão por Story.</summary>
             public string FeatureTitle { get; set; } = "";
             /// <summary>Id da Feature pai (para criar novas Stories sob ela).</summary>
@@ -612,6 +622,16 @@ namespace NXProject.Services
                     var state = S("System.State");
                     var who = S("System.AssignedTo");
                     if (!string.IsNullOrWhiteSpace(who)) people.Add(who);
+                    // Criacao e ultima troca de estado: campos do proprio work item (nao e
+                    // historico/revisao), ja vem no $expand=all. Valem para Task e para Story.
+                    DateTime? createdOn = f.TryGetProperty("System.CreatedDate", out var crv)
+                        && crv.ValueKind == JsonValueKind.String
+                        && DateTime.TryParse(crv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var crd)
+                        ? crd.ToLocalTime() : (DateTime?)null;
+                    DateTime? stateOn = f.TryGetProperty("Microsoft.VSTS.Common.StateChangeDate", out var scv)
+                        && scv.ValueKind == JsonValueKind.String
+                        && DateTime.TryParse(scv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var scd)
+                        ? scd.ToLocalTime() : (DateTime?)null;
                     if (string.Equals(type, "Task", StringComparison.OrdinalIgnoreCase))
                     {
                         int? parentId = f.TryGetProperty("System.Parent", out var pp) && pp.ValueKind == JsonValueKind.Number
@@ -623,10 +643,6 @@ namespace NXProject.Services
                             && cdv.ValueKind == JsonValueKind.String
                             && DateTime.TryParse(cdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var cdd)
                             ? cdd.ToLocalTime() : (DateTime?)null;
-                        DateTime? createdOn = f.TryGetProperty("System.CreatedDate", out var crv)
-                            && crv.ValueKind == JsonValueKind.String
-                            && DateTime.TryParse(crv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var crd)
-                            ? crd.ToLocalTime() : (DateTime?)null;
                         var prio = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pv) && pv.ValueKind == JsonValueKind.Number
                             ? pv.GetInt32() : 0;
                         var compN = f.TryGetProperty("Microsoft.VSTS.Scheduling.CompletedWork", out var cwv)
@@ -636,7 +652,8 @@ namespace NXProject.Services
                             IterationPath = S("System.IterationPath"),
                             EstimateHours = double.IsNaN(effN) ? (double?)null : effN,
                             CompletedHours = compN,
-                            CreatedDate = createdOn
+                            CreatedDate = createdOn,
+                            StateChangeDate = stateOn
                         });
                         statesSeen.Add(state);
                     }
@@ -664,7 +681,13 @@ namespace NXProject.Services
                             StackRank = ReadRank(f), IterationPath = S("System.IterationPath"),
                             Tags = S("System.Tags"), AcceptanceCriteria = S(AcceptanceCriteriaRef),
                             EstimateHours = NumF("Microsoft.VSTS.Scheduling.OriginalEstimate"),
-                            CompletedHours = NumF("Microsoft.VSTS.Scheduling.CompletedWork")
+                            CompletedHours = NumF("Microsoft.VSTS.Scheduling.CompletedWork"),
+                            CreatedDate = createdOn,
+                            StateChangeDate = stateOn,
+                            ClosedDate = f.TryGetProperty("Microsoft.VSTS.Common.ClosedDate", out var scdv)
+                                && scdv.ValueKind == JsonValueKind.String
+                                && DateTime.TryParse(scdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var scdd)
+                                ? scdd.ToLocalTime() : (DateTime?)null
                         };
                         stories.Add(row);
                         storyById[id] = row;

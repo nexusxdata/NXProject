@@ -165,16 +165,13 @@ namespace NXProject.Views
                 HoursEnabled = true;
                 HoursPanel.Visibility = Visibility.Visible;
                 EstHoursBox.Text = estimate.HasValue ? estimate.Value.ToString("0.##") : string.Empty;
-                // HH Realizado só faz sentido quando o item está Closed.
-                _doneVisible = string.Equals(state, "Closed", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(state, "Done", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(state, "Completed", StringComparison.OrdinalIgnoreCase);
-                if (_doneVisible)
-                {
-                    DoneHoursLabel.Visibility = Visibility.Visible;
-                    DoneHoursBox.Visibility = Visibility.Visible;
-                    DoneHoursBox.Text = completed.HasValue ? completed.Value.ToString("0.##") : string.Empty;
-                }
+                // HH Realizado fica SEMPRE editavel junto com o Estimado. Antes so aparecia com
+                // o item Closed, e quem estava corrigindo um encerramento (voltar para Active,
+                // ajustar as horas e fechar de novo) ficava sem como mexer no Realizado.
+                _doneVisible = true;
+                DoneHoursLabel.Visibility = Visibility.Visible;
+                DoneHoursBox.Visibility = Visibility.Visible;
+                DoneHoursBox.Text = completed.HasValue ? completed.Value.ToString("0.##") : string.Empty;
             }
 
             _initialIteration = currentIteration ?? string.Empty;

@@ -202,7 +202,7 @@
                         </StackPanel>
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="{DynamicResource Sprint_ClosedDays}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBox x:Name="ClosedDaysBox" Width="46" Text="30" VerticalAlignment="Center"/>
+                            <TextBox x:Name="ClosedDaysBox" Width="46" Text="15" VerticalAlignment="Center"/>
                         </StackPanel>
                         <StackPanel x:Name="StateFilterList"/>
                     </DockPanel>

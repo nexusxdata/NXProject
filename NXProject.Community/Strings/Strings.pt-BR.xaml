@@ -1839,6 +1839,8 @@
     <sys:String x:Key="Sprint_FSOnlyUnplanned">Somente não planejadas</sys:String>
     <sys:String x:Key="Sprint_UnplannedTip">Task não planejada (tag no DevOps)</sys:String>
     <sys:String x:Key="Sprint_CreatedOn">🗓 Criada em {0}</sys:String>
+    <sys:String x:Key="Sprint_ClosedOn">🏁 Encerrada em {0}</sys:String>
+    <sys:String x:Key="Sprint_StateSince">🕒 Neste estado desde {0}</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStory">Somente Story do cronograma</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStoryTip">Mostra apenas as Stories que estão no cronograma aberto. As Tasks continuam vindo do TFS normalmente, para você conferir se os filtros atendem.</sys:String>
     <sys:String x:Key="Sprint_FSOnlyScheduleStory">Somente Story do cronograma</sys:String>
@@ -1881,6 +1883,7 @@
     <sys:String x:Key="Sprint_MoveUp">Mover a Story para cima (rank)</sys:String>
     <sys:String x:Key="Sprint_MoveDown">Mover a Story para baixo (rank)</sys:String>
     <sys:String x:Key="Sprint_Loading">Carregando a sprint…</sys:String>
+    <sys:String x:Key="Sprint_Filtering">Aplicando filtro...</sys:String>
     <sys:String x:Key="Sprint_Error">Falha ao montar a sprint: {0}</sys:String>
     <sys:String x:Key="Sprint_TaskCount">{0} tarefas ({1} no cronograma)</sys:String>
     <sys:String x:Key="Sprint_View">Visão:</sys:String>
@@ -1902,6 +1905,7 @@
     <sys:String x:Key="Sprint_ScopePerson">Só Pessoa</sys:String>
     <sys:String x:Key="Sprint_PersonSearchTip">Busca a pessoa na lista. Quem ja esta marcado continua visivel.</sys:String>
     <sys:String x:Key="Sprint_SearchScopeTip">Onde a busca procura: Story, Task, os niveis acima (Feature, EPIC, Work Item Project), a pessoa ou tudo.</sys:String>
+    <sys:String x:Key="Sprint_SearchMinChars">Digite ao menos {0} caracteres para buscar.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Abrir ao iniciar o NX</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Abre o TaskBoard automaticamente quando o NX iniciar (ideal para o perfil desenvolvedor).</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Selecionar uma ou várias sprints</sys:String>
@@ -1972,6 +1976,7 @@
     <sys:String x:Key="Sprint_UpdatePartial">{0} atualizada(s); {1} falharam:&#10;{2}</sys:String>
     <sys:String x:Key="Sprint_UpStory">Story:</sys:String>
     <sys:String x:Key="Sprint_NoStory">(sem Story)</sys:String>
+    <sys:String x:Key="Sprint_StoryNoTask">sem Task</sys:String>
     <sys:String x:Key="Banner_CalGeneral">📅 Calendário: Geral ({0}h/dia)</sys:String>
     <sys:String x:Key="Banner_CalSchedule">📅 Calendário: Cronograma ({0}h/dia)</sys:String>
     <sys:String x:Key="Banner_CalError">⚠ Calendário: padrão ({0}h/dia) — falha ao ler o Geral</sys:String>
