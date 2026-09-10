@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Publica-se self-contained para win-x64 (script de release). Declarar o RID aqui faz
+         TODO restore gravar o alvo net10.0-windows*/win-x64 no project.assets.json, inclusive o
+         do projeto temporario que o WPF gera no meio do publish (*_wpftmp) — que nao herda o
+         RuntimeIdentifier e, restaurando sem ele, deixava o assets.json sem esse alvo e derrubava
+         o publish com NETSDK1047. O build comum continua sem RID (framework-dependent). -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <AssemblyName>NXProject.Community</AssemblyName>
     <RootNamespace>NXProject</RootNamespace>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
