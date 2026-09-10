@@ -58,8 +58,18 @@
                 <TextBlock x:Name="DoneHoursLabel" Text="{DynamicResource Desc_DoneHours}" VerticalAlignment="Center" Margin="16,0,6,0" FontSize="12" Visibility="Collapsed"/>
                 <TextBox x:Name="DoneHoursBox" Width="70" VerticalAlignment="Center" Visibility="Collapsed"/>
             </StackPanel>
-            <CheckBox x:Name="BlockedCheck" Content="{DynamicResource Sprint_Block}" Margin="0,6,18,0"
-                      FontSize="12" Foreground="#C03030" VerticalAlignment="Center" Visibility="Collapsed"/>
+            <!-- Marcacoes por tag (Task): bloqueio e nao planejada. Ficam num painel proprio,
+                 com a mesma margem dos demais campos, para o texto do CheckBox nao ser
+                 espremido pela linha do WrapPanel. -->
+            <StackPanel x:Name="TagsPanel" Orientation="Horizontal" Margin="0,6,18,0">
+                <CheckBox x:Name="BlockedCheck" Content="{DynamicResource Sprint_Block}"
+                          FontSize="12" Foreground="#C03030" Padding="4,0,0,0" MinHeight="22"
+                          VerticalAlignment="Center" VerticalContentAlignment="Center" Visibility="Collapsed"/>
+                <CheckBox x:Name="UnplannedCheck" Margin="16,0,0,0"
+                          FontSize="12" Foreground="#7A5200" Padding="4,0,0,0" MinHeight="22"
+                          VerticalAlignment="Center" VerticalContentAlignment="Center" Visibility="Collapsed"
+                          ToolTip="{DynamicResource Sprint_UnplannedTip}"/>
+            </StackPanel>
             </WrapPanel>
             <TextBlock Text="{DynamicResource Desc_DescriptionLabel}" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0"/>
         </StackPanel>

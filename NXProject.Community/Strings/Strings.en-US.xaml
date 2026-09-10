@@ -944,6 +944,8 @@
     <sys:String x:Key="Sprint_FSOnlyTaskActive">Active tasks only</sys:String>
     <sys:String x:Key="Sprint_StoryAlertNewWithTask">Story is New but a Task already left New: work started and the Story was not moved.</sys:String>
     <sys:String x:Key="Sprint_StoryAlertActiveNoTask">Story is Active with no Active Task: nothing in progress backing the open Story.</sys:String>
+    <sys:String x:Key="Sprint_StoryAlertTasksStarted">Tasks outside New (they may be hidden by the closed-items filter):</sys:String>
+    <sys:String x:Key="Sprint_StoryAlertTasksAll">Tasks of this Story and their states:</sys:String>
     <sys:String x:Key="Sprint_MarkDone">+Done</sys:String>
     <sys:String x:Key="Sprint_BackToDoing">↩Doing</sys:String>
     <sys:String x:Key="Sprint_BackToDoingTip">Sets the work back to Doing (removes the Done tag).</sys:String>
@@ -1032,6 +1034,7 @@
     <sys:String x:Key="Sprint_FldSprint">Sprint:</sys:String>
     <sys:String x:Key="Sprint_FldStart">Start:</sys:String>
     <sys:String x:Key="Sprint_Block">Block</sys:String>
+    <sys:String x:Key="Desc_Unplanned">Unplanned ({0})</sys:String>
     <sys:String x:Key="Sprint_Unblock">Unblock</sys:String>
     <sys:String x:Key="Sprint_Blocked">Blocked</sys:String>
     <sys:String x:Key="Sprint_FeatureDesc">View Feature description</sys:String>
@@ -1669,6 +1672,8 @@
     <sys:String x:Key="Online_Legend">⬜ Online   🟡 Pending (will be created/deleted on the next sync)</sys:String>
     <sys:String x:Key="Online_Close">Close</sys:String>
     <sys:String x:Key="Online_TitleFormat">Activities of #{0} - {1}</sys:String>
+    <sys:String x:Key="Online_TitleTaskBoard">Story Tasks</sys:String>
+    <sys:String x:Key="Online_FromStory">📖 Story #{0} — {1}</sys:String>
     <sys:String x:Key="Online_Loading">Loading online activities...</sys:String>
     <sys:String x:Key="Online_Pending">PENDING</sys:String>
     <sys:String x:Key="Online_OneFound">1 activity found</sys:String>

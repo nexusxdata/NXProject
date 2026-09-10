@@ -4,6 +4,45 @@
         Title="{DynamicResource Sprint_BoardTitle}"
         Height="680" Width="1180"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <!-- Seletor de visao: RadioButton exclusivo com template proprio. O template padrao do
+             ToggleButton pinta o IsChecked de azul-claro por cima do Background, o que apagava o
+             destaque; aqui a Border segue as cores do estilo e o ativo fica azul solido. -->
+        <Style x:Key="ViewSegment" TargetType="RadioButton">
+            <Setter Property="Background" Value="#F3F5F8"/>
+            <Setter Property="BorderBrush" Value="#B8C2CE"/>
+            <Setter Property="Foreground" Value="#2A3340"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="8,1"/>
+            <Setter Property="MinWidth" Value="118"/>
+            <Setter Property="MinHeight" Value="18"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E4E9F0"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2B579A"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#1F3F70"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <DockPanel Margin="10">
         <!-- Ações (sempre visíveis, fora do wrap dos filtros) -->
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6" LastChildFill="False">
@@ -66,8 +105,13 @@
                 </Border>
             </Popup>
             <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Sprint_View}" VerticalAlignment="Center" Margin="14,0,6,0"/>
-            <ComboBox x:Name="ViewCombo" DockPanel.Dock="Left" Width="150" VerticalAlignment="Center"
-                      SelectionChanged="OnFilterChanged"/>
+            <!-- Um botao abaixo do outro: ocupa a largura de um e cabe na altura da barra. -->
+            <StackPanel DockPanel.Dock="Left" Orientation="Vertical" VerticalAlignment="Center">
+                <RadioButton x:Name="ViewBoardBtn" GroupName="BoardView" Style="{StaticResource ViewSegment}"
+                             Content="{DynamicResource Sprint_ViewBoard}" Checked="OnFilterChanged"/>
+                <RadioButton x:Name="ViewPersonBtn" GroupName="BoardView" Style="{StaticResource ViewSegment}"
+                             Content="{DynamicResource Sprint_ViewByPerson}" Checked="OnFilterChanged" Margin="0,-1,0,0"/>
+            </StackPanel>
             <ToggleButton x:Name="StoryFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
                           Padding="8,2" Margin="8,0,0,0" Content="{DynamicResource Sprint_StoryFilter}"/>
             <Popup PlacementTarget="{Binding ElementName=StoryFilterToggle}" Placement="Bottom"

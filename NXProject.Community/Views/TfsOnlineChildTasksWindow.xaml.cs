@@ -51,7 +51,12 @@ namespace NXProject.Views
         /// atividade local) e serve para ver TODAS as filhas da Story — inclusive as de outras
         /// pessoas e as que nem estao no cronograma aberto.</summary>
         public static TfsOnlineChildTasksWindow FromTaskBoard(int tfsId, string title, string tfsType = "Story") =>
-            new(new ProjectTask { TfsId = tfsId, Name = title ?? "", TfsType = tfsType }, mainVm: null);
+            new(new ProjectTask { TfsId = tfsId, Name = title ?? "", TfsType = tfsType }, mainVm: null)
+            { FromTaskBoardMode = true };
+
+        /// <summary>Aberta pelo "☰ Tasks" do TaskBoard: janela menor (e uma consulta rapida, nao a
+        /// tela de trabalho do cronograma) e a Story de origem em destaque no cabecalho.</summary>
+        public bool FromTaskBoardMode { get; init; }
 
         public TfsOnlineChildTasksWindow(ProjectTask parent, MainViewModel? mainVm = null)
         {
@@ -71,8 +76,27 @@ namespace NXProject.Views
                     var addBar = (System.Windows.Controls.Border)((System.Windows.Controls.Grid)Content).Children[2];
                     addBar.Visibility = Visibility.Collapsed;
                 }
+                if (FromTaskBoardMode) ApplyTaskBoardMode();
                 await LoadAsync();
             };
+        }
+
+        // Vinda do TaskBoard: tamanho de consulta (nao de trabalho) e a Story que chamou em
+        // destaque — a mesma janela abre de varias Stories em sequencia e o titulo comum
+        // ("Atividades de #id - nome") nao chamava a atencao para QUAL Story era.
+        private void ApplyTaskBoardMode()
+        {
+            Width = 760; Height = 440;
+            MinWidth = 640; MinHeight = 340;
+            Title = AppStrings.Get("Online_TitleTaskBoard");
+
+            var storyTag = AppStrings.Get("Online_FromStory", _parent.TfsId ?? 0, _parent.Name ?? "");
+            TitleText.Text = storyTag;
+            TitleText.FontSize = 15;
+            TitleText.Padding = new Thickness(10, 6, 10, 6);
+            TitleText.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE7, 0xEE, 0xF7));
+            TitleText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1F, 0x3F, 0x70));
+            TitleText.TextWrapping = TextWrapping.Wrap;
         }
 
         private async Task LoadAsync()

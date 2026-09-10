@@ -41,6 +41,12 @@ namespace NXProject.Views
         public bool BlockedChanged { get; private set; }
         private readonly bool _initialBlocked;
 
+        // Nao planejada (tag NP, so Task) — habilitado via enableUnplanned.
+        public bool UnplannedEnabled { get; }
+        public bool Unplanned { get; private set; }
+        public bool UnplannedChanged { get; private set; }
+        private readonly bool _initialUnplanned;
+
         // Data de Início (Story): habilitada quando enableStartDate=true.
         public bool StartDateEnabled { get; }
         public DateTime? SelectedStartDate { get; private set; }
@@ -91,7 +97,8 @@ namespace NXProject.Views
             System.Collections.Generic.IReadOnlyList<(string Title, int Id)>? features = null, int currentFeatureId = 0,
             bool enableStartDate = false, DateTime? currentStartDate = null,
             string? epicTitle = null, string? projectTitle = null,
-            bool enableAcceptance = false, string? acceptanceHtml = null)
+            bool enableAcceptance = false, string? acceptanceHtml = null,
+            bool enableUnplanned = false, bool currentUnplanned = false, string? unplannedTag = null)
         {
             InitializeComponent();
             _task = task;
@@ -219,6 +226,19 @@ namespace NXProject.Views
                 BlockedCheck.Visibility = Visibility.Visible;
                 BlockedCheck.IsChecked = currentBlocked;
             }
+
+            // NP e uma tag da Task no DevOps (nome configuravel): o rotulo mostra o nome real.
+            _initialUnplanned = currentUnplanned;
+            Unplanned = currentUnplanned;
+            if (enableUnplanned)
+            {
+                UnplannedEnabled = true;
+                UnplannedCheck.Content = AppStrings.Get("Desc_Unplanned",
+                    string.IsNullOrWhiteSpace(unplannedTag) ? "NP" : unplannedTag);
+                UnplannedCheck.Visibility = Visibility.Visible;
+                UnplannedCheck.IsChecked = currentUnplanned;
+            }
+            TagsPanel.Visibility = enableBlocked || enableUnplanned ? Visibility.Visible : Visibility.Collapsed;
 
             _initialOwner = currentOwner ?? string.Empty;
             SelectedOwner = _initialOwner;
@@ -428,6 +448,11 @@ namespace NXProject.Views
             {
                 Blocked = BlockedCheck.IsChecked == true;
                 BlockedChanged = Blocked != _initialBlocked;
+            }
+            if (UnplannedEnabled)
+            {
+                Unplanned = UnplannedCheck.IsChecked == true;
+                UnplannedChanged = Unplanned != _initialUnplanned;
             }
             if (StateEnabled && StateCombo.SelectedItem is string ss)
             {

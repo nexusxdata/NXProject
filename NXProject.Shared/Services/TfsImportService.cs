@@ -469,6 +469,11 @@ namespace NXProject.Services
             public int FeatureEpicId { get; set; }
             /// <summary>Título do Work Item "Project" (portfólio) acima do EPIC — exibido no card da Feature.</summary>
             public string FeatureProjectTitle { get; set; } = "";
+            /// <summary>Estado (System.State) dos ancestrais, para o board mostrar o status do
+            /// DevOps na Feature, no EPIC e no Project.</summary>
+            public string FeatureState { get; set; } = "";
+            public string FeatureEpicState { get; set; } = "";
+            public string FeatureProjectState { get; set; } = "";
             /// <summary>Id do Work Item "Project" (para abrir no DevOps).</summary>
             public int FeatureProjectId { get; set; }
             /// <summary>Ordem no backlog (StackRank/BacklogPriority) — para reordenar a Story.</summary>
@@ -503,6 +508,8 @@ namespace NXProject.Services
             public string EpicTitle { get; set; } = "";
             public int ProjectId { get; set; }
             public string ProjectTitle { get; set; } = "";
+            public string EpicState { get; set; } = "";
+            public string ProjectState { get; set; } = "";
         }
 
         /// <summary>Lista as sprints (iterações com datas) do projeto.</summary>
@@ -683,6 +690,7 @@ namespace NXProject.Services
             var nodeParent = new System.Collections.Generic.Dictionary<int, int>();
             var nodeType = new System.Collections.Generic.Dictionary<int, string>();
             var nodeOwner = new System.Collections.Generic.Dictionary<int, string>();
+            var nodeState = new System.Collections.Generic.Dictionary<int, string>();
             foreach (var fid in storyById.Keys) { featureTitle[fid] = storyById[fid].Title; featureOwner[fid] = storyById[fid].AssignedTo; } // pai já no board
             // Semeia os ancestrais com o que o board já sabe: itens que vieram como linha não
             // entram no fetch abaixo, então sem isto ficariam sem pai (e sem EPIC/Project).
@@ -690,6 +698,7 @@ namespace NXProject.Services
             foreach (var li in levelRaw)
             {
                 nodeTitle[li.Id] = li.Title; nodeType[li.Id] = li.Kind; nodeOwner[li.Id] = li.Who;
+                nodeState[li.Id] = li.State;
                 if (li.ParentId is int lp && lp > 0) nodeParent[li.Id] = lp;
                 if (li.Kind == "Feature") { featureTitle[li.Id] = li.Title; featureOwner[li.Id] = li.Who; }
             }
@@ -716,6 +725,7 @@ namespace NXProject.Services
                             var wid = idp.GetInt32();
                             var tt = f.TryGetProperty("System.Title", out var tp) ? tp.GetString() ?? "" : "";
                             nodeTitle[wid] = tt;
+                            if (f.TryGetProperty("System.State", out var wst)) nodeState[wid] = wst.GetString() ?? "";
                             if (f.TryGetProperty("System.WorkItemType", out var wtp)) nodeType[wid] = wtp.GetString() ?? "";
                             // Pai: primeiro o campo System.Parent; senão, a relação Hierarchy-Reverse.
                             if (f.TryGetProperty("System.Parent", out var ppx) && ppx.ValueKind == JsonValueKind.Number)
@@ -752,10 +762,12 @@ namespace NXProject.Services
             // Projeto. Quando o backlog não tem aquele nível (ex.: Story pendurada direto no
             // Epic), a coluna correspondente fica EM BRANCO — antes o board assumia
             // "pai = Feature, avô = EPIC" e escorregava tudo uma coluna.
-            (string Feat, int FeatId, string FeatOwner, string Epic, int EpicId, string Project, int ProjId)
+            (string Feat, int FeatId, string FeatOwner, string FeatState,
+             string Epic, int EpicId, string EpicState,
+             string Project, int ProjId, string ProjState)
                 ResolveAncestry(int storyId)
             {
-                string feat = "", featOwner = "", epic = "", proj = "";
+                string feat = "", featOwner = "", featState = "", epic = "", epicState = "", proj = "", projState = "";
                 int featId = 0, epicId = 0, projId = 0;
                 var cur = storyId; var guard = 0;
                 while (nodeParent.TryGetValue(cur, out var par) && par > 0 && guard++ < 8)
@@ -763,37 +775,39 @@ namespace NXProject.Services
                     var t = nodeType.TryGetValue(par, out var tt) ? tt : "";
                     var title = nodeTitle.TryGetValue(par, out var nt) ? nt
                               : featureTitle.TryGetValue(par, out var ft2) ? ft2 : "";
+                    var state = nodeState.TryGetValue(par, out var ns) ? ns : "";
                     if (IsBoardFeatureType(t) && featId == 0)
                     {
-                        feat = title; featId = par;
+                        feat = title; featId = par; featState = state;
                         featOwner = nodeOwner.TryGetValue(par, out var ow) ? ow
                                   : featureOwner.TryGetValue(par, out var ow2) ? ow2 : "";
                     }
-                    else if (IsBoardEpicType(t) && epicId == 0) { epic = title; epicId = par; }
-                    else if (IsBoardProjectType(t) && projId == 0) { proj = title; projId = par; }
+                    else if (IsBoardEpicType(t) && epicId == 0) { epic = title; epicId = par; epicState = state; }
+                    else if (IsBoardProjectType(t) && projId == 0) { proj = title; projId = par; projState = state; }
                     cur = par;
                 }
-                return (feat, featId, featOwner, epic, epicId, proj, projId);
+                return (feat, featId, featOwner, featState, epic, epicId, epicState, proj, projId, projState);
             }
 
             foreach (var kv in storyParent)
                 if (storyById.TryGetValue(kv.Key, out var st))
                 {
-                    var (featT, featI, featO, epicT, epicI, projT, projI) = ResolveAncestry(kv.Key);
-                    st.FeatureId = featI; st.FeatureTitle = featT; st.FeatureAssignedTo = featO;
-                    st.FeatureEpicTitle = epicT; st.FeatureEpicId = epicI;
-                    st.FeatureProjectTitle = projT; st.FeatureProjectId = projI;
+                    var (featT, featI, featO, featS, epicT, epicI, epicS, projT, projI, projS) = ResolveAncestry(kv.Key);
+                    st.FeatureId = featI; st.FeatureTitle = featT; st.FeatureAssignedTo = featO; st.FeatureState = featS;
+                    st.FeatureEpicTitle = epicT; st.FeatureEpicId = epicI; st.FeatureEpicState = epicS;
+                    st.FeatureProjectTitle = projT; st.FeatureProjectId = projI; st.FeatureProjectState = projS;
                 }
 
             // 3c) Itens de nível (Feature/EPIC/Project na sprint) com EPIC/Project acima deles.
             var levelItems = new System.Collections.Generic.List<SprintLevelItem>();
             foreach (var li in levelRaw)
             {
-                var (_, _, _, lEpic, lEpicId, lProj, lProjId) = ResolveAncestry(li.Id);
+                var (_, _, _, _, lEpic, lEpicId, lEpicS, lProj, lProjId, lProjS) = ResolveAncestry(li.Id);
                 levelItems.Add(new SprintLevelItem(li.Id, li.Title, li.Kind, li.State, li.Who)
                 {
                     IterationPath = li.Iter, Tags = li.Tags,
-                    EpicId = lEpicId, EpicTitle = lEpic, ProjectId = lProjId, ProjectTitle = lProj
+                    EpicId = lEpicId, EpicTitle = lEpic, EpicState = lEpicS,
+                    ProjectId = lProjId, ProjectTitle = lProj, ProjectState = lProjS
                 });
             }
 

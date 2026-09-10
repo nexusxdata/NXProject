@@ -1236,6 +1236,8 @@
     <sys:String x:Key="Online_Legend">⬜ Online   🟡 Pendente (será criado/excluído na próxima sincronização)</sys:String>
     <sys:String x:Key="Online_Close">Fechar</sys:String>
     <sys:String x:Key="Online_TitleFormat">Atividades de #{0} - {1}</sys:String>
+    <sys:String x:Key="Online_TitleTaskBoard">Tasks da Story</sys:String>
+    <sys:String x:Key="Online_FromStory">📖 Story #{0} — {1}</sys:String>
     <sys:String x:Key="Online_Loading">Carregando atividades online...</sys:String>
     <sys:String x:Key="Online_Pending">PENDENTE</sys:String>
     <sys:String x:Key="Online_OneFound">1 atividade encontrada</sys:String>
@@ -1822,6 +1824,8 @@
     <sys:String x:Key="Sprint_FSOnlyTaskActive">Somente Task Active</sys:String>
     <sys:String x:Key="Sprint_StoryAlertNewWithTask">Story em New, mas já existe Task fora de New: o trabalho começou e a Story não foi movida.</sys:String>
     <sys:String x:Key="Sprint_StoryAlertActiveNoTask">Story em Active sem nenhuma Task em Active: nada em andamento sustentando a Story aberta.</sys:String>
+    <sys:String x:Key="Sprint_StoryAlertTasksStarted">Tasks fora de New (podem estar ocultas pelo filtro de encerradas):</sys:String>
+    <sys:String x:Key="Sprint_StoryAlertTasksAll">Tasks desta Story e seus estados:</sys:String>
     <sys:String x:Key="Sprint_MarkDone">+Done</sys:String>
     <sys:String x:Key="Sprint_BackToDoing">↩Doing</sys:String>
     <sys:String x:Key="Sprint_BackToDoingTip">Volta o andamento para Doing (tira a tag Done).</sys:String>
@@ -1910,6 +1914,7 @@
     <sys:String x:Key="Sprint_FldSprint">Sprint:</sys:String>
     <sys:String x:Key="Sprint_FldStart">Início:</sys:String>
     <sys:String x:Key="Sprint_Block">Bloquear</sys:String>
+    <sys:String x:Key="Desc_Unplanned">Não planejada ({0})</sys:String>
     <sys:String x:Key="Sprint_Unblock">Desbloquear</sys:String>
     <sys:String x:Key="Sprint_Blocked">Bloqueado</sys:String>
     <sys:String x:Key="Sprint_FeatureDesc">Ver descrição da Feature</sys:String>
