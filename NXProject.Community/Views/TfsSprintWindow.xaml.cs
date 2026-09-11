@@ -102,6 +102,22 @@ namespace NXProject.Views
         /// alteracao pendente ate o "mover para esta Story" ser confirmado.
         /// </summary>
         private int _moveTaskId;
+
+        /// <summary>
+        /// Itens recolhidos (Work Item Project, EPIC, Feature ou Story): o card do proprio item
+        /// fica, mas tudo abaixo dele sai da tela. Serve para tirar do caminho o que nao esta no
+        /// foco do momento. Fica nas preferencias, entao a tela reabre como voce deixou.
+        /// </summary>
+        private readonly HashSet<int> _collapsed = new();
+
+        /// <summary>Algum ancestral (Project/EPIC/Feature) da linha esta recolhido?</summary>
+        private bool IsCollapsed(int id) => id > 0 && _collapsed.Contains(id);
+
+        /// <summary>
+        /// Pessoas recolhidas na visao Pessoa &amp; Task. Como a "chave" da faixa e o nome (nao
+        /// ha work item por tras), a lista e de texto, separada do <see cref="_collapsed"/>.
+        /// </summary>
+        private readonly HashSet<string> _collapsedPeople = new(StringComparer.CurrentCultureIgnoreCase);
         private readonly Dictionary<int, int> _featureApplied = new();
         // Data de Início (Data_Inicio) da Story alterada (pendente) e a já gravada.
         private readonly Dictionary<int, DateTime?> _startPending = new();
@@ -169,6 +185,9 @@ namespace NXProject.Views
             public int? WipLimit { get; set; }   // limite de Tasks em andamento POR PESSOA (0 = sem limite; null = 3)
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
             public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
+            public List<int>? CollapsedEpics { get; set; } // legado (so EPICs); lido na abertura
+            public List<int>? CollapsedNodes { get; set; } // Project/EPIC/Feature/Story recolhidos
+            public List<string>? CollapsedPeople { get; set; } // faixas de pessoa recolhidas
             public bool? ShowProjCol { get; set; } // coluna Projeto na visão Projeto & Story (null = mostra)
             public bool? ShowFeatCol { get; set; } // coluna Feature na visão Pessoa & Task (null = mostra)
             public bool? ShowEpicCol { get; set; } // coluna EPIC na visão Projeto & Story (null = mostra)
@@ -222,6 +241,9 @@ namespace NXProject.Views
                 { _prefs.WinLeft = b.Left; _prefs.WinTop = b.Top; _prefs.WinWidth = b.Width; _prefs.WinHeight = b.Height; }
                 _prefs.ClosedDays = _closedDays > 0 ? _closedDays : (int?)null;
                 _prefs.Persons = _selectedPeople.Count > 0 ? _selectedPeople.ToList() : null;
+                _prefs.CollapsedNodes = _collapsed.Count > 0 ? _collapsed.ToList() : null;
+                _prefs.CollapsedPeople = _collapsedPeople.Count > 0 ? _collapsedPeople.ToList() : null;
+                _prefs.CollapsedEpics = null;   // substituido por CollapsedNodes
                 _prefs.View = ViewIndex;
                 _prefs.OnlySchedule = OnlyScheduleCheck.IsChecked == true;
                 _prefs.OnlyBlocked = OnlyBlockedCheck.IsChecked == true;
@@ -492,6 +514,12 @@ namespace NXProject.Views
                         else if (MatchCurrentUser() is { } me) // padrão: o usuário atual
                             _selectedPeople.Add(me);
                         PopulatePersonFilter(people);
+                        _collapsed.Clear();
+                        foreach (var nodeId in (_prefs.CollapsedNodes ?? _prefs.CollapsedEpics) ?? new List<int>())
+                            _collapsed.Add(nodeId);
+                        _collapsedPeople.Clear();
+                        foreach (var who in _prefs.CollapsedPeople ?? new List<string>())
+                            _collapsedPeople.Add(who);
                         if (_prefs.View is int vw && vw is 0 or 1) ViewIndex = vw;
                         if (_prefs.OnlySchedule is bool os) OnlyScheduleCheck.IsChecked = os;
                         if (_prefs.OnlyBlocked is bool ob) OnlyBlockedCheck.IsChecked = ob;
@@ -923,19 +951,15 @@ namespace NXProject.Views
             var descDirty = _descPending.ContainsKey(id) || _ownerPending.ContainsKey(id)
                 || _titlePending.ContainsKey(id) || _estPending.ContainsKey(id) || _donePending.ContainsKey(id)
                 || _iterPending.ContainsKey(id) || _featurePending.ContainsKey(id) || _startPending.ContainsKey(id)
-                || _acPending.ContainsKey(id);
+                || _acPending.ContainsKey(id) || _tramitePending.ContainsKey(id);
             var desc = new Button { Content = descDirty ? "✎●" : "✎", FontSize = 11,
-                Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 4, 2),
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
                 Foreground = descDirty ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black,
                 ToolTip = AppStrings.Get("Sprint_EditDesc") };
             desc.Click += async (_, _) => await EditDescriptionAsync(id, title, currentOwner, kind, currentIteration);
             panel.Children.Add(desc);
-            var tram = new Button { Content = _tramitePending.ContainsKey(id) ? "💬●" : "💬", FontSize = 11,
-                Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 4, 2),
-                Foreground = _tramitePending.ContainsKey(id) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black,
-                ToolTip = AppStrings.Get("Sprint_EditTramite") };
-            tram.Click += (_, _) => EditTramite(id, title);
-            panel.Children.Add(tram);
+            // O 💬 (tramite) saiu do card: virou botao dentro da tela de edicao, que abre pelo
+            // proprio ✎. Assim a linha de botoes da Story/Task cabe numa linha so.
         }
 
         // Descrição: abre o editor (WebView) com a descrição atual do DevOps (ou o rascunho pendente).
@@ -1047,7 +1071,9 @@ namespace NXProject.Views
                 enableAcceptance: enableAc, acceptanceHtml: curAc,
                 // Mesmas datas do hint do card, aqui so para consulta.
                 datesInfo: kind == "Task" && _cardById.TryGetValue(id, out var dcard) ? TaskDatesText(dcard)
-                    : StoryById(id) is { } dst ? StoryDatesText(dst) : null) { Owner = this };
+                    : StoryById(id) is { } dst ? StoryDatesText(dst) : null,
+                // 💬 Tramite: so para itens ja existentes no DevOps.
+                onTramite: id > 0 ? () => EditTramite(id, title) : null) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
                 _descPending[id] = pt.Description ?? string.Empty;
@@ -2521,6 +2547,21 @@ namespace NXProject.Views
                 var pg = tasksByPerson.TryGetValue(personKey, out var pl)
                     ? pl : new List<TfsImportService.SprintTaskCard>();
                 var firstRow = true;
+                // Pessoa recolhida: sobra a linha dela (com o botao para expandir) e nada mais.
+                if (_collapsedPeople.Contains(personKey))
+                {
+                    var prow = MakeRowGrid(cols);
+                    AddCell(prow, 0, MakeRowNumber(++rowNo));
+                    AddCell(prow, 1, MakePersonCell(personKey));
+                    AddCell(prow, cStory, BuildCollapsedHint(pg.Count));
+                    BoardHost.Children.Add(prow);
+                    BoardHost.Children.Add(new Border
+                    {
+                        Height = 3, Background = new SolidColorBrush(Color.FromRgb(0x8C, 0x9E, 0xB5)),
+                        Margin = new Thickness(0, 8, 0, 8)
+                    });
+                    continue;
+                }
                 int GroupStoryId(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
                     g.Select(EffTaskParent).FirstOrDefault(id => id > 0);
                 TfsImportService.SprintStoryRow? GroupStory(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
@@ -2539,6 +2580,7 @@ namespace NXProject.Views
                 // chave de ordenacao (prioridade, Projeto, EPIC, Feature, rank). Sem prioridade
                 // de Task elas caem no grupo 99, entao ficam naturalmente depois das que tem
                 // trabalho em andamento, mas dentro da hierarquia certa — nao amontoadas no fim.
+                var shownCollapsed = new HashSet<int>();   // EPIC recolhido ja anunciado nesta pessoa
                 var entries = new List<(int Prio, string Proj, string Epic, string Feat, double Rank,
                     string Title, IGrouping<string, TfsImportService.SprintTaskCard>? Tasks,
                     TfsImportService.SprintStoryRow? Solo)>();
@@ -2560,6 +2602,35 @@ namespace NXProject.Views
                              .ThenBy(e => e.Rank)
                              .ThenBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase))
                 {
+                    // Recolhido (Project, EPIC ou Feature): mostra so a linha do nivel recolhido,
+                    // uma vez por pessoa, e pula o que vem abaixo dele.
+                    var entryStory = entry.Solo ?? (entry.Tasks is { } eg && _storyById.TryGetValue(
+                        eg.Select(EffTaskParent).FirstOrDefault(i2 => i2 > 0), out var est) ? est : null);
+                    var entryProjId = entryStory?.FeatureProjectId ?? 0;
+                    var entryEpicId = entryStory?.FeatureEpicId ?? 0;
+                    var entryFeatId = entryStory?.FeatureId ?? 0;
+                    var stopAt = IsCollapsed(entryProjId) ? entryProjId
+                               : IsCollapsed(entryEpicId) ? entryEpicId
+                               : IsCollapsed(entryFeatId) ? entryFeatId : 0;
+                    if (stopAt > 0)
+                    {
+                        if (!shownCollapsed.Add(stopAt)) continue;
+                        var crow = MakeRowGrid(cols);
+                        AddCell(crow, 0, MakeRowNumber(++rowNo));
+                        if (firstRow) { AddCell(crow, 1, MakePersonCell(personKey)); firstRow = false; }
+                        if (showProj && entryProjId > 0)
+                            AddCell(crow, cProj, BuildLabelCard("🗂", entry.Proj, strong: false, id: entryProjId,
+                                extra: BuildCollapseButton(entryProjId)));
+                        if (showEpic && stopAt != entryProjId && entryEpicId > 0)
+                            AddCell(crow, cEpic, BuildLabelCard("🏔", entry.Epic, strong: true, id: entryEpicId,
+                                extra: BuildCollapseButton(entryEpicId)));
+                        if (showFeat && stopAt == entryFeatId && entryFeatId > 0)
+                            AddCell(crow, cFeat, BuildFeatureCard(entryFeatId, entry.Feat, "", "", "", false,
+                                extra: BuildCollapseButton(entryFeatId)));
+                        AddCell(crow, cStory, BuildCollapsedHint(0));
+                        BoardHost.Children.Add(crow);
+                        continue;
+                    }
                     var row = MakeRowGrid(cols);
                     AddCell(row, 0, MakeRowNumber(++rowNo));
                     if (firstRow) AddCell(row, 1, MakePersonCell(personKey));
@@ -2602,16 +2673,20 @@ namespace NXProject.Views
                             storySp.Children.Add(new TextBlock { Text = "🗓 " + sIter, FontSize = 10, TextWrapping = TextWrapping.Wrap,
                                 Foreground = _iterPending.ContainsKey(storyId) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray });
                         var stActions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
+                        // O recolher da Story fica junto dos botoes do card (metrica menor que
+                        // a dos cards de nivel, onde ele acompanha o ✎ e o ➕).
+                        if (BuildCollapseButton(storyId, compact: true) is { } stColl) stActions.Children.Add(stColl);
                         AddEditButtons(stActions, storyId, sg.Key, sOwnerOrig, "Story", StoryById(storyId)?.IterationPath ?? "");
                         // Abrir a Story no DevOps.
                         var openSt = new Button { Content = "🔗", FontSize = 11,
-                            Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 4, 2),
+                            Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
                             ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
                         var openStId = storyId;
                         openSt.Click += (_, _) => OpenInDevOps(openStId);
                         stActions.Children.Add(openSt);
                         stActions.Children.Add(BuildStoryTasksButton(openStId, EffTitle(openStId, sg.Key)));
-                        var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 10, Padding = new Thickness(5, 0, 5, 0) };
+                        var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
+                            Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
                         addTask.Click += (_, _) => AddNewTask(storyId, personKey); // já nasce na faixa da pessoa
                         stActions.Children.Add(addTask);
                         // Bloquear/desbloquear a Story — último botão, igual à visão Projeto & Story.
@@ -2691,6 +2766,7 @@ namespace NXProject.Views
                     if (showProj)
                         AddCell(row, cProj, BuildLabelCard("🗂", featProj, strong: false,
                             id: StoryById(storyId)?.FeatureProjectId ?? 0,
+                            extra: BuildCollapseButton(StoryById(storyId)?.FeatureProjectId ?? 0),
                             state: StoryById(storyId)?.FeatureProjectState ?? ""));
                     // Coluna EPIC (opcional): card do EPIC com o Projeto (sem borda) acima quando há vários.
                     if (showEpic)
@@ -2701,6 +2777,7 @@ namespace NXProject.Views
                                 state: StoryById(storyId)?.FeatureProjectState ?? ""));
                         if (!string.IsNullOrWhiteSpace(featEpic))
                             epicSp.Children.Add(BuildLabelCard("🏔", featEpic, strong: true, id: StoryById(storyId)?.FeatureEpicId ?? 0,
+                                extra: BuildCollapseButton(StoryById(storyId)?.FeatureEpicId ?? 0),
                                 state: StoryById(storyId)?.FeatureEpicState ?? ""));
                         AddCell(row, cEpic, epicSp);
                     }
@@ -2719,15 +2796,20 @@ namespace NXProject.Views
                             b.Click += (_, _) => AddNewStory(fId, fName);
                             addStoryBtn = Light(b);
                         }
+                        var featExtra = JoinButtons(BuildCollapseButton(featId), addStoryBtn);
                         UIElement featCell = string.IsNullOrWhiteSpace(featTitle) ? new TextBlock()
-                            : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, extra: addStoryBtn, featState: featState)
+                            : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, extra: featExtra, featState: featState)
                             : BuildFeatureCard(featId, featTitle, featOwner, featEpic,
-                                showProj ? "" : featProj, multiProject && !showProj, extra: addStoryBtn, featState: featState);
+                                showProj ? "" : featProj, multiProject && !showProj, extra: featExtra, featState: featState);
                         AddCell(row, cFeat, featCell);
                     }
                     AddCell(row, cStory, storyBorder);
+                    // Story recolhida: o card dela fica, as Tasks somem das colunas de estado.
+                    var storyCollapsed = IsCollapsed(storyId);
                     for (int i = 0; i < states.Count; i++)
-                        AddCell(row, i + cState0, BuildStateCell(states[i], tks, showStory: false));
+                        AddCell(row, i + cState0, storyCollapsed
+                            ? (i == 0 ? BuildCollapsedHint(tks.Count) : new TextBlock())
+                            : BuildStateCell(states[i], tks, showStory: false));
                     BoardHost.Children.Add(row);
                     firstRow = false;
                 }
@@ -2865,6 +2947,44 @@ namespace NXProject.Views
             _taskParentPending.TryGetValue(t.Id, out var p) ? p
             : _taskParentApplied.TryGetValue(t.Id, out var a) ? a : (t.ParentId ?? 0);
 
+        /// <summary>
+        /// Botao que recolhe/expande tudo abaixo do item (vale para Work Item Project, EPIC,
+        /// Feature e Story). Recolhido, sobra so a linha do proprio item — e a forma de focar
+        /// no que interessa sem mexer em filtro nenhum.
+        /// </summary>
+        private UIElement? BuildCollapseButton(int epicId, bool compact = false)
+        {
+            if (epicId <= 0) return null;
+            var collapsed = _collapsed.Contains(epicId);
+            var btn = new Button
+            {
+                Content = new TextBlock { Text = collapsed ? "▸" : "▾", FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center },
+                // Mesma altura, alinhamento e margem do ✎ e do ➕ (BuildEditLevelButton /
+                // BuildAddChildButton): os tres ficam na mesma linha do card do EPIC.
+                Padding = new Thickness(3, 0, 3, 0),
+                Margin = compact ? new Thickness(0, 0, 3, 2) : new Thickness(0, 4, 3, 0),
+                Height = LevelButtonHeight, VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = AppStrings.Get(collapsed ? "Sprint_EpicExpandTip" : "Sprint_EpicCollapseTip")
+            };
+            btn.Click += (_, _) =>
+            {
+                if (!_collapsed.Remove(epicId)) _collapsed.Add(epicId);
+                SavePrefs();
+                RenderBusy();
+            };
+            return Light(btn);
+        }
+
+        /// <summary>Linha enxuta de um EPIC recolhido: so o aviso de que ha conteudo escondido.</summary>
+        private UIElement BuildCollapsedHint(int hidden) => new TextBlock
+        {
+            Text = hidden > 0 ? AppStrings.Get("Sprint_EpicCollapsed") + " (" + hidden + ")"
+                : AppStrings.Get("Sprint_EpicCollapsed"),
+            FontSize = 10, FontStyle = FontStyles.Italic, Margin = new Thickness(4, 4, 4, 2),
+            Foreground = new SolidColorBrush(Color.FromRgb(0x80, 0x88, 0x92)), TextWrapping = TextWrapping.Wrap
+        };
+
         /// <summary>Celula da pessoa: nome, selo de WIP e alvo de arrasto para trocar o
         /// responsavel da Story. Usada tanto na 1a linha com Task quanto nas Stories sem Task.</summary>
         private UIElement MakePersonCell(string personKey)
@@ -2877,8 +2997,27 @@ namespace NXProject.Views
                 personCell.Drop += (s, ev) => OnStoryOwnerDrop(ev, personKey);
                 personCell.DragOver += (s, ev) => { ev.Effects = DragDropEffects.Move; ev.Handled = true; };
             }
+            // Recolher a faixa inteira da pessoa: mesmo botao dos niveis, so que a chave e o nome.
+            var collapsed = _collapsedPeople.Contains(personKey);
+            var toggle = new Button
+            {
+                Content = new TextBlock { Text = collapsed ? "▸" : "▾", FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center },
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 4, 0),
+                Height = LevelButtonHeight, VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = AppStrings.Get(collapsed ? "Sprint_EpicExpandTip" : "Sprint_EpicCollapseTip")
+            };
+            toggle.Click += (_, _) =>
+            {
+                if (!_collapsedPeople.Remove(personKey)) _collapsedPeople.Add(personKey);
+                SavePrefs();
+                RenderBusy();
+            };
+            var head = new StackPanel { Orientation = Orientation.Horizontal };
+            head.Children.Add(Light(toggle));
+            head.Children.Add(personCell);
             var personPanel = new StackPanel();
-            personPanel.Children.Add(personCell);
+            personPanel.Children.Add(head);
             // Selo "em andamento / limite" da pessoa — o WIP é dela, não do projeto.
             var wipN = WipCountOf(personKey);
             var wipMax = WipLimit();
@@ -2905,7 +3044,8 @@ namespace NXProject.Views
         {
             if (showProj)
                 AddCell(row, cProj, BuildLabelCard("🗂", st.FeatureProjectTitle, strong: false,
-                    id: st.FeatureProjectId, state: st.FeatureProjectState));
+                    id: st.FeatureProjectId, extra: BuildCollapseButton(st.FeatureProjectId),
+                    state: st.FeatureProjectState));
             if (showEpic)
             {
                 var epicSp2 = new StackPanel();
@@ -2914,7 +3054,8 @@ namespace NXProject.Views
                         id: st.FeatureProjectId, state: st.FeatureProjectState));
                 if (!string.IsNullOrWhiteSpace(st.FeatureEpicTitle))
                     epicSp2.Children.Add(BuildLabelCard("🏔", st.FeatureEpicTitle, strong: true,
-                        id: st.FeatureEpicId, state: st.FeatureEpicState));
+                        id: st.FeatureEpicId, extra: BuildCollapseButton(st.FeatureEpicId),
+                        state: st.FeatureEpicState));
                 AddCell(row, cEpic, epicSp2);
             }
             if (showFeat)
@@ -2928,10 +3069,11 @@ namespace NXProject.Views
                     b2.Click += (_, _) => AddNewStory(fId2, fName2);
                     addSt = Light(b2);
                 }
+                var featExtra2 = JoinButtons(BuildCollapseButton(st.FeatureId), addSt);
                 AddCell(row, cFeat, string.IsNullOrWhiteSpace(st.FeatureTitle) ? new TextBlock()
-                    : showEpic ? BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, "", "", false, extra: addSt, featState: st.FeatureState)
+                    : showEpic ? BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, "", "", false, extra: featExtra2, featState: st.FeatureState)
                     : BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, st.FeatureEpicTitle,
-                        showProj ? "" : st.FeatureProjectTitle, multiProject && !showProj, extra: addSt, featState: st.FeatureState));
+                        showProj ? "" : st.FeatureProjectTitle, multiProject && !showProj, extra: featExtra2, featState: st.FeatureState));
             }
             AddCell(row, cStory, BuildPersonStoryCardNoTask(st, personKey));
         }
@@ -2974,12 +3116,13 @@ namespace NXProject.Views
             var actions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0),
                 Cursor = System.Windows.Input.Cursors.Arrow };
             AddEditButtons(actions, st.Id, st.Title, st.AssignedTo, "Story", st.IterationPath ?? "");
-            var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
-                Margin = new Thickness(0, 0, 4, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+            var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(3, 0, 3, 0),
+                Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
             open.Click += (_, _) => OpenInDevOps(st.Id);
             actions.Children.Add(open);
             actions.Children.Add(BuildStoryTasksButton(st.Id, EffTitle(st.Id, st.Title)));
-            var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 10, Padding = new Thickness(5, 0, 5, 0) };
+            var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
             addTask.Click += (_, _) => AddNewTask(st.Id, personKey);
             actions.Children.Add(addTask);
             actions.Children.Add(BuildBlockButton(st.Id, st.Tags ?? "", isStory: true));
@@ -3115,6 +3258,7 @@ namespace NXProject.Views
             // Cards de Project/EPIC aparecem só na 1ª Feature de cada um (não repetem).
             var lastProj = (string?)null;
             var lastEpic = (string?)null;
+            var lastShownProjCollapsed = (string?)null;   // Project recolhido ja anunciado
             // Cards novos de EPIC/Feature ja renderizados (saem junto do bloco do pai).
             var newShown = new HashSet<int>();
             var rowNo = 0;
@@ -3153,7 +3297,9 @@ namespace NXProject.Views
                 if (showProjCol)
                     AddCell(row, cProjCol, projTitle == lastProj ? new TextBlock()
                         : BuildLabelCard("🗂", projTitle, strong: false, id: featRow?.FeatureProjectId ?? 0,
-                            extra: BuildAddChildButton(featRow?.FeatureProjectId ?? 0, projTitle, "Epic"),
+                            extra: JoinButtons(
+                                BuildCollapseButton(featRow?.FeatureProjectId ?? 0),
+                                BuildAddChildButton(featRow?.FeatureProjectId ?? 0, projTitle, "Epic")),
                             state: featRow?.FeatureProjectState ?? ""));
                 // Sem a coluna Projeto, ele aparece como linha discreta acima do EPIC.
                 if (showEpicCol)
@@ -3163,10 +3309,13 @@ namespace NXProject.Views
                     {
                         if (!showProjCol && !string.IsNullOrWhiteSpace(projTitle))
                             epicSp.Children.Add(BuildLabelCard("🗂", projTitle, strong: false, id: featRow?.FeatureProjectId ?? 0,
-                                extra: BuildAddChildButton(featRow?.FeatureProjectId ?? 0, projTitle, "Epic"),
+                                extra: JoinButtons(
+                                    BuildCollapseButton(featRow?.FeatureProjectId ?? 0),
+                                    BuildAddChildButton(featRow?.FeatureProjectId ?? 0, projTitle, "Epic")),
                                 state: featRow?.FeatureProjectState ?? ""));
                         epicSp.Children.Add(BuildLabelCard("🏔", epicTitle, strong: true, id: featRow?.FeatureEpicId ?? 0,
                             extra: JoinButtons(
+                                BuildCollapseButton(featRow?.FeatureEpicId ?? 0),
                                 BuildEditLevelButton(featRow?.FeatureEpicId ?? 0, epicTitle, "Epic"),
                                 BuildAddChildButton(featRow?.FeatureEpicId ?? 0, epicTitle, "Feature")),
                             state: featRow?.FeatureEpicState ?? ""));
@@ -3174,24 +3323,61 @@ namespace NXProject.Views
                     AddCell(row, cEpic, epicSp);
                 }
                 lastProj = projTitle; lastEpic = epicTitle;
+                // Recolhido: a linha para no nivel recolhido (o card dele fica, com o botao
+                // para expandir) e tudo abaixo sai. Project recolhe EPIC/Feature/Story; EPIC
+                // recolhe Feature/Story; Feature recolhe so as Storys.
+                var projIdRow = featRow?.FeatureProjectId ?? 0;
+                var epicIdRow = featRow?.FeatureEpicId ?? 0;
+                var storyCount = groupStories.Count(s2 => !s2.IsLevelPlaceholder);
+                if (IsCollapsed(projIdRow))
+                {
+                    // Uma linha por Project: so o card dele; nem EPIC nem Feature aparecem.
+                    if (projTitle != lastShownProjCollapsed)
+                    {
+                        if (showEpicCol) AddCell(row, cEpic, new TextBlock());
+                        AddCell(row, cFeat, BuildCollapsedHint(0));
+                        BoardHost.Children.Add(row);
+                        BoardHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xD5, 0xDD, 0xD7)), Margin = new Thickness(0, 2, 0, 4) });
+                        lastShownProjCollapsed = projTitle;
+                    }
+                    else rowNo--;
+                    continue;
+                }
+                if (IsCollapsed(epicIdRow))
+                {
+                    if (isNewBlock)
+                    {
+                        AddCell(row, cFeat, BuildCollapsedHint(storyCount));
+                        BoardHost.Children.Add(row);
+                        BoardHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xD5, 0xDD, 0xD7)), Margin = new Thickness(0, 2, 0, 4) });
+                    }
+                    else rowNo--;   // linha descartada: nao consome numeracao
+                    continue;
+                }
                 // Card da Feature. Com a coluna EPIC desligada, o EPIC (e o Projeto, se a coluna
                 // dele também estiver desligada) voltam para dentro do card.
                 var onlyLevel = groupStories.All(s => s.IsLevelPlaceholder);
                 if (featureId <= 0 && onlyLevel)
                     AddCell(row, cFeat, new TextBlock());   // EPIC/Projeto da sprint sem Feature: fica em branco
                 else
+                {
+                    var featExtra = JoinButtons(BuildCollapseButton(featureId), addStory);
                     AddCell(row, cFeat, showEpicCol
-                        ? BuildFeatureCard(featureId, featName, featRow?.FeatureAssignedTo ?? "", "", "", false, addStory,
+                        ? BuildFeatureCard(featureId, featName, featRow?.FeatureAssignedTo ?? "", "", "", false, featExtra,
                             featState: featRow?.FeatureState ?? "")
                         : BuildFeatureCard(featureId, featName, featRow?.FeatureAssignedTo ?? "",
-                            epicTitle, projTitle, !showProjCol, addStory, featState: featRow?.FeatureState ?? ""));
+                            epicTitle, projTitle, !showProjCol, featExtra, featState: featRow?.FeatureState ?? ""));
+                }
 
+                var featCollapsed = IsCollapsed(featureId);
                 for (int i = 0; i < storyStates.Count; i++)
                 {
                     var st = storyStates[i];
                     var cell = new StackPanel { Margin = new Thickness(2) };
-                    foreach (var s in groupStories.Where(s => !s.IsLevelPlaceholder && SameState(EffStoryState(s), st)))
-                        cell.Children.Add(BuildStoryCard(s, realIds));
+                    if (!featCollapsed)
+                        foreach (var s in groupStories.Where(s => !s.IsLevelPlaceholder && SameState(EffStoryState(s), st)))
+                            cell.Children.Add(BuildStoryCard(s, realIds));
+                    if (featCollapsed && i == 0) cell.Children.Add(BuildCollapsedHint(storyCount));
                     if (EditModeCheck.IsChecked == true)
                     {
                         var host = new Border
@@ -3548,7 +3734,7 @@ namespace NXProject.Views
             var fg = isStory ? Color.FromRgb(0xC0, 0x30, 0x30) : Color.FromRgb(0x7A, 0x52, 0x00);
             var btn = new Button
             {
-                Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 4, 2),
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
                 ToolTip = AppStrings.Get(blocked ? "Sprint_Unblock" : "Sprint_Block"),
                 Background = new SolidColorBrush(blocked ? bg : Color.FromRgb(0xF2, 0xF2, 0xF2)),
                 BorderBrush = new SolidColorBrush(blocked ? bd : Color.FromRgb(0xC8, 0xC8, 0xC8)),
@@ -3571,8 +3757,8 @@ namespace NXProject.Views
         private Button BuildStoryTasksButton(int storyId, string storyTitle)
         {
             // "☰ Tasks": icone de lista + texto, no padrao do "➕ Story" — o 📋 sozinho nao dizia o que abria.
-            var btn = new Button { Content = "☰ Tasks", FontSize = 10, Padding = new Thickness(5, 0, 5, 0),
-                Margin = new Thickness(0, 0, 4, 2), ToolTip = AppStrings.Get("Sprint_StoryTasks") };
+            var btn = new Button { Content = "☰ Tasks", FontSize = 9, Padding = new Thickness(3, 0, 3, 0),
+                Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Sprint_StoryTasks") };
             btn.Click += (_, _) =>
             {
                 var win = TfsOnlineChildTasksWindow.FromTaskBoard(storyId, storyTitle);

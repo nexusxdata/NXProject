@@ -920,6 +920,9 @@
     <sys:String x:Key="Sprint_ColStory">Story</sys:String>
     <sys:String x:Key="Sprint_ColFeature">Feature</sys:String>
     <sys:String x:Key="Sprint_ColEpic">EPIC</sys:String>
+    <sys:String x:Key="Sprint_EpicCollapseTip">Collapse: hide Feature, Story and Task of this EPIC</sys:String>
+    <sys:String x:Key="Sprint_EpicExpandTip">Expand: show Feature, Story and Task of this EPIC</sys:String>
+    <sys:String x:Key="Sprint_EpicCollapsed">collapsed</sys:String>
     <sys:String x:Key="Sprint_ColProject">Project</sys:String>
     <sys:String x:Key="Sprint_ShowEpicHint">Checked: EPIC in its own column. Unchecked: EPIC inside the Feature card.</sys:String>
     <sys:String x:Key="Sprint_ShowProjHint">Checked: Project in its own column. Unchecked: Project shown next to the EPIC.</sys:String>

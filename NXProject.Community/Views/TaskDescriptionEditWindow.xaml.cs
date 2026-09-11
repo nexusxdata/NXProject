@@ -86,6 +86,9 @@ namespace NXProject.Views
         private readonly double? _initialEstimate;
         private readonly double? _initialCompleted;
         private bool _doneVisible;
+        private readonly Action? _onTramite;
+
+        private void OnTramiteClick(object sender, RoutedEventArgs e) => _onTramite?.Invoke();
 
         public TaskDescriptionEditWindow(ProjectTask task,
             System.Collections.Generic.IReadOnlyList<string>? people = null, string? currentOwner = null,
@@ -99,7 +102,7 @@ namespace NXProject.Views
             string? epicTitle = null, string? projectTitle = null,
             bool enableAcceptance = false, string? acceptanceHtml = null,
             bool enableUnplanned = false, bool currentUnplanned = false, string? unplannedTag = null,
-            string? datesInfo = null)
+            string? datesInfo = null, Action? onTramite = null)
         {
             InitializeComponent();
             _task = task;
@@ -156,6 +159,10 @@ namespace NXProject.Views
                 NamePanel.Visibility = Visibility.Visible;
                 NameBox.Text = _initialName;
             }
+
+            // Tramite (comentario do DevOps): o botao do card foi movido para ca.
+            _onTramite = onTramite;
+            if (onTramite != null) TramiteBtn.Visibility = Visibility.Visible;
 
             // Datas so para consulta: quem edita quer saber ha quanto tempo o item esta parado
             // no estado atual sem precisar voltar ao board (o card mostra isso no hint).
