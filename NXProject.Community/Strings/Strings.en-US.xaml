@@ -976,6 +976,12 @@
     <sys:String x:Key="Sprint_NewStory">New Story (name)</sys:String>
     <sys:String x:Key="Sprint_NewTask">New Task (name)</sys:String>
     <sys:String x:Key="Sprint_AddStory">➕ Story</sys:String>
+    <sys:String x:Key="Sprint_MoveMark">Move this Task to another Story...</sys:String>
+    <sys:String x:Key="Sprint_MoveCancel">Cancel move selection</sys:String>
+    <sys:String x:Key="Sprint_MoveUndo">Undo pending move</sys:String>
+    <sys:String x:Key="Sprint_MoveMarked">✂ Marked to move - right-click the target Story</sys:String>
+    <sys:String x:Key="Sprint_MoveApply">Move Task {0} to this Story</sys:String>
+    <sys:String x:Key="Sprint_MoveTo">➡ Moved from {0} {1} - save to TFS to apply</sys:String>
     <sys:String x:Key="Sprint_AddTask">➕ Task</sys:String>
     <sys:String x:Key="Sprint_AddFeature">➕ Feature</sys:String>
     <sys:String x:Key="Sprint_AddFeatureTip">Creates a new Feature under this EPIC. The card stays at the bottom of the board for name, owner and description; the work item is only created in DevOps when you click Update TFS.</sys:String>
@@ -1084,6 +1090,8 @@
     <sys:String x:Key="Sprint_FilterOpenProject">📂 Open Project</sys:String>
     <sys:String x:Key="Sprint_StoryAll">All</sys:String>
     <sys:String x:Key="Sprint_StoryNone">Clear all</sys:String>
+    <sys:String x:Key="Sprint_ResetFilters">Clear filters</sys:String>
+    <sys:String x:Key="Sprint_ResetFiltersTip">Clears person, project, search and states - back to defaults. Does not change the sprint.</sys:String>
     <sys:String x:Key="Sprint_StoryApply">Apply</sys:String>
     <sys:String x:Key="Sprint_StateFilter">States ▾</sys:String>
     <sys:String x:Key="Sprint_EditMode">Edit (move cards)</sys:String>

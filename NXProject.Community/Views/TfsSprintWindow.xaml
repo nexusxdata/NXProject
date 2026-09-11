@@ -123,6 +123,8 @@
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="{DynamicResource Sprint_StoryAll}" Click="OnStoryFilterAll" Padding="8,2" Margin="0,0,6,0"/>
                             <Button Content="{DynamicResource Sprint_StoryNone}" Click="OnStoryFilterNone" Padding="8,2" Margin="0,0,6,0"/>
+                            <Button Content="{DynamicResource Sprint_ResetFilters}" Click="OnResetFiltersClick" Padding="8,2" Margin="0,0,6,0"
+                                    ToolTip="{DynamicResource Sprint_ResetFiltersTip}"/>
                             <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnStoryFilterApply" Padding="8,2"/>
                         </StackPanel>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
@@ -151,9 +153,9 @@
                     </DockPanel>
                 </Border>
             </Popup>
-            <Button x:Name="CurrentSprintButton" VerticalAlignment="Center"
-                    Padding="6,2" Margin="4,0,0,0" Click="OnCurrentSprintClick"
-                    Content="📍" ToolTip="{DynamicResource Sprint_CurrentTip}"/>
+            <Button x:Name="ResetFiltersButton" VerticalAlignment="Center"
+                    Padding="6,2" Margin="4,0,0,0" Click="OnResetFiltersClick"
+                    Content="⟲" ToolTip="{DynamicResource Sprint_ResetFiltersTip}"/>
             <Button x:Name="ReloadButton" VerticalAlignment="Center" Padding="6,2" Margin="4,0,0,0"
                     Click="OnReloadClick" Content="🔄" ToolTip="{DynamicResource Sprint_Reload}"/>
             <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Sprint_Person}" VerticalAlignment="Center" Margin="14,0,6,0"/>

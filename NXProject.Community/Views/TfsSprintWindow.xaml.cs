@@ -45,7 +45,9 @@ namespace NXProject.Views
         private Dictionary<int, TfsImportService.SprintStoryRow> _storyById = new();
         // Filtro por estado (vazio = todos), nome do usuário atual e edição de cards.
         private readonly HashSet<string> _hiddenStates = new(StringComparer.OrdinalIgnoreCase);
-        private int _closedDays = 15; // Closed exibe só os últimos N dias (0 = todos).
+        /// <summary>Padrao do corte de Closed (dias). Usado na abertura e no "limpar filtros".</summary>
+        private const int DefaultClosedDays = 15;
+        private int _closedDays = DefaultClosedDays; // Closed exibe só os últimos N dias (0 = todos).
         private int _discoveredPrioMax; // máximo de Priority aceito pelo template (via validateOnly).
         private string? _currentUser;
         // Estado alterado localmente (arrasto), pendente de gravar; e o já gravado com sucesso.
@@ -90,6 +92,16 @@ namespace NXProject.Views
         private readonly Dictionary<int, string> _iterApplied = new();
         // Feature (pai) da Story alterada (pendente: novo FeatureId) e a já gravada.
         private readonly Dictionary<int, int> _featurePending = new();
+        /// <summary>Task -> nova Story (System.Parent) na fila do "Atualizar TFS".</summary>
+        private readonly Dictionary<int, int> _taskParentPending = new();
+        private readonly Dictionary<int, int> _taskParentApplied = new();
+        /// <summary>
+        /// Task marcada para mover (botao direito no card). A Story destino costuma estar longe
+        /// na tela — as vezes nem visivel —, entao arrastar nao serve: marca-se aqui e depois
+        /// escolhe-se a Story destino pelo menu de contexto dela. Vale so para a sessao; nao e
+        /// alteracao pendente ate o "mover para esta Story" ser confirmado.
+        /// </summary>
+        private int _moveTaskId;
         private readonly Dictionary<int, int> _featureApplied = new();
         // Data de Início (Data_Inicio) da Story alterada (pendente) e a já gravada.
         private readonly Dictionary<int, DateTime?> _startPending = new();
@@ -360,13 +372,40 @@ namespace NXProject.Views
                 .FirstOrDefault()?.Path;
         }
 
-        private async void OnCurrentSprintClick(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// Volta TODOS os recortes ao padrao de tela nova: sem pessoa, sem projeto, sem busca,
+        /// sem as marcacoes "somente ...", Closed escondido e o corte de dias no default.
+        /// Nao mexe na sprint escolhida nem em nada pendente de gravacao — e so filtro.
+        /// </summary>
+        private void OnResetFiltersClick(object sender, RoutedEventArgs e)
         {
-            var path = CurrentSprintPath();
-            if (path == null) return;
-            var sel = new List<string> { path };
-            ApplySprintChecks(sel);
-            await ReloadBoardAsync(sel);
+            _selectedPeople.Clear();
+            if (_board != null) PopulatePersonFilter(BoardPeople(_board));
+            if (PersonSearchBox != null) PersonSearchBox.Text = "";
+
+            _selectedStoryIds.Clear();
+            PopulateStoryFilter();
+
+            SearchBox.Text = "";
+            SearchScopeCombo.SelectedIndex = 0;
+
+            OnlyScheduleCheck.IsChecked = false;
+            OnlyBlockedCheck.IsChecked = false;
+            OnlyUnplannedCheck.IsChecked = false;
+            OnlyDoneActiveCheck.IsChecked = false;
+            OnlyDoingCheck.IsChecked = false;
+            OnlyTaskActiveCheck.IsChecked = false;
+
+            // Padrao de tela nova: Closed escondido e o corte de dias de volta ao default.
+            _hiddenStates.Clear();
+            if (_board != null)
+                foreach (var st in _board.States.Where(IsClosedState)) _hiddenStates.Add(st);
+            PopulateStateFilter();
+            _closedDays = DefaultClosedDays;
+            ClosedDaysBox.Text = DefaultClosedDays.ToString();
+
+            StoryFilterToggle.IsChecked = false;
+            RenderBusy();
             SavePrefs();
         }
 
@@ -498,6 +537,9 @@ namespace NXProject.Views
                 _tagsApplied.Clear();
                 _featurePending.Clear();
                 _featureApplied.Clear();
+                _taskParentPending.Clear();
+                _taskParentApplied.Clear();
+                _moveTaskId = 0;
                 _startPending.Clear();
             _acPending.Clear();
                 _acPending.Clear();
@@ -552,7 +594,11 @@ namespace NXProject.Views
             if (_board == null) return list;
             foreach (var s in _board.Stories)
             {
-                var tks = new List<TfsImportService.SprintTaskCard>(s.Tasks);
+                // Move de Story pendente: a Task ja aparece na Story DESTINO (e sai da origem),
+                // mesmo antes de gravar — o selo laranja no card diz que a troca esta na fila.
+                var tks = s.Tasks.Where(t => !_taskParentPending.ContainsKey(t.Id)).ToList();
+                tks.AddRange(_board.Stories.SelectMany(o => o.Tasks)
+                    .Where(t => _taskParentPending.TryGetValue(t.Id, out var np) && np == s.Id));
                 tks.AddRange(_newCards.Where(n => n.Type == "Task" && n.ParentId == s.Id).Select(NewToCard));
                 list.Add((s, tks));
             }
@@ -998,7 +1044,10 @@ namespace NXProject.Views
                 features: features, currentFeatureId: curFeatureId,
                 enableStartDate: enableStart, currentStartDate: curStart,
                 epicTitle: epicTitle, projectTitle: projTitle,
-                enableAcceptance: enableAc, acceptanceHtml: curAc) { Owner = this };
+                enableAcceptance: enableAc, acceptanceHtml: curAc,
+                // Mesmas datas do hint do card, aqui so para consulta.
+                datesInfo: kind == "Task" && _cardById.TryGetValue(id, out var dcard) ? TaskDatesText(dcard)
+                    : StoryById(id) is { } dst ? StoryDatesText(dst) : null) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
                 _descPending[id] = pt.Description ?? string.Empty;
@@ -1102,7 +1151,7 @@ namespace NXProject.Views
         {
             var doingDiff = _doing.Except(_appliedDoing).Count() + _appliedDoing.Except(_doing).Count();
             doingDiff += _done.Except(_appliedDone).Count() + _appliedDone.Except(_done).Count();
-            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count;
+            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count;
         }
 
         private void UpdatePendingButton()
@@ -1130,6 +1179,8 @@ namespace NXProject.Views
             _iterPending.Clear();
             _blockPending.Clear(); _unplannedPending.Clear();
             _featurePending.Clear();
+            _taskParentPending.Clear();
+            _moveTaskId = 0;
             _startPending.Clear();
             _newCards.Clear();
             _prioPending.Clear();
@@ -1290,6 +1341,14 @@ namespace NXProject.Views
                 else fails.Add($"#{kv.Key} (critérios de aceitação): {msg}");
             }
 
+            // 3g2) Story (pai) da Task: mesma troca de System.Parent usada na Feature da Story.
+            foreach (var kv in _taskParentPending.ToList())
+            {
+                var (success, msg) = await TfsImportService.SetWorkItemParentAsync(_options, kv.Key, kv.Value);
+                if (success) { _taskParentApplied[kv.Key] = kv.Value; _taskParentPending.Remove(kv.Key); ok++; reload = true; }
+                else fails.Add($"#{kv.Key} (story): {msg}");
+            }
+
             // 3h) Feature (pai) da Story. 403 = sem permissão.
             foreach (var kv in _featurePending.ToList())
             {
@@ -1434,7 +1493,14 @@ namespace NXProject.Views
                 var (nid, msg) = await TfsImportService.CreateChildWorkItemAsync(_options, "User Story", ns.Title.Trim(), storyParent, IterOf(ns),
                     string.IsNullOrWhiteSpace(ns.Description) ? null : TfsImportService.PlainTextToSimpleHtml(ns.Description),
                     string.IsNullOrWhiteSpace(ns.AssignedTo) ? null : ns.AssignedTo, ns.Effort, ns.StartDate);
-                if (nid > 0) { tempToReal[ns.TempId] = nid; _newCards.Remove(ns); ok++; reload = true; }
+                if (nid > 0)
+                {
+                    tempToReal[ns.TempId] = nid; _newCards.Remove(ns); ok++; reload = true;
+                    // O filtro de Projeto guarda IDs de Story. A Story recem-criada nao esta
+                    // nessa lista e sumia do board depois de gravar (so voltava ao reaplicar o
+                    // filtro). Entra aqui, para continuar visivel onde foi criada.
+                    if (_selectedStoryIds.Count > 0) _selectedStoryIds.Add(nid);
+                }
                 else fails.Add($"Story '{ns.Title}': {msg}");
             }
             foreach (var nt in _newCards.Where(n => n.Type == "Task").ToList())
@@ -1483,14 +1549,14 @@ namespace NXProject.Views
             // aberto. As Tasks continuam vindo do TFS (o cronograma normalmente para na Story,
             // então filtrar pelo id da própria Task esvaziava o board).
             if (OnlyScheduleCheck.IsChecked == true
-                && !(t.ParentId is int sp0 && _scheduleIds.Contains(sp0))) return false;
+                && !(EffTaskParent(t) is int sp0 && _scheduleIds.Contains(sp0))) return false;
             // Recortes por tag da Task (bloqueada / não planejada). Usam o valor EFETIVO das
             // tags, então respeitam alterações ainda na fila do "Atualizar TFS".
             // Story bloqueada bloqueia as filhas na prática (é como o cronograma trata: o BLOCK
             // da Story tem prioridade sobre o da Task), então as Tasks dela entram no filtro.
             if (OnlyBlockedCheck.IsChecked == true
                 && !EffBlocked(t.Id, t.Tags)
-                && !(t.ParentId is int bp && StoryById(bp) is { } bs && EffBlocked(bs.Id, bs.Tags)))
+                && !(StoryById(EffTaskParent(t)) is { } bs && EffBlocked(bs.Id, bs.Tags)))
                 return false;
             if (OnlyUnplannedCheck.IsChecked == true && !EffUnplanned(t.Id, t.Tags)) return false;
             // Em andamento: Doing e ainda não encerrada. Marcada Done já saiu do "fazendo",
@@ -1504,13 +1570,13 @@ namespace NXProject.Views
             if (OnlyTaskActiveCheck.IsChecked == true
                 && TfsImportService.NormalizeTaskState(EffState(t)) != "Active") return false;
             if (_selectedPeople.Count > 0 && !_selectedPeople.Contains(t.AssignedTo ?? "")) return false;
-            if (_selectedStoryIds.Count > 0 && !(t.ParentId is int p && _selectedStoryIds.Contains(p))) return false;
+            if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(EffTaskParent(t))) return false;
             // Busca ao vivo com escopo (Ambos / Task / Story).
             var q = SearchQuery();
             if (!string.IsNullOrEmpty(q))
             {
                 var scope = SearchScope();
-                var storyRow = t.ParentId is int sp && _storyById.TryGetValue(sp, out var st) ? st : null;
+                var storyRow = _storyById.TryGetValue(EffTaskParent(t), out var st) ? st : null;
                 bool Has(string? s) => !string.IsNullOrEmpty(s) && s.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0;
                 bool taskMatch = Has(t.Title) || Has(t.AssignedTo) || t.Id.ToString().Contains(q);
                 bool storyMatch = Has(storyRow?.Title);
@@ -2188,7 +2254,7 @@ namespace NXProject.Views
                          .OrderBy(t => EffPrio(t) > 0 ? EffPrio(t) : 99)  // grupo de prioridade primeiro
                          .ThenBy(EffTaskRank))                              // depois o rank (StackRank) dentro do grupo
                 cell.Children.Add(BuildCard(t, showStory
-                    ? (t.ParentId is int pid && _storyById.TryGetValue(pid, out var st) ? st.Title : null)
+                    ? (_storyById.TryGetValue(EffTaskParent(t), out var st) ? st.Title : null)
                     : null));
             if (EditModeCheck.IsChecked != true) return cell;
             var host = new Border
@@ -2456,7 +2522,7 @@ namespace NXProject.Views
                     ? pl : new List<TfsImportService.SprintTaskCard>();
                 var firstRow = true;
                 int GroupStoryId(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
-                    g.FirstOrDefault(t => t.ParentId is int)?.ParentId ?? 0;
+                    g.Select(EffTaskParent).FirstOrDefault(id => id > 0);
                 TfsImportService.SprintStoryRow? GroupStory(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
                     _storyById.TryGetValue(GroupStoryId(g), out var st) ? st : null;
                 // Grupo de prioridade da linha: a MAIS ALTA (menor numero) entre as Tasks que a
@@ -2469,21 +2535,46 @@ namespace NXProject.Views
                 // prioridade e da hierarquia (antes ordenava so pelo rank, e Stories de projetos
                 // diferentes ficavam intercaladas). As Tasks dentro da celula seguem a mesma
                 // regra: prioridade e depois rank (BuildStateCell).
-                foreach (var sg in pg
-                             .GroupBy(t => t.ParentId is int pid && _storyById.TryGetValue(pid, out var st) ? st.Title : AppStrings.Get("Sprint_NoStory"))
-                             .OrderBy(GroupPrio)
-                             .ThenBy(g => GroupStory(g)?.FeatureProjectTitle ?? "", StringComparer.CurrentCultureIgnoreCase)
-                             .ThenBy(g => GroupStory(g)?.FeatureEpicTitle ?? "", StringComparer.CurrentCultureIgnoreCase)
-                             .ThenBy(g => GroupStory(g)?.FeatureTitle ?? "", StringComparer.CurrentCultureIgnoreCase)
-                             .ThenBy(g => StoryRankOf(GroupStoryId(g)))
-                             .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
+                // As Stories SEM Task entram na MESMA lista dos grupos de Task e usam a mesma
+                // chave de ordenacao (prioridade, Projeto, EPIC, Feature, rank). Sem prioridade
+                // de Task elas caem no grupo 99, entao ficam naturalmente depois das que tem
+                // trabalho em andamento, mas dentro da hierarquia certa — nao amontoadas no fim.
+                var entries = new List<(int Prio, string Proj, string Epic, string Feat, double Rank,
+                    string Title, IGrouping<string, TfsImportService.SprintTaskCard>? Tasks,
+                    TfsImportService.SprintStoryRow? Solo)>();
+                foreach (var g in pg.GroupBy(t => _storyById.TryGetValue(EffTaskParent(t), out var st)
+                                                  ? st.Title : AppStrings.Get("Sprint_NoStory")))
+                    entries.Add((GroupPrio(g), GroupStory(g)?.FeatureProjectTitle ?? "",
+                        GroupStory(g)?.FeatureEpicTitle ?? "", GroupStory(g)?.FeatureTitle ?? "",
+                        StoryRankOf(GroupStoryId(g)), g.Key, g, null));
+                if (noTaskByPerson.TryGetValue(personKey, out var soloStories))
+                    foreach (var st in soloStories)
+                        entries.Add((99, st.FeatureProjectTitle ?? "", st.FeatureEpicTitle ?? "",
+                            st.FeatureTitle ?? "", StoryRankOf(st.Id), st.Title, null, st));
+
+                foreach (var entry in entries
+                             .OrderBy(e => e.Prio)
+                             .ThenBy(e => e.Proj, StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(e => e.Epic, StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(e => e.Feat, StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(e => e.Rank)
+                             .ThenBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase))
                 {
                     var row = MakeRowGrid(cols);
                     AddCell(row, 0, MakeRowNumber(++rowNo));
                     if (firstRow) AddCell(row, 1, MakePersonCell(personKey));
+                    if (entry.Solo is { } st2)
+                    {
+                        firstRow = false;
+                        AddPersonNoTaskCells(row, st2, personKey, cols, cProj, cEpic, cFeat, cStory,
+                            showProj, showEpic, showFeat, multiProject);
+                        BoardHost.Children.Add(row);
+                        continue;
+                    }
+                    var sg = entry.Tasks!;
                     var tks = sg.ToList();
                     var storySp = new StackPanel();
-                    var storyId = tks.FirstOrDefault(t => t.ParentId is int)?.ParentId ?? 0;
+                    var storyId = tks.Select(EffTaskParent).FirstOrDefault(id => id > 0);
                     var sOwnerOrig = storyId > 0 ? (StoryById(storyId)?.AssignedTo ?? string.Empty) : string.Empty;
                     var sOwner = EffOwner(storyId, sOwnerOrig);
                     // "Ajudante": a pessoa desta faixa tem task na Story mas NÃO é a responsável dela.
@@ -2502,7 +2593,6 @@ namespace NXProject.Views
                             Text = "👤 " + (string.IsNullOrWhiteSpace(sOwner) ? AppStrings.Get("Sprint_NoOwner") : sOwner),
                             FontSize = 10, TextWrapping = TextWrapping.Wrap,
                             Foreground = _ownerPending.ContainsKey(storyId) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray });
-                        if (StoryById(storyId) is { } stDates) AddStoryDateLines(storySp, stDates);
                         if (isHelper)
                             storySp.Children.Add(new TextBlock { Text = AppStrings.Get("Sprint_Helping"),
                                 FontSize = 10, FontStyle = FontStyles.Italic, Foreground = new SolidColorBrush(Color.FromRgb(0xB2, 0x6A, 0x00)) });
@@ -2544,16 +2634,14 @@ namespace NXProject.Views
                         storyBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30));
                         storyBorder.BorderThickness = new Thickness(2);
                     }
-                    // Hint com os Critérios de Aceitação da Story (efetivo: pendente > DevOps).
+                    AttachStoryMoveTargetMenu(storyBorder, storyId);
+                    // Hint do card: datas (criacao/estado) + Critérios de Aceitação da Story.
+                    if (StoryById(storyId) is { } stDates) AppendTip(storyBorder, StoryDatesText(stDates));
                     var acHint = _acPending.TryGetValue(storyId, out var acp2) ? acp2
                         : (StoryById(storyId)?.AcceptanceCriteria ?? "");
                     var acText = TfsImportService.ToPlainTextPublic(acHint);
                     if (!string.IsNullOrWhiteSpace(acText))
-                        storyBorder.ToolTip = new TextBlock
-                        {
-                            Text = AppStrings.Get("Desc_Acceptance") + "\n" + acText,
-                            TextWrapping = TextWrapping.Wrap, MaxWidth = 420
-                        };
+                        AppendTip(storyBorder, AppStrings.Get("Desc_Acceptance") + Environment.NewLine + acText);
                     // Modo edição: arrastar a Story p/ outra pessoa troca o Responsável — só quando esta
                     // pessoa É a responsável (ajudante não move a Story de outro).
                     if (EditModeCheck.IsChecked == true && storyId > 0 && !isHelper)
@@ -2620,10 +2708,21 @@ namespace NXProject.Views
                     {
                         // Card da Feature: com a coluna EPIC ligada ele não repete o EPIC; desligada,
                         // o EPIC/Project voltam para dentro do card (linha no nome da Feature).
+                        // O "+Story" vem junto, como na visao Projeto & Story: nasce sob esta
+                        // Feature e ja com a pessoa da faixa como responsavel.
+                        UIElement? addStoryBtn = null;
+                        if (featId > 0)
+                        {
+                            var b = new Button { Content = AppStrings.Get("Sprint_AddStory"), FontSize = 10,
+                                Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
+                            var fId = featId; var fName = featTitle;
+                            b.Click += (_, _) => AddNewStory(fId, fName);
+                            addStoryBtn = Light(b);
+                        }
                         UIElement featCell = string.IsNullOrWhiteSpace(featTitle) ? new TextBlock()
-                            : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, featState: featState)
+                            : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, extra: addStoryBtn, featState: featState)
                             : BuildFeatureCard(featId, featTitle, featOwner, featEpic,
-                                showProj ? "" : featProj, multiProject && !showProj, featState: featState);
+                                showProj ? "" : featProj, multiProject && !showProj, extra: addStoryBtn, featState: featState);
                         AddCell(row, cFeat, featCell);
                     }
                     AddCell(row, cStory, storyBorder);
@@ -2632,37 +2731,6 @@ namespace NXProject.Views
                     BoardHost.Children.Add(row);
                     firstRow = false;
                 }
-                // Fecha a faixa da pessoa com as Stories que ela acompanha e que ainda nao tem
-                // Task: as colunas de estado ficam vazias — e justamente o sinal de "sem Task".
-                if (noTaskByPerson.TryGetValue(personKey, out var solo))
-                    foreach (var st in solo)
-                    {
-                        var row = MakeRowGrid(cols);
-                        AddCell(row, 0, MakeRowNumber(++rowNo));
-                        if (firstRow) { AddCell(row, 1, MakePersonCell(personKey)); firstRow = false; }
-                        if (showProj)
-                            AddCell(row, cProj, BuildLabelCard("🗂", st.FeatureProjectTitle, strong: false,
-                                id: st.FeatureProjectId, state: st.FeatureProjectState));
-                        if (showEpic)
-                        {
-                            var epicSp2 = new StackPanel();
-                            if (!showProj && multiProject && !string.IsNullOrWhiteSpace(st.FeatureProjectTitle))
-                                epicSp2.Children.Add(BuildLabelCard("🗂", st.FeatureProjectTitle, strong: false,
-                                    id: st.FeatureProjectId, state: st.FeatureProjectState));
-                            if (!string.IsNullOrWhiteSpace(st.FeatureEpicTitle))
-                                epicSp2.Children.Add(BuildLabelCard("🏔", st.FeatureEpicTitle, strong: true,
-                                    id: st.FeatureEpicId, state: st.FeatureEpicState));
-                            AddCell(row, cEpic, epicSp2);
-                        }
-                        if (showFeat)
-                            AddCell(row, cFeat, string.IsNullOrWhiteSpace(st.FeatureTitle) ? new TextBlock()
-                                : showEpic ? BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, "", "", false, featState: st.FeatureState)
-                                : BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, st.FeatureEpicTitle,
-                                    showProj ? "" : st.FeatureProjectTitle, multiProject && !showProj, featState: st.FeatureState));
-                        AddCell(row, cStory, BuildPersonStoryCardNoTask(st, personKey));
-                        BoardHost.Children.Add(row);
-                    }
-
                 // Separador entre pessoas: barra grossa e escura, bem diferente da linha fina
                 // que separa as Stories da MESMA pessoa — na rolagem as duas se confundiam e nao
                 // dava para ver onde os cards de uma pessoa terminam e os da outra comecam.
@@ -2680,26 +2748,122 @@ namespace NXProject.Views
         /// leitura de historico. Com mudanca de estado pendente a data do estado sai de cena,
         /// porque ainda vale para o estado antigo.
         /// </summary>
-        private void AddStoryDateLines(Panel host, TfsImportService.SprintStoryRow st)
+        private string StoryDatesText(TfsImportService.SprintStoryRow st)
         {
-            if (st.Id <= 0) return;
+            if (st.Id <= 0) return "";
+            var parts = new List<string>();
             if (st.CreatedDate is { } created)
-                host.Children.Add(new TextBlock
-                {
-                    Text = AppStrings.Get("Sprint_CreatedOn", created.ToString("dd/MM/yyyy")),
-                    FontSize = 10, Foreground = Brushes.DimGray
-                });
-            if (_storyStatePending.ContainsKey(st.Id)) return;
-            var closed = IsClosedState(EffStoryState(st));
-            var when = closed ? (st.ClosedDate ?? st.StateChangeDate) : st.StateChangeDate;
-            if (when is { } dt)
-                host.Children.Add(new TextBlock
-                {
-                    Text = AppStrings.Get(closed ? "Sprint_ClosedOn" : "Sprint_StateSince", dt.ToString("dd/MM/yyyy")),
-                    FontSize = 10,
-                    Foreground = closed ? new SolidColorBrush(Color.FromRgb(0x5A, 0x7A, 0x5A)) : Brushes.DimGray
-                });
+                parts.Add(AppStrings.Get("Sprint_CreatedOn", created.ToString("dd/MM/yyyy")));
+            if (!_storyStatePending.ContainsKey(st.Id))
+            {
+                var closed = IsClosedState(EffStoryState(st));
+                var when = closed ? (st.ClosedDate ?? st.StateChangeDate) : st.StateChangeDate;
+                if (when is { } dt)
+                    parts.Add(AppStrings.Get(closed ? "Sprint_ClosedOn" : "Sprint_StateSince", dt.ToString("dd/MM/yyyy")));
+            }
+            return string.Join(Environment.NewLine, parts);
         }
+
+        /// <summary>Datas da Task para o hint: criacao e desde quando esta no estado atual
+        /// (ou quando encerrou). Com arrasto pendente a data do estado sai, porque ainda e a
+        /// do estado antigo.</summary>
+        private string TaskDatesText(TfsImportService.SprintTaskCard t)
+        {
+            if (t.Id <= 0) return "";
+            var parts = new List<string>();
+            if (t.CreatedDate is { } created)
+                parts.Add(AppStrings.Get("Sprint_CreatedOn", created.ToString("dd/MM/yyyy")));
+            if (!_pending.ContainsKey(t.Id))
+            {
+                var closed = IsClosedState(EffState(t));
+                var when = closed ? (t.ClosedDate ?? t.StateChangeDate) : t.StateChangeDate;
+                if (when is { } dt)
+                    parts.Add(AppStrings.Get(closed ? "Sprint_ClosedOn" : "Sprint_StateSince", dt.ToString("dd/MM/yyyy")));
+            }
+            return string.Join(Environment.NewLine, parts);
+        }
+
+        /// <summary>Acrescenta um bloco ao hint do card, preservando o que ja existe nele.</summary>
+        private static void AppendTip(FrameworkElement el, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var prev = el.ToolTip switch
+            {
+                TextBlock tb => tb.Text,
+                string str => str,
+                _ => ""
+            };
+            el.ToolTip = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(prev) ? text : prev + Environment.NewLine + Environment.NewLine + text,
+                TextWrapping = TextWrapping.Wrap, MaxWidth = 420
+            };
+        }
+
+        /// <summary>
+        /// Menu do botao direito no card da Task: marca (ou desmarca) a Task para mover de Story.
+        /// A troca so acontece quando a Story destino for escolhida no menu dela.
+        /// </summary>
+        private void AttachTaskMoveMenu(FrameworkElement card, TfsImportService.SprintTaskCard t)
+        {
+            if (t.Id <= 0) return;   // card novo ainda nao existe no DevOps
+            var menu = new ContextMenu();
+            if (_moveTaskId == t.Id)
+            {
+                var cancel = new MenuItem { Header = AppStrings.Get("Sprint_MoveCancel") };
+                cancel.Click += (_, _) => { _moveTaskId = 0; Render(); };
+                menu.Items.Add(cancel);
+            }
+            else
+            {
+                var mark = new MenuItem { Header = AppStrings.Get("Sprint_MoveMark") };
+                mark.Click += (_, _) => { _moveTaskId = t.Id; Render(); };
+                menu.Items.Add(mark);
+            }
+            if (_taskParentPending.ContainsKey(t.Id))
+            {
+                var undo = new MenuItem { Header = AppStrings.Get("Sprint_MoveUndo") };
+                undo.Click += (_, _) => { _taskParentPending.Remove(t.Id); UpdatePendingButton(); Render(); };
+                menu.Items.Add(undo);
+            }
+            card.ContextMenu = menu;
+        }
+
+        /// <summary>
+        /// Menu do botao direito no card da Story: destino do "mover Task". So aparece com uma
+        /// Task marcada, e nao deixa mover para a Story onde ela ja esta.
+        /// </summary>
+        private void AttachStoryMoveTargetMenu(FrameworkElement card, int storyId)
+        {
+            if (storyId <= 0 || _moveTaskId <= 0) return;
+            if (!_cardById.TryGetValue(_moveTaskId, out var moving)) return;
+            if (EffTaskParent(moving) == storyId) return;
+
+            var menu = new ContextMenu();
+            var apply = new MenuItem
+            {
+                Header = AppStrings.Get("Sprint_MoveApply", "#" + _moveTaskId,
+                    EffTitle(_moveTaskId, moving.Title))
+            };
+            var taskId = _moveTaskId;
+            apply.Click += (_, _) =>
+            {
+                // Voltar para o pai original cancela a pendencia em vez de gravar o mesmo valor.
+                var baseParent = _taskParentApplied.TryGetValue(taskId, out var ap) ? ap : (moving.ParentId ?? 0);
+                if (storyId == baseParent) _taskParentPending.Remove(taskId);
+                else _taskParentPending[taskId] = storyId;
+                _moveTaskId = 0;
+                UpdatePendingButton();
+                Render();
+            };
+            menu.Items.Add(apply);
+            card.ContextMenu = menu;
+        }
+
+        /// <summary>Story pai efetiva da Task: pendente -> ja gravada -> a do DevOps.</summary>
+        private int EffTaskParent(TfsImportService.SprintTaskCard t) =>
+            _taskParentPending.TryGetValue(t.Id, out var p) ? p
+            : _taskParentApplied.TryGetValue(t.Id, out var a) ? a : (t.ParentId ?? 0);
 
         /// <summary>Celula da pessoa: nome, selo de WIP e alvo de arrasto para trocar o
         /// responsavel da Story. Usada tanto na 1a linha com Task quanto nas Stories sem Task.</summary>
@@ -2732,6 +2896,47 @@ namespace NXProject.Views
         }
 
         /// <summary>
+        /// Celulas (Projeto / EPIC / Feature / Story) da linha de uma Story SEM Task na visao
+        /// Pessoa x Task. As colunas de estado ficam vazias — e o proprio sinal de "sem Task".
+        /// </summary>
+        private void AddPersonNoTaskCells(Grid row, TfsImportService.SprintStoryRow st, string personKey,
+            List<GridLength> cols, int cProj, int cEpic, int cFeat, int cStory,
+            bool showProj, bool showEpic, bool showFeat, bool multiProject)
+        {
+            if (showProj)
+                AddCell(row, cProj, BuildLabelCard("🗂", st.FeatureProjectTitle, strong: false,
+                    id: st.FeatureProjectId, state: st.FeatureProjectState));
+            if (showEpic)
+            {
+                var epicSp2 = new StackPanel();
+                if (!showProj && multiProject && !string.IsNullOrWhiteSpace(st.FeatureProjectTitle))
+                    epicSp2.Children.Add(BuildLabelCard("🗂", st.FeatureProjectTitle, strong: false,
+                        id: st.FeatureProjectId, state: st.FeatureProjectState));
+                if (!string.IsNullOrWhiteSpace(st.FeatureEpicTitle))
+                    epicSp2.Children.Add(BuildLabelCard("🏔", st.FeatureEpicTitle, strong: true,
+                        id: st.FeatureEpicId, state: st.FeatureEpicState));
+                AddCell(row, cEpic, epicSp2);
+            }
+            if (showFeat)
+            {
+                UIElement? addSt = null;
+                if (st.FeatureId > 0)
+                {
+                    var b2 = new Button { Content = AppStrings.Get("Sprint_AddStory"), FontSize = 10,
+                        Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
+                    var fId2 = st.FeatureId; var fName2 = st.FeatureTitle;
+                    b2.Click += (_, _) => AddNewStory(fId2, fName2);
+                    addSt = Light(b2);
+                }
+                AddCell(row, cFeat, string.IsNullOrWhiteSpace(st.FeatureTitle) ? new TextBlock()
+                    : showEpic ? BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, "", "", false, extra: addSt, featState: st.FeatureState)
+                    : BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, st.FeatureEpicTitle,
+                        showProj ? "" : st.FeatureProjectTitle, multiProject && !showProj, extra: addSt, featState: st.FeatureState));
+            }
+            AddCell(row, cStory, BuildPersonStoryCardNoTask(st, personKey));
+        }
+
+        /// <summary>
         /// Card da Story na visao Pessoa x Task quando ela NAO tem Task visivel. Traz os mesmos
         /// dados e botoes do card normal (estado, responsavel, sprint, editar, DevOps, grade de
         /// Tasks, +Task e bloquear) e um selo dizendo que ainda nao ha Task.
@@ -2741,9 +2946,10 @@ namespace NXProject.Views
             var sp = new StackPanel();
             sp.Children.Add(new TextBlock
             {
-                Text = EffTitle(st.Id, st.Title), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap,
+                Text = EffTitle(st.Id, st.Title), FontWeight = FontWeights.Normal, TextWrapping = TextWrapping.Wrap,
                 Foreground = _titlePending.ContainsKey(st.Id)
-                    ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black
+                    ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00))
+                    : new SolidColorBrush(Color.FromRgb(0x55, 0x5C, 0x66))
             });
             sp.Children.Add(BuildStoryStateLine(st));
             var owner = EffOwner(st.Id, st.AssignedTo);
@@ -2759,7 +2965,6 @@ namespace NXProject.Views
                 Text = AppStrings.Get("Sprint_StoryNoTask"), FontSize = 10, FontStyle = FontStyles.Italic,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x80, 0x88, 0x92))
             });
-            AddStoryDateLines(sp, st);
             var sIter = IterLeaf(EffIter(st.Id, st.IterationPath ?? ""));
             if (_sprintPaths.Count != 1 && !string.IsNullOrEmpty(sIter))
                 sp.Children.Add(new TextBlock { Text = "🗓 " + sIter, FontSize = 10, TextWrapping = TextWrapping.Wrap,
@@ -2782,12 +2987,15 @@ namespace NXProject.Views
 
             var pend = _storyRankPending.Contains(st.Id) || _ownerPending.ContainsKey(st.Id)
                 || _titlePending.ContainsKey(st.Id) || _blockPending.ContainsKey(st.Id);
+            // Cor de MENOR destaque que o card de Story com Task: a linha existe para
+            // acompanhamento, nao deve competir visualmente com quem tem trabalho em andamento.
             var border = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF2, 0xF7)),
-                BorderBrush = new SolidColorBrush(pend ? Color.FromRgb(0xE0, 0x8A, 0x00) : Color.FromRgb(0xD0, 0xD7, 0xE0)),
+                Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA)),
+                BorderBrush = new SolidColorBrush(pend ? Color.FromRgb(0xE0, 0x8A, 0x00) : Color.FromRgb(0xE2, 0xE6, 0xEB)),
                 BorderThickness = new Thickness(pend ? 2 : 1),
                 CornerRadius = new CornerRadius(3), Margin = new Thickness(3), Padding = new Thickness(6),
+                Opacity = pend ? 1.0 : 0.85,
                 Child = sp, Tag = st.Id
             };
             if (!pend && EffBlocked(st.Id, st.Tags ?? ""))
@@ -2795,6 +3003,8 @@ namespace NXProject.Views
                 border.BorderBrush = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30));
                 border.BorderThickness = new Thickness(2);
             }
+            AppendTip(border, StoryDatesText(st));
+            AttachStoryMoveTargetMenu(border, st.Id);
             // Modo edicao: arrastar para outra pessoa troca o Responsavel, igual ao card normal.
             if (EditModeCheck.IsChecked == true)
             {
@@ -3422,6 +3632,7 @@ namespace NXProject.Views
             var pend = _storyStatePending.ContainsKey(story.Id) || _storyRankPending.Contains(story.Id)
                 || _ownerPending.ContainsKey(story.Id) || _titlePending.ContainsKey(story.Id) || _iterPending.ContainsKey(story.Id)
                 || _blockPending.ContainsKey(story.Id) || _featurePending.ContainsKey(story.Id) || _startPending.ContainsKey(story.Id);
+
             var storyBlocked = story.Id > 0 && EffBlocked(story.Id, story.Tags);
             var storyToDelete = _deletePending.Contains(story.Id);
             var border = new Border
@@ -3433,6 +3644,8 @@ namespace NXProject.Views
                 CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(6), Tag = story.Id
             };
             if (storyBlocked && !pend && !storyToDelete) { border.BorderBrush = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)); border.BorderThickness = new Thickness(2); }
+            AttachStoryMoveTargetMenu(border, story.Id);
+            AppendTip(border, StoryDatesText(story));
             var sp = new StackPanel();
             var storyTitleTb = new TextBlock { Text = (isNew ? "🆕 " : "") + EffTitle(story.Id, story.Title), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap,
                 Foreground = storyToDelete ? new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)) : _titlePending.ContainsKey(story.Id) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black };
@@ -3451,7 +3664,6 @@ namespace NXProject.Views
                 // HH Estimado (e Realizado quando encerrada).
                 if (BuildHoursLine(story.Id, story.EstimateHours, story.CompletedHours, EffStoryState(story)) is { } hhStory)
                     sp.Children.Add(hhStory);
-                AddStoryDateLines(sp, story);
                 // Sprint da Story (🗓). Laranja quando há troca pendente.
                 var iterLeaf = IterLeaf(EffIter(story.Id, story.IterationPath));
                 if (!string.IsNullOrEmpty(iterLeaf))
@@ -3755,9 +3967,10 @@ namespace NXProject.Views
                 var prioPend = _prioPending.ContainsKey(t.Id);
                 var combo = new ComboBox
                 {
-                    Width = 52, FontSize = 10, FontWeight = FontWeights.Bold, Height = 20,
+                    Width = 40, FontSize = 10, FontWeight = FontWeights.Bold, Height = 20,
+                    Padding = new Thickness(2, 0, 0, 0),
                     Cursor = System.Windows.Input.Cursors.Arrow,
-                    Margin = new Thickness(0, 0, 4, 2), VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 3, 2), VerticalAlignment = VerticalAlignment.Center,
                     Background = eff > 0 ? PriorityBrush(eff) : new SolidColorBrush(Color.FromRgb(0xB0, 0xB8, 0xC0)),
                     BorderBrush = prioPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Gray,
                     BorderThickness = new Thickness(prioPend ? 2 : 1),
@@ -3793,36 +4006,14 @@ namespace NXProject.Views
             if (toDelete) titleTb.TextDecorations = TextDecorations.Strikethrough; // marcada p/ excluir
             titleLine.Children.Add(titleTb);
             sp.Children.Add(titleLine);
+            // Só o id no corpo: na visao Pessoa & Task o responsavel ja e a faixa, e na visao
+            // Projeto & Story ele cabe no hint — o card fica mais curto e o board mais legivel.
             var line = new TextBlock { FontSize = 10, Foreground = Brushes.Gray };
-            line.Text = (isNew ? AppStrings.Get("Sprint_New") : $"#{t.Id}")
-                + (string.IsNullOrWhiteSpace(t.AssignedTo) ? "" : $"  ·  {t.AssignedTo}");
+            line.Text = isNew ? AppStrings.Get("Sprint_New") : $"#{t.Id}";
             sp.Children.Add(line);
             // HH Estimado (e Realizado quando encerrada).
             if (!isNew && BuildHoursLine(t.Id, t.EstimateHours, t.CompletedHours, EffState(t)) is { } hhTask)
                 sp.Children.Add(hhTask);
-            // Data de criacao no DevOps: ajuda a ver o que entrou depois do inicio da sprint.
-            if (!isNew && t.CreatedDate is { } created)
-                sp.Children.Add(new TextBlock
-                {
-                    Text = AppStrings.Get("Sprint_CreatedOn", created.ToString("dd/MM/yyyy")),
-                    FontSize = 10, Foreground = Brushes.DimGray
-                });
-            // Desde quando a Task esta no estado atual (ou quando foi encerrada). So vale para
-            // o estado GRAVADO no DevOps: com arrasto pendente a data ainda e a do estado antigo,
-            // entao a linha sai do card ate a gravacao, para nao informar data errada.
-            if (!isNew && !_pending.ContainsKey(t.Id))
-            {
-                var stClosed = IsClosedState(EffState(t));
-                var when = stClosed ? (t.ClosedDate ?? t.StateChangeDate) : t.StateChangeDate;
-                if (when is { } dt)
-                    sp.Children.Add(new TextBlock
-                    {
-                        Text = AppStrings.Get(stClosed ? "Sprint_ClosedOn" : "Sprint_StateSince",
-                            dt.ToString("dd/MM/yyyy")),
-                        FontSize = 10,
-                        Foreground = stClosed ? new SolidColorBrush(Color.FromRgb(0x5A, 0x7A, 0x5A)) : Brushes.DimGray
-                    });
-            }
             // Sprint da Task: mostra quando há mais de uma sprint no board (várias/"Todas").
             var tIter = IterLeaf(EffIter(t.Id, t.IterationPath));
             if (_sprintPaths.Count != 1 && !string.IsNullOrEmpty(tIter))
@@ -3891,7 +4082,7 @@ namespace NXProject.Views
 
             var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
             if (prioCombo != null) actions.Children.Add(prioCombo);
-            var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 4, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+            var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
             open.Click += (_, _) => OpenInDevOps(t.Id);
             actions.Children.Add(open);
             // Botão Doing: marcar só faz sentido no que já começou — em New não há andamento,
@@ -3905,16 +4096,15 @@ namespace NXProject.Views
                 var doingLabel = !isDoing ? AppStrings.Get("Sprint_MarkDoing")
                     : isDone ? AppStrings.Get("Sprint_RemoveDone")
                     : AppStrings.Get("Sprint_RemoveDoing");
-                // O "+"/"-" maior (14pt) esticava a caixa de linha e deixava o botão mais alto que
-                // os vizinhos. LineHeight fixo mantém o sinal grande sem crescer o botão.
-                var doingContent = new TextBlock { VerticalAlignment = VerticalAlignment.Center,
-                    LineHeight = 13, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
-                doingContent.Inlines.Add(new System.Windows.Documents.Run(doingLabel.Length > 0 ? doingLabel[..1] : "") { FontSize = 14, FontWeight = FontWeights.Bold });
-                doingContent.Inlines.Add(new System.Windows.Documents.Run(doingLabel.Length > 1 ? doingLabel[1..] : "") { FontSize = 10 });
+                // So o icone: com o texto ("+Doing"/"-Doing") a linha de botoes nao cabia na
+                // largura da coluna e quebrava em duas. O rotulo completo fica no hint.
                 var doingBtn = new Button
                 {
-                    Content = doingContent, VerticalContentAlignment = VerticalAlignment.Center,
-                    Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0, 0, 4, 2)
+                    Content = new TextBlock { Text = isDoing ? "⏹" : "▶", FontSize = 11,
+                        VerticalAlignment = VerticalAlignment.Center },
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2),
+                    ToolTip = doingLabel
                 };
                 doingBtn.Click += (_, _) =>
                 {
@@ -3931,15 +4121,13 @@ namespace NXProject.Views
                 var markedDone = _done.Contains(t.Id);
                 // Alterna entre Doing e Done (o "-Done" de remover fica no botão ao lado).
                 var doneLabel = markedDone ? AppStrings.Get("Sprint_BackToDoing") : AppStrings.Get("Sprint_MarkDone");
-                var doneContent = new TextBlock { VerticalAlignment = VerticalAlignment.Center,
-                    LineHeight = 13, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
-                doneContent.Inlines.Add(new System.Windows.Documents.Run(doneLabel.Length > 0 ? doneLabel[..1] : "") { FontSize = 14, FontWeight = FontWeights.Bold });
-                doneContent.Inlines.Add(new System.Windows.Documents.Run(doneLabel.Length > 1 ? doneLabel[1..] : "") { FontSize = 10 });
                 var doneBtn = new Button
                 {
-                    Content = doneContent, VerticalContentAlignment = VerticalAlignment.Center,
-                    Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0, 0, 4, 2),
-                    ToolTip = AppStrings.Get(markedDone ? "Sprint_BackToDoingTip" : "Sprint_MarkDoneTip")
+                    Content = new TextBlock { Text = markedDone ? "↺" : "✔", FontSize = 11,
+                        VerticalAlignment = VerticalAlignment.Center },
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2),
+                    ToolTip = doneLabel + " - " + AppStrings.Get(markedDone ? "Sprint_BackToDoingTip" : "Sprint_MarkDoneTip")
                 };
                 doneBtn.Click += (_, _) =>
                 {
@@ -3952,7 +4140,7 @@ namespace NXProject.Views
             if (inSched && _openInSchedule != null)
             {
                 var sched = new Button { Content = "📅", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
-                    ToolTip = AppStrings.Get("Query_OpenInSchedule") };
+                    Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Query_OpenInSchedule") };
                 sched.Click += (_, _) => _openInSchedule!(t.Id);
                 actions.Children.Add(sched);
             }
@@ -3977,6 +4165,43 @@ namespace NXProject.Views
             }
             sp.Children.Add(actions);
             border.Child = sp;
+
+            // Datas (criacao / estado) ficam SO no hint: no corpo do card elas somavam duas
+            // linhas em cada card e atrapalhavam a leitura do board.
+            if (!isNew)
+            {
+                if (!string.IsNullOrWhiteSpace(t.AssignedTo))
+                    AppendTip(border, "👤 " + t.AssignedTo);
+                AppendTip(border, TaskDatesText(t));
+            }
+            // Mover de Story: marcada (aguardando destino) ou ja com destino na fila.
+            AttachTaskMoveMenu(border, t);
+            if (_moveTaskId == t.Id)
+            {
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x7A, 0x3D, 0xB8));
+                border.BorderThickness = new Thickness(2);
+                sp.Children.Insert(0, new TextBlock
+                {
+                    Text = AppStrings.Get("Sprint_MoveMarked"), FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x3D, 0xB8)), TextWrapping = TextWrapping.Wrap
+                });
+            }
+            else if (_taskParentPending.ContainsKey(t.Id))
+            {
+                // O card ja aparece na Story DESTINO; o selo diz de onde ele veio e que a
+                // troca ainda esta na fila do "Atualizar TFS".
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00));
+                border.BorderThickness = new Thickness(2);
+                var from = t.ParentId ?? 0;
+                var src = from > 0 ? StoryById(from) : null;
+                sp.Children.Insert(0, new TextBlock
+                {
+                    Text = AppStrings.Get("Sprint_MoveTo", from > 0 ? "#" + from : "",
+                        src == null ? "" : EffTitle(from, src.Title)),
+                    FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)), TextWrapping = TextWrapping.Wrap
+                });
+            }
 
             // No modo edição, o card pode ser arrastado para outra coluna de estado.
             if (EditModeCheck.IsChecked == true)

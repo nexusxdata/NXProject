@@ -98,7 +98,8 @@ namespace NXProject.Views
             bool enableStartDate = false, DateTime? currentStartDate = null,
             string? epicTitle = null, string? projectTitle = null,
             bool enableAcceptance = false, string? acceptanceHtml = null,
-            bool enableUnplanned = false, bool currentUnplanned = false, string? unplannedTag = null)
+            bool enableUnplanned = false, bool currentUnplanned = false, string? unplannedTag = null,
+            string? datesInfo = null)
         {
             InitializeComponent();
             _task = task;
@@ -154,6 +155,14 @@ namespace NXProject.Views
                 NameEnabled = true;
                 NamePanel.Visibility = Visibility.Visible;
                 NameBox.Text = _initialName;
+            }
+
+            // Datas so para consulta: quem edita quer saber ha quanto tempo o item esta parado
+            // no estado atual sem precisar voltar ao board (o card mostra isso no hint).
+            if (!string.IsNullOrWhiteSpace(datesInfo))
+            {
+                DatesText.Text = datesInfo;
+                DatesText.Visibility = Visibility.Visible;
             }
 
             _initialEstimate = estimate;
