@@ -426,6 +426,11 @@ namespace NXProject.Views
             _closedDays = DefaultClosedDays;
             ClosedDaysBox.Text = DefaultClosedDays.ToString();
 
+            // O que esta recolhido tambem e recorte de tela: o "limpar" expande tudo de volta.
+            // (Fora daqui isso fica gravado e volta do jeito que estava na proxima abertura.)
+            _collapsed.Clear();
+            _collapsedPeople.Clear();
+
             StoryFilterToggle.IsChecked = false;
             RenderBusy();
             SavePrefs();
