@@ -302,7 +302,8 @@
                 <StackPanel x:Name="HeaderHost" DockPanel.Dock="Top" Background="White"/>
                 <ScrollViewer x:Name="BoardScroll" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
-                              ScrollChanged="OnBoardScrollChanged">
+                              ScrollChanged="OnBoardScrollChanged"
+                              PreviewMouseLeftButtonUp="OnBoardScrollMouseUp">
                     <StackPanel x:Name="BoardHost"/>
                 </ScrollViewer>
             </DockPanel>

@@ -1652,11 +1652,25 @@ namespace NXProject.Views
         /// </summary>
         private void OnBoardScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            if (SummaryBox == null) return;
-            var off = e.VerticalOffset;
-            if (off > 24 && SummaryBox.Visibility == Visibility.Visible)
+            // Mudanca de altura da area visivel e EFEITO do proprio esconder/mostrar o resumo,
+            // nao rolagem do usuario: reagir a ela e o que realimentava o vai-e-vem.
+            if (e.ViewportHeightChange != 0 || e.ExtentHeightChange != 0) return;
+            // Arrastando a barra: o polegar e reposicionado pelo mouse a cada layout, entao
+            // trocar a altura agora faz o offset pular e o resumo piscar. Decide ao soltar.
+            if (System.Windows.Input.Mouse.LeftButton == System.Windows.Input.MouseButtonState.Pressed) return;
+            UpdateSummaryVisibility();
+        }
+
+        private void OnBoardScrollMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+            => UpdateSummaryVisibility();
+
+        private void UpdateSummaryVisibility()
+        {
+            if (SummaryBox == null || BoardScroll == null) return;
+            var off = BoardScroll.VerticalOffset;
+            if (off > 60 && SummaryBox.Visibility == Visibility.Visible)
                 SummaryBox.Visibility = Visibility.Collapsed;
-            else if (off <= 2 && SummaryBox.Visibility != Visibility.Visible)
+            else if (off <= 0 && SummaryBox.Visibility != Visibility.Visible)
                 SummaryBox.Visibility = Visibility.Visible;
         }
 
