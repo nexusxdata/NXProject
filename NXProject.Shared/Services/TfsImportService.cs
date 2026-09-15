@@ -1993,14 +1993,40 @@ namespace NXProject.Services
                         }
                     } // end !isTask
 
-                    if (isTask && IsDevOpsMilestoneType(task.TfsType))
+                    if (isTask)
                     {
                         var currentTags = wi.Tags ?? string.Empty;
-                        if (!HasTag(currentTags, "MARCO-PROJECT"))
+                        var desiredTags = currentTags;
+                        var tagChanges = new List<string>();
+
+                        var fixedTag = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
+                        var fixedTagAliases = GetFixedStartTagAliases(fixedTag);
+                        var hasFixedTagNow = fixedTagAliases.Any(tag => HasTag(currentTags, tag));
+
+                        if (task.StartFixed && !hasFixedTagNow)
                         {
-                            var newTags = AddTag(currentTags, "MARCO-PROJECT");
-                            ops.Add(PatchAdd("/fields/System.Tags", newTags));
-                            changes.Add("tag: +MARCO-PROJECT");
+                            desiredTags = AddTag(desiredTags, fixedTag);
+                            tagChanges.Add($"tag: +{fixedTag}");
+                        }
+                        else if (!task.StartFixed && hasFixedTagNow)
+                        {
+                            desiredTags = string.Join("; ",
+                                SplitTags(desiredTags)
+                                    .Where(t => !fixedTagAliases.Any(tag =>
+                                        string.Equals(t, tag, StringComparison.OrdinalIgnoreCase))));
+                            tagChanges.Add($"tag: -{string.Join("/", fixedTagAliases)}");
+                        }
+
+                        if (IsDevOpsMilestoneType(task.TfsType) && !HasTag(desiredTags, "MARCO-PROJECT"))
+                        {
+                            desiredTags = AddTag(desiredTags, "MARCO-PROJECT");
+                            tagChanges.Add("tag: +MARCO-PROJECT");
+                        }
+
+                        if (!TagsEqual(desiredTags, currentTags))
+                        {
+                            ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(desiredTags)));
+                            changes.AddRange(tagChanges);
                         }
                     }
 

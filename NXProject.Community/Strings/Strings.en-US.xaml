@@ -1128,6 +1128,8 @@
     <!-- Import from Azure DevOps -->
     <sys:String x:Key="Imp_Title">Import from Azure DevOps</sys:String>
     <sys:String x:Key="Imp_Subtitle">Choose the project and root ID to build the schedule.</sys:String>
+    <sys:String x:Key="Imp_TabImport">Import</sys:String>
+    <sys:String x:Key="Imp_TabConfig">Config</sys:String>
     <sys:String x:Key="Imp_NotConfigured">⚠ Azure DevOps connection not configured yet. </sys:String>
     <sys:String x:Key="Imp_Configure">Configure...</sys:String>
     <sys:String x:Key="Imp_Step1Title">  Project portfolio</sys:String>
@@ -1148,6 +1150,11 @@
     <sys:String x:Key="Imp_AdmGroupInfo">🔒 Who can sync is set by the NX admin group (Adm_NX field on the Project work item), read from DevOps at import. Empty field = open to everyone.</sys:String>
     <sys:String x:Key="Imp_AdmGroupSelected">🔒 Sync: members of group "{0}" (Adm_NX field, read from DevOps at import).</sys:String>
     <sys:String x:Key="Imp_ScheduleRules">💡 Schedule rules: each Story's effort (Estimated HH) is converted into working days. If Data_Inicio is set in DevOps, the bar starts there; Data_Fim, if set, is used directly. Stories without dates are chained from the project start date.</sys:String>
+    <sys:String x:Key="Imp_ConfigImportTitle">Import options</sys:String>
+    <sys:String x:Key="Imp_LoadTasksOnImport">Load Tasks during import</sys:String>
+    <sys:String x:Key="Imp_LoadTasksOnImportTip">Runs a complementary Task load after importing Epic, Feature and Story.</sys:String>
+    <sys:String x:Key="Imp_LoadTasksOnImportHelp">Recommended for smaller projects, when it makes sense to bring Tasks directly into the schedule. For larger projects, use the TaskBoard for agile Task management and keep the schedule up to Story level.</sys:String>
+    <sys:String x:Key="Imp_ConfigConnectionTitle">Connection and calendar</sys:String>
     <sys:String x:Key="Imp_ConfigDevOps">⚙ Configure DevOps</sys:String>
     <sys:String x:Key="Imp_ConfigDevOpsTip">Opens the Azure DevOps integration configuration</sys:String>
     <sys:String x:Key="Imp_Import">Import</sys:String>

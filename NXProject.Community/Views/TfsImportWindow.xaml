@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Imp_Title}"
         Loaded="OnWindowLoaded"
-        Width="600" Height="460"
+        Width="640" Height="520"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="White">
@@ -24,122 +24,158 @@
                            FontSize="12" Foreground="#666" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-            <StackPanel>
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- Aviso de conexão não configurada -->
-                <Border x:Name="NotConfiguredHint" Background="#FFF3E0" BorderBrush="#F0C36D" BorderThickness="1"
-                        CornerRadius="6" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{DynamicResource Imp_NotConfigured}" FontSize="11.5" Foreground="#5D4037" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                        <Button Content="{DynamicResource Imp_Configure}" Padding="8,3" FontSize="11" Click="OnOpenConfigClick" Margin="6,0,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- ══ PASSO 1 ══ Portfólio ═══════════════════════════════════ -->
-                <Border Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1"
-                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
-                    <StackPanel>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                <Border Background="#2B579A" CornerRadius="10" Width="20" Height="20">
-                                    <TextBlock Text="1" Foreground="White" FontSize="11" FontWeight="Bold"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TabControl Grid.Row="0">
+                    <TabItem Header="{DynamicResource Imp_TabImport}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,10,6,0">
+                            <StackPanel>
+                                <!-- Aviso de conexão não configurada -->
+                                <Border x:Name="NotConfiguredHint" Background="#FFF3E0" BorderBrush="#F0C36D" BorderThickness="1"
+                                        CornerRadius="6" Padding="12,8" Margin="0,0,0,12" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource Imp_NotConfigured}" FontSize="11.5" Foreground="#5D4037" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <Button Content="{DynamicResource Imp_Configure}" Padding="8,3" FontSize="11" Click="OnOpenConfigClick" Margin="6,0,0,0"/>
+                                    </StackPanel>
                                 </Border>
-                                <TextBlock Text="{DynamicResource Imp_Step1Title}"
-                                           FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Foreground="#2B579A"/>
-                            </StackPanel>
-                            <Button Grid.Column="1" x:Name="ManageListButton"
-                                    Content="{DynamicResource Imp_ManagePortfolio}"
-                                    Height="26" Padding="10,2" FontSize="11"
-                                    Click="OnManageListClick"
-                                    ToolTip="{DynamicResource Imp_ManageTip}"/>
-                        </Grid>
 
-                        <TextBlock FontSize="11" Foreground="#555" Margin="0,0,0,6" TextWrapping="Wrap"
-                                   Text="{DynamicResource Imp_SelectProject}"/>
+                                <!-- ══ PASSO 1 ══ Portfólio ═══════════════════════════════════ -->
+                                <Border Background="#EEF4FB" BorderBrush="#B8D0EC" BorderThickness="1"
+                                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                <Border Background="#2B579A" CornerRadius="10" Width="20" Height="20">
+                                                    <TextBlock Text="1" Foreground="White" FontSize="11" FontWeight="Bold"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <TextBlock Text="{DynamicResource Imp_Step1Title}"
+                                                           FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Foreground="#2B579A"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" x:Name="ManageListButton"
+                                                    Content="{DynamicResource Imp_ManagePortfolio}"
+                                                    Height="26" Padding="10,2" FontSize="11"
+                                                    Click="OnManageListClick"
+                                                    ToolTip="{DynamicResource Imp_ManageTip}"/>
+                                        </Grid>
 
-                        <ComboBox x:Name="DevOpsProjectCombo"
-                                  Height="30" Padding="6,4" FontSize="12"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectionChanged="OnProjectComboChanged"
-                                  ToolTip="{DynamicResource Imp_ComboTip}"/>
-                        <TextBlock x:Name="ListPathLabel"
-                                   FontSize="10" Foreground="#888" Margin="0,5,0,0"
-                                   TextTrimming="CharacterEllipsis"
-                                   Text="{DynamicResource Imp_NoPortfolio}"/>
-                    </StackPanel>
-                </Border>
+                                        <TextBlock FontSize="11" Foreground="#555" Margin="0,0,0,6" TextWrapping="Wrap"
+                                                   Text="{DynamicResource Imp_SelectProject}"/>
 
-                <!-- ══ PASSO 2 ══ Projeto raiz ════════════════════════════════ -->
-                <Border x:Name="RootIdSection" Background="#F5F9F5" BorderBrush="#B5D5B5" BorderThickness="1"
-                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="16"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <Border Background="#2E7D32" CornerRadius="10" Width="20" Height="20">
-                                    <TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="DevOpsProjectCombo"
+                                                  Height="30" Padding="6,4" FontSize="12"
+                                                  DisplayMemberPath="DisplayName"
+                                                  SelectionChanged="OnProjectComboChanged"
+                                                  ToolTip="{DynamicResource Imp_ComboTip}"/>
+                                        <TextBlock x:Name="ListPathLabel"
+                                                   FontSize="10" Foreground="#888" Margin="0,5,0,0"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Text="{DynamicResource Imp_NoPortfolio}"/>
+                                    </StackPanel>
                                 </Border>
-                                <TextBlock Text="{DynamicResource Imp_Step2Title}"
-                                           FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Foreground="#2E7D32"/>
+
+                                <!-- ══ PASSO 2 ══ Projeto raiz ════════════════════════════════ -->
+                                <Border x:Name="RootIdSection" Background="#F5F9F5" BorderBrush="#B5D5B5" BorderThickness="1"
+                                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Border Background="#2E7D32" CornerRadius="10" Width="20" Height="20">
+                                                <TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="{DynamicResource Imp_Step2Title}"
+                                                       FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Foreground="#2E7D32"/>
+                                        </StackPanel>
+                                        <TextBlock FontSize="11" Foreground="#555" Margin="0,0,0,6" TextWrapping="Wrap"
+                                                   Text="{DynamicResource Imp_RootIdHelp}"/>
+                                        <TextBox x:Name="RootIdBox" Height="28" Padding="6,4" FontSize="13" Width="160" HorizontalAlignment="Left"
+                                                 IsReadOnly="True" Background="#F0F0F0" Foreground="#444" Cursor="Arrow"
+                                                 ToolTip="{DynamicResource Imp_RootIdTip}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
-                            <TextBlock FontSize="11" Foreground="#555" Margin="0,0,0,6" TextWrapping="Wrap"
-                                       Text="{DynamicResource Imp_RootIdHelp}"/>
-                            <TextBox x:Name="RootIdBox" Height="28" Padding="6,4" FontSize="13" Width="160" HorizontalAlignment="Left"
-                                     IsReadOnly="True" Background="#F0F0F0" Foreground="#444" Cursor="Arrow"
-                                     ToolTip="{DynamicResource Imp_RootIdTip}"/>
-                        </StackPanel>
-                        <Button Grid.Column="2" x:Name="OpenCalendarButton"
-                                Content="{DynamicResource Imp_Calendar}"
-                                Height="28" Padding="10,4" FontSize="11"
-                                VerticalAlignment="Bottom"
-                                Click="OnOpenCalendarClick"
-                                ToolTip="{DynamicResource Imp_CalendarTip}"/>
-                    </Grid>
-                </Border>
+                        </ScrollViewer>
+                    </TabItem>
 
-                <!-- Nota sobre regras de cronograma -->
-                <Border x:Name="ImportHintBorder" Background="#FFFDE7" BorderBrush="#F9E08A" BorderThickness="1"
-                        CornerRadius="6" Padding="12,8" Margin="0,0,0,12">
-                    <TextBlock TextWrapping="Wrap" Foreground="#5D4037" FontSize="11.5"
-                               Text="{DynamicResource Imp_ScheduleRules}"/>
-                </Border>
+                    <TabItem Header="{DynamicResource Imp_TabConfig}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,10,6,0">
+                            <StackPanel>
+                                <Border Background="#F6F6F6" BorderBrush="#D5DCE6" BorderThickness="1"
+                                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Imp_ConfigImportTitle}"
+                                                   FontWeight="SemiBold" FontSize="13" Foreground="#333" Margin="0,0,0,8"/>
+                                        <CheckBox x:Name="LoadTasksOnImportBox"
+                                                  Content="{DynamicResource Imp_LoadTasksOnImport}"
+                                                  FontWeight="SemiBold"
+                                                  Checked="OnLoadTasksOnImportChanged"
+                                                  Unchecked="OnLoadTasksOnImportChanged"
+                                                  ToolTip="{DynamicResource Imp_LoadTasksOnImportTip}"/>
+                                        <TextBlock Text="{DynamicResource Imp_LoadTasksOnImportHelp}"
+                                                   FontSize="11.5" Foreground="#555" TextWrapping="Wrap"
+                                                   Margin="22,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
 
-                <!-- Autorização de sincronização: agora vem do grupo administrador do NX
-                     (campo Adm_NX do work item Project), lido na importação. -->
-                <TextBlock x:Name="AdmGroupHint" FontSize="10.5" Foreground="#888"
-                           TextWrapping="Wrap" Margin="0,0,0,8"
-                           Text="{DynamicResource Imp_AdmGroupInfo}"/>
+                                <Border Background="#FFFDE7" BorderBrush="#F9E08A" BorderThickness="1"
+                                        CornerRadius="6" Padding="12,8" Margin="0,0,0,12">
+                                    <TextBlock TextWrapping="Wrap" Foreground="#5D4037" FontSize="11.5"
+                                               Text="{DynamicResource Imp_ScheduleRules}"/>
+                                </Border>
+
+                                <Border Background="#F8FBFF" BorderBrush="#CCD9EA" BorderThickness="1"
+                                        CornerRadius="8" Padding="14,12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Imp_ConfigConnectionTitle}"
+                                                   FontWeight="SemiBold" FontSize="13" Foreground="#333" Margin="0,0,0,8"/>
+                                        <WrapPanel>
+                                            <Button Content="{DynamicResource Imp_ConfigDevOps}" Padding="10,4" FontSize="11"
+                                                    Click="OnOpenConfigClick"
+                                                    ToolTip="{DynamicResource Imp_ConfigDevOpsTip}"
+                                                    Margin="0,0,8,8"/>
+                                            <Button x:Name="OpenCalendarButton"
+                                                    Content="{DynamicResource Imp_Calendar}"
+                                                    Padding="10,4" FontSize="11"
+                                                    Click="OnOpenCalendarClick"
+                                                    ToolTip="{DynamicResource Imp_CalendarTip}"
+                                                    Margin="0,0,8,8"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Autorização de sincronização: agora vem do grupo administrador do NX
+                                     (campo Adm_NX do work item Project), lido na importação. -->
+                                <TextBlock x:Name="AdmGroupHint" FontSize="10.5" Foreground="#888"
+                                           TextWrapping="Wrap" Margin="0,0,0,8"
+                                           Text="{DynamicResource Imp_AdmGroupInfo}"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
 
                 <!-- Progresso do import: barra + etapa atual -->
-                <StackPanel x:Name="ImportProgressPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                <StackPanel Grid.Row="1" x:Name="ImportProgressPanel" Margin="0,12,0,0" Visibility="Collapsed">
                     <ProgressBar x:Name="ImportProgressBar" Height="14" IsIndeterminate="True"/>
                     <TextBlock x:Name="ImportStepText" Margin="0,4,0,0"
                                FontSize="12" Foreground="#2B579A" TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <TextBlock x:Name="StatusText"
+                <TextBlock Grid.Row="2" x:Name="StatusText"
                            Foreground="#B00020" TextWrapping="Wrap"
                            Margin="0,12,0,0" Visibility="Collapsed"/>
-            </StackPanel>
-            </ScrollViewer>
+            </Grid>
 
             <!-- Botões -->
             <DockPanel Grid.Row="2" Margin="0,16,0,0">
-                <Button DockPanel.Dock="Left"
-                        Content="{DynamicResource Imp_ConfigDevOps}" Padding="10,4" FontSize="11"
-                        Click="OnOpenConfigClick"
-                        ToolTip="{DynamicResource Imp_ConfigDevOpsTip}"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="ImportButton" Content="{DynamicResource Imp_Import}" Width="120" Height="34"
                             FontSize="13" FontWeight="SemiBold"

@@ -667,6 +667,8 @@
     <!-- Importar do Azure DevOps -->
     <sys:String x:Key="Imp_Title">Importar do Azure DevOps</sys:String>
     <sys:String x:Key="Imp_Subtitle">Escolha o projeto e o ID raiz para montar o cronograma.</sys:String>
+    <sys:String x:Key="Imp_TabImport">Importação</sys:String>
+    <sys:String x:Key="Imp_TabConfig">Config</sys:String>
     <sys:String x:Key="Imp_NotConfigured">⚠ Conexão com o Azure DevOps ainda não configurada. </sys:String>
     <sys:String x:Key="Imp_Configure">Configurar...</sys:String>
     <sys:String x:Key="Imp_Step1Title">  Portfólio de projetos</sys:String>
@@ -687,6 +689,11 @@
     <sys:String x:Key="Imp_AdmGroupInfo">🔒 Quem pode sincronizar é definido pelo grupo administrador do NX (campo Adm_NX do work item Project), lido do DevOps na importação. Campo vazio = liberado para todos.</sys:String>
     <sys:String x:Key="Imp_AdmGroupSelected">🔒 Sincronizam: membros do grupo "{0}" (campo Adm_NX, lido do DevOps na importação).</sys:String>
     <sys:String x:Key="Imp_ScheduleRules">💡 Regras de cronograma: o esforço (HH Estimado) de cada Story é convertido em dias úteis. Se Data_Inicio estiver preenchida no DevOps, a barra começa nela; Data_Fim, se preenchida, é usada diretamente. Stories sem datas são encadeadas a partir da data de início do projeto.</sys:String>
+    <sys:String x:Key="Imp_ConfigImportTitle">Opções da importação</sys:String>
+    <sys:String x:Key="Imp_LoadTasksOnImport">Carregar Tasks na importação</sys:String>
+    <sys:String x:Key="Imp_LoadTasksOnImportTip">Executa uma carga complementar das Tasks depois de importar Epic, Feature e Story.</sys:String>
+    <sys:String x:Key="Imp_LoadTasksOnImportHelp">Recomendado para projetos menores, quando faz sentido trazer as Tasks direto para o cronograma. Para projetos maiores, use o TaskBoard para gestão ágil das Tasks e mantenha o cronograma até o nível de Story.</sys:String>
+    <sys:String x:Key="Imp_ConfigConnectionTitle">Conexão e calendário</sys:String>
     <sys:String x:Key="Imp_ConfigDevOps">⚙ Configurar DevOps</sys:String>
     <sys:String x:Key="Imp_ConfigDevOpsTip">Abre a configuração da integração com Azure DevOps</sys:String>
     <sys:String x:Key="Imp_Import">Importar</sys:String>

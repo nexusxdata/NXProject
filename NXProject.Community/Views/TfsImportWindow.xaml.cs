@@ -20,6 +20,7 @@ namespace NXProject.Views
     {
         private readonly string _storageKey;
         private bool _isImporting;
+        private bool _syncingImportConfig;
         private string _devOpsProjectListPath = string.Empty;
         private List<DevOpsProject> _devOpsProjects = new();
         private TfsConnectionOptions _savedOptions = new();
@@ -104,6 +105,7 @@ namespace NXProject.Views
             if (DevOpsProjectCombo.SelectedItem == null && selectId > 0)
                 RootIdBox.Text = selectId.ToString(CultureInfo.InvariantCulture);
             SyncReadOnlyBox();
+            SyncImportConfig();
         }
 
         private void OnProjectComboChanged(object sender, SelectionChangedEventArgs e)
@@ -111,6 +113,7 @@ namespace NXProject.Views
             if (DevOpsProjectCombo.SelectedItem is DevOpsProject selected)
                 RootIdBox.Text = selected.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
             SyncReadOnlyBox();
+            SyncImportConfig();
         }
 
         // Mostra o grupo administrador do NX do projeto selecionado no Portfólio (informativo).
@@ -121,6 +124,41 @@ namespace NXProject.Views
             AdmGroupHint.Text = !string.IsNullOrWhiteSpace(selected?.AdmGroupName)
                 ? AppStrings.Get("Imp_AdmGroupSelected", selected!.AdmGroupName)
                 : AppStrings.Get("Imp_AdmGroupInfo");
+        }
+
+        private void SyncImportConfig()
+        {
+            if (LoadTasksOnImportBox == null) return;
+            var selected = DevOpsProjectCombo.SelectedItem as DevOpsProject;
+            _syncingImportConfig = true;
+            try
+            {
+                LoadTasksOnImportBox.IsEnabled = selected != null;
+                LoadTasksOnImportBox.IsChecked = selected?.LoadTasksOnImport == true;
+            }
+            finally
+            {
+                _syncingImportConfig = false;
+            }
+        }
+
+        private void OnLoadTasksOnImportChanged(object sender, RoutedEventArgs e)
+        {
+            if (_syncingImportConfig) return;
+            PersistSelectedImportConfig();
+        }
+
+        private void PersistSelectedImportConfig()
+        {
+            if (DevOpsProjectCombo.SelectedItem is not DevOpsProject selected)
+                return;
+
+            selected.LoadTasksOnImport = LoadTasksOnImportBox.IsChecked == true;
+            if (string.IsNullOrWhiteSpace(_devOpsProjectListPath))
+                return;
+
+            try { DevOpsProjectListService.Save(_devOpsProjects, _devOpsProjectListPath); }
+            catch { /* configuração de importação é conveniência; a importação ainda pode seguir */ }
         }
 
         private void OnManageListClick(object sender, RoutedEventArgs e)
@@ -172,6 +210,7 @@ namespace NXProject.Views
             options.RootWorkItemId = rootId;
             options.DevOpsProjectListPath = _devOpsProjectListPath;
             var selectedPortfolioProject = DevOpsProjectCombo.SelectedItem as DevOpsProject;
+            PersistSelectedImportConfig();
             var loadTasksOnImport = selectedPortfolioProject?.LoadTasksOnImport == true;
 
             SetImporting(true);

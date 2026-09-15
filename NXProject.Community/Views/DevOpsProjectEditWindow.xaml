@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource PortEdit_Title}"
-        Width="440" Height="560"
+        Width="440" Height="520"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="White">
@@ -45,8 +45,9 @@
 
             <CheckBox x:Name="LoadTasksOnImportBox"
                       Content="{DynamicResource PortEdit_LoadTasksOnImport}"
-                      ToolTip="{DynamicResource PortEdit_LoadTasksOnImportTip}"
-                      Margin="0,0,0,12"/>
+                      FontWeight="SemiBold"
+                      Margin="0,0,0,12"
+                      ToolTip="{DynamicResource PortEdit_LoadTasksOnImportTip}"/>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
                 <Button Content="{DynamicResource PortEdit_Ok}" Width="90" Height="30" IsDefault="True" Click="OnOkClick"/>
