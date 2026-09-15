@@ -1485,6 +1485,7 @@ namespace NXProject.Views
                 if (existingIds.Contains(r.TaskId)) continue;
                 var (curH, estH) = Services.TfsImportService.ResolveTaskScheduleHours(
                     r.EstimatedHours, r.CompletedHours, r.PercentComplete);
+                var originalH = r.EstimatedHours > 0 ? r.EstimatedHours : (double?)null;
                 var pt = new NXProject.Models.ProjectTask
                 {
                     // Contador central do projeto — FlatTasks pode estar desatualizado
@@ -1499,6 +1500,7 @@ namespace NXProject.Views
                     // Task fechada (100%): restante = 0 e o esforço vem do CompletedWork — o HH
                     // Original não vira "restante" (senão AbsorbRemaining dobraria). Ver helper.
                     EstimatedHours   = estH,
+                    OriginalEstimatedHours = originalH,
                     CurrentHours     = curH,
                     PercentComplete  = r.PercentComplete,
                     Priority         = r.Priority > 0 ? r.Priority : 5,
@@ -1617,6 +1619,7 @@ namespace NXProject.Views
             var (curH, estH) = Services.TfsImportService.ResolveTaskScheduleHours(
                 row.EstimatedHours, row.CompletedHours, row.PercentComplete);
             task.EstimatedHours = estH;
+            task.OriginalEstimatedHours = row.EstimatedHours > 0 ? row.EstimatedHours : null;
             task.CurrentHours = curH;
             task.PercentComplete = row.PercentComplete;
             task.Priority = row.Priority > 0 ? row.Priority : 5;
