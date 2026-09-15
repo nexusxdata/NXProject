@@ -1466,11 +1466,29 @@ namespace NXProject.Services
             if (startRef != null) requested.Add(startRef);
             if (finishRef != null) requested.Add(finishRef);
             if (percAlocRef != null) requested.Add(percAlocRef);
+            if (percConclusaoRef != null && !requested.Contains(percConclusaoRef)) requested.Add(percConclusaoRef);
             if (syncVersionRef != null) requested.Add(syncVersionRef);
             if (syncNameRef != null) requested.Add(syncNameRef);
             requested.Add("Microsoft.VSTS.Common.Priority"); // Priority para Tasks
             requested.Add("Microsoft.VSTS.Common.StackRank");
             requested.Add("Microsoft.VSTS.Common.BacklogPriority");
+
+            void AddRequestedMappedField(string? fieldName)
+            {
+                if (string.IsNullOrWhiteSpace(fieldName)) return;
+                var refName = ResolveField(fieldMap, fieldName, Array.Empty<string>()) ?? fieldName.Trim();
+                if (!requested.Contains(refName))
+                    requested.Add(refName);
+            }
+
+            foreach (var cfg in options.TypeFieldMappings.Values)
+            {
+                AddRequestedMappedField(cfg.EffortField);
+                AddRequestedMappedField(cfg.StartField);
+                AddRequestedMappedField(cfg.FinishField);
+                AddRequestedMappedField(cfg.PercAlocField);
+                AddRequestedMappedField(cfg.PercConclusaoField);
+            }
 
             // Campos Custom DevOps — necessário para comparar valor atual antes de enviar patch
             foreach (var kv in options.TypeFieldMappings)
@@ -2059,6 +2077,42 @@ namespace NXProject.Services
                         }
                         if (!task.Priority.HasValue && currentPriority.HasValue && currentPriority.Value > 0)
                             task.Priority = (int)currentPriority.Value;
+
+                        // Data Inicio / Data Fim da previsao da Task no cronograma.
+                        if (typeStartRef != null && task.Start > DateTime.MinValue.AddYears(1))
+                        {
+                            var currentStart = ReadDate(wi, typeStartRef);
+                            if (currentStart == null || currentStart.Value.Date != task.Start.Date)
+                            {
+                                ops.Add(PatchAdd($"/fields/{typeStartRef}", FormatDateForTfs(task.Start)));
+                                changes.Add($"início: {task.Start:dd/MM}");
+                            }
+                        }
+
+                        var tfsTaskFinish = GetTfsFinishDate(task);
+                        if (typeFinishRef != null && tfsTaskFinish.HasValue)
+                        {
+                            var currentFinish = ReadDate(wi, typeFinishRef);
+                            if (currentFinish == null || currentFinish.Value.Date != tfsTaskFinish.Value.Date)
+                            {
+                                ops.Add(PatchAdd($"/fields/{typeFinishRef}", FormatDateForTfs(tfsTaskFinish.Value)));
+                                changes.Add($"fim: {tfsTaskFinish.Value:dd/MM}");
+                            }
+                        }
+
+                        // % alocação da Task: grava só quando a Task difere da Story pai.
+                        if (typePercAloc != null &&
+                            TryGetTaskAllocationDifferentFromStory(task, out var taskAllocation))
+                        {
+                            var desiredAloc = Math.Round(taskAllocation, 2);
+                            var currentAloc = ReadDouble(wi, typePercAloc);
+                            if (currentAloc == null || Math.Abs(currentAloc.Value - desiredAloc) > 0.005)
+                            {
+                                ops.Add(PatchAdd($"/fields/{typePercAloc}", desiredAloc));
+                                var oldA = currentAloc.HasValue ? $"{currentAloc.Value:0.##}%→" : "";
+                                changes.Add($"% aloc.: {oldA}{desiredAloc:0.##}%");
+                            }
+                        }
 
                         // Mesmo com Perc_Conclusao configurado, 100% no cronograma fecha a Task pelo estado.
                         if (task.PercentComplete >= 100)
@@ -3049,11 +3103,25 @@ namespace NXProject.Services
             }
             else
             {
-                // Task: Original Estimate (Decimal) + Priority=5 na criação.
+                // Task: campos de planejamento/progresso na criação.
                 var taskHours = task.EstimatedHours ?? task.CurrentHours;
                 if (taskHours.HasValue)
                     ops.Add(PatchAdd("/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", taskHours.Value));
                 ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", 4));
+
+                if (startRef != null && task.Start > DateTime.MinValue.AddYears(1))
+                    ops.Add(PatchAdd($"/fields/{startRef}", FormatDateForTfs(task.Start)));
+
+                var tfsTaskFinish = GetTfsFinishDate(task);
+                if (finishRef != null && tfsTaskFinish.HasValue)
+                    ops.Add(PatchAdd($"/fields/{finishRef}", FormatDateForTfs(tfsTaskFinish.Value)));
+
+                if (percAlocRef != null && TryGetTaskAllocationDifferentFromStory(task, out var taskAllocation))
+                    ops.Add(PatchAdd($"/fields/{percAlocRef}", Math.Round(taskAllocation, 2)));
+
+                if (percConcRef != null)
+                    ops.Add(PatchAdd($"/fields/{percConcRef}", (int)Math.Round(Math.Clamp(task.PercentComplete, 0, 100))));
+
                 var taskTags = task.StartFixed
                     ? AddTag(task.Tags, string.IsNullOrWhiteSpace(fixedStartTagName) ? "DT-INI-NEG" : fixedStartTagName.Trim())
                     : task.Tags;
@@ -3959,6 +4027,32 @@ namespace NXProject.Services
             return storyAssignment != null
                 ? TaskScheduleService.NormalizeAllocationPercent(storyAssignment.AllocationPercent)
                 : 100;
+        }
+
+        private static bool TryGetTaskAllocationDifferentFromStory(ProjectTask task, out double taskAllocation)
+        {
+            taskAllocation = 0;
+            if (!IsTaskType(task.TfsType) || task.Resources.Count == 0)
+                return false;
+
+            var taskAssignment = task.Resources[0];
+            taskAllocation = TaskScheduleService.NormalizeAllocationPercent(taskAssignment.AllocationPercent);
+            var story = task.Parent;
+            if (story == null || story.Resources.Count == 0)
+                return Math.Abs(taskAllocation - 100.0) > 0.005;
+
+            var storyAssignment = story.Resources.FirstOrDefault(r =>
+                r.ResourceId == taskAssignment.ResourceId ||
+                (r.Resource != null && taskAssignment.Resource != null &&
+                 (string.Equals(r.Resource.Email, taskAssignment.Resource.Email, StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(r.Resource.Name, taskAssignment.Resource.Name, StringComparison.OrdinalIgnoreCase))));
+
+            storyAssignment ??= story.Resources.FirstOrDefault();
+            var storyAllocation = storyAssignment != null
+                ? TaskScheduleService.NormalizeAllocationPercent(storyAssignment.AllocationPercent)
+                : 100.0;
+
+            return Math.Abs(taskAllocation - storyAllocation) > 0.005;
         }
 
         private static Resource? AddResourceIfAssigned(
