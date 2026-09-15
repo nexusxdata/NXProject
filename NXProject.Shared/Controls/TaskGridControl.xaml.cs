@@ -1016,7 +1016,10 @@ namespace NXProject.Controls
             if (column == DurationColumn)
                 return !task.IsDurationReadOnly;
 
-            if (column == StartColumn || column == FinishColumn)
+            if (column == StartColumn)
+                return task.Model.Children.Count == 0 && (!task.IsDevOpsTask || task.StartFixed);
+
+            if (column == FinishColumn)
                 // Tasks têm datas calculadas por prioridade — não são editáveis manualmente
                 return task.Model.Children.Count == 0 && !task.IsDevOpsTask;
 
@@ -1921,6 +1924,26 @@ namespace NXProject.Controls
             if (vm == null) return;
 
             vm.StartFixed = true;
+            if (DataContext is ViewModels.MainViewModel mainVm)
+                mainVm.Project.IsDirty = true;
+            Dispatcher.InvokeAsync(() =>
+            {
+                RefreshGridPreservingSelection(vm, StartColumn);
+                TaskGrid.BeginEdit();
+            }, DispatcherPriority.Background);
+        }
+
+        private void OnClearStartFixedClick(object sender, RoutedEventArgs e)
+        {
+            var vm = ((sender as MenuItem)?.Parent as ContextMenu)
+                ?.PlacementTarget is FrameworkElement fe ? fe.DataContext as TaskViewModel : null;
+            if (vm == null) return;
+
+            vm.StartText = "0";
+            if (DataContext is ViewModels.MainViewModel mainVm)
+                mainVm.Project.IsDirty = true;
+            Dispatcher.InvokeAsync(() => RefreshGridPreservingSelection(vm, StartColumn),
+                DispatcherPriority.Background);
         }
 
 

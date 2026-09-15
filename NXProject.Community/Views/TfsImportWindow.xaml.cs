@@ -171,13 +171,15 @@ namespace NXProject.Views
             var options = _savedOptions;
             options.RootWorkItemId = rootId;
             options.DevOpsProjectListPath = _devOpsProjectListPath;
+            var selectedPortfolioProject = DevOpsProjectCombo.SelectedItem as DevOpsProject;
+            var loadTasksOnImport = selectedPortfolioProject?.LoadTasksOnImport == true;
 
             SetImporting(true);
             try
             {
                 // Progresso por etapa (Progress<T> despacha para a thread da UI).
                 var progress = new Progress<string>(step => ImportStepText.Text = step);
-                var importResult = await TfsImportService.ImportAsync(options, progress);
+                var importResult = await TfsImportService.ImportAsync(options, progress, loadTasksOnImport: loadTasksOnImport);
                 var project = importResult.Project;
 
                 // Grava a origem (organização + Team Project) para a sincronização
@@ -194,7 +196,7 @@ namespace NXProject.Views
                     return;
                 }
 
-                if (DevOpsProjectCombo.SelectedItem is DevOpsProject selected)
+                if (selectedPortfolioProject is DevOpsProject selected)
                 {
                     project.DevOpsProjectName = selected.Name;
                     project.DevOpsRootWorkItemId = selected.RootWorkItemId;

@@ -30,6 +30,10 @@ namespace NXProject.Models
         // import. Seus membros são os únicos que podem sincronizar. Vazio = liberado para todos.
         public string AdmGroupName { get; set; } = "";
 
+        // Quando true, a importação do portfólio carrega Epic/Feature/Story e depois
+        // busca as Tasks filhas das Stories como etapa complementar.
+        public bool LoadTasksOnImport { get; set; }
+
         // Nome com o owner anexado, para exibição em listas/combos.
         [System.Text.Json.Serialization.JsonIgnore]
         public string DisplayName =>

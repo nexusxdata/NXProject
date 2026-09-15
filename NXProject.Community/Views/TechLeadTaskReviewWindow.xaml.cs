@@ -188,6 +188,9 @@ namespace NXProject.Views
                         State           = t.State ?? "New",
                         EstimatedHours  = t.EstimatedHours,
                         CompletedHours  = t.CompletedHours,
+                        AllocationPercent = t.AllocationPercent,
+                        StartDate       = t.StartDate,
+                        StartFixed      = t.StartFixed,
                         PercentComplete = t.PercentComplete,
                         Priority        = t.Priority,
                         BacklogRank     = t.BacklogRank,
@@ -221,6 +224,7 @@ namespace NXProject.Views
             _view.Filter = ApplyFilter;
             _view.SortDescriptions.Clear();
             _view.SortDescriptions.Add(new SortDescription(nameof(TaskReviewRow.Priority), ListSortDirection.Ascending));
+            _view.SortDescriptions.Add(new SortDescription(nameof(TaskReviewRow.BacklogRank), ListSortDirection.Ascending));
             TasksGrid.ItemsSource = _view;
             RefreshRowNumbers();
 
@@ -1050,6 +1054,10 @@ namespace NXProject.Views
 
         private double _completedHours;
         public double CompletedHours { get => _completedHours; set { if (_completedHours == value) return; _completedHours = value; OnPropertyChanged(); } }
+
+        public double? AllocationPercent { get; set; }
+        public DateTime? StartDate { get; set; }
+        public bool StartFixed { get; set; }
 
         private double _percentComplete;
         public double PercentComplete { get => _percentComplete; set { if (Math.Abs(_percentComplete - value) < 0.0001) return; _percentComplete = value; OnPropertyChanged(); } }

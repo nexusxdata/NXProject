@@ -123,7 +123,8 @@ namespace NXProject.Views
             var dlg = new DevOpsProjectEditWindow(selected.Name, selected.RootWorkItemId,
                                                   selected.IsOpex, selected.CostCenter,
                                                   selected.CostCenterSource, selected.Process,
-                                                  selected.ReadOnly, selected.AdmGroupName) { Owner = this };
+                                                  selected.ReadOnly, selected.AdmGroupName,
+                                                  selected.LoadTasksOnImport) { Owner = this };
             if (dlg.ShowDialog() == true && dlg.Result != null)
             {
                 // Owner é informativo (vem do DevOps) e não é editável nesta tela — preserva o atual.

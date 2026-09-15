@@ -689,7 +689,9 @@
 
     <!-- Context menus — start date cell -->
     <sys:String x:Key="Ctx_FixStartDate">Fix start date</sys:String>
+    <sys:String x:Key="Ctx_FixStartDateTip">Allows editing the Task start date; sync writes the fixed-start tag to TFS.</sys:String>
     <sys:String x:Key="Ctx_ClearFixedDate">Clear fixed date</sys:String>
+    <sys:String x:Key="Ctx_ClearFixedDateTip">Returns start scheduling to the plan and removes the fixed-start tag from TFS on sync.</sys:String>
 
     <!-- Context menus — predecessor cell -->
     <sys:String x:Key="Ctx_HighlightPred">Highlight predecessors</sys:String>
@@ -800,6 +802,7 @@
     <sys:String x:Key="Port_ColName">Project Name</sys:String>
     <sys:String x:Key="Port_ColOwner">Owner</sys:String>
     <sys:String x:Key="Port_ColId">DevOps ID (Root Work Item)</sys:String>
+    <sys:String x:Key="Port_ColLoadTasksOnImport">Load Tasks</sys:String>
     <sys:String x:Key="Port_Add">+ Add</sys:String>
     <sys:String x:Key="Port_Edit">✏ Edit</sys:String>
     <sys:String x:Key="Port_Delete">🗑 Delete</sys:String>
@@ -841,6 +844,8 @@
     <sys:String x:Key="PortEdit_AdmGroupNone">(open to everyone)</sys:String>
     <sys:String x:Key="PortEdit_AdmGroupTip">NX admin group (Adm_NX field on the Project work item). Only members of this DevOps group can Export/Sync. Read from DevOps at import — not editable here.</sys:String>
     <sys:String x:Key="PortEdit_AdmGroupHint">Set in the Adm_NX field on the Project work item in DevOps. To change who can sync, adjust that group in DevOps and re-import.</sys:String>
+    <sys:String x:Key="PortEdit_LoadTasksOnImport">Load Task on import</sys:String>
+    <sys:String x:Key="PortEdit_LoadTasksOnImportTip">When checked, after loading Epic/Feature/Story NXProject fetches the child Tasks from TFS as a complementary load.</sys:String>
     <sys:String x:Key="PortEdit_CostCenter">Cost Center</sys:String>
     <sys:String x:Key="PortEdit_Ok">OK</sys:String>
     <sys:String x:Key="PortEdit_Cancel">Cancel</sys:String>

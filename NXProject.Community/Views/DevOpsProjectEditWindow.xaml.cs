@@ -20,7 +20,8 @@ namespace NXProject.Views
         public DevOpsProjectEditWindow(string name = "", int id = 0,
                                        bool isOpex = true, string costCenter = "",
                                        string costCenterSource = "", string process = "",
-                                       bool? readOnly = null, string admGroup = "")
+                                       bool? readOnly = null, string admGroup = "",
+                                       bool loadTasksOnImport = false)
         {
             InitializeComponent();
             NameBox.Text = name;
@@ -44,6 +45,7 @@ namespace NXProject.Views
             TypeBox.SelectedIndex = source switch { "CAPEX" => 1, "EPIC" => 2, _ => 0 };
 
             CcBox.Text = costCenter;
+            LoadTasksOnImportBox.IsChecked = loadTasksOnImport;
 
             Loaded += (_, _) => NameBox.Focus();
         }
@@ -73,7 +75,8 @@ namespace NXProject.Views
                 CostCenterSource = src,
                 Process          = _process,   // read-only nesta tela; preserva o lido do DevOps
                 ReadOnly         = _readOnly,   // preservado (compat.); não editável nesta tela
-                AdmGroupName     = _admGroup    // read-only; vem do campo Adm_NX na importação
+                AdmGroupName     = _admGroup,   // read-only; vem do campo Adm_NX na importação
+                LoadTasksOnImport = LoadTasksOnImportBox.IsChecked == true
             };
             DialogResult = true;
             Close();

@@ -630,10 +630,12 @@
                             <Grid.ContextMenu>
                                 <ContextMenu Opened="OnStartContextMenuOpened">
                                     <MenuItem Header="{DynamicResource Ctx_FixStartDate}"
-                                              Click="OnFixStartClick"/>
+                                              Click="OnFixStartClick"
+                                              ToolTip="{DynamicResource Ctx_FixStartDateTip}"/>
                                     <MenuItem Header="{DynamicResource Ctx_ClearFixedDate}"
-                                              Command="{Binding PlacementTarget.DataContext.ClearStartFixedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                              IsEnabled="{Binding PlacementTarget.DataContext.StartFixed, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                              Click="OnClearStartFixedClick"
+                                              IsEnabled="{Binding PlacementTarget.DataContext.StartFixed, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                              ToolTip="{DynamicResource Ctx_ClearFixedDateTip}"/>
                                 </ContextMenu>
                             </Grid.ContextMenu>
                         </Grid>

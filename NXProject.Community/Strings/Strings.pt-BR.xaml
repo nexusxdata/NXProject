@@ -467,7 +467,9 @@
 
     <!-- Menus de contexto — célula data início -->
     <sys:String x:Key="Ctx_FixStartDate">Fixar data de início</sys:String>
+    <sys:String x:Key="Ctx_FixStartDateTip">Permite editar o início da Task; na sincronização grava a tag de início fixo no TFS.</sys:String>
     <sys:String x:Key="Ctx_ClearFixedDate">Retirar data fixa</sys:String>
+    <sys:String x:Key="Ctx_ClearFixedDateTip">Volta a calcular o início pelo cronograma e remove a tag de início fixo no TFS ao sincronizar.</sys:String>
 
     <!-- Menus de contexto — célula predecessoras -->
     <sys:String x:Key="Ctx_HighlightPred">Destacar predecessoras</sys:String>
@@ -578,6 +580,7 @@
     <sys:String x:Key="Port_ColName">Nome do Projeto</sys:String>
     <sys:String x:Key="Port_ColOwner">Owner</sys:String>
     <sys:String x:Key="Port_ColId">ID DevOps (Work Item Raiz)</sys:String>
+    <sys:String x:Key="Port_ColLoadTasksOnImport">Carregar Tasks</sys:String>
     <sys:String x:Key="Port_Add">+ Adicionar</sys:String>
     <sys:String x:Key="Port_Edit">✏ Editar</sys:String>
     <sys:String x:Key="Port_Delete">🗑 Excluir</sys:String>
@@ -619,6 +622,8 @@
     <sys:String x:Key="PortEdit_AdmGroupNone">(liberado para todos)</sys:String>
     <sys:String x:Key="PortEdit_AdmGroupTip">Grupo administrador do NX (campo Adm_NX do work item Project). Só os membros deste grupo do DevOps podem Exportar/Sincronizar. Lido do DevOps na importação — não é editável aqui.</sys:String>
     <sys:String x:Key="PortEdit_AdmGroupHint">Definido no campo Adm_NX do work item Project no DevOps. Para mudar quem sincroniza, ajuste esse grupo no DevOps e reimporte.</sys:String>
+    <sys:String x:Key="PortEdit_LoadTasksOnImport">Carregar Task na importação</sys:String>
+    <sys:String x:Key="PortEdit_LoadTasksOnImportTip">Quando marcado, após carregar Epic/Feature/Story o NXProject busca as Tasks filhas no TFS como carga complementar.</sys:String>
     <sys:String x:Key="PortEdit_CostCenter">Centro de Custo</sys:String>
     <sys:String x:Key="PortEdit_Ok">OK</sys:String>
     <sys:String x:Key="PortEdit_Cancel">Cancelar</sys:String>

@@ -1385,6 +1385,9 @@ namespace NXProject.Views
                         State           = t.State ?? "New",
                         EstimatedHours  = t.EstimatedHours,
                         CompletedHours  = t.CompletedHours,
+                        AllocationPercent = t.AllocationPercent,
+                        StartDate       = t.StartDate,
+                        StartFixed      = t.StartFixed,
                         PercentComplete = t.PercentComplete,
                         Priority        = t.Priority,
                         AssignedTo        = t.AssignedTo ?? "",
@@ -1486,6 +1489,7 @@ namespace NXProject.Views
                 var (curH, estH) = Services.TfsImportService.ResolveTaskScheduleHours(
                     r.EstimatedHours, r.CompletedHours, r.PercentComplete);
                 var originalH = r.EstimatedHours > 0 ? r.EstimatedHours : (double?)null;
+                var fixedStart = r.StartFixed && r.StartDate.HasValue;
                 var pt = new NXProject.Models.ProjectTask
                 {
                     // Contador central do projeto — FlatTasks pode estar desatualizado
@@ -1509,10 +1513,12 @@ namespace NXProject.Views
                     Approved         = r.Approved,
                     TfsIterationPath = story.TfsIterationPath,
                     SprintNumber     = story.SprintNumber,
-                    Start            = story.Start,
+                    Start            = fixedStart ? r.StartDate!.Value.Date : story.Start,
+                    StartFixed       = fixedStart,
                     Finish           = story.Finish,
                 };
-                ApplyTaskReviewResource(r, pt, vm);
+                ApplyTaskReviewResource(r, pt, story, vm);
+                RecalculateFixedStartTaskFinish(pt);
                 story.Children.Add(pt);
                 story.TasksSuppressed = false;
                 firstAdded ??= pt;
@@ -1540,6 +1546,7 @@ namespace NXProject.Views
         private static void ApplyTaskReviewResource(
             TaskReviewRow row,
             NXProject.Models.ProjectTask task,
+            NXProject.Models.ProjectTask story,
             MainViewModel vm)
         {
             var display = row.AssignedToDisplay;
@@ -1559,8 +1566,28 @@ namespace NXProject.Views
             {
                 ResourceId = res.Id,
                 Resource = res,
-                AllocationPercent = 100
+                AllocationPercent = ResolveTaskAllocationPercent(row, story, res)
             });
+        }
+
+        private static double ResolveTaskAllocationPercent(
+            TaskReviewRow row,
+            NXProject.Models.ProjectTask story,
+            NXProject.Models.Resource resource)
+        {
+            if (row.AllocationPercent is > 0)
+                return row.AllocationPercent.Value;
+
+            var storyAssignment = story.Resources.FirstOrDefault(r =>
+                r.ResourceId == resource.Id ||
+                (r.Resource != null &&
+                 (string.Equals(r.Resource.Email, resource.Email, StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(r.Resource.Name, resource.Name, StringComparison.OrdinalIgnoreCase))));
+
+            storyAssignment ??= story.Resources.FirstOrDefault();
+            return storyAssignment != null
+                ? Services.TaskScheduleService.NormalizeAllocationPercent(storyAssignment.AllocationPercent)
+                : 100;
         }
 
         private void SyncExpandedTaskRowsToSchedule(
@@ -1626,8 +1653,18 @@ namespace NXProject.Views
             task.TfsState = row.State;
             task.TfsIterationPath = story.TfsIterationPath;
             task.SprintNumber = story.SprintNumber;
+            task.StartFixed = row.StartFixed && row.StartDate.HasValue;
+            if (task.StartFixed)
+                task.Start = row.StartDate!.Value.Date;
 
-            ApplyTaskReviewResource(row, task, vm);
+            ApplyTaskReviewResource(row, task, story, vm);
+            RecalculateFixedStartTaskFinish(task);
+        }
+
+        private static void RecalculateFixedStartTaskFinish(NXProject.Models.ProjectTask task)
+        {
+            if (task.StartFixed && !task.FinishFixed && !task.IsMilestone)
+                task.Finish = Services.TaskScheduleService.CalculateFinishFromAssignments(task, task.Start);
         }
 
         private void ReleaseStoryTasks(NXProject.Models.ProjectTask story, MainViewModel vm)
@@ -1745,6 +1782,9 @@ namespace NXProject.Views
                             State           = t.State ?? "New",
                             EstimatedHours  = t.EstimatedHours,
                             CompletedHours  = t.CompletedHours,
+                            AllocationPercent = t.AllocationPercent,
+                            StartDate       = t.StartDate,
+                            StartFixed      = t.StartFixed,
                             PercentComplete = t.PercentComplete,
                             Priority        = t.Priority,
                             AssignedTo        = t.AssignedTo ?? "",

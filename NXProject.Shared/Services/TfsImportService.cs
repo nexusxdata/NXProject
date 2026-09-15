@@ -902,7 +902,8 @@ namespace NXProject.Services
         public static async Task<ImportResult> ImportAsync(
             TfsConnectionOptions options,
             IProgress<string>? progress = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool loadTasksOnImport = false)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
             if (!options.IsValid)
@@ -1111,6 +1112,18 @@ namespace NXProject.Services
                 var task = BuildBranch(context, childId, level: 0);
                 if (task != null)
                     project.Tasks.Add(task);
+            }
+
+            if (loadTasksOnImport)
+            {
+                progress?.Report("Carregando Tasks complementares das Stories...");
+                var loadedTasks = await LoadStoryChildTasksOnImportAsync(
+                    project,
+                    options,
+                    resourcesByKey,
+                    progress,
+                    cancellationToken);
+                context.Report.LogInfo($"Tasks complementares: {loadedTasks} Task(s) carregada(s) na importação.");
             }
 
             NormalizeIds(project.Tasks);
@@ -1550,7 +1563,8 @@ namespace NXProject.Services
                     classificationFields: classFields,
                     percConcRef: createPercConc,
                     approvedRef: approvedRef,
-                    process: project.DevOpsProcess);
+                    process: project.DevOpsProcess,
+                    fixedStartTagName: options.FixedStartTagName);
                 var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                 task.TfsId = newId;
                 task.TfsParentId = desiredParent;
@@ -1680,7 +1694,7 @@ namespace NXProject.Services
                         }
                         else
                         {
-                            var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields, classFields, createPercConc, approvedRef, project.DevOpsProcess);
+                            var createOps = BuildCreateOps(task, desiredParent, orgBase, createHoursRef, createStartRef, createFinishRef, tasksById, options.SyncPredecessorLinks, createPercAloc, originalHoursRef, remainingHoursRef, realizedHoursRef, options.ExtraCreateFields, classFields, createPercConc, approvedRef, project.DevOpsProcess, options.FixedStartTagName);
                             var newId = await CreateWorkItemAsync(orgBase, auth, options.TeamProject, createType, createOps, cancellationToken);
                             task.TfsId = newId;
                             task.TfsParentId = desiredParent;
@@ -2946,7 +2960,8 @@ namespace NXProject.Services
             IReadOnlyList<ClassificationFieldDef>? classificationFields = null,
             string? percConcRef = null,
             string? approvedRef = null,
-            string? process = null)
+            string? process = null,
+            string? fixedStartTagName = null)
         {
             bool isTaskCreate        = IsTaskType(task.TfsType);
             bool isEpicOrFeatureCreate = IsEpicOrFeatureType(task.TfsType);
@@ -3039,8 +3054,13 @@ namespace NXProject.Services
                 if (taskHours.HasValue)
                     ops.Add(PatchAdd("/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", taskHours.Value));
                 ops.Add(PatchAdd("/fields/Microsoft.VSTS.Common.Priority", 4));
+                var taskTags = task.StartFixed
+                    ? AddTag(task.Tags, string.IsNullOrWhiteSpace(fixedStartTagName) ? "DT-INI-NEG" : fixedStartTagName.Trim())
+                    : task.Tags;
                 if (IsDevOpsMilestoneType(task.TfsType))
-                    ops.Add(PatchAdd("/fields/System.Tags", AddTag(task.Tags, "MARCO-PROJECT")));
+                    taskTags = AddTag(taskTags, "MARCO-PROJECT");
+                if (!string.IsNullOrWhiteSpace(taskTags))
+                    ops.Add(PatchAdd("/fields/System.Tags", NormalizeTagsForWrite(taskTags)));
             }
 
             // HH Restante e HH Atual: apenas para Story/Feature/Epic.
@@ -3764,6 +3784,181 @@ namespace NXProject.Services
                 AllocationPercent = (percAloc.HasValue && percAloc.Value > 0 && percAloc.Value <= 100) ? percAloc.Value : 100,
                 EstimatedHours = estimatedHours
             });
+        }
+
+        private static async Task<int> LoadStoryChildTasksOnImportAsync(
+            Project project,
+            TfsConnectionOptions options,
+            Dictionary<string, Resource> resourcesByKey,
+            IProgress<string>? progress,
+            CancellationToken ct)
+        {
+            var stories = FlattenTasks(project.Tasks)
+                .Where(t => IsStoryType(t.TfsType) && t.TfsId is > 0)
+                .ToList();
+            var loaded = 0;
+
+            for (var i = 0; i < stories.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var story = stories[i];
+                progress?.Report($"Carregando Tasks complementares {i + 1}/{stories.Count}...");
+
+                var childTasks = await FetchChildTasksFromDevOpsAsync(options, story.TfsId!.Value, ct);
+                if (childTasks == null)
+                    continue;
+
+                story.DevopsTaskCount = childTasks.Count;
+                if (childTasks.Count == 0)
+                    continue;
+
+                var existingIds = story.Children
+                    .Where(c => IsTaskType(c.TfsType) && c.TfsId.HasValue)
+                    .Select(c => c.TfsId!.Value)
+                    .ToHashSet();
+
+                foreach (var info in childTasks
+                    .Where(t => t.TfsId > 0 && !existingIds.Contains(t.TfsId))
+                    .OrderBy(t => t.Priority > 0 ? t.Priority : 5)
+                    .ThenBy(t => t.BacklogRank ?? double.MaxValue)
+                    .ThenBy(t => t.TfsId))
+                {
+                    var (currentHours, remainingHours) = ResolveTaskScheduleHours(
+                        info.EstimatedHours,
+                        info.CompletedHours,
+                        info.PercentComplete);
+                    var fixedStart = info.StartFixed && info.StartDate.HasValue;
+                    var task = new ProjectTask
+                    {
+                        Name = info.Title,
+                        Description = string.IsNullOrWhiteSpace(info.Description) ? null : info.Description.Trim(),
+                        Level = story.Level + 1,
+                        Parent = story,
+                        TfsId = info.TfsId,
+                        TfsParentId = story.TfsId,
+                        TfsType = "Task",
+                        TfsState = info.State,
+                        Tags = info.Tags,
+                        TfsStackRank = info.BacklogRank,
+                        TfsIterationPath = string.IsNullOrWhiteSpace(info.IterationPath) ? story.TfsIterationPath : info.IterationPath,
+                        SprintNumber = story.SprintNumber,
+                        Priority = info.Priority > 0 ? info.Priority : 5,
+                        EstimatedHours = remainingHours,
+                        OriginalEstimatedHours = info.EstimatedHours > 0 ? info.EstimatedHours : null,
+                        CurrentHours = currentHours,
+                        PercentComplete = info.PercentComplete,
+                        Approved = info.Approved != null ? IsApprovedValue(info.Approved) : null,
+                        Start = fixedStart ? info.StartDate!.Value.Date : story.Start,
+                        StartFixed = fixedStart,
+                        Finish = story.Finish,
+                        Notes = $"TFS #{info.TfsId} · Task · {info.State}"
+                    };
+
+                    AssignDevOpsTaskResource(project, resourcesByKey, story, task, info, options.HoursPerDay);
+                    if (task.StartFixed && !task.FinishFixed && !task.IsMilestone)
+                        task.Finish = TaskScheduleService.CalculateFinishFromAssignments(task, task.Start);
+
+                    story.Children.Add(task);
+                    existingIds.Add(info.TfsId);
+                    loaded++;
+                }
+
+                if (story.Children.Any(c => IsTaskType(c.TfsType)))
+                {
+                    story.IsSummary = true;
+                    story.TasksSuppressed = false;
+                    story.DevopsTaskCount = story.Children.Count(c => IsTaskType(c.TfsType));
+                }
+            }
+
+            return loaded;
+        }
+
+        private static void AssignDevOpsTaskResource(
+            Project project,
+            Dictionary<string, Resource> resourcesByKey,
+            ProjectTask story,
+            ProjectTask task,
+            DevOpsTaskInfo info,
+            double hoursPerDay)
+        {
+            var resource = ResolveDevOpsTaskResource(project, resourcesByKey, info, hoursPerDay);
+            if (resource == null)
+                return;
+
+            task.Resources.Add(new TaskResource
+            {
+                ResourceId = resource.Id,
+                Resource = resource,
+                AllocationPercent = ResolveDevOpsTaskAllocationPercent(info.AllocationPercent, story, resource),
+                EstimatedHours = task.EstimatedHours
+            });
+        }
+
+        private static Resource? ResolveDevOpsTaskResource(
+            Project project,
+            Dictionary<string, Resource> resourcesByKey,
+            DevOpsTaskInfo info,
+            double hoursPerDay)
+        {
+            var email = info.AssignedTo?.Trim();
+            var display = info.AssignedToDisplay?.Trim();
+            var key = !string.IsNullOrWhiteSpace(email) ? email : display;
+            if (string.IsNullOrWhiteSpace(key))
+                return null;
+
+            if (resourcesByKey.TryGetValue(key!, out var existing))
+                return existing;
+
+            existing = project.Resources.FirstOrDefault(r =>
+                string.Equals(r.Email, email, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r.Name, email, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(r.Name, display, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                RegisterResourceKeys(resourcesByKey, existing);
+                return existing;
+            }
+
+            var resource = new Resource
+            {
+                Id = project.Resources.Select(r => r.Id).DefaultIfEmpty(0).Max() + 1,
+                Name = string.IsNullOrWhiteSpace(display) ? key! : display!,
+                Email = string.IsNullOrWhiteSpace(email) ? null : email,
+                MaxUnitsPerDay = hoursPerDay <= 0 ? ProjectCalendarService.WorkingHoursPerDay : hoursPerDay,
+                IsImportedFromTfs = true
+            };
+            project.Resources.Add(resource);
+            RegisterResourceKeys(resourcesByKey, resource);
+            return resource;
+        }
+
+        private static void RegisterResourceKeys(Dictionary<string, Resource> resourcesByKey, Resource resource)
+        {
+            if (!string.IsNullOrWhiteSpace(resource.Email))
+                resourcesByKey[resource.Email.Trim()] = resource;
+            if (!string.IsNullOrWhiteSpace(resource.Name))
+                resourcesByKey[resource.Name.Trim()] = resource;
+        }
+
+        private static double ResolveDevOpsTaskAllocationPercent(
+            double? taskAllocationPercent,
+            ProjectTask story,
+            Resource resource)
+        {
+            if (taskAllocationPercent is > 0)
+                return TaskScheduleService.NormalizeAllocationPercent(taskAllocationPercent.Value);
+
+            var storyAssignment = story.Resources.FirstOrDefault(r =>
+                r.ResourceId == resource.Id ||
+                (r.Resource != null &&
+                 (string.Equals(r.Resource.Email, resource.Email, StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(r.Resource.Name, resource.Name, StringComparison.OrdinalIgnoreCase))));
+
+            storyAssignment ??= story.Resources.FirstOrDefault();
+            return storyAssignment != null
+                ? TaskScheduleService.NormalizeAllocationPercent(storyAssignment.AllocationPercent)
+                : 100;
         }
 
         private static Resource? AddResourceIfAssigned(
@@ -4591,6 +4786,9 @@ namespace NXProject.Services
             public string Title { get; init; } = "";
             public double EstimatedHours { get; init; }
             public double CompletedHours { get; init; }
+            public double? AllocationPercent { get; init; }
+            public DateTime? StartDate { get; init; }
+            public bool StartFixed { get; init; }
             public double PercentComplete { get; init; }
             public string? AssignedTo { get; init; }
             public string? AssignedToDisplay { get; init; }
@@ -4816,10 +5014,15 @@ namespace NXProject.Services
 
             // % conclusão (Perc_Conclusao): a Task também tem o campo custom no DevOps.
             string? percConcRef = null;
+            string? percAlocRef = null;
+            string? startRef = null;
+            Dictionary<string, string>? fieldMap = null;
             try
             {
-                var fieldMap = await LoadFieldMapCachedAsync(orgBase, auth, ct);
+                fieldMap = await LoadFieldMapCachedAsync(orgBase, auth, ct);
                 percConcRef = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
+                percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
+                startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             }
             catch { /* sem o campo, cai no cálculo por estado/horas */ }
 
@@ -4829,7 +5032,7 @@ namespace NXProject.Services
             {
                 try
                 {
-                    var fieldMap = await LoadFieldMapCachedAsync(orgBase, auth, ct);
+                    fieldMap ??= await LoadFieldMapCachedAsync(orgBase, auth, ct);
                     approvedRef = ResolveField(fieldMap, options.ApprovedFieldName, new[] { options.ApprovedFieldName, "Approved", "Aprovado" });
                 }
                 catch { /* campo inexistente no processo: segue sem ele */ }
@@ -4837,6 +5040,8 @@ namespace NXProject.Services
 
             var fields = $"System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo,System.IterationPath,System.Description,System.CreatedDate,System.CommentCount,System.Tags,{OrigEstRef},{CompletedRef},Microsoft.VSTS.Common.Priority,Microsoft.VSTS.Common.StackRank,Microsoft.VSTS.Common.BacklogPriority,{ActivityRef}";
             if (percConcRef != null) fields += $",{percConcRef}";
+            if (percAlocRef != null && !string.Equals(percAlocRef, percConcRef, StringComparison.OrdinalIgnoreCase)) fields += $",{percAlocRef}";
+            if (startRef != null) fields += $",{startRef}";
             if (approvedRef != null) fields += $",{approvedRef}";
             var batchUrl = $"{orgBase}/_apis/wit/workitems?ids={ids}&fields={fields}&{ApiVersion}";
             using var batchReq = new HttpRequestMessage(HttpMethod.Get, batchUrl);
@@ -4865,6 +5070,9 @@ namespace NXProject.Services
 
                     var hours     = f.TryGetProperty(OrigEstRef,   out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetDouble() : 0;
                     var completed = f.TryGetProperty(CompletedRef, out var cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetDouble() : 0;
+                    var allocationPercent = percAlocRef != null && GetDoubleField(f, percAlocRef) is { } alocValue && alocValue > 0
+                        ? alocValue
+                        : (double?)null;
                     var prio      = f.TryGetProperty("Microsoft.VSTS.Common.Priority", out var pp) && pp.ValueKind == JsonValueKind.Number ? pp.GetInt32() : 5;
                     string? assignee = null;
                     string? assigneeDisplay = null;
@@ -4892,6 +5100,9 @@ namespace NXProject.Services
                     var iterationPath = f.TryGetProperty("System.IterationPath", out var ipp) && ipp.ValueKind == JsonValueKind.String ? ipp.GetString() : null;
                     var description = f.TryGetProperty("System.Description", out var dp) && dp.ValueKind == JsonValueKind.String ? dp.GetString() : null;
                     var tags     = f.TryGetProperty("System.Tags", out var tgp) && tgp.ValueKind == JsonValueKind.String ? tgp.GetString() : null;
+                    var startFixed = GetFixedStartTagAliases(options.FixedStartTagName)
+                        .Any(tag => HasTag(tags, tag));
+                    var startDate = startFixed ? ReadDate(f, startRef) : null;
                     DateTime? createdDate = f.TryGetProperty("System.CreatedDate", out var cdp)
                         && cdp.ValueKind == JsonValueKind.String
                         && DateTime.TryParse(cdp.GetString(), CultureInfo.InvariantCulture,
@@ -4903,6 +5114,9 @@ namespace NXProject.Services
                     {
                         TfsId = tid, Title = title, State = state,
                         EstimatedHours = hours, CompletedHours = completed,
+                        AllocationPercent = allocationPercent,
+                        StartDate = startDate,
+                        StartFixed = startFixed,
                         PercentComplete = pct, AssignedTo = assignee, AssignedToDisplay = assigneeDisplay,
                         Priority = prio, Description = description, Activity = activity, Tags = tags,
                         IterationPath = iterationPath,
@@ -4923,7 +5137,11 @@ namespace NXProject.Services
                     });
                 }
             }
-            return result;
+            return result
+                .OrderBy(t => t.Priority > 0 ? t.Priority : 5)
+                .ThenBy(t => t.BacklogRank ?? double.MaxValue)
+                .ThenBy(t => t.TfsId)
+                .ToList();
         }
 
         public static Task<ChildTaskHoursResult?> FetchChildTaskHoursAsync(
@@ -7872,6 +8090,19 @@ namespace NXProject.Services
             if (string.IsNullOrWhiteSpace(s)) return null;
             // O TFS devolve ISO 8601 em UTC (ex.: 2026-05-04T03:00:00Z = 04/05 00:00 BRT).
             // Convertemos para UTC e usamos a data, de forma independente do fuso da maquina.
+            return DateTime.TryParse(s, CultureInfo.InvariantCulture,
+                       DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt)
+                ? dt.Date
+                : (DateTime.TryParse(s, out var dt2) ? dt2.Date : null);
+        }
+
+        private static DateTime? ReadDate(JsonElement fields, string? refName)
+        {
+            if (refName == null || fields.ValueKind != JsonValueKind.Object) return null;
+            if (!fields.TryGetProperty(refName, out var el) || el.ValueKind != JsonValueKind.String) return null;
+
+            var s = el.GetString();
+            if (string.IsNullOrWhiteSpace(s)) return null;
             return DateTime.TryParse(s, CultureInfo.InvariantCulture,
                        DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt)
                 ? dt.Date
