@@ -1225,6 +1225,7 @@
     <sys:String x:Key="Online_ColType">Tipo</sys:String>
     <sys:String x:Key="Online_ColName">Nome</sys:String>
     <sys:String x:Key="Online_ColStatus">Status</sys:String>
+    <sys:String x:Key="Online_ColOwner">Responsável</sys:String>
     <sys:String x:Key="Online_ColTags">Tags</sys:String>
     <sys:String x:Key="Online_ColDescription">Descrição</sys:String>
     <sys:String x:Key="Online_ColLastHistory">Último trâmite</sys:String>
@@ -1610,6 +1611,15 @@
     <sys:String x:Key="Desc_State">Estado:</sys:String>
     <sys:String x:Key="Desc_Feature">Feature:</sys:String>
     <sys:String x:Key="Desc_StartDate">Data de Início:</sys:String>
+    <sys:String x:Key="Desc_TargetDate">Data alvo:</sys:String>
+    <sys:String x:Key="Sprint_TargetOverdue">Data alvo vencida: a Task continua ativa depois da data prevista.</sys:String>
+    <sys:String x:Key="Desc_ParentChain">Ligada a (pai no DevOps):</sys:String>
+    <sys:String x:Key="Desc_ParentNone">Sem pai no DevOps</sys:String>
+    <sys:String x:Key="Desc_StartDateActive">Data Início Prevista:</sys:String>
+    <sys:String x:Key="Online_ColStartDate">Início Previsto</sys:String>
+    <sys:String x:Key="Online_ColTargetDate">Data Alvo</sys:String>
+    <sys:String x:Key="Online_ColEstHours">HH Estimado</sys:String>
+    <sys:String x:Key="Online_ColDoneHours">HH Realizado</sys:String>
     <sys:String x:Key="Desc_DescriptionLabel">Descrição:</sys:String>
     <sys:String x:Key="Desc_Acceptance">Critérios de Aceitação:</sys:String>
     <sys:String x:Key="SyncProg_Title">Sincronizando com o TFS/DevOps</sys:String>
@@ -1907,6 +1917,7 @@
     <sys:String x:Key="Colors_StoryHelp">Story Colaborador</sys:String>
     <sys:String x:Key="Colors_Feature">Feature</sys:String>
     <sys:String x:Key="Sprint_CloseConfirm">Há alterações pendentes não gravadas. Fechar mesmo assim?</sys:String>
+    <sys:String x:Key="Sprint_CloseSaveQuestion">Existem {0} alteração(ões) ainda não gravadas no TFS.&#10;&#10;Sim — gravar no TFS e fechar&#10;Não — descartar (reverter) e fechar&#10;Cancelar — voltar ao TaskBoard</sys:String>
     <sys:String x:Key="Sprint_ScopeBoth">Story+Task</sys:String>
     <sys:String x:Key="Sprint_ScopeTask">Só Task</sys:String>
     <sys:String x:Key="Sprint_ScopeStory">Só Story</sys:String>

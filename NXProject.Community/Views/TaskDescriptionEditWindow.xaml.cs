@@ -51,6 +51,11 @@ namespace NXProject.Views
         public bool StartDateEnabled { get; }
         public DateTime? SelectedStartDate { get; private set; }
         public bool StartDateChanged { get; private set; }
+        // Data alvo (Task): campo Data_Fim do DevOps.
+        public bool FinishDateEnabled { get; private set; }
+        public DateTime? SelectedFinishDate { get; private set; }
+        public bool FinishDateChanged { get; private set; }
+        private DateTime? _initialFinishDate;
         private DateTime? _initialStartDate;
 
         // Troca de Feature (Story New): habilitada quando 'features' é fornecido.
@@ -102,7 +107,9 @@ namespace NXProject.Views
             string? epicTitle = null, string? projectTitle = null,
             bool enableAcceptance = false, string? acceptanceHtml = null,
             bool enableUnplanned = false, bool currentUnplanned = false, string? unplannedTag = null,
-            string? datesInfo = null, Action? onTramite = null)
+            string? datesInfo = null, Action? onTramite = null,
+            bool enableFinishDate = false, DateTime? currentFinishDate = null,
+            string? parentInfo = null)
         {
             InitializeComponent();
             _task = task;
@@ -160,6 +167,13 @@ namespace NXProject.Views
                 NameBox.Text = _initialName;
             }
 
+            // Cadeia de pais no DevOps (so consulta): a Task pode estar ligada a Story, Feature...
+            if (!string.IsNullOrWhiteSpace(parentInfo))
+            {
+                ParentText.Text = parentInfo;
+                ParentPanel.Visibility = Visibility.Visible;
+            }
+
             // Tramite (comentario do DevOps): o botao do card foi movido para ca.
             _onTramite = onTramite;
             if (onTramite != null) TramiteBtn.Visibility = Visibility.Visible;
@@ -201,6 +215,15 @@ namespace NXProject.Views
                 if (sel != null) SprintCombo.SelectedItem = sel;
             }
 
+            _initialFinishDate = currentFinishDate;
+            SelectedFinishDate = currentFinishDate;
+            if (enableFinishDate)
+            {
+                FinishDateEnabled = true;
+                FinishDatePanel.Visibility = Visibility.Visible;
+                FinishDatePicker.SelectedDate = currentFinishDate;
+            }
+
             _initialStartDate = currentStartDate;
             SelectedStartDate = currentStartDate;
             if (enableStartDate)
@@ -208,6 +231,10 @@ namespace NXProject.Views
                 StartDateEnabled = true;
                 StartDatePanel.Visibility = Visibility.Visible;
                 StartDatePicker.SelectedDate = currentStartDate;
+                // Na Task e a "Data Inicio Prevista" (mesmo Data_Inicio do cronograma); o arrasto
+                // para Active so a preenche quando esta vazia. Na Story continua "Data de Inicio".
+                if (objectKind == "Task")
+                    StartDateLabel.SetResourceReference(TextBlock.TextProperty, "Desc_StartDateActive");
             }
 
             _initialFeatureId = currentFeatureId;
@@ -481,6 +508,11 @@ namespace NXProject.Views
             {
                 SelectedStartDate = StartDatePicker.SelectedDate?.Date;
                 StartDateChanged = SelectedStartDate != _initialStartDate?.Date;
+            }
+            if (FinishDateEnabled)
+            {
+                SelectedFinishDate = FinishDatePicker.SelectedDate?.Date;
+                FinishDateChanged = SelectedFinishDate != _initialFinishDate?.Date;
             }
             if (HoursEnabled)
             {

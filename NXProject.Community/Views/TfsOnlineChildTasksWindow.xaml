@@ -42,15 +42,30 @@
                   GridLinesVisibility="Horizontal"
                   RowHeaderWidth="0"
                   SelectionMode="Single"
+                  HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Auto"
                   TextElement.FontSize="12">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="{DynamicResource Online_ColId}" Width="80" Binding="{Binding IdDisplay}"/>
-                <DataGridTextColumn Header="{DynamicResource Online_ColType}" Width="90" Binding="{Binding Type}"/>
-                <DataGridTextColumn Header="{DynamicResource Online_ColName}" Width="240" Binding="{Binding Name}"/>
-                <DataGridTextColumn Header="{DynamicResource Online_ColStatus}" Width="110" Binding="{Binding State}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColId}" Width="72" Binding="{Binding IdDisplay}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColType}" Width="52" Binding="{Binding Type}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColName}" Width="230" Binding="{Binding Name}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColStatus}" Width="80" Binding="{Binding State}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColStartDate}" Width="95" Binding="{Binding StartDate}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColTargetDate}" Width="85" Binding="{Binding FinishDate}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColOwner}" Width="170" Binding="{Binding AssignedTo}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColEstHours}" Width="90" Binding="{Binding EstimateHours}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Right"/><Setter Property="Margin" Value="0,0,6,0"/></Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="{DynamicResource Online_ColDoneHours}" Width="90" Binding="{Binding CompletedHours}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock"><Setter Property="HorizontalAlignment" Value="Right"/><Setter Property="Margin" Value="0,0,6,0"/></Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="{DynamicResource Online_ColTags}" Width="140" Binding="{Binding Tags}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColDescription}" Width="200" Binding="{Binding Description}"/>
-                <DataGridTextColumn Header="{DynamicResource Online_ColLastHistory}" Width="*" Binding="{Binding LastHistory}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColLastHistory}" Width="320" MinWidth="200" Binding="{Binding LastHistory}"/>
                 <DataGridTemplateColumn Header="{DynamicResource Online_ColActions}" Width="130">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>

@@ -1027,6 +1027,7 @@
     <sys:String x:Key="Colors_StoryHelp">Story Collaborator</sys:String>
     <sys:String x:Key="Colors_Feature">Feature</sys:String>
     <sys:String x:Key="Sprint_CloseConfirm">There are unsaved pending changes. Close anyway?</sys:String>
+    <sys:String x:Key="Sprint_CloseSaveQuestion">There are {0} change(s) not saved to TFS yet.&#10;&#10;Yes — save to TFS and close&#10;No — discard (revert) and close&#10;Cancel — back to the TaskBoard</sys:String>
     <sys:String x:Key="Sprint_ScopeBoth">Story+Task</sys:String>
     <sys:String x:Key="Sprint_ScopeTask">Task only</sys:String>
     <sys:String x:Key="Sprint_ScopeStory">Story only</sys:String>
@@ -1685,6 +1686,7 @@
     <sys:String x:Key="Online_ColType">Type</sys:String>
     <sys:String x:Key="Online_ColName">Name</sys:String>
     <sys:String x:Key="Online_ColStatus">Status</sys:String>
+    <sys:String x:Key="Online_ColOwner">Assigned to</sys:String>
     <sys:String x:Key="Online_ColTags">Tags</sys:String>
     <sys:String x:Key="Online_ColDescription">Description</sys:String>
     <sys:String x:Key="Online_ColLastHistory">Last update</sys:String>
@@ -2017,6 +2019,15 @@
     <sys:String x:Key="Desc_State">State:</sys:String>
     <sys:String x:Key="Desc_Feature">Feature:</sys:String>
     <sys:String x:Key="Desc_StartDate">Start date:</sys:String>
+    <sys:String x:Key="Desc_TargetDate">Target date:</sys:String>
+    <sys:String x:Key="Sprint_TargetOverdue">Target date overdue: the Task is still active past the planned date.</sys:String>
+    <sys:String x:Key="Desc_ParentChain">Linked to (parent in DevOps):</sys:String>
+    <sys:String x:Key="Desc_ParentNone">No parent in DevOps</sys:String>
+    <sys:String x:Key="Desc_StartDateActive">Planned start date:</sys:String>
+    <sys:String x:Key="Online_ColStartDate">Planned start</sys:String>
+    <sys:String x:Key="Online_ColTargetDate">Target date</sys:String>
+    <sys:String x:Key="Online_ColEstHours">Est. hours</sys:String>
+    <sys:String x:Key="Online_ColDoneHours">Done hours</sys:String>
     <sys:String x:Key="Desc_DescriptionLabel">Description:</sys:String>
     <sys:String x:Key="Desc_Acceptance">Acceptance Criteria:</sys:String>
     <sys:String x:Key="SyncProg_Title">Syncing with TFS/DevOps</sys:String>

@@ -43,6 +43,16 @@ namespace NXProject.Services
             string LastHistory)
         {
             public string IdText => $"#{Id}";
+            /// <summary>Responsavel (System.AssignedTo, nome de exibicao).</summary>
+            public string AssignedTo { get; init; } = "";
+            /// <summary>HH Estimado (Microsoft.VSTS.Scheduling.OriginalEstimate).</summary>
+            public double? EstimateHours { get; init; }
+            /// <summary>HH Realizado (Microsoft.VSTS.Scheduling.CompletedWork).</summary>
+            public double? CompletedHours { get; init; }
+            /// <summary>Data de inicio (campo configurado, padrao Data_Inicio).</summary>
+            public DateTime? StartDate { get; init; }
+            /// <summary>Data alvo (campo configurado, padrao Data_Fim).</summary>
+            public DateTime? FinishDate { get; init; }
         }
 
         public sealed record DevOpsUserInfo(string Name, string Email);
@@ -453,6 +463,8 @@ namespace NXProject.Services
             /// <summary>Desde quando a Task esta no estado atual
             /// (Microsoft.VSTS.Common.StateChangeDate) — exibida no card.</summary>
             public DateTime? StateChangeDate { get; init; }
+            /// <summary>Data alvo (campo configurado, padrao Data_Fim) — editavel no card Active.</summary>
+            public DateTime? FinishDate { get; init; }
         }
         public sealed record SprintStoryRow(int Id, string Title, string State, string AssignedTo,
             System.Collections.Generic.List<SprintTaskCard> Tasks)
@@ -554,6 +566,9 @@ namespace NXProject.Services
             CancellationToken ct = default)
         {
             var ctx = CreateTfsAuthContext(options, "montar sprint");
+            // Campo da data alvo e customizado (Data_Fim ou o configurado): resolve uma vez; o
+            // valor ja chega em cada item pelo $expand=all.
+            var boardFinishRef = await ResolveFinishFieldRefAsync(options, ct);
             var proj = Uri.EscapeDataString(ctx.TeamProject);
             string Esc(string s) => s.Replace("'", "''");
 
@@ -653,7 +668,11 @@ namespace NXProject.Services
                             EstimateHours = double.IsNaN(effN) ? (double?)null : effN,
                             CompletedHours = compN,
                             CreatedDate = createdOn,
-                            StateChangeDate = stateOn
+                            StateChangeDate = stateOn,
+                            FinishDate = !string.IsNullOrEmpty(boardFinishRef)
+                                && f.TryGetProperty(boardFinishRef, out var fdv) && fdv.ValueKind == JsonValueKind.String
+                                && DateTime.TryParse(fdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var fdd)
+                                    ? fdd.ToLocalTime().Date : (DateTime?)null
                         });
                         statesSeen.Add(state);
                     }
@@ -3958,9 +3977,23 @@ namespace NXProject.Services
                 "System.Title",
                 "System.WorkItemType",
                 "System.State",
+                "System.AssignedTo",
                 "System.Tags",
-                "System.Description"
+                "System.Description",
+                "Microsoft.VSTS.Scheduling.OriginalEstimate",
+                "Microsoft.VSTS.Scheduling.CompletedWork"
             };
+            // Datas: os campos sao customizados (Data_Inicio/Data_Fim ou o que estiver configurado),
+            // entao o reference name e resolvido no DevOps antes de pedir.
+            var startRef = await ResolveStartFieldRefAsync(options, cancellationToken);
+            var finishRef = await ResolveFinishFieldRefAsync(options, cancellationToken);
+            if (!string.IsNullOrEmpty(startRef)) fields.Add(startRef);
+            if (!string.IsNullOrEmpty(finishRef)) fields.Add(finishRef);
+            static DateTime? ReadDate(JsonElement f, string? refName) =>
+                !string.IsNullOrEmpty(refName) && f.ValueKind == JsonValueKind.Object
+                && f.TryGetProperty(refName, out var v) && v.ValueKind == JsonValueKind.String
+                && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
+                    ? dt.ToLocalTime().Date : (DateTime?)null;
 
             var items = await LoadWorkItemsAsync(
                 orgBase,
@@ -3983,7 +4016,14 @@ namespace NXProject.Services
                     item.State,
                     item.Tags,
                     ToPlainText(item.Description),
-                    await LoadLatestHistoryAsync(orgBase, options.TeamProject, authHeader, item.Id, cancellationToken)));
+                    await LoadLatestHistoryAsync(orgBase, options.TeamProject, authHeader, item.Id, cancellationToken))
+                {
+                    AssignedTo = !string.IsNullOrWhiteSpace(item.AssigneeName) ? item.AssigneeName : item.Assignee,
+                    EstimateHours = GetDoubleField(item.Fields, "Microsoft.VSTS.Scheduling.OriginalEstimate"),
+                    CompletedHours = GetDoubleField(item.Fields, "Microsoft.VSTS.Scheduling.CompletedWork"),
+                    StartDate = ReadDate(item.Fields, startRef),
+                    FinishDate = ReadDate(item.Fields, finishRef)
+                });
             }
 
             return rows.OrderBy(r => r.Id).ToList();
@@ -6273,6 +6313,25 @@ namespace NXProject.Services
             catch { return null; }
         }
 
+        // Cache do reference name do campo de Data de Fim (Data_Fim) por organizacao.
+        private static readonly Dictionary<string, string> _finishRefCache = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Reference name do campo de data de fim configurado (padrao "Data_Fim"),
+        /// ou null se o processo nao tem o campo.</summary>
+        public static async Task<string?> ResolveFinishFieldRefAsync(TfsConnectionOptions options, CancellationToken ct = default)
+        {
+            var ctx = CreateTfsAuthContext(options, "ler campos", requireTeamProject: false);
+            if (_finishRefCache.TryGetValue(ctx.OrgBase, out var cached)) return string.IsNullOrEmpty(cached) ? null : cached;
+            try
+            {
+                var map = await LoadFieldMapAsync(ctx.OrgBase, ctx.Authorization, ct);
+                var r = ResolveField(map, options.FinishFieldName, FinishFieldNames);
+                _finishRefCache[ctx.OrgBase] = r ?? "";
+                return string.IsNullOrEmpty(r) ? null : r;
+            }
+            catch { return null; }
+        }
+
         // Cache do reference name do campo de Criterios de Aceitacao por organizacao.
         private static readonly Dictionary<string, string> _acRefCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -6360,6 +6419,111 @@ namespace NXProject.Services
                 && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
                 return dt.ToLocalTime().Date;
             return null;
+        }
+
+        /// <summary>Um nivel da cadeia de pais de um work item.</summary>
+        public sealed record ParentLink(int Id, string Type, string Title, string State);
+
+        /// <summary>
+        /// Sobe pelo System.Parent a partir do work item informado e devolve os pais, do mais
+        /// proximo ao mais alto. Serve para mostrar a que a Task esta ligada de verdade no DevOps
+        /// (pode ser uma Story, mas tambem uma Feature ou outro tipo). Limitado a 8 niveis para
+        /// nao girar em hierarquia circular; erro de rede devolve o que ja foi lido.
+        /// </summary>
+        public static async Task<List<ParentLink>> GetParentChainAsync(
+            TfsConnectionOptions options, int id, CancellationToken ct = default)
+        {
+            var chain = new List<ParentLink>();
+            if (id <= 0) return chain;
+            var ctx = CreateTfsAuthContext(options, "ler hierarquia", requireTeamProject: false);
+            var seen = new HashSet<int> { id };
+            var current = id;
+            try
+            {
+                for (var level = 0; level < 8; level++)
+                {
+                    var parentId = await ReadParentIdAsync(current);
+                    if (parentId <= 0 || !seen.Add(parentId)) break;
+                    var url = $"{ctx.OrgBase}/_apis/wit/workitems/{parentId}?fields=System.Title,System.WorkItemType,System.State&{QueryApiVersion}";
+                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.Authorization = ctx.Authorization;
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    using var resp = await Http.SendAsync(req, ct);
+                    if (!resp.IsSuccessStatusCode) break;
+                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                    if (!doc.RootElement.TryGetProperty("fields", out var f)) break;
+                    chain.Add(new ParentLink(parentId,
+                        GetString(f, "System.WorkItemType") ?? "",
+                        GetString(f, "System.Title") ?? $"#{parentId}",
+                        GetString(f, "System.State") ?? ""));
+                    current = parentId;
+                }
+            }
+            catch { /* devolve o que ja foi lido */ }
+            return chain;
+
+            async Task<int> ReadParentIdAsync(int wid)
+            {
+                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{wid}?fields=System.Parent&{QueryApiVersion}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = ctx.Authorization;
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                using var resp = await Http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode) return 0;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                return doc.RootElement.TryGetProperty("fields", out var f)
+                       && f.TryGetProperty("System.Parent", out var p) && p.ValueKind == JsonValueKind.Number
+                    ? p.GetInt32() : 0;
+            }
+        }
+
+        /// <summary>Le a Data de Fim / data alvo (campo Data_Fim) de um work item, ou null.</summary>
+        public static async Task<DateTime?> GetWorkItemFinishDateAsync(TfsConnectionOptions options, int id, CancellationToken ct = default)
+        {
+            var finishRef = await ResolveFinishFieldRefAsync(options, ct);
+            if (string.IsNullOrEmpty(finishRef)) return null;
+            var ctx = CreateTfsAuthContext(options, "ler Data de Fim", requireTeamProject: false);
+            var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?fields={Uri.EscapeDataString(finishRef)}&{QueryApiVersion}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = ctx.Authorization;
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            using var resp = await Http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            if (doc.RootElement.TryGetProperty("fields", out var f) && f.TryGetProperty(finishRef, out var v)
+                && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
+                return dt.ToLocalTime().Date;
+            return null;
+        }
+
+        /// <summary>Grava a Data de Fim / data alvo (campo Data_Fim) de um work item. null remove.
+        /// (Ok, Mensagem); 403 = sem permissao.</summary>
+        public static async Task<(bool Ok, string Message)> SetWorkItemFinishDateAsync(
+            TfsConnectionOptions options, int id, DateTime? date, CancellationToken ct = default)
+        {
+            var finishRef = await ResolveFinishFieldRefAsync(options, ct);
+            if (string.IsNullOrEmpty(finishRef)) return (false, "campo de Data de Fim nao encontrado no DevOps");
+            var ctx = CreateTfsAuthContext(options, "gravar Data de Fim", requireTeamProject: false);
+            var ops = date.HasValue
+                ? new List<object> { PatchAdd($"/fields/{finishRef}", date.Value.ToString("yyyy-MM-ddT00:00:00Z")) }
+                : new List<object> { new { op = "remove", path = $"/fields/{finishRef}" } };
+            var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?{QueryApiVersion}";
+            using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ops), Encoding.UTF8, "application/json-patch+json")
+            };
+            req.Headers.Authorization = ctx.Authorization;
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            try
+            {
+                using var resp = await Http.SendAsync(req, ct);
+                if (resp.IsSuccessStatusCode) return (true, string.Empty);
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                var msg = $"HTTP {(int)resp.StatusCode}";
+                try { using var d = JsonDocument.Parse(body); if (d.RootElement.TryGetProperty("message", out var m)) msg = m.GetString() ?? msg; } catch { }
+                return (false, msg);
+            }
+            catch (Exception ex) { return (false, ex.Message); }
         }
 
         /// <summary>Grava a Data de Início (campo Data_Inicio) de um work item. null remove.

@@ -25,6 +25,12 @@ namespace NXProject.Views
             public string Type { get; init; } = "";
             public string Name { get; set; } = "";
             public string State { get; init; } = "";
+            public string AssignedTo { get; init; } = "";
+            /// <summary>HH ja formatado ("" quando o DevOps nao tem o campo preenchido).</summary>
+            public string EstimateHours { get; init; } = "";
+            public string CompletedHours { get; init; } = "";
+            public string StartDate { get; init; } = "";
+            public string FinishDate { get; init; } = "";
             public string Tags { get; init; } = "";
             public string Description { get; init; } = "";
             public string LastHistory { get; init; } = "";
@@ -86,7 +92,7 @@ namespace NXProject.Views
         // ("Atividades de #id - nome") nao chamava a atencao para QUAL Story era.
         private void ApplyTaskBoardMode()
         {
-            Width = 760; Height = 440;
+            Width = 980; Height = 440;
             MinWidth = 640; MinHeight = 340;
             Title = AppStrings.Get("Online_TitleTaskBoard");
 
@@ -116,6 +122,11 @@ namespace NXProject.Views
                         Type        = r.Type,
                         Name        = r.Name,
                         State       = r.State,
+                        AssignedTo  = r.AssignedTo,
+                        EstimateHours  = r.EstimateHours is double eh ? eh.ToString("0.##") : "",
+                        CompletedHours = r.CompletedHours is double ch ? ch.ToString("0.##") : "",
+                        StartDate  = r.StartDate?.ToString("dd/MM/yyyy") ?? "",
+                        FinishDate = r.FinishDate?.ToString("dd/MM/yyyy") ?? "",
                         Tags        = r.Tags,
                         Description = r.Description,
                         LastHistory = r.LastHistory,

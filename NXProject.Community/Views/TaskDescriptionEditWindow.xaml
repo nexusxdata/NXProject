@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Cabeçalho -->
@@ -48,8 +49,13 @@
                 <ComboBox x:Name="StateCombo" Width="140" VerticalAlignment="Center"/>
             </StackPanel>
             <StackPanel x:Name="StartDatePanel" Orientation="Horizontal" Margin="0,6,18,0" Visibility="Collapsed">
-                <TextBlock Text="{DynamicResource Desc_StartDate}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                <TextBlock x:Name="StartDateLabel" Text="{DynamicResource Desc_StartDate}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
                 <DatePicker x:Name="StartDatePicker" Width="140" VerticalAlignment="Center"/>
+            </StackPanel>
+            <!-- Data alvo (Task): campo Data_Fim do DevOps. -->
+            <StackPanel x:Name="FinishDatePanel" Orientation="Horizontal" Margin="0,6,18,0" Visibility="Collapsed">
+                <TextBlock Text="{DynamicResource Desc_TargetDate}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                <DatePicker x:Name="FinishDatePicker" Width="140" VerticalAlignment="Center"/>
             </StackPanel>
             <StackPanel x:Name="SprintPanel" Orientation="Horizontal" Margin="0,6,18,0" Visibility="Collapsed">
                 <TextBlock Text="{DynamicResource Sprint_FldSprint}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
@@ -120,6 +126,13 @@
             <Button Content="{DynamicResource Desc_Save}" Width="90" Height="30" IsDefault="True"
                     Click="OnSaveClick"/>
             <Button Content="{DynamicResource Desc_Cancel}" Width="90" Height="30" IsCancel="True" Margin="8,0,0,0"/>
+        </StackPanel>
+
+        <!-- A que a Task esta ligada no DevOps (cadeia de pais), so consulta. Fica no rodape,
+             abaixo de Salvar, para nao empurrar os campos de edicao para baixo. -->
+        <StackPanel Grid.Row="6" x:Name="ParentPanel" Margin="0,10,0,0" Visibility="Collapsed">
+            <TextBlock Text="{DynamicResource Desc_ParentChain}" FontSize="11" FontWeight="SemiBold" Foreground="#5A6470"/>
+            <TextBlock x:Name="ParentText" FontSize="11" Foreground="#2B579A" TextWrapping="Wrap" Margin="8,2,0,0"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -121,6 +121,15 @@ namespace NXProject.Views
         private readonly Dictionary<int, int> _featureApplied = new();
         // Data de Início (Data_Inicio) da Story alterada (pendente) e a já gravada.
         private readonly Dictionary<int, DateTime?> _startPending = new();
+        /// <summary>Data alvo (Data_Fim) da Task na fila do "Atualizar TFS".</summary>
+        private readonly Dictionary<int, DateTime?> _finishPending = new();
+        /// <summary>
+        /// Data alvo colocada pelo proprio arrasto, por origem. Cada regra so desfaz a data que
+        /// ELA colocou: antes o "saiu de Closed" apagava qualquer data alvo igual a hoje — e a
+        /// calculada no arrasto para Active (Task curta, que termina no mesmo dia) sumia na hora.
+        /// </summary>
+        private readonly HashSet<int> _finishAutoByActive = new();
+        private readonly HashSet<int> _finishAutoByClosed = new();
         // Critérios de Aceitação (HTML) pendentes por Story — gravados no "Atualizar TFS".
         private readonly Dictionary<int, string> _acPending = new();
         // Bloqueio alterado (pendente: novo valor) e conjuntos de tags já gravados.
@@ -298,7 +307,7 @@ namespace NXProject.Views
                 WindowStartupLocation = WindowStartupLocation.Manual;
                 Left = _prefs.WinLeft; Top = _prefs.WinTop; Width = _prefs.WinWidth; Height = _prefs.WinHeight;
             }
-            Closing += (_, _) => SavePrefs();
+            Closing += OnWindowClosing;
             // Restaura a preferência de "dias anteriores" do Closed (0/ausente = padrão 30).
             if (_prefs.ClosedDays is int sd && sd > 0)
             {
@@ -446,13 +455,34 @@ namespace NXProject.Views
             await ReloadBoardAsync(_sprintPaths.ToList());
         }
 
-        private void OnCloseClick(object sender, RoutedEventArgs e)
+        private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+        private bool _closingHandled;
+
+        /// <summary>
+        /// Fechando com alteracoes pendentes: pergunta se grava no TFS, se descarta (reverte) ou
+        /// se volta ao board. Vale para o botao Fechar e para o X da janela.
+        /// </summary>
+        private async void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
-            if (PendingCount() > 0 &&
-                MessageBox.Show(this, AppStrings.Get("Sprint_CloseConfirm"), "NXProject",
-                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-                return;
-            Close();
+            if (_closingHandled || PendingCount() == 0) { SavePrefs(); return; }
+
+            var answer = MessageBox.Show(this,
+                AppStrings.Get("Sprint_CloseSaveQuestion", PendingCount().ToString()), "NXProject",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (answer == MessageBoxResult.Cancel) { e.Cancel = true; return; }
+            if (answer == MessageBoxResult.No) { SavePrefs(); return; }   // reverter = so fechar
+
+            // Gravar: a janela fica aberta durante a gravacao; so fecha se nao sobrou pendencia
+            // (falha de permissao, etc. mantem o board aberto para o usuario ver o que faltou).
+            e.Cancel = true;
+            await UpdateTfsAsync();
+            if (PendingCount() == 0)
+            {
+                _closingHandled = true;
+                SavePrefs();
+                Close();
+            }
         }
 
         // Ao abrir o popup, reflete a seleção atual (evita "união" acidental com a sprint anterior).
@@ -574,6 +604,7 @@ namespace NXProject.Views
                 _taskParentApplied.Clear();
                 _moveTaskId = 0;
                 _startPending.Clear();
+                _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
             _acPending.Clear();
                 _acPending.Clear();
                 _newCards.Clear();
@@ -768,23 +799,39 @@ namespace NXProject.Views
         /// </summary>
         private bool _renderBusy;
 
+        private bool _renderAgain;
+
         private async void RenderBusy()
         {
-            if (_board == null || _renderBusy) return;
+            if (_board == null) return;
+            // Pedido novo com um redesenho em curso: nao se perde — roda de novo ao terminar,
+            // senao o board ficaria mostrando o filtro anterior.
+            if (_renderBusy) { _renderAgain = true; return; }
             _renderBusy = true;
+            var filtering = AppStrings.Get("Sprint_Filtering");
             SaveProgress.IsIndeterminate = true;
             SaveProgress.Visibility = Visibility.Visible;
-            StatusText.Text = AppStrings.Get("Sprint_Filtering");
+            StatusText.Text = filtering;
             try
             {
-                // Sem esta volta o WPF so pintaria a barra depois do Render(), ou seja, nunca.
-                await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
-                Render();
+                do
+                {
+                    _renderAgain = false;
+                    // Uma volta do dispatcher para a barra ser PINTADA antes do redesenho.
+                    // Na prioridade Render, e nao Background: a barra indeterminada anima o
+                    // tempo todo e a animacao fica acima de Background — a continuacao podia
+                    // nunca rodar, deixando "Aplicando filtro..." preso com a tela liberada.
+                    await Dispatcher.InvokeAsync(() => { },
+                        System.Windows.Threading.DispatcherPriority.Render);
+                    Render();
+                } while (_renderAgain);
             }
             finally
             {
                 SaveProgress.IsIndeterminate = false;
                 SaveProgress.Visibility = Visibility.Collapsed;
+                // Rede de seguranca: se o Render nao repos a contagem, nao deixa a mensagem presa.
+                if (StatusText.Text == filtering) StatusText.Text = "";
                 _renderBusy = false;
             }
         }
@@ -956,6 +1003,7 @@ namespace NXProject.Views
             var descDirty = _descPending.ContainsKey(id) || _ownerPending.ContainsKey(id)
                 || _titlePending.ContainsKey(id) || _estPending.ContainsKey(id) || _donePending.ContainsKey(id)
                 || _iterPending.ContainsKey(id) || _featurePending.ContainsKey(id) || _startPending.ContainsKey(id)
+                || _finishPending.ContainsKey(id)
                 || _acPending.ContainsKey(id) || _tramitePending.ContainsKey(id);
             var desc = new Button { Content = descDirty ? "✎●" : "✎", FontSize = 11,
                 Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
@@ -1037,11 +1085,29 @@ namespace NXProject.Views
                     : _featureApplied.TryGetValue(id, out var fa) ? fa : fsrow.FeatureId;
             }
             // Data de Início: editável para Story. Valor efetivo (pendente > DevOps).
-            var enableStart = kind == "Story" && id > 0;
+            var enableStart = kind is "Story" or "Task" && id > 0;
             DateTime? curStart = null;
             if (enableStart)
                 curStart = _startPending.TryGetValue(id, out var sp) ? sp
                     : await TfsImportService.GetWorkItemStartDateAsync(_options, id);
+            // Cadeia de pais da Task direto do DevOps: mostra o id/tipo/nome de cada nivel,
+            // porque a Task pode estar ligada a uma Feature ou outro tipo, nao so a uma Story.
+            string? parentInfo = null;
+            if (kind == "Task" && id > 0)
+            {
+                var chain = await TfsImportService.GetParentChainAsync(_options, id);
+                parentInfo = chain.Count == 0
+                    ? AppStrings.Get("Desc_ParentNone")
+                    : string.Join(Environment.NewLine, chain.Select((pl, i) =>
+                        new string(' ', i * 3) + "\u2191 " + pl.Type + " #" + pl.Id + " \u2014 " + pl.Title
+                        + (string.IsNullOrWhiteSpace(pl.State) ? "" : " (" + pl.State + ")")));
+            }
+            // Data alvo: campo Data_Fim da Task (pendente > valor atual do DevOps).
+            var enableFinish = kind == "Task" && id > 0;
+            DateTime? curFinish = null;
+            if (enableFinish)
+                curFinish = _finishPending.TryGetValue(id, out var fp0) ? fp0
+                    : await TfsImportService.GetWorkItemFinishDateAsync(_options, id);
             // Critérios de Aceitação: campo da Story no DevOps (pendente > valor atual).
             var enableAc = kind == "Story" && id > 0;
             var curAc = "";
@@ -1078,7 +1144,9 @@ namespace NXProject.Views
                 datesInfo: kind == "Task" && _cardById.TryGetValue(id, out var dcard) ? TaskDatesText(dcard)
                     : StoryById(id) is { } dst ? StoryDatesText(dst) : null,
                 // 💬 Tramite: so para itens ja existentes no DevOps.
-                onTramite: id > 0 ? () => EditTramite(id, title) : null) { Owner = this };
+                onTramite: id > 0 ? () => EditTramite(id, title) : null,
+                enableFinishDate: enableFinish, currentFinishDate: curFinish,
+                parentInfo: parentInfo) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
                 _descPending[id] = pt.Description ?? string.Empty;
@@ -1142,6 +1210,11 @@ namespace NXProject.Views
                     else _featurePending[id] = dlg.SelectedFeatureId;
                 }
                 if (dlg.StartDateChanged) _startPending[id] = dlg.SelectedStartDate;
+                if (dlg.FinishDateChanged)
+                {
+                    _finishPending[id] = dlg.SelectedFinishDate;
+                    _finishAutoByActive.Remove(id); _finishAutoByClosed.Remove(id);
+                }
                 if (dlg.AcceptanceChanged) _acPending[id] = dlg.AcceptanceHtml;
                 if (dlg.OwnerChanged)
                 {
@@ -1182,7 +1255,7 @@ namespace NXProject.Views
         {
             var doingDiff = _doing.Except(_appliedDoing).Count() + _appliedDoing.Except(_doing).Count();
             doingDiff += _done.Except(_appliedDone).Count() + _appliedDone.Except(_done).Count();
-            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count;
+            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count + _finishPending.Count;
         }
 
         private void UpdatePendingButton()
@@ -1213,6 +1286,7 @@ namespace NXProject.Views
             _taskParentPending.Clear();
             _moveTaskId = 0;
             _startPending.Clear();
+            _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
             _newCards.Clear();
             _prioPending.Clear();
             _storyRankPending.Clear();
@@ -1240,7 +1314,9 @@ namespace NXProject.Views
 
         // Grava no TFS os estados pendentes (arrastados). O DevOps aplica a permissão: 403 =
         // sem escrita (não é responsável, não está no grupo, ou o token não permite).
-        private async void OnUpdateTfsClick(object sender, RoutedEventArgs e)
+        private async void OnUpdateTfsClick(object sender, RoutedEventArgs e) => await UpdateTfsAsync();
+
+        private async Task UpdateTfsAsync()
         {
             if (PendingCount() == 0) return;
             UpdateTfsButton.IsEnabled = false;
@@ -1362,6 +1438,13 @@ namespace NXProject.Views
                 var (success, msg) = await TfsImportService.SetWorkItemStartDateAsync(_options, kv.Key, kv.Value);
                 if (success) { _startPending.Remove(kv.Key); ok++; }
                 else fails.Add($"#{kv.Key} (data início): {msg}");
+            }
+            // 3i2) Data alvo (Data_Fim) da Task.
+            foreach (var kv in _finishPending.ToList())
+            {
+                var (success, msg) = await TfsImportService.SetWorkItemFinishDateAsync(_options, kv.Key, kv.Value);
+                if (success) { _finishPending.Remove(kv.Key); ok++; }
+                else fails.Add($"#{kv.Key} (data alvo): {msg}");
             }
 
             // 3j) Critérios de Aceitação da Story. 403 = sem permissão.
@@ -2677,7 +2760,7 @@ namespace NXProject.Views
                         // Estado da Story (#id · estado). Laranja quando há mudança de estado pendente.
                         var stRow = StoryById(storyId);
                         storySp.Children.Add(stRow != null
-                            ? BuildStoryStateLine(stRow)
+                            ? BuildStoryStateEditor(stRow)
                             : new TextBlock { Text = $"#{storyId}", FontSize = 10, Foreground = Brushes.Gray });
                         storySp.Children.Add(new TextBlock {
                             Text = "👤 " + (string.IsNullOrWhiteSpace(sOwner) ? AppStrings.Get("Sprint_NoOwner") : sOwner),
@@ -3004,6 +3087,27 @@ namespace NXProject.Views
             Foreground = new SolidColorBrush(Color.FromRgb(0x80, 0x88, 0x92)), TextWrapping = TextWrapping.Wrap
         };
 
+        /// <summary>Horas de trabalho consideradas por dia para projetar a data alvo.</summary>
+        private const double TargetHoursPerDay = 8;
+
+        /// <summary>
+        /// Data em que terminam <paramref name="hours"/> horas de trabalho comecando em
+        /// <paramref name="start"/> (o proprio dia conta como o 1o), pulando sabado e domingo.
+        /// Ate 8h termina no mesmo dia; 16h no dia util seguinte; e assim por diante.
+        /// </summary>
+        private static DateTime AddWorkHours(DateTime start, double hours)
+        {
+            var d = start.Date;
+            while (d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) d = d.AddDays(1);
+            var days = Math.Max(1, (int)Math.Ceiling(hours / TargetHoursPerDay));
+            for (var i = 1; i < days; i++)
+            {
+                d = d.AddDays(1);
+                while (d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) d = d.AddDays(1);
+            }
+            return d;
+        }
+
         /// <summary>Celula da pessoa: nome, selo de WIP e alvo de arrasto para trocar o
         /// responsavel da Story. Usada tanto na 1a linha com Task quanto nas Stories sem Task.</summary>
         private UIElement MakePersonCell(string personKey)
@@ -3112,7 +3216,7 @@ namespace NXProject.Views
                     ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00))
                     : new SolidColorBrush(Color.FromRgb(0x55, 0x5C, 0x66))
             });
-            sp.Children.Add(BuildStoryStateLine(st));
+            sp.Children.Add(BuildStoryStateEditor(st));
             var owner = EffOwner(st.Id, st.AssignedTo);
             sp.Children.Add(new TextBlock
             {
@@ -3790,6 +3894,55 @@ namespace NXProject.Views
         // Linha "#id · estado" da Story. Quando o estado nao bate com o das Tasks (Story em New
         // com Task ja iniciada, ou Story em Active sem nenhuma Task em Active), o estado aparece
         // destacado com ⚠ e o motivo no ToolTip — e so um aviso, nao bloqueia nada.
+        /// <summary>
+        /// Estado da Story editavel direto no card (visao Pessoa &amp; Task): "#id ·" seguido de um
+        /// combo com os estados do board, sem fundo proprio (fica na cor do card). Mantem as cores
+        /// e o aviso da linha somente leitura: laranja com troca pendente, vermelho com o ⚠ de
+        /// estado incoerente com as Tasks (motivo no hint). A troca entra na fila do "Atualizar TFS".
+        /// </summary>
+        private UIElement BuildStoryStateEditor(TfsImportService.SprintStoryRow story)
+        {
+            var line = BuildStoryStateLine(story);   // reaproveita cor, negrito e o hint do ⚠
+            var states = _board?.States?.ToList() ?? new List<string>();
+            var current = EffStoryState(story);
+            if (story.Id <= 0 || states.Count == 0) return line;
+            if (!states.Any(x => SameState(x, current))) states.Add(current);
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Cursor = System.Windows.Input.Cursors.Arrow,
+                ToolTip = line.ToolTip };
+            var hasAlert = line.Text.Contains("⚠");
+            row.Children.Add(new TextBlock
+            {
+                Text = $"#{story.Id}  ·  " + (hasAlert ? "⚠ " : ""),
+                FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = line.Foreground, FontWeight = line.FontWeight
+            });
+            var combo = new ComboBox
+            {
+                FontSize = 10, Height = 20, MinWidth = 70, Padding = new Thickness(4, 0, 2, 0),
+                VerticalAlignment = VerticalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
+                Background = Brushes.Transparent,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0xCF, 0xD8)),
+                Foreground = line.Foreground, FontWeight = line.FontWeight,
+                ToolTip = line.ToolTip ?? AppStrings.Get("Desc_State")
+            };
+            foreach (var st in states) combo.Items.Add(st);
+            combo.SelectedItem = states.First(x => SameState(x, current));
+            // handler so depois do valor inicial, para nao disparar na montagem do card
+            combo.SelectionChanged += (_, _) =>
+            {
+                if (combo.SelectedItem is not string chosen) return;
+                var baseline = _storyStateApplied.TryGetValue(story.Id, out var a) ? a : story.State;
+                if (SameState(baseline, chosen)) _storyStatePending.Remove(story.Id);
+                else _storyStatePending[story.Id] = chosen;
+                UpdatePendingButton();
+                // Redesenha depois que o combo fecha (recriar o card com o dropdown aberto trava o foco).
+                Dispatcher.BeginInvoke(new Action(RenderBusy), System.Windows.Threading.DispatcherPriority.Background);
+            };
+            row.Children.Add(combo);
+            return row;
+        }
+
         private TextBlock BuildStoryStateLine(TfsImportService.SprintStoryRow story)
         {
             var state = EffStoryState(story);
@@ -4219,6 +4372,52 @@ namespace NXProject.Views
             // HH Estimado (e Realizado quando encerrada).
             if (!isNew && BuildHoursLine(t.Id, t.EstimateHours, t.CompletedHours, EffState(t)) is { } hhTask)
                 sp.Children.Add(hhTask);
+            // Data alvo editavel direto no card enquanto a Task esta Active: e quando ela e
+            // acompanhada de perto. A mudanca vai para a mesma fila do editor (Data_Fim).
+            if (!isNew && TfsImportService.NormalizeTaskState(EffState(t)) == "Active")
+            {
+                var finishPend = _finishPending.TryGetValue(t.Id, out var fpv);
+                // Vencida: a data alvo ja passou e a Task continua Active.
+                var effFinish = finishPend ? fpv : t.FinishDate;
+                var overdue = effFinish is DateTime ef && ef.Date < DateTime.Today;
+                var red = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30));
+                var targetRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0),
+                    Cursor = System.Windows.Input.Cursors.Arrow };
+                targetRow.Children.Add(new TextBlock
+                {
+                    Text = AppStrings.Get("Desc_TargetDate"), FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    Foreground = overdue ? red
+                        : finishPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray,
+                    FontWeight = overdue ? FontWeights.SemiBold : FontWeights.Normal
+                });
+                var targetPicker = new DatePicker
+                {
+                    SelectedDate = finishPend ? fpv : t.FinishDate, FontSize = 10, Width = 108,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    BorderBrush = overdue ? red
+                        : finishPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : null,
+                    Foreground = overdue ? red : Brushes.Black,
+                    ToolTip = overdue ? AppStrings.Get("Sprint_TargetOverdue") : null
+                };
+                targetPicker.SelectedDateChanged += (_, _) =>
+                {
+                    var picked = targetPicker.SelectedDate?.Date;
+                    // Voltou ao valor do DevOps: nao ha o que gravar.
+                    if (picked == t.FinishDate?.Date) _finishPending.Remove(t.Id);
+                    else _finishPending[t.Id] = picked;
+                    _finishAutoByActive.Remove(t.Id); _finishAutoByClosed.Remove(t.Id);
+                    UpdatePendingButton();
+                };
+                // Sem fundo branco: a data fica na cor do card. O DatePicker pinta o fundo no
+                // DatePickerTextBox interno, entao o transparente precisa ir no estilo dele tambem.
+                targetPicker.Background = Brushes.Transparent;
+                var tbStyle = new Style(typeof(System.Windows.Controls.Primitives.DatePickerTextBox));
+                tbStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+                targetPicker.Resources.Add(typeof(System.Windows.Controls.Primitives.DatePickerTextBox), tbStyle);
+                targetRow.Children.Add(targetPicker);
+                sp.Children.Add(targetRow);
+            }
             // Sprint da Task: mostra quando há mais de uma sprint no board (várias/"Todas").
             var tIter = IterLeaf(EffIter(t.Id, t.IterationPath));
             if (_sprintPaths.Count != 1 && !string.IsNullOrEmpty(tIter))
@@ -4445,6 +4644,50 @@ namespace NXProject.Views
                 var baseline = _applied.TryGetValue(id, out var a) ? a : dragged.State;
                 if (SameState(baseline, newState)) _pending.Remove(id);
                 else _pending[id] = newState;
+
+                // Soltou em Active: registra a data de inicio (Data_Inicio) como hoje. So quando a
+                // Task ainda nao tem inicio no DevOps — uma data ja planejada nao e sobrescrita.
+                if (id > 0 && TfsImportService.NormalizeTaskState(newState) == "Active"
+                    && !_startPending.ContainsKey(id)
+                    && await TfsImportService.GetWorkItemStartDateAsync(_options, id) == null)
+                    _startPending[id] = DateTime.Today;
+                // Soltou em Active sem data alvo: calcula a partir da ativacao (hoje) somando o
+                // HH Estimado em dias uteis (8h/dia, sem sabado e domingo).
+                if (id > 0 && TfsImportService.NormalizeTaskState(newState) == "Active"
+                    && (!_finishPending.ContainsKey(id) || _finishAutoByClosed.Contains(id))
+                    && dragged.FinishDate == null)
+                {
+                    var hh = _estPending.TryGetValue(id, out var ep) ? ep : dragged.EstimateHours;
+                    _finishPending[id] = AddWorkHours(DateTime.Today, hh ?? 0);
+                    _finishAutoByClosed.Remove(id);
+                    _finishAutoByActive.Add(id);
+                }
+                else if (id > 0 && TfsImportService.NormalizeTaskState(newState) == "New"
+                         && _finishAutoByActive.Remove(id))
+                    _finishPending.Remove(id);
+                // Voltou de Active sem gravar: desfaz o inicio que o arrasto tinha colocado.
+                else if (id > 0 && TfsImportService.NormalizeTaskState(newState) == "New"
+                    && _startPending.TryGetValue(id, out var autoStart) && autoStart == DateTime.Today)
+                    _startPending.Remove(id);
+
+                // Soltou em coluna encerrada: a data alvo (Data_Fim) vira hoje quando esta vazia ou
+                // e posterior a hoje — a Task terminou antes do previsto. Data alvo ja no passado
+                // (terminou atrasada) fica como esta, para nao apagar o registro do atraso.
+                if (id > 0 && IsClosedState(newState))
+                {
+                    var curFinish = _finishPending.TryGetValue(id, out var pf) ? pf
+                        : await TfsImportService.GetWorkItemFinishDateAsync(_options, id);
+                    if (curFinish == null || curFinish.Value.Date > DateTime.Today)
+                    {
+                        _finishPending[id] = DateTime.Today;
+                        _finishAutoByActive.Remove(id);
+                        _finishAutoByClosed.Add(id);
+                    }
+                }
+                // Tirou de Closed sem gravar: desfaz so a data alvo que o arrasto para Closed colocou.
+                else if (id > 0 && _finishAutoByClosed.Remove(id)
+                         && TfsImportService.NormalizeTaskState(newState) != "Active")
+                    _finishPending.Remove(id);
 
                 // Soltou numa coluna encerrada: o campo de HH Realizado passa a aparecer no card
                 // ate a gravacao no TFS, mesmo que o estado em si nao tenha mudado.
