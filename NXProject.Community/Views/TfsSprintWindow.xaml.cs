@@ -50,6 +50,27 @@ namespace NXProject.Views
         private const int DefaultClosedDays = 15;
         private int _closedDays = DefaultClosedDays; // Closed exibe só os últimos N dias (0 = todos).
         private int _discoveredPrioMax; // máximo de Priority aceito pelo template (via validateOnly).
+
+        /// <summary>
+        /// Medicao por etapa da abertura (load-perf.txt). DESLIGADA por padrao: serviu para achar
+        /// o gargalo e nao precisa rodar na versao publicada. Para ligar sem recompilar, defina a
+        /// variavel de ambiente NXPROJECT_LOADPERF=1 antes de abrir o NX.
+        /// </summary>
+        private static readonly bool LoadPerfEnabled =
+            Environment.GetEnvironmentVariable("NXPROJECT_LOADPERF") == "1";
+
+        private static void AppendLoadPerf(string line)
+        {
+            if (!LoadPerfEnabled) return;
+            try
+            {
+                var perfFile = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "NXProject.Community", "load-perf.txt");
+                System.IO.File.AppendAllText(perfFile, line + Environment.NewLine + Environment.NewLine);
+            }
+            catch { /* medicao nunca derruba a carga */ }
+        }
         private string? _currentUser;
         // Estado alterado localmente (arrasto), pendente de gravar; e o já gravado com sucesso.
         private readonly Dictionary<int, string> _pending = new();
@@ -320,6 +341,8 @@ namespace NXProject.Views
             // Cache dos campos do TFS: ligado por padrao (null = ligado).
             FieldCacheCheck.IsChecked = _prefs.FieldCache ?? true;
             TfsImportService.FieldRefCacheEnabled = FieldCacheCheck.IsChecked == true;
+            // Sem a variavel de ambiente, as marcacoes de tempo nem sao montadas.
+            TfsImportService.LoadTrace.Enabled = LoadPerfEnabled;
             WipLimitBox.Text = WipLimit().ToString();
             // Restaura geometria/estado da janela do TaskBoard.
             if (_prefs.WinWidth > 200 && _prefs.WinHeight > 200)
@@ -571,19 +594,11 @@ namespace NXProject.Views
                 UpdateSprintToggleText();
                 var loadWatch = Stopwatch.StartNew();
                 _board = await TfsImportService.BuildSprintBoardAsync(_options, paths);
-                // Medicao da carga (mesmo arquivo do Gantt): para comparar versoes com numero, nao impressao.
-                try
-                {
-                    var perfFile = System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "NXProject.Community", "load-perf.txt");
-                    System.IO.File.AppendAllText(perfFile,
-                        $"TaskBoard.Load: {loadWatch.ElapsedMilliseconds} ms ({_board.Stories.Count} stories, "
-                        + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine
-                        + "  etapas: " + TfsImportService.LoadTrace.Dump() + Environment.NewLine + Environment.NewLine);
-                    TfsImportService.LoadTrace.Reset();
-                }
-                catch { /* medicao nunca derruba a carga */ }
+                AppendLoadPerf(
+                    $"TaskBoard.Load: {loadWatch.ElapsedMilliseconds} ms ({_board.Stories.Count} stories, "
+                    + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine
+                    + "  etapas: " + TfsImportService.LoadTrace.Dump());
+                TfsImportService.LoadTrace.Reset();
                 var people = BoardPeople(_board);
                 // Mantém só as pessoas ainda existentes no board (preserva a seleção múltipla).
                 _selectedPeople.RemoveWhere(p => !people.Contains(p, StringComparer.CurrentCultureIgnoreCase));
@@ -709,16 +724,7 @@ namespace NXProject.Views
                         // Roda DEPOIS do cronometro do board: ganha linha propria no log.
                         var prioWatch = Stopwatch.StartNew();
                         _discoveredPrioMax = await TfsImportService.DiscoverTaskPriorityMaxAsync(_options, sample.Id);
-                        try
-                        {
-                            System.IO.File.AppendAllText(
-                                System.IO.Path.Combine(
-                                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                                    "NXProject.Community", "load-perf.txt"),
-                                "TaskBoard.PrioridadeMax: " + prioWatch.ElapsedMilliseconds + " ms"
-                                + Environment.NewLine + Environment.NewLine);
-                        }
-                        catch { /* medicao nunca derruba a carga */ }
+                        AppendLoadPerf("TaskBoard.PrioridadeMax: " + prioWatch.ElapsedMilliseconds + " ms");
                         if (_discoveredPrioMax > 0)
                         {
                             // Grava direto: o SavePrefs comum ainda pode estar bloqueado nesta 1a carga.

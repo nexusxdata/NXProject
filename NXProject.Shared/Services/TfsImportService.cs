@@ -574,10 +574,15 @@ namespace NXProject.Services
             private static readonly object Lock = new();
             private static readonly System.Collections.Generic.List<string> Marks = new();
 
+            /// <summary>Desligada por padrao: a versao publicada nao mede etapa nenhuma. Quem liga
+            /// e o TaskBoard, pela variavel de ambiente NXPROJECT_LOADPERF=1.</summary>
+            public static bool Enabled { get; set; }
+
             public static void Reset() { lock (Lock) Marks.Clear(); }
 
             public static void Mark(string phase, long ms)
             {
+                if (!Enabled) return;
                 lock (Lock) Marks.Add(phase + " " + ms + "ms");
             }
 
