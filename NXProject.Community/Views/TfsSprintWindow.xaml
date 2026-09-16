@@ -217,6 +217,14 @@
                     Click="OnColorsClick" Content="🎨" ToolTip="{DynamicResource Sprint_Colors}"/>
             <ToggleButton x:Name="ConfigToggle" VerticalAlignment="Center" Padding="6,2" Margin="10,0,0,0"
                           Content="⚙" ToolTip="{DynamicResource Sprint_Config}"/>
+            <!-- So aparece quando o "Mostrar no board" afrouxou filtros/sprint nesta sessao.
+                 Fica aqui, e nao na barra de acoes: la nao sobrava espaco. -->
+            <Button x:Name="RestoreFiltersButton" VerticalAlignment="Center" Padding="10,2"
+                    Margin="14,0,0,0" Visibility="Collapsed" Click="OnRestoreFiltersClick"
+                    Background="#FFC107" Foreground="#3B2F00" FontWeight="SemiBold"
+                    BorderBrush="#B8860B" BorderThickness="1"
+                    Content="{DynamicResource Sprint_RestoreFilters}"
+                    ToolTip="{DynamicResource Sprint_RestoreFiltersTip}"/>
             <Popup PlacementTarget="{Binding ElementName=ConfigToggle}" Placement="Bottom"
                    IsOpen="{Binding IsChecked, ElementName=ConfigToggle}" StaysOpen="False" AllowsTransparency="True">
                 <Border Background="White" BorderBrush="#C9D3CC" BorderThickness="1" Padding="10">

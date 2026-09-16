@@ -498,6 +498,9 @@ namespace NXProject.Views
             // (Fora daqui isso fica gravado e volta do jeito que estava na proxima abertura.)
             _collapsed.Clear();
             _collapsedPeople.Clear();
+            // O "Limpar filtros" ja define um estado novo: nao ha mais o que restaurar.
+            _restoreFilters = null;
+            RestoreFiltersButton.Visibility = Visibility.Collapsed;
 
             StoryFilterToggle.IsChecked = false;
             RenderBusy();
@@ -770,9 +773,9 @@ namespace NXProject.Views
             {
                 // Move de Story pendente: a Task ja aparece na Story DESTINO (e sai da origem),
                 // mesmo antes de gravar — o selo laranja no card diz que a troca esta na fila.
-                var tks = s.Tasks.Where(t => !_taskParentPending.ContainsKey(t.Id)).ToList();
+                var tks = s.Tasks.Where(t => !HasLiveParentMove(t.Id)).ToList();
                 tks.AddRange(_board.Stories.SelectMany(o => o.Tasks)
-                    .Where(t => _taskParentPending.TryGetValue(t.Id, out var np) && np == s.Id));
+                    .Where(t => HasLiveParentMove(t.Id) && _taskParentPending[t.Id] == s.Id));
                 tks.AddRange(_newCards.Where(n => n.Type == "Task" && n.ParentId == s.Id).Select(NewToCard));
                 list.Add((s, tks));
             }
@@ -800,6 +803,18 @@ namespace NXProject.Views
                 list.Add((row, tks));
             }
             return list;
+        }
+
+        /// <summary>
+        /// Move de Story pendente que ainda VALE. Quando o destino era uma Story nova e o card
+        /// dela foi descartado, o destino deixou de existir: sem esta checagem a Task sumia do
+        /// board (saia da origem e nao tinha para onde ir) e levava junto a linha da Feature.
+        /// </summary>
+        private bool HasLiveParentMove(int taskId)
+        {
+            if (!_taskParentPending.TryGetValue(taskId, out var target)) return false;
+            if (target > 0) return true;
+            return _newCards.Any(n => n.TempId == target);
         }
 
         private TfsImportService.SprintTaskCard NewToCard(NewCard n) =>
@@ -854,7 +869,7 @@ namespace NXProject.Views
         }
 
         // Cria um card NOVO vazio (editável no próprio card): Nome, Responsável, HH, Descrição.
-        private void AddNewStory(int featureId, string featureTitle, string? assignedTo = null)
+        private int AddNewStory(int featureId, string featureTitle, string? assignedTo = null)
         {
             // Na visao Pessoa & Task o botao fica DENTRO da faixa de uma pessoa: a Story nasce
             // para ELA, nao para o dono da Feature (que pode ser outro). Sem pessoa no contexto
@@ -863,10 +878,26 @@ namespace NXProject.Views
                 ? (string.Equals(assignedTo, AppStrings.Get("Sprint_NoOwner"), StringComparison.Ordinal) ? "" : assignedTo)
                 : EffOwner(featureId,
                     _board?.Stories.FirstOrDefault(x => x.FeatureId == featureId)?.FeatureAssignedTo ?? "");
-            _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Story", ParentId = featureId, FeatureId = featureId, FeatureTitle = featureTitle, AssignedTo = featOwner, IterationPath = DefaultNewIterationPath() });
+            var tempId = _nextTempId--;
+            _newCards.Add(new NewCard { TempId = tempId, Type = "Story", ParentId = featureId, FeatureId = featureId, FeatureTitle = featureTitle, AssignedTo = featOwner, IterationPath = DefaultNewIterationPath() });
             ExpandTo(featureId);
             if (!string.IsNullOrEmpty(featOwner)) _collapsedPeople.Remove(featOwner);
             UpdatePendingButton(); Render();
+            return tempId;
+        }
+
+        /// <summary>
+        /// Task pendurada DIRETO na Feature: cria a Story que falta ali e marca todas as Tasks
+        /// daquela Feature para virarem filhas dela. A Story so nasce no "Atualizar TFS", e a
+        /// troca de pai acontece logo depois, ja com o id real.
+        /// </summary>
+        private void CreateStoryForOrphans(int featureId, string featureTitle, string? personKey,
+            IEnumerable<TfsImportService.SprintTaskCard> tasks)
+        {
+            var tempId = AddNewStory(featureId, featureTitle, personKey);
+            foreach (var t in tasks.Where(t => t.Id > 0)) _taskParentPending[t.Id] = tempId;
+            UpdatePendingButton();
+            Render();
         }
 
         // "+Feature" no card do EPIC e "+EPIC" no card do Projeto: mesma fila dos demais
@@ -1772,6 +1803,9 @@ namespace NXProject.Views
             // 3g2) Story (pai) da Task: mesma troca de System.Parent usada na Feature da Story.
             foreach (var kv in _taskParentPending.ToList())
             {
+                // Alvo negativo = Story nova, que ainda nao existe no DevOps. Essas ficam para
+                // depois do bloco de criacao, quando o id temporario ja virou id real.
+                if (kv.Value < 0) continue;
                 var (success, msg) = await TfsImportService.SetWorkItemParentAsync(_options, kv.Key, kv.Value);
                 if (success) { _taskParentApplied[kv.Key] = kv.Value; _taskParentPending.Remove(kv.Key); ok++; reload = true; }
                 else fails.Add($"#{kv.Key} (story): {msg}");
@@ -1982,6 +2016,18 @@ namespace NXProject.Views
                 else fails.Add($"Task '{nt.Title}': {msg}");
             }
 
+            // 5b) Tasks que esperavam uma Story NOVA (criada agora pelo card "criar Story aqui"):
+            // troca o id temporario pelo real e so entao muda o pai no DevOps.
+            foreach (var kv in _taskParentPending.Where(k => k.Value < 0).ToList())
+                if (tempToReal.TryGetValue(kv.Value, out var realStoryId))
+                    _taskParentPending[kv.Key] = realStoryId;
+            foreach (var kv in _taskParentPending.Where(k => k.Value > 0).ToList())
+            {
+                var (success, msg) = await TfsImportService.SetWorkItemParentAsync(_options, kv.Key, kv.Value);
+                if (success) { _taskParentApplied[kv.Key] = kv.Value; _taskParentPending.Remove(kv.Key); ok++; reload = true; }
+                else fails.Add($"#{kv.Key} (story): {msg}");
+            }
+
             Phase("Sprint_PhReload");
             SaveProgress.Value = SaveProgress.Maximum;
             if (reload)
@@ -2156,6 +2202,230 @@ namespace NXProject.Views
 
         // Filtros que escondem CARDS por estado (a coluna continua no board). Cards pendentes
         // (recém-arrastados) sempre aparecem, mesmo num estado escondido/Closed.
+        /// <summary>
+        /// Faz a Task aparecer no board AFROUXANDO os filtros que a escondem, em vez de furar o
+        /// recorte: o board continua coerente com o que esta na tela. Mostra antes o que sera
+        /// alterado e so mexe com a confirmacao do usuario. Devolve se ela passou a aparecer (a
+        /// grade usa isso para se fechar) e a mensagem para a linha de status.
+        /// </summary>
+        private async Task<(bool Shown, string Message)> ShowTaskOnBoardAsync(int taskId, string? iterationPath)
+        {
+            // Foto do estado ANTES de qualquer mexida — inclui as SPRINTS carregadas, porque
+            // trazer outra sprint tambem muda o que o board mostra. So a PRIMEIRA e guardada:
+            // varios "mostrar no board" seguidos devem voltar para onde o usuario estava.
+            CaptureBoardViewSnapshot();
+            var card = _board?.Stories.SelectMany(s => s.Tasks).FirstOrDefault(t => t.Id == taskId);
+
+            // Fora da(s) sprint(s) carregada(s): nenhum filtro de tela resolve — o card nem foi
+            // trazido do DevOps. Ai a saida e marcar a sprint dela e recarregar.
+            if (card == null)
+            {
+                var sprint = _sprints.FirstOrDefault(sp =>
+                    !string.IsNullOrWhiteSpace(iterationPath)
+                    && string.Equals(sp.Path, iterationPath, StringComparison.OrdinalIgnoreCase));
+                if (sprint == null)
+                    return (false, ShowInfo(AppStrings.Get("Sprint_ForceNotLoaded", taskId.ToString())));
+
+                var askSprint = AppStrings.Get("Sprint_AdjustSprintAsk", taskId.ToString(), sprint.Name);
+                if (MessageBox.Show(this, askSprint, "NXProject", MessageBoxButton.YesNo,
+                        MessageBoxImage.Question, MessageBoxResult.Yes) != MessageBoxResult.Yes)
+                    return (false, AppStrings.Get("Sprint_AdjustCancelled"));
+
+                var paths = _sprintPaths.ToList();
+                if (!paths.Contains(sprint.Path)) paths.Add(sprint.Path);
+                ApplySprintChecks(paths);
+                await ReloadBoardAsync(paths);
+                RestoreFiltersButton.Visibility = Visibility.Visible;   // ha o que restaurar
+                card = _board?.Stories.SelectMany(s => s.Tasks).FirstOrDefault(t => t.Id == taskId);
+                if (card == null)
+                    return (false, ShowInfo(AppStrings.Get("Sprint_ForceNotLoaded", taskId.ToString())));
+            }
+
+            var why = WhyHidden(card);
+            if (string.IsNullOrEmpty(why))
+            {
+                var okMsg = AppStrings.Get("Sprint_ForceAlreadyVisible", taskId.ToString());
+                StatusText.Text = okMsg;
+                return (true, okMsg);
+            }
+
+            // Lista o que sera afrouxado, na linguagem dos proprios filtros da tela.
+            var plan = BuildFilterRelaxPlan(card);
+            var ask = AppStrings.Get("Sprint_AdjustAsk", taskId.ToString(), why,
+                string.Join(Environment.NewLine, plan.Select(p => "  • " + p.Label)));
+            if (MessageBox.Show(this, ask, "NXProject", MessageBoxButton.YesNo,
+                    MessageBoxImage.Question, MessageBoxResult.Yes) != MessageBoxResult.Yes)
+                return (false, AppStrings.Get("Sprint_AdjustCancelled"));
+
+            foreach (var step in plan) step.Apply();
+            // NAO chama SavePrefs: este afrouxamento e para OLHAR uma Task, nao a preferencia
+            // de trabalho do usuario. Fechando e reabrindo o board, os filtros salvos voltam —
+            // e, sem fechar, o botao "Restaurar filtros" devolve o estado anterior.
+            RestoreFiltersButton.Visibility = Visibility.Visible;
+            RenderBusy();
+            var done = AppStrings.Get("Sprint_AdjustDone", taskId.ToString(),
+                string.Join(" · ", plan.Select(p => p.Label)));
+            // Tambem na linha de status do board: o botao amarelo e o aviso se reforcam.
+            StatusText.Text = done;
+            return (true, done);
+        }
+
+        /// <summary>Como voltar ao estado anterior ao primeiro "Mostrar no board". Null = nada a restaurar.</summary>
+        private Func<Task>? _restoreFilters;
+
+        /// <summary>
+        /// Guarda filtros e sprints como estao agora. Chamada a cada "Mostrar no board", mas so a
+        /// PRIMEIRA vale: o restaurar tem que devolver o ponto de partida, nao o passo anterior.
+        /// </summary>
+        private void CaptureBoardViewSnapshot()
+        {
+            if (_restoreFilters != null) return;
+
+            var wasSchedule = OnlyScheduleCheck.IsChecked;
+            var wasBlocked = OnlyBlockedCheck.IsChecked;
+            var wasUnplanned = OnlyUnplannedCheck.IsChecked;
+            var wasDoing = OnlyDoingCheck.IsChecked;
+            var wasDoneActive = OnlyDoneActiveCheck.IsChecked;
+            var wasTaskActive = OnlyTaskActiveCheck.IsChecked;
+            var wasPeople = _selectedPeople.ToList();
+            var wasStories = _selectedStoryIds.ToList();
+            var wasHidden = _hiddenStates.ToList();
+            var wasDays = _closedDays;
+            var wasSearch = SearchBox.Text;
+            var wasSprints = _sprintPaths.ToList();
+
+            _restoreFilters = async () =>
+            {
+                OnlyScheduleCheck.IsChecked = wasSchedule;
+                OnlyBlockedCheck.IsChecked = wasBlocked;
+                OnlyUnplannedCheck.IsChecked = wasUnplanned;
+                OnlyDoingCheck.IsChecked = wasDoing;
+                OnlyDoneActiveCheck.IsChecked = wasDoneActive;
+                OnlyTaskActiveCheck.IsChecked = wasTaskActive;
+                _selectedPeople.Clear();
+                foreach (var p in wasPeople) _selectedPeople.Add(p);
+                _selectedStoryIds.Clear();
+                foreach (var i in wasStories) _selectedStoryIds.Add(i);
+                _hiddenStates.Clear();
+                foreach (var st in wasHidden) _hiddenStates.Add(st);
+                _closedDays = wasDays;
+                ClosedDaysBox.Text = wasDays.ToString();
+                SearchBox.Text = wasSearch;
+                PopulateStateFilter();
+                // Sprint so volta recarregando o board — e so quando de fato mudou.
+                if (!wasSprints.OrderBy(x => x).SequenceEqual(_sprintPaths.OrderBy(x => x)))
+                {
+                    ApplySprintChecks(wasSprints);
+                    await ReloadBoardAsync(wasSprints);
+                }
+            };
+        }
+
+        private async void OnRestoreFiltersClick(object sender, RoutedEventArgs e)
+        {
+            if (_restoreFilters is { } restore)
+            {
+                _restoreFilters = null;
+                await restore();
+            }
+            RestoreFiltersButton.Visibility = Visibility.Collapsed;
+            StatusText.Text = AppStrings.Get("Sprint_RestoreFiltersDone");
+            RenderBusy();
+        }
+
+        private string ShowInfo(string msg)
+        {
+            MessageBox.Show(this, msg, "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
+            return msg;
+        }
+
+        /// <summary>
+        /// O que precisa ser afrouxado para esta Task aparecer: um passo por filtro que a barra,
+        /// cada um com o rotulo que o usuario ve e a acao correspondente. Nada e aplicado aqui.
+        /// </summary>
+        private List<(string Label, Action Apply)> BuildFilterRelaxPlan(TfsImportService.SprintTaskCard t)
+        {
+            var plan = new List<(string Label, Action Apply)>();
+            void Add(string label, Action apply) => plan.Add((label, apply));
+
+            if (OnlyScheduleCheck.IsChecked == true
+                && !(EffTaskParent(t) is int sp8 && _scheduleIds.Contains(sp8)))
+                Add(AppStrings.Get("Sprint_AdjustUncheck", AppStrings.Get("Sprint_OnlyScheduleStory")),
+                    () => OnlyScheduleCheck.IsChecked = false);
+            if (OnlyBlockedCheck.IsChecked == true && !EffBlocked(t.Id, t.Tags))
+                Add(AppStrings.Get("Sprint_AdjustUncheck", AppStrings.Get("Sprint_OnlyBlocked")),
+                    () => OnlyBlockedCheck.IsChecked = false);
+            if (OnlyUnplannedCheck.IsChecked == true && !EffUnplanned(t.Id, t.Tags))
+                Add(AppStrings.Get("Sprint_AdjustUncheck", AppStrings.Get("Sprint_OnlyUnplanned")),
+                    () => OnlyUnplannedCheck.IsChecked = false);
+            if (OnlyDoingCheck.IsChecked == true && !_doing.Contains(t.Id))
+                Add(AppStrings.Get("Sprint_AdjustUncheck", AppStrings.Get("Sprint_OnlyDoing")),
+                    () => OnlyDoingCheck.IsChecked = false);
+            if (OnlyDoneActiveCheck.IsChecked == true && !_done.Contains(t.Id))
+                Add(AppStrings.Get("Sprint_AdjustUncheck", AppStrings.Get("Sprint_OnlyDoneActive")),
+                    () => OnlyDoneActiveCheck.IsChecked = false);
+            if (OnlyTaskActiveCheck.IsChecked == true
+                && TfsImportService.NormalizeTaskState(EffState(t)) != "Active")
+                Add(AppStrings.Get("Sprint_AdjustUncheck", AppStrings.Get("Sprint_OnlyTaskActive")),
+                    () => OnlyTaskActiveCheck.IsChecked = false);
+
+            var owner = t.AssignedTo ?? "";
+            if (_selectedPeople.Count > 0 && !_selectedPeople.Contains(owner))
+                Add(AppStrings.Get("Sprint_AdjustAddPerson",
+                        string.IsNullOrWhiteSpace(owner) ? AppStrings.Get("Sprint_NoOwner") : owner),
+                    () => _selectedPeople.Add(owner));
+
+            var parentId = EffTaskParent(t);
+            if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(parentId))
+                Add(AppStrings.Get("Sprint_AdjustAddStory", parentId.ToString()),
+                    () => _selectedStoryIds.Add(parentId));
+
+            var state = EffState(t);
+            if (_hiddenStates.Contains(state))
+                Add(AppStrings.Get("Sprint_AdjustShowState", state), () =>
+                {
+                    _hiddenStates.Remove(state);
+                    PopulateStateFilter();
+                });
+
+            if (_closedDays > 0 && IsClosedState(state) && t.ClosedDate is DateTime cdp
+                && cdp.Date < DateTime.Today.AddDays(-_closedDays))
+            {
+                var days = (int)Math.Ceiling((DateTime.Today - cdp.Date).TotalDays) + 1;
+                Add(AppStrings.Get("Sprint_AdjustClosedDays", _closedDays.ToString(), days.ToString()), () =>
+                {
+                    _closedDays = days;
+                    ClosedDaysBox.Text = days.ToString();
+                });
+            }
+
+            if (!string.IsNullOrEmpty(SearchQuery()))
+                Add(AppStrings.Get("Sprint_AdjustClearSearch"), () => SearchBox.Text = "");
+
+            return plan;
+        }
+
+        /// <summary>Quais recortes estao escondendo esta Task. Vazio = nenhum (ela ja aparecia).</summary>
+        private string WhyHidden(TfsImportService.SprintTaskCard t)
+        {
+            var r = new List<string>();
+            if (OnlyScheduleCheck.IsChecked == true
+                && !(EffTaskParent(t) is int sp9 && _scheduleIds.Contains(sp9))) r.Add(AppStrings.Get("Sprint_WhyOnlySchedule"));
+            if (OnlyBlockedCheck.IsChecked == true && !EffBlocked(t.Id, t.Tags)) r.Add(AppStrings.Get("Sprint_WhyOnlyBlocked"));
+            if (OnlyUnplannedCheck.IsChecked == true && !EffUnplanned(t.Id, t.Tags)) r.Add(AppStrings.Get("Sprint_WhyOnlyUnplanned"));
+            if (OnlyDoingCheck.IsChecked == true && !_doing.Contains(t.Id)) r.Add(AppStrings.Get("Sprint_WhyOnlyDoing"));
+            if (OnlyDoneActiveCheck.IsChecked == true && !_done.Contains(t.Id)) r.Add(AppStrings.Get("Sprint_WhyOnlyDoneActive"));
+            if (OnlyTaskActiveCheck.IsChecked == true
+                && TfsImportService.NormalizeTaskState(EffState(t)) != "Active") r.Add(AppStrings.Get("Sprint_WhyOnlyActive"));
+            if (_selectedPeople.Count > 0 && !_selectedPeople.Contains(t.AssignedTo ?? "")) r.Add(AppStrings.Get("Sprint_WhyPerson"));
+            if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(EffTaskParent(t))) r.Add(AppStrings.Get("Sprint_WhyProject"));
+            if (_hiddenStates.Contains(EffState(t))) r.Add(AppStrings.Get("Sprint_WhyState", EffState(t)));
+            if (_closedDays > 0 && IsClosedState(EffState(t)) && t.ClosedDate is DateTime cdw
+                && cdw.Date < DateTime.Today.AddDays(-_closedDays)) r.Add(AppStrings.Get("Sprint_WhyClosedDays", _closedDays.ToString()));
+            if (!string.IsNullOrEmpty(SearchQuery())) r.Add(AppStrings.Get("Sprint_WhySearch"));
+            return string.Join(" · ", r);
+        }
+
         private bool PassesFilters(TfsImportService.SprintTaskCard t)
         {
             if (t.Id < 0) return true; // card novo (local) sempre visível até salvar
@@ -3026,10 +3296,13 @@ namespace NXProject.Views
                     });
                     continue;
                 }
-                int GroupStoryId(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
-                    g.Select(EffTaskParent).FirstOrDefault(id => id > 0);
-                TfsImportService.SprintStoryRow? GroupStory(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
-                    _storyById.TryGetValue(GroupStoryId(g), out var st) ? st : null;
+                // Agrupa pelo ID do pai, nao pelo titulo: Tasks penduradas direto em Features
+                // DIFERENTES caiam todas num unico grupo "(sem Story)", sem dar para saber de que
+                // entrega era cada uma.
+                int GroupStoryId(IGrouping<int, TfsImportService.SprintTaskCard> g) => g.Key;
+                TfsImportService.SprintStoryRow? GroupStory(IGrouping<int, TfsImportService.SprintTaskCard> g) =>
+                    _storyById.TryGetValue(g.Key, out var st) ? st
+                    : _board?.Stories.FirstOrDefault(r => r.OrphanParentId == g.Key);
                 // Ordem dentro da pessoa, SEMPRE pela hierarquia do backlog do DevOps:
                 //   Pessoa → rank do Project → rank do EPIC → rank da Feature → rank da Story.
                 // A prioridade da Task NAO entra aqui: ela ordena as Tasks DENTRO da Story, na
@@ -3040,17 +3313,18 @@ namespace NXProject.Views
                 var shownCollapsed = new HashSet<int>();   // EPIC recolhido ja anunciado nesta pessoa
                 var entries = new List<(double ProjRank, string Proj, double EpicRank, string Epic,
                     double FeatRank, string Feat, double Rank,
-                    string Title, IGrouping<string, TfsImportService.SprintTaskCard>? Tasks,
+                    string Title, IGrouping<int, TfsImportService.SprintTaskCard>? Tasks,
                     TfsImportService.SprintStoryRow? Solo)>();
-                foreach (var g in pg.GroupBy(t => _storyById.TryGetValue(EffTaskParent(t), out var st)
-                                                  ? st.Title : AppStrings.Get("Sprint_NoStory")))
+                foreach (var g in pg.GroupBy(EffTaskParent))
                     entries.Add((RankOrLast(GroupStory(g)?.FeatureProjectRank ?? double.NaN),
                         GroupStory(g)?.FeatureProjectTitle ?? "",
                         RankOrLast(GroupStory(g)?.FeatureEpicRank ?? double.NaN),
                         GroupStory(g)?.FeatureEpicTitle ?? "",
                         RankOrLast(GroupStory(g)?.FeatureRank ?? double.NaN),
                         GroupStory(g)?.FeatureTitle ?? "",
-                        StoryRankOf(GroupStoryId(g)), g.Key, g, null));
+                        StoryRankOf(GroupStoryId(g)),
+                        _storyById.TryGetValue(g.Key, out var gst) ? gst.Title : AppStrings.Get("Sprint_NoStory"),
+                        g, null));
                 // Story sem Task entra na MESMA lista e usa a MESMA chave: ela aparece no lugar
                 // dela na hierarquia, nao amontoada no fim.
                 if (noTaskByPerson.TryGetValue(personKey, out var soloStories))
@@ -3113,15 +3387,37 @@ namespace NXProject.Views
                     var sg = entry.Tasks!;
                     var tks = sg.ToList();
                     var storySp = new StackPanel();
-                    var storyId = tks.Select(EffTaskParent).FirstOrDefault(id => id > 0);
+                    var storyId = sg.Key;
+                    var sgTitle = StoryById(storyId)?.Title ?? AppStrings.Get("Sprint_NoStory");
+                    // O "pai" nao e uma Story (Task pendurada direto na Feature): em vez de um card
+                    // de Story que nao existe, oferece criar a Story que falta ali.
+                    var orphanFeatureId = StoryById(storyId) == null ? storyId : 0;
                     var sOwnerOrig = storyId > 0 ? (StoryById(storyId)?.AssignedTo ?? string.Empty) : string.Empty;
                     var sOwner = EffOwner(storyId, sOwnerOrig);
                     // "Ajudante": a pessoa desta faixa tem task na Story mas NÃO é a responsável dela.
                     var isHelper = storyId > 0 && !string.IsNullOrWhiteSpace(sOwner)
                         && !string.Equals(sOwner.Trim(), personKey.Trim(), StringComparison.OrdinalIgnoreCase);
-                    storySp.Children.Add(new TextBlock { Text = EffTitle(storyId, sg.Key), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap,
+                    storySp.Children.Add(new TextBlock { Text = EffTitle(storyId, sgTitle), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap,
                         Foreground = _titlePending.ContainsKey(storyId) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black });
-                    if (storyId > 0)
+                    if (orphanFeatureId > 0)
+                    {
+                        // Nao existe Story: um card vazio convida a criar a que falta, e as
+                        // Tasks desta Feature passam para ela na gravacao.
+                        var createSt = new Button
+                        {
+                            Content = AppStrings.Get("Sprint_CreateStoryHere"), FontSize = 10,
+                            Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 4, 0, 0),
+                            HorizontalAlignment = HorizontalAlignment.Left,
+                            ToolTip = AppStrings.Get("Sprint_CreateStoryHereTip"),
+                            IsEnabled = EditModeCheck.IsChecked == true
+                        };
+                        var orphanFeat = orphanFeatureId;
+                        var orphanFeatTitle = entry.Feat;
+                        var orphanTasks = tks.ToList();
+                        createSt.Click += (_, _) => CreateStoryForOrphans(orphanFeat, orphanFeatTitle, personKey, orphanTasks);
+                        storySp.Children.Add(createSt);
+                    }
+                    else if (storyId > 0)
                     {
                         // Estado da Story (#id · estado). Laranja quando há mudança de estado pendente.
                         var stRow = StoryById(storyId);
@@ -3144,7 +3440,7 @@ namespace NXProject.Views
                         // O recolher da Story fica junto dos botoes do card (metrica menor que
                         // a dos cards de nivel, onde ele acompanha o ✎ e o ➕).
                         if (BuildCollapseButton(storyId, compact: true) is { } stColl) stActions.Children.Add(stColl);
-                        AddEditButtons(stActions, storyId, sg.Key, sOwnerOrig, "Story", StoryById(storyId)?.IterationPath ?? "");
+                        AddEditButtons(stActions, storyId, sgTitle, sOwnerOrig, "Story", StoryById(storyId)?.IterationPath ?? "");
                         // Abrir a Story no DevOps.
                         var openSt = new Button { Content = "🔗", FontSize = 11,
                             Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
@@ -3152,7 +3448,7 @@ namespace NXProject.Views
                         var openStId = storyId;
                         openSt.Click += (_, _) => OpenInDevOps(openStId);
                         stActions.Children.Add(openSt);
-                        stActions.Children.Add(BuildStoryTasksButton(openStId, EffTitle(openStId, sg.Key)));
+                        stActions.Children.Add(BuildStoryTasksButton(openStId, EffTitle(openStId, sgTitle)));
                         var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
                             Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
                         addTask.Click += (_, _) => AddNewTask(storyId, personKey); // já nasce na faixa da pessoa
@@ -4225,7 +4521,14 @@ namespace NXProject.Views
             sp.Children.Add(desc);
 
             var rm = new Button { Content = AppStrings.Get("Sprint_RemoveNew"), FontSize = 10, Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-            rm.Click += (_, _) => { _newCards.Remove(nc); UpdatePendingButton(); Render(); };
+            rm.Click += (_, _) =>
+            {
+                _newCards.Remove(nc);
+                // Tasks marcadas para virar filhas DESTE card novo voltam para onde estavam.
+                foreach (var kv in _taskParentPending.Where(k => k.Value == nc.TempId).ToList())
+                    _taskParentPending.Remove(kv.Key);
+                UpdatePendingButton(); Render();
+            };
             sp.Children.Add(rm);
 
             border.Child = sp;
@@ -4276,6 +4579,7 @@ namespace NXProject.Views
             btn.Click += (_, _) =>
             {
                 var win = TfsOnlineChildTasksWindow.FromTaskBoard(storyId, storyTitle);
+                win.OnShowOnBoard = ShowTaskOnBoardAsync;
                 win.Owner = this;
                 win.ShowDialog();
             };

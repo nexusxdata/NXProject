@@ -53,6 +53,11 @@ namespace NXProject.Services
             public DateTime? StartDate { get; init; }
             /// <summary>Data alvo (campo configurado, padrao Data_Fim).</summary>
             public DateTime? FinishDate { get; init; }
+            /// <summary>Caminho da iteracao (sprint) no DevOps.</summary>
+            public string IterationPath { get; init; } = "";
+            /// <summary>Nome da sprint: ultimo trecho do IterationPath (o caminho inteiro nao cabe na grade).</summary>
+            public string SprintName => string.IsNullOrWhiteSpace(IterationPath)
+                ? "" : IterationPath.Split('\\').Last();
         }
 
         public sealed record DevOpsUserInfo(string Name, string Email);
@@ -475,6 +480,10 @@ namespace NXProject.Services
             /// <summary>Linha sintética criada pelo board para um Feature/EPIC/Project da sprint
             /// sem Story sua visível: serve só para ocupar a coluna do nível, nunca vira card.</summary>
             public bool IsLevelPlaceholder { get; init; }
+            /// <summary>Linha "(sem Story)": id do work item em que as Tasks estao penduradas
+            /// direto (normalmente uma Feature). 0 quando o pai nem veio no board. Permite mostrar
+            /// a Feature na coluna dela e oferecer a criacao da Story que falta.</summary>
+            public int OrphanParentId { get; set; }
             /// <summary>Data de criação no DevOps (System.CreatedDate) — exibida no card.</summary>
             public DateTime? CreatedDate { get; init; }
             /// <summary>Desde quando a Story esta no estado atual
@@ -725,6 +734,11 @@ namespace NXProject.Services
                             ? pv.GetInt32() : 0;
                         var compN = f.TryGetProperty("Microsoft.VSTS.Scheduling.CompletedWork", out var cwv)
                             && cwv.ValueKind == JsonValueKind.Number && cwv.TryGetDouble(out var cwd) ? cwd : (double?)null;
+                        // MARCO nao e trabalho: e o artificio que sinaliza mudanca de fase no
+                        // cronograma (Task com a tag MARCO-PROJECT e esforco zero). Fora do board,
+                        // e nao so do desenho: assim nao entra em contagem, WIP nem resumo.
+                        // Ele continua existindo no DevOps e no cronograma.
+                        if (IsMilestoneTaskTag(S("System.Tags"))) continue;
                         tasks.Add(new SprintTaskCard(id, S("System.Title"), state, who, eff, parentId, S("System.Tags"), closedDate, prio, ReadRank(f))
                         {
                             IterationPath = S("System.IterationPath"),
@@ -781,19 +795,24 @@ namespace NXProject.Services
                 }
             }
 
-            // 3) Distribui tasks nas stories (as sem story-pai viram uma linha "(sem Story)").
-            SprintStoryRow? orphans = null;
+            // 3) Distribui tasks nas stories. Task pendurada direto numa Feature (sem Story) vira
+            // uma linha "(sem Story)" POR PAI — antes todas caiam num balde so, sem Feature, e o
+            // board nao tinha como mostrar de qual entrega aquele trabalho era.
+            var orphanByParent = new System.Collections.Generic.Dictionary<int, SprintStoryRow>();
             foreach (var t in tasks)
             {
                 if (t.ParentId is int pid && storyById.TryGetValue(pid, out var st))
-                    st.Tasks.Add(t);
-                else
                 {
-                    orphans ??= new SprintStoryRow(0, "(sem Story)", "", "", new());
-                    orphans.Tasks.Add(t);
+                    st.Tasks.Add(t);
+                    continue;
                 }
+                var opid = t.ParentId ?? 0;
+                if (!orphanByParent.TryGetValue(opid, out var row))
+                    orphanByParent[opid] = row = new SprintStoryRow(0, "(sem Story)", "", "", new())
+                    { OrphanParentId = opid };
+                row.Tasks.Add(t);
             }
-            if (orphans != null) stories.Add(orphans);
+            foreach (var row in orphanByParent.Values) stories.Add(row);
 
             // 3b) Feature (pai da Story) para agrupar por entrega: busca os títulos dos pais que
             // NÃO estão no board; os que já vieram como linha usam o próprio título.
@@ -863,7 +882,11 @@ namespace NXProject.Services
                 }
             }
 
-            var featureIds = storyParent.Values.Distinct().Where(fid => !featureTitle.ContainsKey(fid)).ToList();
+            // Inclui os pais das Tasks orfas: sem eles a linha "(sem Story)" nao sabe o nome nem
+            // o tipo do item em que as Tasks estao penduradas.
+            var featureIds = storyParent.Values
+                .Concat(orphanByParent.Keys.Where(k => k > 0))
+                .Distinct().Where(fid => !featureTitle.ContainsKey(fid)).ToList();
             var featWatch = System.Diagnostics.Stopwatch.StartNew();
             await FetchNodesAsync(featureIds, wantOwner: true);
             LoadTrace.Mark("features(" + featureIds.Count + ")", featWatch.ElapsedMilliseconds);
@@ -920,6 +943,30 @@ namespace NXProject.Services
                     st.FeatureEpicRank = nodeRank.TryGetValue(epicI, out var erk) ? erk : double.NaN;
                     st.FeatureProjectRank = nodeRank.TryGetValue(projI, out var prk) ? prk : double.NaN;
                 }
+
+            // 3b-2) Linha "(sem Story)": resolve a hierarquia PELO PROPRIO PAI das Tasks. Quando
+            // o pai e uma Feature, ela aparece na coluna da Feature e o board pode oferecer a
+            // criacao da Story que falta ali.
+            foreach (var row in orphanByParent.Values.Where(r => r.OrphanParentId > 0))
+            {
+                var pid = row.OrphanParentId;
+                var ptype = nodeType.TryGetValue(pid, out var pt) ? pt : "";
+                var ptitle = nodeTitle.TryGetValue(pid, out var pti) ? pti
+                           : featureTitle.TryGetValue(pid, out var pti2) ? pti2 : "";
+                if (IsBoardFeatureType(ptype))
+                {
+                    row.FeatureId = pid;
+                    row.FeatureTitle = ptitle;
+                    row.FeatureAssignedTo = nodeOwner.TryGetValue(pid, out var pow) ? pow : "";
+                    row.FeatureState = nodeState.TryGetValue(pid, out var pst) ? pst : "";
+                    row.FeatureRank = nodeRank.TryGetValue(pid, out var prk2) ? prk2 : double.NaN;
+                }
+                var (_, _, _, _, oEpic, oEpicId, oEpicS, oProj, oProjId, oProjS) = ResolveAncestry(pid);
+                row.FeatureEpicId = oEpicId; row.FeatureEpicTitle = oEpic; row.FeatureEpicState = oEpicS;
+                row.FeatureProjectId = oProjId; row.FeatureProjectTitle = oProj; row.FeatureProjectState = oProjS;
+                row.FeatureEpicRank = nodeRank.TryGetValue(oEpicId, out var oerk) ? oerk : double.NaN;
+                row.FeatureProjectRank = nodeRank.TryGetValue(oProjId, out var oprk) ? oprk : double.NaN;
+            }
 
             // 3c) Itens de nível (Feature/EPIC/Project na sprint) com EPIC/Project acima deles.
             var levelItems = new System.Collections.Generic.List<SprintLevelItem>();
@@ -2909,6 +2956,9 @@ namespace NXProject.Services
             return string.Equals(normalized, "NoDevOps", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>Task que na verdade e um MARCO do cronograma (tag MARCO-PROJECT).</summary>
+        public static bool IsMilestoneTaskTag(string? tags) => HasTag(tags, "MARCO-PROJECT");
+
         private static string ResolveImportType(string? workItemType, string? tags) =>
             string.Equals(workItemType, "Task", StringComparison.OrdinalIgnoreCase) && HasTag(tags, "MARCO-PROJECT")
                 ? "Marco-DevOps"
@@ -4403,6 +4453,7 @@ namespace NXProject.Services
                 "System.WorkItemType",
                 "System.State",
                 "System.AssignedTo",
+                "System.IterationPath",
                 "System.Tags",
                 "System.Description",
                 "Microsoft.VSTS.Scheduling.OriginalEstimate",
@@ -4447,7 +4498,8 @@ namespace NXProject.Services
                     EstimateHours = GetDoubleField(item.Fields, "Microsoft.VSTS.Scheduling.OriginalEstimate"),
                     CompletedHours = GetDoubleField(item.Fields, "Microsoft.VSTS.Scheduling.CompletedWork"),
                     StartDate = ReadDate(item.Fields, startRef),
-                    FinishDate = ReadDate(item.Fields, finishRef)
+                    FinishDate = ReadDate(item.Fields, finishRef),
+                    IterationPath = item.IterationPath ?? ""
                 });
             }
 

@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using NXProject.Models;
 using NXProject.Services;
@@ -18,6 +19,34 @@ namespace NXProject.Views
 {
     public partial class TfsOnlineChildTasksWindow : Window
     {
+        /// <summary>
+        /// Abre no DevOps a Task selecionada. Vale so para linha ja existente la: a pendente
+        /// ainda nao tem id, entao o botao fica desligado.
+        /// </summary>
+        private void OnOpenInDevOpsClick(object sender, RoutedEventArgs e)
+        {
+            if (ItemsGrid.SelectedItem is not ChildRow row || row.TfsId <= 0) return;
+            try
+            {
+                var conn = TfsConnectionStore.Load("NXProject.Community");
+                if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)) return;
+                var url = $"{conn.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(conn.TeamProject.Trim())}"
+                          + $"/_workitems/edit/{row.TfsId}";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = ex.Message;
+            }
+        }
+
+        private void OnGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var online = ItemsGrid.SelectedItem is ChildRow r && r.TfsId > 0;
+            OpenDevOpsButton.IsEnabled = online;
+            ShowOnBoardButton.IsEnabled = online && OnShowOnBoard != null;
+        }
+
         public sealed class ChildRow
         {
             public int TfsId { get; init; }          // >0 = online, 0 = pendente criação
@@ -31,6 +60,10 @@ namespace NXProject.Views
             public string CompletedHours { get; init; } = "";
             public string StartDate { get; init; } = "";
             public string FinishDate { get; init; } = "";
+            /// <summary>Sprint (ultimo trecho do IterationPath).</summary>
+            public string Sprint { get; init; } = "";
+            /// <summary>Caminho completo da iteracao — o board precisa dele para carregar a sprint.</summary>
+            public string IterationPath { get; init; } = "";
             public string Tags { get; init; } = "";
             public string Description { get; init; } = "";
             public string LastHistory { get; init; } = "";
@@ -63,6 +96,23 @@ namespace NXProject.Views
         /// <summary>Aberta pelo "☰ Tasks" do TaskBoard: janela menor (e uma consulta rapida, nao a
         /// tela de trabalho do cronograma) e a Story de origem em destaque no cabecalho.</summary>
         public bool FromTaskBoardMode { get; init; }
+
+        /// <summary>
+        /// Ligado pelo TaskBoard: afrouxa os filtros que escondem a Task (com confirmacao) e
+        /// devolve se ela passou a aparecer. Null quando a janela nao veio do board.
+        /// </summary>
+        public Func<int, string, Task<(bool Shown, string Message)>>? OnShowOnBoard { get; set; }
+
+        private async void OnShowOnBoardClick(object sender, RoutedEventArgs e)
+        {
+            if (OnShowOnBoard == null) return;
+            if (ItemsGrid.SelectedItem is not ChildRow row || row.TfsId <= 0) return;
+            var (shown, message) = await OnShowOnBoard(row.TfsId, row.IterationPath);
+            StatusText.Text = message;
+            // Apareceu no board: a grade sai da frente, senao o card fica escondido atras dela.
+            // Nao apareceu: a janela fica, para a busca continuar daqui.
+            if (shown) Close();
+        }
 
         public TfsOnlineChildTasksWindow(ProjectTask parent, MainViewModel? mainVm = null)
         {
@@ -127,6 +177,8 @@ namespace NXProject.Views
                         CompletedHours = r.CompletedHours is double ch ? ch.ToString("0.##") : "",
                         StartDate  = r.StartDate?.ToString("dd/MM/yyyy") ?? "",
                         FinishDate = r.FinishDate?.ToString("dd/MM/yyyy") ?? "",
+                        Sprint     = r.SprintName,
+                        IterationPath = r.IterationPath,
                         Tags        = r.Tags,
                         Description = r.Description,
                         LastHistory = r.LastHistory,

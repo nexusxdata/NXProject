@@ -34,6 +34,7 @@
         <!-- Grid de atividades -->
         <DataGrid Grid.Row="1"
                   x:Name="ItemsGrid"
+                  SelectionChanged="OnGridSelectionChanged"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   CanUserAddRows="False"
@@ -52,6 +53,7 @@
                 <DataGridTextColumn Header="{DynamicResource Online_ColStatus}" Width="80" Binding="{Binding State}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColStartDate}" Width="95" Binding="{Binding StartDate}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColTargetDate}" Width="85" Binding="{Binding FinishDate}"/>
+                <DataGridTextColumn Header="{DynamicResource Online_ColSprint}" Width="120" Binding="{Binding Sprint}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColOwner}" Width="170" Binding="{Binding AssignedTo}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColEstHours}" Width="90" Binding="{Binding EstimateHours}">
                     <DataGridTextColumn.ElementStyle>
@@ -138,6 +140,12 @@
                        FontSize="10"
                        Foreground="#666"
                        Margin="0,0,16,0"/>
+            <Button x:Name="ShowOnBoardButton" Content="{DynamicResource Online_ShowOnBoard}"
+                    Height="30" Padding="10,0" Margin="0,0,8,0" IsEnabled="False"
+                    Click="OnShowOnBoardClick" ToolTip="{DynamicResource Online_ShowOnBoardTip}"/>
+            <Button x:Name="OpenDevOpsButton" Content="🔗" FontSize="13" Width="34" Height="30"
+                    Margin="0,0,8,0" IsEnabled="False" Click="OnOpenInDevOpsClick"
+                    ToolTip="{DynamicResource Online_OpenDevOpsTip}"/>
             <Button Content="{DynamicResource Online_Close}" Width="90" Height="30" IsCancel="True"/>
         </StackPanel>
     </Grid>
