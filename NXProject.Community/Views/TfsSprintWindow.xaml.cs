@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Win32;
 using NXProject.Community.Services;
 using NXProject.Services;
 
@@ -75,6 +76,11 @@ namespace NXProject.Views
         // Nome/título (System.Title) alterado (pendente) e o já gravado (baseline pós-Salvar).
         private readonly Dictionary<int, string> _titlePending = new();
         private readonly Dictionary<int, string> _titleApplied = new();
+        // Anexos do TFS enviados pelo botão do card. A UI só guarda o nome do arquivo; o real
+        // fica no Azure DevOps e o id do attachment pode ser usado para download futuro.
+        private readonly Dictionary<int, TfsAttachmentService.TfsAttachmentInfo> _attachments = new();
+        /// <summary>Urls de anexos excluidos nesta sessao: somem do card sem esperar o reload.</summary>
+        private readonly HashSet<string> _removedAttachmentUrls = new(StringComparer.OrdinalIgnoreCase);
         // HH estimado (OriginalEstimate) e HH realizado (CompletedWork) alterados, pendentes de gravar.
         private readonly Dictionary<int, double?> _estPending = new();
         private readonly Dictionary<int, double?> _donePending = new();
@@ -319,7 +325,7 @@ namespace NXProject.Views
 
         private async Task LoadSprintsAsync()
         {
-            StatusText.Text = AppStrings.Get("Sprint_Loading");
+            BeginLoading();
             try
             {
                 _currentUser = await TfsImportService.GetCurrentUserDisplayNameAsync(_options);
@@ -355,6 +361,7 @@ namespace NXProject.Views
                 MessageBox.Show(this, AppStrings.Get("Sprint_Error", ex.Message),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+            finally { EndLoading(); }
         }
 
         // Preenche os checkboxes das sprints com o rótulo "Nome (dd/MM/aa–dd/MM/aa)".
@@ -507,15 +514,53 @@ namespace NXProject.Views
         private Task ReloadBoardAsync(string path) =>
             ReloadBoardAsync(string.IsNullOrEmpty(path) ? new List<string>() : new List<string> { path });
 
+        /// <summary>
+        /// Barra indeterminada + "Carregando..." enquanto a lista de sprints e o board vem do
+        /// DevOps, para a abertura nao parecer travada. Contador porque a lista de sprints chama
+        /// a carga do board por dentro: a barra so some quando o ultimo carregamento termina.
+        /// </summary>
+        private int _loadingDepth;
+
+        private void BeginLoading()
+        {
+            if (_loadingDepth++ == 0)
+            {
+                SaveProgress.IsIndeterminate = true;
+                SaveProgress.Visibility = Visibility.Visible;
+            }
+            StatusText.Text = AppStrings.Get("Sprint_Loading");
+        }
+
+        private void EndLoading()
+        {
+            if (--_loadingDepth > 0) return;
+            _loadingDepth = 0;
+            SaveProgress.IsIndeterminate = false;
+            SaveProgress.Visibility = Visibility.Collapsed;
+            if (StatusText.Text == AppStrings.Get("Sprint_Loading")) StatusText.Text = "";
+        }
+
         // Carrega/recarrega o board (1+ sprints) e reseta o estado local (pendências, filtros).
         private async Task ReloadBoardAsync(List<string> paths)
         {
-            StatusText.Text = AppStrings.Get("Sprint_Loading");
+            BeginLoading();
             try
             {
                 _sprintPaths = paths;
                 UpdateSprintToggleText();
+                var loadWatch = Stopwatch.StartNew();
                 _board = await TfsImportService.BuildSprintBoardAsync(_options, paths);
+                // Medicao da carga (mesmo arquivo do Gantt): para comparar versoes com numero, nao impressao.
+                try
+                {
+                    var perfFile = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "NXProject.Community", "load-perf.txt");
+                    System.IO.File.AppendAllText(perfFile,
+                        $"TaskBoard.Load: {loadWatch.ElapsedMilliseconds} ms ({_board.Stories.Count} stories, "
+                        + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine + Environment.NewLine);
+                }
+                catch { /* medicao nunca derruba a carga */ }
                 var people = BoardPeople(_board);
                 // Mantém só as pessoas ainda existentes no board (preserva a seleção múltipla).
                 _selectedPeople.RemoveWhere(p => !people.Contains(p, StringComparer.CurrentCultureIgnoreCase));
@@ -649,6 +694,7 @@ namespace NXProject.Views
                 MessageBox.Show(this, AppStrings.Get("Sprint_Error", ex.Message),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+            finally { EndLoading(); }
         }
 
         // Cards efetivos (do TFS + novos locais) para renderizar/filtrar.
@@ -1021,8 +1067,22 @@ namespace NXProject.Views
             // Nome efetivo (pendente > aplicado > título recebido), editável na mesma tela.
             var effName = EffTitle(id, title);
             var pt = new NXProject.Models.ProjectTask { TfsId = id, Name = effName };
+            // Todas as leituras do DevOps disparam JUNTAS aqui e sao aguardadas depois, cada uma
+            // onde e usada. Antes eram ~6 consultas em sequencia e a edicao demorava a abrir.
+            // So consulta o que nao tem valor pendente local.
+            var descTask = _descPending.ContainsKey(id) ? null
+                : TfsImportService.LoadWorkItemDescriptionHtmlAsync(_options, id);
+            var hoursTask = id > 0 && kind != "Feature" ? TfsImportService.GetWorkItemHoursAsync(_options, id) : null;
+            var startTask = kind is "Story" or "Task" && id > 0 && !_startPending.ContainsKey(id)
+                ? TfsImportService.GetWorkItemStartDateAsync(_options, id) : null;
+            var chainTask = kind == "Task" && id > 0 ? TfsImportService.GetParentChainAsync(_options, id) : null;
+            var finishTask = kind == "Task" && id > 0 && !_finishPending.ContainsKey(id)
+                ? TfsImportService.GetWorkItemFinishDateAsync(_options, id) : null;
+            var acTask = kind == "Story" && id > 0 && !_acPending.ContainsKey(id)
+                ? TfsImportService.GetWorkItemAcceptanceCriteriaAsync(_options, id) : null;
+
             pt.Description = _descPending.TryGetValue(id, out var d) ? d
-                : (await TfsImportService.LoadWorkItemDescriptionHtmlAsync(_options, id)) ?? string.Empty;
+                : (await descTask!) ?? string.Empty;
             // Responsável efetivo (pendente > aplicado > valor do board), editável na mesma tela.
             var owner = _ownerPending.TryGetValue(id, out var op) ? op
                 : _ownerApplied.TryGetValue(id, out var oa) ? oa : currentOwner;
@@ -1032,7 +1092,7 @@ namespace NXProject.Views
             double? est = null, done = null; string hState = kind;
             if (id > 0 && kind != "Feature")
             {
-                var (e, c, st) = await TfsImportService.GetWorkItemHoursAsync(_options, id);
+                var (e, c, st) = await hoursTask!;
                 est = _estPending.TryGetValue(id, out var ep) ? ep : e;
                 done = _donePending.TryGetValue(id, out var dp) ? dp : c;
                 // Estado EFETIVO (considera arrasto pendente p/ Closed) → libera o HH Realizado.
@@ -1089,13 +1149,17 @@ namespace NXProject.Views
             DateTime? curStart = null;
             if (enableStart)
                 curStart = _startPending.TryGetValue(id, out var sp) ? sp
-                    : await TfsImportService.GetWorkItemStartDateAsync(_options, id);
+                    : await startTask!;
             // Cadeia de pais da Task direto do DevOps: mostra o id/tipo/nome de cada nivel,
             // porque a Task pode estar ligada a uma Feature ou outro tipo, nao so a uma Story.
             string? parentInfo = null;
+            List<(int Id, string Text)>? parentLinks = null;
             if (kind == "Task" && id > 0)
             {
-                var chain = await TfsImportService.GetParentChainAsync(_options, id);
+                var chain = await chainTask!;
+                parentLinks = chain.Select((pl, i) => (pl.Id,
+                    new string(' ', i * 3) + "↑ " + pl.Type + " #" + pl.Id + " — " + pl.Title
+                    + (string.IsNullOrWhiteSpace(pl.State) ? "" : " (" + pl.State + ")"))).ToList();
                 parentInfo = chain.Count == 0
                     ? AppStrings.Get("Desc_ParentNone")
                     : string.Join(Environment.NewLine, chain.Select((pl, i) =>
@@ -1107,13 +1171,13 @@ namespace NXProject.Views
             DateTime? curFinish = null;
             if (enableFinish)
                 curFinish = _finishPending.TryGetValue(id, out var fp0) ? fp0
-                    : await TfsImportService.GetWorkItemFinishDateAsync(_options, id);
+                    : await finishTask!;
             // Critérios de Aceitação: campo da Story no DevOps (pendente > valor atual).
             var enableAc = kind == "Story" && id > 0;
             var curAc = "";
             if (enableAc)
                 curAc = _acPending.TryGetValue(id, out var acp) ? acp
-                    : await TfsImportService.GetWorkItemAcceptanceCriteriaAsync(_options, id);
+                    : await acTask!;
             // EPIC e Feature nao tem HH proprio (vem do rollup) nem tag de bloqueio no board:
             // o editor abre nos dois com os mesmos campos.
             var isFeat = kind is "Feature" or "Epic";
@@ -1146,7 +1210,10 @@ namespace NXProject.Views
                 // 💬 Tramite: so para itens ja existentes no DevOps.
                 onTramite: id > 0 ? () => EditTramite(id, title) : null,
                 enableFinishDate: enableFinish, currentFinishDate: curFinish,
-                parentInfo: parentInfo) { Owner = this };
+                parentInfo: parentInfo, parentLinks: parentLinks, onOpenWorkItem: OpenInDevOps,
+                attachments: kind == "Task" && _cardById.TryGetValue(id, out var attCard) ? AttachmentsOf(attCard) : null,
+                onOpenAttachment: a => _ = OpenAttachmentAsync(a),
+                onRemoveAttachment: a => RemoveAttachmentAsync(id, a)) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
                 _descPending[id] = pt.Description ?? string.Empty;
@@ -4246,6 +4313,141 @@ namespace NXProject.Views
         private int WipCountOf(string person) =>
             _wipCount.TryGetValue((person ?? "").Trim(), out var n) ? n : 0;
 
+        private async Task UploadAttachmentForCardAsync(int taskId)
+        {
+            if (taskId <= 0)
+            {
+                MessageBox.Show(this, "Só é possível anexar arquivos em Tasks já enviadas ao Azure DevOps.", "Anexo", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dlg = new OpenFileDialog
+            {
+                Title = "Selecionar arquivo para anexar à Task",
+                Filter = "Todos os arquivos|*.*",
+                Multiselect = false
+            };
+
+            if (dlg.ShowDialog(this) != true)
+                return;
+
+            try
+            {
+                var info = await TfsAttachmentService.UploadAttachmentAsync(_options, taskId, dlg.FileName);
+                _attachments[taskId] = info;
+                StatusText.Text = $"Anexo enviado: {info.Name}";
+                Render();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Falha ao anexar arquivo no Azure DevOps:\n\n{ex.Message}", "Anexo", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Tipos que abrem direto apos o download. Sao documentos/imagens que o Windows abre no
+        /// visualizador padrao sem executar nada. Executaveis, scripts e extensoes desconhecidas
+        /// ficam de fora: para esses o anexo so e salvo onde o usuario escolher.
+        /// </summary>
+        private static readonly HashSet<string> SafeOpenExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".txt", ".csv",
+            ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"
+        };
+
+        /// <summary>Anexos da Task: os da carga do DevOps + o enviado agora pelo 📎 (sem repetir).</summary>
+        private List<TfsAttachmentService.TfsAttachmentInfo> AttachmentsOf(TfsImportService.SprintTaskCard t)
+        {
+            var list = t.Attachments
+                .Where(a => !string.IsNullOrWhiteSpace(a.Name) && !_removedAttachmentUrls.Contains(a.Url)).ToList();
+            if (_attachments.TryGetValue(t.Id, out var justSent)
+                && !_removedAttachmentUrls.Contains(justSent.Url)
+                && !list.Any(a => string.Equals(a.Url, justSent.Url, StringComparison.OrdinalIgnoreCase)))
+                list.Add(justSent);
+            return list;
+        }
+
+        /// <summary>
+        /// Exclui o anexo do TFS (com confirmacao). Grava na hora, como o envio pelo clipe.
+        /// Devolve true quando excluiu, para a tela que chamou tirar o item da lista.
+        /// </summary>
+        private async Task<bool> RemoveAttachmentAsync(int taskId, TfsAttachmentService.TfsAttachmentInfo attachment)
+        {
+            // Deixa explicito que nao e pendencia: nao passa pelo "Atualizar TFS" nem pelo "Reverter".
+            var question = "Excluir o anexo \u201C" + attachment.Name + "\u201D da Task #" + taskId + " no Azure DevOps?"
+                + Environment.NewLine + Environment.NewLine
+                + "Aten\u00E7\u00E3o: a exclus\u00E3o \u00E9 feita direto no TFS, na hora, e n\u00E3o tem revers\u00E3o \u2014 "
+                + "n\u00E3o passa pelo \u201CAtualizar TFS\u201D e o \u201CReverter\u201D n\u00E3o desfaz. "
+                + "Para recuperar, o arquivo precisa ser anexado de novo.";
+            // Padrao "Nao": Enter por engano nao exclui.
+            if (MessageBox.Show(this, question, "Excluir anexo do TFS", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                return false;
+            try
+            {
+                StatusText.Text = "Excluindo anexo: " + attachment.Name + "...";
+                await TfsAttachmentService.RemoveAttachmentAsync(_options, taskId, attachment.Url);
+                _removedAttachmentUrls.Add(attachment.Url);
+                StatusText.Text = "Anexo exclu\u00EDdo: " + attachment.Name;
+                Render();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "";
+                MessageBox.Show(this, "Falha ao excluir o anexo no Azure DevOps:" + Environment.NewLine + Environment.NewLine + ex.Message,
+                    "Anexo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+        }
+
+        /// <summary>Ate este numero os anexos aparecem no card; acima, so um resumo (lista na edicao).</summary>
+        private const int MaxAttachmentsOnCard = 2;
+
+        private async Task OpenAttachmentAsync(TfsAttachmentService.TfsAttachmentInfo attachment)
+        {
+            var ext = System.IO.Path.GetExtension(attachment.Name);
+            var openDirect = SafeOpenExtensions.Contains(ext);
+            string destination;
+            if (openDirect)
+            {
+                // Pasta temporaria por anexo: dois anexos com o mesmo nome nao se sobrescrevem.
+                var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "NXProject", "attachments",
+                    string.IsNullOrWhiteSpace(attachment.Id) ? Guid.NewGuid().ToString("N") : attachment.Id);
+                destination = System.IO.Path.Combine(dir, attachment.Name);
+            }
+            else
+            {
+                var save = new SaveFileDialog
+                {
+                    Title = "Salvar anexo do Azure DevOps",
+                    FileName = attachment.Name,
+                    Filter = "Todos os arquivos|*.*"
+                };
+                if (save.ShowDialog(this) != true) return;
+                destination = save.FileName;
+            }
+
+            try
+            {
+                StatusText.Text = $"Baixando anexo: {attachment.Name}...";
+                await TfsAttachmentService.DownloadAttachmentAsync(_options, attachment.Url, attachment.Name, destination);
+                if (openDirect)
+                {
+                    Process.Start(new ProcessStartInfo(destination) { UseShellExecute = true });
+                    StatusText.Text = $"Anexo aberto: {attachment.Name}";
+                }
+                else
+                    StatusText.Text = $"Anexo salvo em: {destination}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "";
+                MessageBox.Show(this, "Falha ao baixar o anexo do Azure DevOps:" + Environment.NewLine + Environment.NewLine + ex.Message, "Anexo",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
         private Border BuildCard(TfsImportService.SprintTaskCard t, string? storyTitle = null)
         {
             if (t.Id < 0 && _newCards.FirstOrDefault(n => n.TempId == t.Id) is { } nct)
@@ -4369,6 +4571,61 @@ namespace NXProject.Views
             var line = new TextBlock { FontSize = 10, Foreground = Brushes.Gray };
             line.Text = isNew ? AppStrings.Get("Sprint_New") : $"#{t.Id}";
             sp.Children.Add(line);
+
+            // Anexos da Task: os que vieram do DevOps na carga + o enviado agora pelo 📎 (que so
+            // chega na lista do DevOps no proximo reload). Sem repetir o mesmo arquivo.
+            var cardAttachments = AttachmentsOf(t);
+            if (cardAttachments.Count > MaxAttachmentsOnCard)
+            {
+                // Muitos anexos esticariam o card: fica um resumo, e a lista completa esta na edicao.
+                var summary = new TextBlock
+                {
+                    Text = $"📎 {cardAttachments.Count} anexos — ver na edição",
+                    FontSize = 10, TextDecorations = TextDecorations.Underline,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
+                    Margin = new Thickness(0, 2, 0, 0),
+                    ToolTip = string.Join(Environment.NewLine, cardAttachments.Select(a => a.Name))
+                };
+                summary.MouseLeftButtonUp += async (_, ev) =>
+                {
+                    ev.Handled = true;
+                    await EditDescriptionAsync(t.Id, t.Title, t.AssignedTo ?? "", "Task", t.IterationPath);
+                };
+                sp.Children.Add(summary);
+                cardAttachments.Clear();   // nao lista um por um
+            }
+            foreach (var attachment in cardAttachments)
+            {
+                // Nome clicavel: baixa do DevOps e abre (tipos seguros) ou so salva (o resto).
+                var attachLink = new TextBlock
+                {
+                    Text = $"📎 {attachment.Name}",
+                    FontSize = 10,
+                    TextWrapping = TextWrapping.Wrap,
+                    TextDecorations = TextDecorations.Underline,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
+                    Margin = new Thickness(0, 2, 0, 0),
+                    ToolTip = "Clique para baixar do Azure DevOps"
+                };
+                attachLink.MouseLeftButtonUp += async (_, ev) =>
+                {
+                    ev.Handled = true;   // nao deixa o clique virar arrasto/selecao do card
+                    await OpenAttachmentAsync(attachment);
+                };
+                var attMenu = new ContextMenu();
+                var attOpen = new MenuItem { Header = "Abrir / baixar" };
+                attOpen.Click += async (_, _) => await OpenAttachmentAsync(attachment);
+                var attDel = new MenuItem { Header = "Excluir anexo do TFS" };
+                attDel.Click += async (_, _) => await RemoveAttachmentAsync(t.Id, attachment);
+                attMenu.Items.Add(attOpen);
+                attMenu.Items.Add(attDel);
+                attachLink.ContextMenu = attMenu;
+                attachLink.ToolTip = "Clique para baixar do Azure DevOps \u00B7 bot\u00E3o direito para excluir";
+                sp.Children.Add(attachLink);
+            }
+
             // HH Estimado (e Realizado quando encerrada).
             if (!isNew && BuildHoursLine(t.Id, t.EstimateHours, t.CompletedHours, EffState(t)) is { } hhTask)
                 sp.Children.Add(hhTask);
@@ -4548,6 +4805,18 @@ namespace NXProject.Views
                 sched.Click += (_, _) => _openInSchedule!(t.Id);
                 actions.Children.Add(sched);
             }
+
+            var attachBtn = new Button
+            {
+                Content = "📎",
+                FontSize = 11,
+                Padding = new Thickness(4, 0, 4, 0),
+                Margin = new Thickness(0, 0, 3, 2),
+                ToolTip = "Anexar arquivo no Azure DevOps"
+            };
+            attachBtn.Click += async (_, _) => await UploadAttachmentForCardAsync(t.Id);
+            actions.Children.Add(attachBtn);
+
             // Bloquear/desbloquear (tag "Blocked"): entra na fila do Salvar TFS.
             AddEditButtons(actions, t.Id, t.Title, t.AssignedTo, "Task"); // ✎ descrição e 💬 trâmite da Task
             // Bloquear/desbloquear é o ÚLTIMO botão do card (tag "Blocked").

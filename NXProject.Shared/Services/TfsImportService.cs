@@ -465,6 +465,9 @@ namespace NXProject.Services
             public DateTime? StateChangeDate { get; init; }
             /// <summary>Data alvo (campo configurado, padrao Data_Fim) — editavel no card Active.</summary>
             public DateTime? FinishDate { get; init; }
+            /// <summary>Anexos da Task (relacoes "AttachedFile"), lidos na mesma carga do board.</summary>
+            public System.Collections.Generic.IReadOnlyList<TfsAttachmentService.TfsAttachmentInfo> Attachments { get; init; }
+                = System.Array.Empty<TfsAttachmentService.TfsAttachmentInfo>();
         }
         public sealed record SprintStoryRow(int Id, string Title, string State, string AssignedTo,
             System.Collections.Generic.List<SprintTaskCard> Tasks)
@@ -566,9 +569,10 @@ namespace NXProject.Services
             CancellationToken ct = default)
         {
             var ctx = CreateTfsAuthContext(options, "montar sprint");
-            // Campo da data alvo e customizado (Data_Fim ou o configurado): resolve uma vez; o
-            // valor ja chega em cada item pelo $expand=all.
-            var boardFinishRef = await ResolveFinishFieldRefAsync(options, ct);
+            // Campo da data alvo e customizado (Data_Fim ou o configurado). A resolucao baixa a
+            // lista de campos da organizacao: dispara JUNTO com o WIQL em vez de travar a carga
+            // antes dele, e so e aguardada quando os itens forem montados.
+            var finishRefTask = ResolveFinishFieldRefAsync(options, ct);
             var proj = Uri.EscapeDataString(ctx.TeamProject);
             string Esc(string s) => s.Replace("'", "''");
 
@@ -602,6 +606,7 @@ namespace NXProject.Services
                         if (w.TryGetProperty("id", out var idp)) ids.Add(idp.GetInt32());
             }
 
+            var boardFinishRef = await finishRefTask;
             // 2) Campos ($expand=all).
             var stories = new System.Collections.Generic.List<SprintStoryRow>();
             var storyById = new System.Collections.Generic.Dictionary<int, SprintStoryRow>();
@@ -669,6 +674,8 @@ namespace NXProject.Services
                             CompletedHours = compN,
                             CreatedDate = createdOn,
                             StateChangeDate = stateOn,
+                            // $expand=all ja traz as relacoes: os anexos saem daqui sem consulta extra.
+                            Attachments = TfsAttachmentService.ParseAttachmentRelations(it),
                             FinishDate = !string.IsNullOrEmpty(boardFinishRef)
                                 && f.TryGetProperty(boardFinishRef, out var fdv) && fdv.ValueKind == JsonValueKind.String
                                 && DateTime.TryParse(fdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var fdd)
@@ -6775,43 +6782,35 @@ namespace NXProject.Services
             if (id <= 0) return chain;
             var ctx = CreateTfsAuthContext(options, "ler hierarquia", requireTeamProject: false);
             var seen = new HashSet<int> { id };
-            var current = id;
             try
             {
-                for (var level = 0; level < 8; level++)
+                // Uma consulta por nivel: cada GET ja traz o System.Parent do proprio item, entao o
+                // pai do nivel seguinte sai da mesma resposta (antes eram 2 GETs por nivel).
+                var parentId = (await ReadAsync(id)).Parent;
+                for (var level = 0; level < 8 && parentId > 0 && seen.Add(parentId); level++)
                 {
-                    var parentId = await ReadParentIdAsync(current);
-                    if (parentId <= 0 || !seen.Add(parentId)) break;
-                    var url = $"{ctx.OrgBase}/_apis/wit/workitems/{parentId}?fields=System.Title,System.WorkItemType,System.State&{QueryApiVersion}";
-                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                    req.Headers.Authorization = ctx.Authorization;
-                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                    using var resp = await Http.SendAsync(req, ct);
-                    if (!resp.IsSuccessStatusCode) break;
-                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-                    if (!doc.RootElement.TryGetProperty("fields", out var f)) break;
-                    chain.Add(new ParentLink(parentId,
-                        GetString(f, "System.WorkItemType") ?? "",
-                        GetString(f, "System.Title") ?? $"#{parentId}",
-                        GetString(f, "System.State") ?? ""));
-                    current = parentId;
+                    var item = await ReadAsync(parentId);
+                    if (item.Title == null) break;
+                    chain.Add(new ParentLink(parentId, item.Type, item.Title, item.State));
+                    parentId = item.Parent;
                 }
             }
             catch { /* devolve o que ja foi lido */ }
             return chain;
 
-            async Task<int> ReadParentIdAsync(int wid)
+            async Task<(int Parent, string Type, string? Title, string State)> ReadAsync(int wid)
             {
-                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{wid}?fields=System.Parent&{QueryApiVersion}";
+                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{wid}?fields=System.Parent,System.Title,System.WorkItemType,System.State&{QueryApiVersion}";
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
                 req.Headers.Authorization = ctx.Authorization;
                 req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 using var resp = await Http.SendAsync(req, ct);
-                if (!resp.IsSuccessStatusCode) return 0;
+                if (!resp.IsSuccessStatusCode) return (0, "", null, "");
                 using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-                return doc.RootElement.TryGetProperty("fields", out var f)
-                       && f.TryGetProperty("System.Parent", out var p) && p.ValueKind == JsonValueKind.Number
-                    ? p.GetInt32() : 0;
+                if (!doc.RootElement.TryGetProperty("fields", out var f)) return (0, "", null, "");
+                var parent = f.TryGetProperty("System.Parent", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
+                return (parent, GetString(f, "System.WorkItemType") ?? "",
+                    GetString(f, "System.Title") ?? $"#{wid}", GetString(f, "System.State") ?? "");
             }
         }
 

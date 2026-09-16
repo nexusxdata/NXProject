@@ -109,7 +109,11 @@ namespace NXProject.Views
             bool enableUnplanned = false, bool currentUnplanned = false, string? unplannedTag = null,
             string? datesInfo = null, Action? onTramite = null,
             bool enableFinishDate = false, DateTime? currentFinishDate = null,
-            string? parentInfo = null)
+            string? parentInfo = null,
+            System.Collections.Generic.IReadOnlyList<(int Id, string Text)>? parentLinks = null, Action<int>? onOpenWorkItem = null,
+            System.Collections.Generic.IReadOnlyList<TfsAttachmentService.TfsAttachmentInfo>? attachments = null,
+            Action<TfsAttachmentService.TfsAttachmentInfo>? onOpenAttachment = null,
+            Func<TfsAttachmentService.TfsAttachmentInfo, System.Threading.Tasks.Task<bool>>? onRemoveAttachment = null)
         {
             InitializeComponent();
             _task = task;
@@ -168,10 +172,67 @@ namespace NXProject.Views
             }
 
             // Cadeia de pais no DevOps (so consulta): a Task pode estar ligada a Story, Feature...
-            if (!string.IsNullOrWhiteSpace(parentInfo))
+            if (parentLinks is { Count: > 0 } && onOpenWorkItem != null)
+            {
+                // Cada nivel e um link: clicar abre aquele work item no Azure DevOps.
+                ParentText.Inlines.Clear();
+                for (var i = 0; i < parentLinks.Count; i++)
+                {
+                    if (i > 0) ParentText.Inlines.Add(new System.Windows.Documents.LineBreak());
+                    var (wid, text) = parentLinks[i];
+                    var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(text))
+                    {
+                        ToolTip = $"Abrir #{wid} no Azure DevOps"
+                    };
+                    link.Click += (_, _) => onOpenWorkItem(wid);
+                    ParentText.Inlines.Add(link);
+                }
+                ParentPanel.Visibility = Visibility.Visible;
+            }
+            else if (!string.IsNullOrWhiteSpace(parentInfo))
             {
                 ParentText.Text = parentInfo;
                 ParentPanel.Visibility = Visibility.Visible;
+            }
+
+            // Anexos (lista completa; o card so mostra ate 2).
+            if (attachments is { Count: > 0 } && onOpenAttachment != null)
+            {
+                var current = attachments.ToList();
+                void RenderAttachmentLinks()
+                {
+                    AttachmentsHeader.Text = "\U0001F4CE Anexos (" + current.Count + "):";
+                    AttachmentsText.Inlines.Clear();
+                    for (var i = 0; i < current.Count; i++)
+                    {
+                        if (i > 0) AttachmentsText.Inlines.Add(new System.Windows.Documents.LineBreak());
+                        var att = current[i];
+                        var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(att.Name))
+                        {
+                            ToolTip = onRemoveAttachment != null
+                                ? "Clique para baixar do Azure DevOps \u00B7 bot\u00E3o direito para excluir"
+                                : "Clique para baixar do Azure DevOps"
+                        };
+                        link.Click += (_, _) => onOpenAttachment(att);
+                        if (onRemoveAttachment != null)
+                        {
+                            var menu = new ContextMenu();
+                            var del = new MenuItem { Header = "Excluir anexo do TFS" };
+                            del.Click += async (_, _) =>
+                            {
+                                if (!await onRemoveAttachment(att)) return;
+                                current.Remove(att);
+                                if (current.Count == 0) AttachmentsPanel.Visibility = Visibility.Collapsed;
+                                else RenderAttachmentLinks();
+                            };
+                            menu.Items.Add(del);
+                            link.ContextMenu = menu;
+                        }
+                        AttachmentsText.Inlines.Add(link);
+                    }
+                }
+                RenderAttachmentLinks();
+                AttachmentsPanel.Visibility = Visibility.Visible;
             }
 
             // Tramite (comentario do DevOps): o botao do card foi movido para ca.

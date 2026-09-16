@@ -123,6 +123,8 @@ internal static class Program
         ("Task Plan IA: responsavel casa nome invertido/parcial e recusa ambiguo", TaskPlanResourceMatcherHandlesCitedNames),
         ("Task Plan: story iniciada NAO tem a duracao ajustada", TaskPlanStartedStoryKeepsDuration),
         ("Task Plan: log de sync atualiza ID interno para ID DevOps na planilha", TaskPlanBackfillIdsFromSyncLog),
+        ("DevOps: parser de anexos lê nome e tamanho corretamente", TfsAttachmentParserReadsNameAndSize),
+        ("DevOps: URL de upload evita duplicar o projeto no caminho da org", TfsAttachmentUploadUrlDoesNotDuplicateProjectInOrgPath),
         ("Arquivo: gravar com ID interno duplicado e BLOQUEADO com a atividade na mensagem", SaveBlocksDuplicateTaskIds),
         ("Arquivo: leitura normaliza ID interno duplicado de arquivo legado", LoadNormalizesDuplicateTaskIds),
         ("Sync TFS: ID interno duplicado bloqueia a sincronizacao", SyncBlocksDuplicateTaskIds),
@@ -1094,22 +1096,27 @@ internal static class Program
             TfsImportService.CheckStoryStateAlert("New", new[] { "New", "Active" }).ToString(),
             "Story em New com Task fora de New deve alertar.");
         AssertEqual("None",
-            TfsImportService.CheckStoryStateAlert("New", new[] { "New", "New" }).ToString(),
+            TfsImportService.CheckStoryStateAlert("New", new[] { "New", "New" }).ToString(),
+
             "Story em New com todas as Tasks em New esta coerente.");
         AssertEqual("None",
-            TfsImportService.CheckStoryStateAlert("New", new[] { "New", "Removed" }).ToString(),
+            TfsImportService.CheckStoryStateAlert("New", new[] { "New", "Removed" }).ToString(),
+
             "Task removida nao conta como trabalho iniciado.");
         AssertEqual("ActiveWithoutActiveTask",
-            TfsImportService.CheckStoryStateAlert("Active", new[] { "New", "Closed" }).ToString(),
+            TfsImportService.CheckStoryStateAlert("Active", new[] { "New", "Closed" }).ToString(),
+
             "Story em Active sem Task em Active deve alertar.");
         AssertEqual("ActiveWithoutActiveTask",
             TfsImportService.CheckStoryStateAlert("Active", System.Array.Empty<string>()).ToString(),
             "Story em Active sem nenhuma Task tambem alerta.");
         AssertEqual("None",
-            TfsImportService.CheckStoryStateAlert("Active", new[] { "Closed", "Active" }).ToString(),
+            TfsImportService.CheckStoryStateAlert("Active", new[] { "Closed", "Active" }).ToString(),
+
             "Story em Active com Task em Active esta coerente.");
         AssertEqual("None",
-            TfsImportService.CheckStoryStateAlert("Closed", new[] { "New" }).ToString(),
+            TfsImportService.CheckStoryStateAlert("Closed", new[] { "New" }).ToString(),
+
             "Story encerrada nao entra na checagem (o alerta e so de New/Active).");
     }
 
@@ -4155,6 +4162,50 @@ internal static class Program
         var task = TaskPlanScheduleRules.CreateInternalTask(story, 100, "Task interna", null, 40);
         if (task.Finish > story.Finish)
             throw new InvalidOperationException("Com a Story iniciada, o fim da task não pode passar do fim da Story.");
+    }
+
+    private static void TfsAttachmentParserReadsNameAndSize()
+    {
+        const string payload = """
+        {
+          "value": [
+            {
+              "id": "abc123",
+              "name": "manual.pdf",
+              "size": 2048,
+              "url": "https://dev.azure.com/org/project/_apis/wit/workItems/42/attachments/abc123"
+            }
+          ]
+        }
+        """;
+
+        var result = NXProject.Services.TfsAttachmentService.ParseAttachmentsList(payload);
+        if (result.Count != 1) throw new Exception($"Esperava 1 anexo, veio {result.Count}.");
+        if (!string.Equals(result[0].Name, "manual.pdf", StringComparison.OrdinalIgnoreCase))
+            throw new Exception($"Nome do anexo inválido: {result[0].Name}");
+        if (result[0].SizeBytes != 2048)
+            throw new Exception($"Tamanho do anexo inválido: {result[0].SizeBytes}");
+    }
+
+    private static void TfsAttachmentUploadUrlDoesNotDuplicateProjectInOrgPath()
+    {
+        var options = new NXProject.Services.TfsConnectionOptions
+        {
+            OrganizationUrl = "https://dev.azure.com/minha-org/MeuProjeto",
+            TeamProject = "MeuProjeto",
+            PersonalAccessToken = "token" 
+        };
+
+        var url = NXProject.Services.TfsAttachmentService.BuildUploadUrl(options, 42, "manual.pdf");
+        if (url.Contains("/MeuProjeto/MeuProjeto/_apis/", StringComparison.OrdinalIgnoreCase))
+            throw new Exception($"URL de upload duplicou o projeto na org: {url}");
+
+        // O upload vai para a rota de anexos do projeto (o work item e ligado depois, via PATCH);
+        // "workitems/{id}/attachments" nao existe no Azure DevOps e respondia 404.
+        if (!url.Contains("/MeuProjeto/_apis/wit/attachments?fileName=manual.pdf&", StringComparison.OrdinalIgnoreCase))
+            throw new Exception($"URL de upload não tem o formato esperado: {url}");
+        if (url.Contains("/workitems/", StringComparison.OrdinalIgnoreCase))
+            throw new Exception($"URL de upload não pode incluir o work item: {url}");
     }
 
     // ── ID interno duplicado: gravar bloqueia, ler normaliza, sync recusa ────
