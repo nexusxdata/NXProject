@@ -278,6 +278,9 @@
                         <CheckBox x:Name="FieldCacheCheck" Click="OnFieldCacheChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_FieldCache}"
                                   ToolTip="{DynamicResource Sprint_FieldCacheTip}"/>
+                        <CheckBox x:Name="CardDocsOnlyCheck" Click="OnCardDocsOnlyChanged" Margin="8,2,0,2"
+                                  Content="{DynamicResource Sprint_CardDocsOnly}"
+                                  ToolTip="{DynamicResource Sprint_CardDocsOnlyTip}"/>
                     </StackPanel>
                 </Border>
             </Popup>

@@ -82,6 +82,10 @@ namespace NXProject.Views
         // WIP: Tasks que estão ACIMA do limite configurado (por pessoa) e a contagem de cada pessoa.
         // Recalculado a cada Render(); não bloqueia nada, só marca.
         private readonly HashSet<int> _wipOver = new();
+        /// <summary>Quem estava acima do limite de WIP NA CARGA do board. So o que mudou em
+        /// relacao a esta foto e gravado: sem isso, qualquer gravacao saia corrigindo a tag de
+        /// dezenas de cards antigos e o "N atualizadas no TFS" virava um numero sem sentido.</summary>
+        private readonly HashSet<int> _wipBaseline = new();
         private readonly Dictionary<string, int> _wipCount = new(StringComparer.CurrentCultureIgnoreCase);
         private readonly HashSet<int> _appliedDoing = new();
         // "Done" marcado explicitamente no card: permite concluir o andamento SEM fechar a Task
@@ -102,6 +106,8 @@ namespace NXProject.Views
         private readonly Dictionary<int, TfsAttachmentService.TfsAttachmentInfo> _attachments = new();
         /// <summary>Urls de anexos excluidos nesta sessao: somem do card sem esperar o reload.</summary>
         private readonly HashSet<string> _removedAttachmentUrls = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Anexos marcados para excluir: so vao ao DevOps no "Atualizar TFS".</summary>
+        private readonly Dictionary<int, List<TfsAttachmentService.TfsAttachmentInfo>> _attachRemovePending = new();
         // HH estimado (OriginalEstimate) e HH realizado (CompletedWork) alterados, pendentes de gravar.
         private readonly Dictionary<int, double?> _estPending = new();
         private readonly Dictionary<int, double?> _donePending = new();
@@ -222,6 +228,7 @@ namespace NXProject.Views
             public int? PriorityMax { get; set; } // maximo de Priority do template (descoberto via validateOnly)
             public DateTime? PriorityMaxAt { get; set; } // quando foi descoberto (vence: o template pode mudar)
             public bool? FieldCache { get; set; } // ler campos do TFS em cache (null = ligado)
+            public bool? CardDocsOnly { get; set; } // no card, listar so PDF/Word/Excel (null = ligado)
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
             public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
             public List<int>? CollapsedEpics { get; set; } // legado (so EPICs); lido na abertura
@@ -339,6 +346,7 @@ namespace NXProject.Views
             ViewIndex = _prefs.View is int vw0 && vw0 is 0 or 1 ? vw0 : 0;
             AutoOpenCheck.IsChecked = _prefs.AutoOpen;
             // Cache dos campos do TFS: ligado por padrao (null = ligado).
+            CardDocsOnlyCheck.IsChecked = _prefs.CardDocsOnly ?? true;
             FieldCacheCheck.IsChecked = _prefs.FieldCache ?? true;
             TfsImportService.FieldRefCacheEnabled = FieldCacheCheck.IsChecked == true;
             // Sem a variavel de ambiente, as marcacoes de tempo nem sao montadas.
@@ -713,7 +721,9 @@ namespace NXProject.Views
                 UpdatePendingButton();
                 PopulateStoryFilter();
                 PopulateStateFilter();
-                Render();
+                Render();   // o Render recalcula o WIP; a foto e tirada logo apos ele
+                _wipBaseline.Clear();
+                foreach (var wid in _wipOver) _wipBaseline.Add(wid);
 
                 // Descobre uma vez por sessão o máximo de Priority aceito pelo template (validateOnly).
                 if (_discoveredPrioMax == 0)
@@ -768,8 +778,24 @@ namespace NXProject.Views
             }
             foreach (var ns in _newCards.Where(n => n.Type == "Story"))
             {
-                var row = new TfsImportService.SprintStoryRow(ns.TempId, ns.Title, "New", "", new())
-                { FeatureId = ns.FeatureId, FeatureTitle = ns.FeatureTitle };
+                // Leva o responsavel do card novo para a linha: e por ele que a visao
+                // Pessoa & Task decide em qual faixa a Story aparece.
+                // E herda a hierarquia (ids, titulos e RANKS) de uma Story irma da mesma Feature:
+                // sem os ranks dos niveis a Story nova nao tinha onde se encaixar e ia parar no
+                // fim da faixa, longe do bloco da Feature onde foi criada.
+                var sib = _board?.Stories.FirstOrDefault(x => x.FeatureId == ns.FeatureId && x.Id > 0);
+                var row = new TfsImportService.SprintStoryRow(ns.TempId, ns.Title, "New", ns.AssignedTo ?? "", new())
+                {
+                    FeatureId = ns.FeatureId,
+                    FeatureTitle = ns.FeatureTitle,
+                    FeatureEpicId = sib?.FeatureEpicId ?? 0,
+                    FeatureEpicTitle = sib?.FeatureEpicTitle ?? "",
+                    FeatureProjectId = sib?.FeatureProjectId ?? 0,
+                    FeatureProjectTitle = sib?.FeatureProjectTitle ?? "",
+                    FeatureRank = sib?.FeatureRank ?? double.NaN,
+                    FeatureEpicRank = sib?.FeatureEpicRank ?? double.NaN,
+                    FeatureProjectRank = sib?.FeatureProjectRank ?? double.NaN
+                };
                 var tks = _newCards.Where(n => n.Type == "Task" && n.ParentId == ns.TempId).Select(NewToCard).ToList();
                 list.Add((row, tks));
             }
@@ -799,10 +825,47 @@ namespace NXProject.Views
             return win.ShowDialog() == true && !string.IsNullOrWhiteSpace(tb.Text) ? tb.Text.Trim() : null;
         }
 
-        // Cria um card NOVO vazio (editável no próprio card): Nome, Responsável, HH, Descrição.
-        private void AddNewStory(int featureId, string featureTitle)
+        /// <summary>
+        /// Abre o caminho ate o no informado (ele e os niveis acima). Criar um card dentro de um
+        /// nivel RECOLHIDO deixava o card novo invisivel: ele entrava na fila, mas nao aparecia na
+        /// tela e parecia que o botao nao tinha funcionado.
+        /// </summary>
+        private void ExpandTo(int nodeId)
         {
-            _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Story", ParentId = featureId, FeatureId = featureId, FeatureTitle = featureTitle, IterationPath = DefaultNewIterationPath() });
+            if (nodeId <= 0) return;
+            _collapsed.Remove(nodeId);
+            if (_board == null) return;
+
+            if (StoryById(nodeId) is { } story)
+            {
+                _collapsed.Remove(story.FeatureId);
+                _collapsed.Remove(story.FeatureEpicId);
+                _collapsed.Remove(story.FeatureProjectId);
+                return;
+            }
+            if (_board.Stories.FirstOrDefault(s => s.FeatureId == nodeId) is { } byFeature)
+            {
+                _collapsed.Remove(byFeature.FeatureEpicId);
+                _collapsed.Remove(byFeature.FeatureProjectId);
+                return;
+            }
+            if (_board.Stories.FirstOrDefault(s => s.FeatureEpicId == nodeId) is { } byEpic)
+                _collapsed.Remove(byEpic.FeatureProjectId);
+        }
+
+        // Cria um card NOVO vazio (editável no próprio card): Nome, Responsável, HH, Descrição.
+        private void AddNewStory(int featureId, string featureTitle, string? assignedTo = null)
+        {
+            // Na visao Pessoa & Task o botao fica DENTRO da faixa de uma pessoa: a Story nasce
+            // para ELA, nao para o dono da Feature (que pode ser outro). Sem pessoa no contexto
+            // (visao Projeto & Story), herda o responsavel da Feature. Editavel no proprio card.
+            var featOwner = assignedTo != null
+                ? (string.Equals(assignedTo, AppStrings.Get("Sprint_NoOwner"), StringComparison.Ordinal) ? "" : assignedTo)
+                : EffOwner(featureId,
+                    _board?.Stories.FirstOrDefault(x => x.FeatureId == featureId)?.FeatureAssignedTo ?? "");
+            _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Story", ParentId = featureId, FeatureId = featureId, FeatureTitle = featureTitle, AssignedTo = featOwner, IterationPath = DefaultNewIterationPath() });
+            ExpandTo(featureId);
+            if (!string.IsNullOrEmpty(featOwner)) _collapsedPeople.Remove(featOwner);
             UpdatePendingButton(); Render();
         }
 
@@ -812,6 +875,7 @@ namespace NXProject.Views
         {
             _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Feature", ParentId = epicId,
                 FeatureTitle = epicTitle, IterationPath = DefaultNewIterationPath() });
+            ExpandTo(epicId);
             UpdatePendingButton(); Render();
         }
 
@@ -819,6 +883,7 @@ namespace NXProject.Views
         {
             _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Epic", ParentId = projectId,
                 FeatureTitle = projectTitle, IterationPath = DefaultNewIterationPath() });
+            ExpandTo(projectId);
             UpdatePendingButton(); Render();
         }
 
@@ -871,6 +936,9 @@ namespace NXProject.Views
             // Já nasce na faixa da pessoa onde foi criado (fica no grupo da Story).
             var who = string.Equals(assignedTo, AppStrings.Get("Sprint_NoOwner"), StringComparison.Ordinal) ? "" : (assignedTo ?? "");
             _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Task", ParentId = storyId, AssignedTo = who, IterationPath = DefaultNewIterationPath() });
+            ExpandTo(storyId);
+            // Na visao Pessoa & Task a faixa da pessoa tambem pode estar recolhida.
+            if (!string.IsNullOrEmpty(assignedTo)) _collapsedPeople.Remove(assignedTo);
             UpdatePendingButton(); Render();
         }
 
@@ -1029,6 +1097,13 @@ namespace NXProject.Views
 
         // Desmarcar tambem JOGA FORA o que ja estava guardado: quem desliga o cache normalmente
         // quer justamente parar de ver o valor antigo.
+        private void OnCardDocsOnlyChanged(object sender, RoutedEventArgs e)
+        {
+            _prefs.CardDocsOnly = CardDocsOnlyCheck.IsChecked == true;
+            SavePrefs();
+            Render();
+        }
+
         private void OnFieldCacheChanged(object sender, RoutedEventArgs e)
         {
             var on = FieldCacheCheck.IsChecked == true;
@@ -1370,7 +1445,9 @@ namespace NXProject.Views
             var dlg = new TramiteWindow(id, AppStrings.Get("Sprint_EditTramite") + " — " + title, draft) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
-                if (string.IsNullOrWhiteSpace(TfsImportService.NormalizeCommentText(dlg.NewComment)))
+                // Tramite so com print TEM conteudo: antes o texto plano vinha vazio e o comentario
+                // era jogado fora aqui mesmo, sem nunca chegar no DevOps e sem aviso nenhum.
+                if (!TfsImportService.HasCommentContent(dlg.NewComment))
                     _tramitePending.Remove(id);
                 else
                     _tramitePending[id] = dlg.NewComment;
@@ -1383,11 +1460,50 @@ namespace NXProject.Views
             !string.IsNullOrEmpty(tags) && tags.Split(';').Any(x => x.Trim().Equals(tag, StringComparison.OrdinalIgnoreCase));
 
         // Diferença de marcações Doing pendentes (marcadas − já gravadas) + mudanças de estado.
+        /// <summary>
+        /// Sinal do HTML para conferir o que o DevOps REALMENTE gravou: texto plano + quantas
+        /// imagens. O servidor reescreve o HTML (normaliza tags), entao comparar o HTML inteiro
+        /// daria alarme falso; o que importa e nao ter perdido texto nem imagem.
+        /// </summary>
+        private static (string Text, int Images) HtmlSignal(string? html)
+        {
+            var text = TfsImportService.ToPlainTextPublic(html ?? "");
+            var imgs = System.Text.RegularExpressions.Regex.Matches(
+                html ?? "", "<img", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count;
+            return (System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim(), imgs);
+        }
+
+        /// <summary>
+        /// Le a descricao de volta depois de gravar. O DevOps higieniza o HTML e pode DESCARTAR a
+        /// imagem colada (data:) devolvendo sucesso assim mesmo — sem conferir, sumia calada.
+        /// Devolve null quando esta tudo la, ou a mensagem para a lista de falhas.
+        /// </summary>
+        private async Task<string?> VerifySavedDescriptionAsync(int id, string sentHtml)
+        {
+            try
+            {
+                var saved = await TfsImportService.LoadWorkItemDescriptionHtmlAsync(_options, id);
+                var sent = HtmlSignal(sentHtml);
+                var got = HtmlSignal(saved);
+                if (got.Images < sent.Images)
+                    return $"#{id} (descr): o texto foi gravado, mas o DevOps descartou "
+                         + $"{sent.Images - got.Images} imagem(ns). Imagem colada na descricao precisa ir como anexo.";
+                if (!string.Equals(sent.Text, got.Text, StringComparison.Ordinal))
+                    return $"#{id} (descr): o que ficou gravado no DevOps ficou diferente do enviado.";
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return $"#{id} (descr): gravou, mas nao deu para conferir depois: {ex.Message}";
+            }
+        }
+
         private int PendingCount()
         {
             var doingDiff = _doing.Except(_appliedDoing).Count() + _appliedDoing.Except(_doing).Count();
             doingDiff += _done.Except(_appliedDone).Count() + _appliedDone.Except(_done).Count();
-            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count + _finishPending.Count;
+            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count + _finishPending.Count
+                + _attachRemovePending.Sum(kv => kv.Value.Count);
         }
 
         private void UpdatePendingButton()
@@ -1419,6 +1535,8 @@ namespace NXProject.Views
             _moveTaskId = 0;
             _startPending.Clear();
             _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
+            // Anexo marcado para excluir volta a aparecer: nada foi ao DevOps ainda.
+            _attachRemovePending.Clear(); _removedAttachmentUrls.Clear();
             _newCards.Clear();
             _prioPending.Clear();
             _storyRankPending.Clear();
@@ -1453,6 +1571,9 @@ namespace NXProject.Views
             if (PendingCount() == 0) return;
             UpdateTfsButton.IsEnabled = false;
             var ok = 0;
+            // Contado a parte: a tag de WIP e ajustada sozinha em varios cards quando um card
+            // entra ou sai, e o total virava um numero grande sem explicacao ("15 atualizadas").
+            var wipOk = 0;
             var fails = new List<string>();
             // Barra de progresso + texto da etapa durante a gravação.
             var total = PendingCount();
@@ -1525,8 +1646,69 @@ namespace NXProject.Views
             Phase("Sprint_PhFields");
             foreach (var kv in _descPending.ToList())
             {
-                var (success, msg) = await TfsImportService.SetWorkItemDescriptionAsync(_options, kv.Key, kv.Value);
-                if (success) { _descPending.Remove(kv.Key); ok++; } else fails.Add($"#{kv.Key} (descr): {msg}");
+                // Descricao que estava la antes: serve para achar imagem que o usuario TIROU do
+                // texto e cujo anexo ficaria orfao na Task.
+                var oldHtml = "";
+                try { oldHtml = await TfsImportService.LoadWorkItemDescriptionHtmlAsync(_options, kv.Key); }
+                catch { /* sem a anterior, so nao da para limpar orfao */ }
+                // Imagem colada vai embutida como "data:" e o DevOps DESCARTA esse src ao gravar.
+                // Sobe cada uma como anexo e deixa a tag apontando para a URL, igual a tela dele.
+                var html = kv.Value;
+                try
+                {
+                    html = await TfsAttachmentService.InlineImagesToAttachmentsAsync(
+                        _options, kv.Key, html, TfsAttachmentService.InlineImageDescriptionPrefix);
+                }
+                catch (Exception ex) { fails.Add($"#{kv.Key} (imagem da descricao): {ex.Message}"); }
+                var (success, msg) = await TfsImportService.SetWorkItemDescriptionAsync(_options, kv.Key, html);
+                if (!success) { fails.Add($"#{kv.Key} (descr): {msg}"); continue; }
+                // Gravou: sai da fila e conta como ok. Mas confere o que chegou do outro lado —
+                // se o DevOps comeu a imagem, o usuario fica sabendo em vez de descobrir depois.
+                _descPending.Remove(kv.Key);
+                ok++;
+                if (await VerifySavedDescriptionAsync(kv.Key, html) is { } warn) fails.Add(warn);
+
+                // Imagem tirada da descricao: apaga o anexo que ficou sem uso (e so ele).
+                try
+                {
+                    var used = (await TfsImportService.GetWorkItemCommentsAsync(_options, kv.Key)).Select(c => c.Html);
+                    var gone = await TfsAttachmentService.CleanupUnusedDescriptionImagesAsync(
+                        _options, kv.Key, oldHtml, html, used);
+                    foreach (var g in gone) _removedAttachmentUrls.Add(g.Url);
+                }
+                catch { /* limpeza de orfao e conveniencia: nunca derruba a gravacao */ }
+            }
+
+            // 3a) Exclusao de anexo: ate 3 tentativas. Se falhar, o anexo VOLTA para o card — sumir
+            // da tela com o arquivo ainda no DevOps foi exatamente o que enganou antes.
+            foreach (var kv in _attachRemovePending.ToList())
+            {
+                foreach (var att in kv.Value.ToList())
+                {
+                    Exception? error = null;
+                    for (var attempt = 1; attempt <= 3; attempt++)
+                    {
+                        try
+                        {
+                            await TfsAttachmentService.RemoveAttachmentAsync(_options, kv.Key, att.Url);
+                            error = null;
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            error = ex;
+                            if (attempt < 3) await Task.Delay(400);
+                        }
+                    }
+                    kv.Value.Remove(att);
+                    if (error == null) { _attachments.Remove(kv.Key); ok++; }
+                    else
+                    {
+                        _removedAttachmentUrls.Remove(att.Url);
+                        fails.Add($"#{kv.Key} (anexo {att.Name}): {error.Message}");
+                    }
+                }
+                _attachRemovePending.Remove(kv.Key);
             }
 
             // 3b) Responsável (System.AssignedTo). 403 = sem permissão.
@@ -1629,12 +1811,15 @@ namespace NXProject.Views
             foreach (var card in _cardById.Values.Where(c => c.Id > 0).ToList())
             {
                 var want = _wipOver.Contains(card.Id);
+                // Nada mudou para este card desde a carga: nao e trabalho desta gravacao.
+                if (want == _wipBaseline.Contains(card.Id)) continue;
                 if (HasTag(EffTags(card.Id, card.Tags), wipTag) == want) continue;
                 var (success, msg) = await TfsImportService.SetSingleTagAsync(_options, card.Id, wipTag, want);
                 if (success)
                 {
                     _tagsApplied[card.Id] = TfsImportService.ToggleTag(EffTags(card.Id, card.Tags), wipTag, want);
-                    ok++;
+                    if (want) _wipBaseline.Add(card.Id); else _wipBaseline.Remove(card.Id);
+                    ok++; wipOk++;
                 }
                 else fails.Add($"#{card.Id} (WIP): {msg}");
             }
@@ -1660,8 +1845,28 @@ namespace NXProject.Views
             {
                 try
                 {
-                    var posted = await TfsImportService.AddWorkItemCommentIfChangedAsync(_options, kv.Key, kv.Value);
-                    if (posted) { _tramitePending.Remove(kv.Key); ok++; }
+                    // Mesmo tratamento da descricao: imagem colada vira anexo antes de postar.
+                    var tramiteHtml = kv.Value;
+                    try
+                    {
+                        tramiteHtml = await TfsAttachmentService.InlineImagesToAttachmentsAsync(
+                            _options, kv.Key, tramiteHtml, TfsAttachmentService.InlineImageTramitePrefix);
+                    }
+                    catch (Exception ex) { fails.Add($"#{kv.Key} (imagem do tramite): {ex.Message}"); }
+                    var posted = await TfsImportService.AddWorkItemCommentIfChangedAsync(_options, kv.Key, tramiteHtml);
+                    if (posted)
+                    {
+                        _tramitePending.Remove(kv.Key);
+                        ok++;
+                        // Mesma conferencia da descricao: o comentario aceita imagem, mas se o
+                        // servidor descartar alguma, o usuario precisa saber na hora.
+                        var last = await TfsImportService.GetLastWorkItemCommentAsync(_options, kv.Key);
+                        var sent = HtmlSignal(tramiteHtml);
+                        var got = HtmlSignal(last);
+                        if (got.Images < sent.Images)
+                            fails.Add($"#{kv.Key} (tramite): o comentario foi gravado, mas o DevOps descartou "
+                                      + $"{sent.Images - got.Images} imagem(ns).");
+                    }
                     else fails.Add($"#{kv.Key} (trâmite): sem permissão ou sem alteração");
                 }
                 catch (Exception ex) { fails.Add($"#{kv.Key} (trâmite): {ex.Message}"); }
@@ -1742,6 +1947,10 @@ namespace NXProject.Views
                 if (nid > 0)
                 {
                     tempToReal[ns.TempId] = nid; _newCards.Remove(ns); ok++; reload = true;
+                    // Fica no topo da Feature onde foi criada, inclusive depois do reload.
+                    _storyRank[nid] = await RankNewOnTopAsync(nid,
+                        (_board?.Stories.Where(s => s.FeatureId == ns.FeatureId && s.Id > 0)
+                                       .Select(s => StoryRankOf(s.Id)) ?? Enumerable.Empty<double>()));
                     // O filtro de Projeto guarda IDs de Story. A Story recem-criada nao esta
                     // nessa lista e sumia do board depois de gravar (so voltava ao reaplicar o
                     // filtro). Entra aqui, para continuar visivel onde foi criada.
@@ -1762,7 +1971,14 @@ namespace NXProject.Views
                 var (nid, msg) = await TfsImportService.CreateChildWorkItemAsync(_options, "Task", nt.Title.Trim(), parent, IterOf(nt),
                     string.IsNullOrWhiteSpace(nt.Description) ? null : TfsImportService.PlainTextToSimpleHtml(nt.Description),
                     string.IsNullOrWhiteSpace(nt.AssignedTo) ? null : nt.AssignedTo, nt.Effort);
-                if (nid > 0) { _newCards.Remove(nt); ok++; reload = true; }
+                if (nid > 0)
+                {
+                    _newCards.Remove(nt); ok++; reload = true;
+                    // Mesma ideia da Story: no topo da Story onde foi criada.
+                    _taskRank[nid] = await RankNewOnTopAsync(nid,
+                        (_board?.Stories.FirstOrDefault(s => s.Id == parent)?.Tasks
+                                .Where(t => t.Id > 0).Select(EffTaskRank) ?? Enumerable.Empty<double>()));
+                }
                 else fails.Add($"Task '{nt.Title}': {msg}");
             }
 
@@ -1773,7 +1989,9 @@ namespace NXProject.Views
             UpdatePendingButton();
             Render();
             if (fails.Count == 0)
-                MessageBox.Show(this, AppStrings.Get("Sprint_UpdateDone", ok.ToString()),
+                MessageBox.Show(this, AppStrings.Get("Sprint_UpdateDone", ok.ToString())
+                        + (wipOk > 0 ? Environment.NewLine + Environment.NewLine
+                                       + AppStrings.Get("Sprint_UpdateWipNote", wipOk.ToString()) : ""),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
             else
                 MessageBox.Show(this, AppStrings.Get("Sprint_UpdatePartial",
@@ -2511,7 +2729,9 @@ namespace NXProject.Views
         {
             var cell = new StackPanel { Margin = new Thickness(2) };
             foreach (var t in tasks.Where(t => SameState(EffState(t), state))
-                         .OrderBy(t => EffPrio(t) > 0 ? EffPrio(t) : 99)  // grupo de prioridade primeiro
+                         // Card novo primeiro (-1): ele ainda nao tem prioridade e cairia no 99,
+                         // ou seja, no fim da coluna — justamente onde nao se ve.
+                         .OrderBy(t => t.Id < 0 ? -1 : EffPrio(t) > 0 ? EffPrio(t) : 99)
                          .ThenBy(EffTaskRank))                              // depois o rank (StackRank) dentro do grupo
                 cell.Children.Add(BuildCard(t, showStory
                     ? (_storyById.TryGetValue(EffTaskParent(t), out var st) ? st.Title : null)
@@ -2712,7 +2932,17 @@ namespace NXProject.Views
             AddCardsBandRow(cols, cState0, AppStrings.Get("Sprint_CardsAreTasks"));
             var head = MakeRowGrid(cols);
             AddCell(head, 0, MakeHeader("#"));
-            AddCell(head, 1, MakeHeader(AppStrings.Get("Sprint_ColPerson")));
+            var personHead = new StackPanel { Orientation = Orientation.Horizontal };
+            personHead.Children.Add(MakeHeader(AppStrings.Get("Sprint_ColPerson")));
+            personHead.Children.Add(new TextBlock
+            {
+                Text = "ⓘ", FontSize = 11, Margin = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x2B, 0x57, 0x9A)),
+                Cursor = System.Windows.Input.Cursors.Help,
+                ToolTip = AppStrings.Get("Sprint_PersonOrderHelp")
+            });
+            AddCell(head, 1, personHead);
             if (showProj) AddCell(head, cProj, MakeHeader(AppStrings.Get("Sprint_ColProject")));
             // Checkbox da coluna Projeto: fica no cabeçalho da coluna SEGUINTE que estiver
             // visível (EPIC → Feature → Story), o mesmo padrão dos outros toggles.
@@ -2800,38 +3030,42 @@ namespace NXProject.Views
                     g.Select(EffTaskParent).FirstOrDefault(id => id > 0);
                 TfsImportService.SprintStoryRow? GroupStory(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
                     _storyById.TryGetValue(GroupStoryId(g), out var st) ? st : null;
-                // Grupo de prioridade da linha: a MAIS ALTA (menor numero) entre as Tasks que a
-                // pessoa tem nessa Story; sem prioridade vai para o fim.
-                int GroupPrio(IGrouping<string, TfsImportService.SprintTaskCard> g) =>
-                    g.Select(t => EffPrio(t) > 0 ? EffPrio(t) : 99).DefaultIfEmpty(99).Min();
-
-                // Ordem dentro da pessoa: grupo de prioridade da Task → Projeto → EPIC → Feature
-                // → rank da Story. O StackRank do TFS continua valendo, mas DENTRO do grupo de
-                // prioridade e da hierarquia (antes ordenava so pelo rank, e Stories de projetos
-                // diferentes ficavam intercaladas). As Tasks dentro da celula seguem a mesma
-                // regra: prioridade e depois rank (BuildStateCell).
-                // As Stories SEM Task entram na MESMA lista dos grupos de Task e usam a mesma
-                // chave de ordenacao (prioridade, Projeto, EPIC, Feature, rank). Sem prioridade
-                // de Task elas caem no grupo 99, entao ficam naturalmente depois das que tem
-                // trabalho em andamento, mas dentro da hierarquia certa — nao amontoadas no fim.
+                // Ordem dentro da pessoa, SEMPRE pela hierarquia do backlog do DevOps:
+                //   Pessoa → rank do Project → rank do EPIC → rank da Feature → rank da Story.
+                // A prioridade da Task NAO entra aqui: ela ordena as Tasks DENTRO da Story, na
+                // celula de estado (BuildStateCell). Antes a prioridade vinha primeiro e repartia
+                // os blocos de Feature/Story pela pessoa. Sem rank (o DevOps nao devolveu), o item
+                // vai para o fim do seu nivel; o titulo so desempata.
+                static double RankOrLast(double r) => double.IsNaN(r) ? 1e9 : r;
                 var shownCollapsed = new HashSet<int>();   // EPIC recolhido ja anunciado nesta pessoa
-                var entries = new List<(int Prio, string Proj, string Epic, string Feat, double Rank,
+                var entries = new List<(double ProjRank, string Proj, double EpicRank, string Epic,
+                    double FeatRank, string Feat, double Rank,
                     string Title, IGrouping<string, TfsImportService.SprintTaskCard>? Tasks,
                     TfsImportService.SprintStoryRow? Solo)>();
                 foreach (var g in pg.GroupBy(t => _storyById.TryGetValue(EffTaskParent(t), out var st)
                                                   ? st.Title : AppStrings.Get("Sprint_NoStory")))
-                    entries.Add((GroupPrio(g), GroupStory(g)?.FeatureProjectTitle ?? "",
-                        GroupStory(g)?.FeatureEpicTitle ?? "", GroupStory(g)?.FeatureTitle ?? "",
+                    entries.Add((RankOrLast(GroupStory(g)?.FeatureProjectRank ?? double.NaN),
+                        GroupStory(g)?.FeatureProjectTitle ?? "",
+                        RankOrLast(GroupStory(g)?.FeatureEpicRank ?? double.NaN),
+                        GroupStory(g)?.FeatureEpicTitle ?? "",
+                        RankOrLast(GroupStory(g)?.FeatureRank ?? double.NaN),
+                        GroupStory(g)?.FeatureTitle ?? "",
                         StoryRankOf(GroupStoryId(g)), g.Key, g, null));
+                // Story sem Task entra na MESMA lista e usa a MESMA chave: ela aparece no lugar
+                // dela na hierarquia, nao amontoada no fim.
                 if (noTaskByPerson.TryGetValue(personKey, out var soloStories))
                     foreach (var st in soloStories)
-                        entries.Add((99, st.FeatureProjectTitle ?? "", st.FeatureEpicTitle ?? "",
-                            st.FeatureTitle ?? "", StoryRankOf(st.Id), st.Title, null, st));
+                        entries.Add((RankOrLast(st.FeatureProjectRank), st.FeatureProjectTitle ?? "",
+                            RankOrLast(st.FeatureEpicRank), st.FeatureEpicTitle ?? "",
+                            RankOrLast(st.FeatureRank), st.FeatureTitle ?? "",
+                            StoryRankOf(st.Id), st.Title, null, st));
 
                 foreach (var entry in entries
-                             .OrderBy(e => e.Prio)
+                             .OrderBy(e => e.ProjRank)
                              .ThenBy(e => e.Proj, StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(e => e.EpicRank)
                              .ThenBy(e => e.Epic, StringComparer.CurrentCultureIgnoreCase)
+                             .ThenBy(e => e.FeatRank)
                              .ThenBy(e => e.Feat, StringComparer.CurrentCultureIgnoreCase)
                              .ThenBy(e => e.Rank)
                              .ThenBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase))
@@ -3027,7 +3261,7 @@ namespace NXProject.Views
                             var b = new Button { Content = AppStrings.Get("Sprint_AddStory"), FontSize = 10,
                                 Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
                             var fId = featId; var fName = featTitle;
-                            b.Click += (_, _) => AddNewStory(fId, fName);
+                            b.Click += (_, _) => AddNewStory(fId, fName, personKey);
                             addStoryBtn = Light(b);
                         }
                         var featExtra = JoinButtons(BuildCollapseButton(featId), addStoryBtn);
@@ -3321,7 +3555,7 @@ namespace NXProject.Views
                     var b2 = new Button { Content = AppStrings.Get("Sprint_AddStory"), FontSize = 10,
                         Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
                     var fId2 = st.FeatureId; var fName2 = st.FeatureTitle;
-                    b2.Click += (_, _) => AddNewStory(fId2, fName2);
+                    b2.Click += (_, _) => AddNewStory(fId2, fName2, personKey);
                     addSt = Light(b2);
                 }
                 var featExtra2 = JoinButtons(BuildCollapseButton(st.FeatureId), addSt);
@@ -3340,6 +3574,12 @@ namespace NXProject.Views
         /// </summary>
         private Border BuildPersonStoryCardNoTask(TfsImportService.SprintStoryRow st, string personKey)
         {
+            // Story NOVA (id temporario, ainda sem work item): vai o card EDITAVEL, o mesmo da
+            // visao Projeto & Story. Antes caia neste card de consulta — sem campos para
+            // preencher nome/responsavel/HH e com botoes apontando para um id que nao existe.
+            if (st.Id < 0 && _newCards.FirstOrDefault(x => x.TempId == st.Id) is { } ncNew)
+                return BuildNewCardBorder(ncNew);
+
             var sp = new StackPanel();
             sp.Children.Add(new TextBlock
             {
@@ -3380,11 +3620,30 @@ namespace NXProject.Views
                 Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
             addTask.Click += (_, _) => AddNewTask(st.Id, personKey);
             actions.Children.Add(addTask);
+            // Excluir: so quando a Story esta SEM TASK DE VERDADE — nenhuma no DevOps, ou
+            // todas ja marcadas para excluir. Task apenas escondida por filtro (Closed, por
+            // exemplo) NAO libera o botao: o item continua existindo no DevOps.
+            var stDel = _deletePending.Contains(st.Id);
+            var stNoTasks = st.Tasks.Count == 0 || st.Tasks.All(t => _deletePending.Contains(t.Id));
+            if (string.Equals(EffStoryState(st), "New", StringComparison.OrdinalIgnoreCase) && stNoTasks)
+            {
+                var delNoTask = new Button { Content = stDel ? "↩" : "🗑", FontSize = 11,
+                    Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
+                    ToolTip = AppStrings.Get(stDel ? "Sprint_UndoDelete" : "Sprint_DeleteTask") };
+                delNoTask.Click += (_, _) =>
+                {
+                    if (!_deletePending.Remove(st.Id)) _deletePending.Add(st.Id);
+                    UpdatePendingButton(); Render();
+                };
+                actions.Children.Add(delNoTask);
+            }
             actions.Children.Add(BuildBlockButton(st.Id, st.Tags ?? "", isStory: true));
             sp.Children.Add(actions);
 
             var pend = _storyRankPending.Contains(st.Id) || _ownerPending.ContainsKey(st.Id)
-                || _titlePending.ContainsKey(st.Id) || _blockPending.ContainsKey(st.Id);
+                || _titlePending.ContainsKey(st.Id) || _blockPending.ContainsKey(st.Id)
+                || _deletePending.Contains(st.Id);
             // Cor de MENOR destaque que o card de Story com Task: a linha existe para
             // acompanhamento, nao deve competir visualmente com quem tem trabalho em andamento.
             var border = new Border
@@ -4245,10 +4504,29 @@ namespace NXProject.Views
             _storyRankPending.Add(id);
         }
 
-        private double StoryRankOf(int id) => _storyRank.TryGetValue(id, out var r) ? r : double.MaxValue;
+        // Card NOVO (id temporario negativo) vem no TOPO do grupo dele: com muitos cards, nascer
+        // no fim da lista era o mesmo que nascer invisivel.
+        /// <summary>
+        /// Grava o item RECEM-CRIADO no topo do grupo dele tambem no DevOps (StackRank abaixo do
+        /// menor dos irmaos). Enquanto pendente o card ja aparece em cima; sem isto, ao gravar ele
+        /// nascia sem rank, ia para o fim da lista e "pulava" da posicao onde estava — confuso.
+        /// Se a gravacao do rank falhar, o card so perde a posicao: nao e erro de criacao.
+        /// </summary>
+        private async Task<double> RankNewOnTopAsync(int newId, IEnumerable<double> siblingRanks)
+        {
+            var ranks = siblingRanks.Where(r => !double.IsNaN(r) && !double.IsInfinity(r) && r < double.MaxValue).ToList();
+            var top = (ranks.Count > 0 ? ranks.Min() : 0) - 10;
+            try { await TfsImportService.SetWorkItemStackRankAsync(_options, newId, top); }
+            catch { /* posicao e conveniencia: nunca derruba a criacao */ }
+            return top;
+        }
+
+        private double StoryRankOf(int id) => id < 0 ? double.NegativeInfinity
+            : _storyRank.TryGetValue(id, out var r) ? r : double.MaxValue;
 
         private double EffTaskRank(TfsImportService.SprintTaskCard t) =>
-            _taskRank.TryGetValue(t.Id, out var r) ? r
+            t.Id < 0 ? double.NegativeInfinity
+            : _taskRank.TryGetValue(t.Id, out var r) ? r
             : _order.TryGetValue(t.Id, out var o) ? o : t.Id;
 
         // Move a Story trocando o StackRank com a vizinha do grupo (▲/▼). Só reordena dentro do grupo.
@@ -4423,8 +4701,13 @@ namespace NXProject.Views
         /// <summary>Anexos da Task: os da carga do DevOps + o enviado agora pelo 📎 (sem repetir).</summary>
         private List<TfsAttachmentService.TfsAttachmentInfo> AttachmentsOf(TfsImportService.SprintTaskCard t)
         {
+            // Imagem colada na descricao/tramite tambem vira anexo no DevOps, mas nao e "arquivo
+            // anexado": fica fora da lista do card para nao poluir (e para ninguem excluir sem
+            // querer a imagem que o texto usa).
             var list = t.Attachments
-                .Where(a => !string.IsNullOrWhiteSpace(a.Name) && !_removedAttachmentUrls.Contains(a.Url)).ToList();
+                .Where(a => !string.IsNullOrWhiteSpace(a.Name)
+                            && !TfsAttachmentService.IsInlineImageAttachment(a.Name)
+                            && !_removedAttachmentUrls.Contains(a.Url)).ToList();
             if (_attachments.TryGetValue(t.Id, out var justSent)
                 && !_removedAttachmentUrls.Contains(justSent.Url)
                 && !list.Any(a => string.Equals(a.Url, justSent.Url, StringComparison.OrdinalIgnoreCase)))
@@ -4433,41 +4716,50 @@ namespace NXProject.Views
         }
 
         /// <summary>
-        /// Exclui o anexo do TFS (com confirmacao). Grava na hora, como o envio pelo clipe.
-        /// Devolve true quando excluiu, para a tela que chamou tirar o item da lista.
+        /// Marca o anexo para exclusao. Diferente do ENVIO, que vai direto, a exclusao so acontece
+        /// no "Atualizar TFS" e ate la o "Reverter" desfaz. Devolve true para a tela que chamou
+        /// tirar o item da lista.
         /// </summary>
-        private async Task<bool> RemoveAttachmentAsync(int taskId, TfsAttachmentService.TfsAttachmentInfo attachment)
+        private Task<bool> RemoveAttachmentAsync(int taskId, TfsAttachmentService.TfsAttachmentInfo attachment)
         {
-            // Deixa explicito que nao e pendencia: nao passa pelo "Atualizar TFS" nem pelo "Reverter".
-            var question = "Excluir o anexo \u201C" + attachment.Name + "\u201D da Task #" + taskId + " no Azure DevOps?"
+            var question = "Excluir o anexo \u201C" + attachment.Name + "\u201D da Task #" + taskId + "?"
                 + Environment.NewLine + Environment.NewLine
-                + "Aten\u00E7\u00E3o: a exclus\u00E3o \u00E9 feita direto no TFS, na hora, e n\u00E3o tem revers\u00E3o \u2014 "
-                + "n\u00E3o passa pelo \u201CAtualizar TFS\u201D e o \u201CReverter\u201D n\u00E3o desfaz. "
-                + "Para recuperar, o arquivo precisa ser anexado de novo.";
+                + "O anexo sai do card agora, mas s\u00F3 \u00E9 exclu\u00EDdo no DevOps quando voc\u00EA clicar em "
+                + "\u201CAtualizar TFS\u201D \u2014 at\u00E9 l\u00E1 o \u201CReverter\u201D desfaz. "
+                + "Depois de gravado, para recuperar o arquivo precisa ser anexado de novo.";
             // Padrao "Nao": Enter por engano nao exclui.
-            if (MessageBox.Show(this, question, "Excluir anexo do TFS", MessageBoxButton.YesNo,
+            if (MessageBox.Show(this, question, "Excluir anexo", MessageBoxButton.YesNo,
                     MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
-                return false;
-            try
-            {
-                StatusText.Text = "Excluindo anexo: " + attachment.Name + "...";
-                await TfsAttachmentService.RemoveAttachmentAsync(_options, taskId, attachment.Url);
-                _removedAttachmentUrls.Add(attachment.Url);
-                StatusText.Text = "Anexo exclu\u00EDdo: " + attachment.Name;
-                Render();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                StatusText.Text = "";
-                MessageBox.Show(this, "Falha ao excluir o anexo no Azure DevOps:" + Environment.NewLine + Environment.NewLine + ex.Message,
-                    "Anexo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+                return Task.FromResult(false);
+
+            if (!_attachRemovePending.TryGetValue(taskId, out var list))
+                _attachRemovePending[taskId] = list = new List<TfsAttachmentService.TfsAttachmentInfo>();
+            if (!list.Any(a => string.Equals(a.Url, attachment.Url, StringComparison.OrdinalIgnoreCase)))
+                list.Add(attachment);
+            _removedAttachmentUrls.Add(attachment.Url);
+            StatusText.Text = "Anexo marcado para excluir: " + attachment.Name;
+            UpdatePendingButton();
+            Render();
+            return Task.FromResult(true);
         }
 
         /// <summary>Ate este numero os anexos aparecem no card; acima, so um resumo (lista na edicao).</summary>
         private const int MaxAttachmentsOnCard = 2;
+
+        /// <summary>Anexo de documento: o que vale a pena ler pelo nome no card.</summary>
+        private static readonly HashSet<string> CardDocExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx"
+        };
+
+        /// <summary>Anexos que o CARD lista pelo nome. Com a opcao ligada (padrao), so documento —
+        /// o resto vira contador, e a lista inteira continua na edicao.</summary>
+        private List<TfsAttachmentService.TfsAttachmentInfo> CardListed(
+            List<TfsAttachmentService.TfsAttachmentInfo> all)
+        {
+            if (CardDocsOnlyCheck?.IsChecked != true) return all;
+            return all.Where(a => CardDocExtensions.Contains(System.IO.Path.GetExtension(a.Name))).ToList();
+        }
 
         private async Task OpenAttachmentAsync(TfsAttachmentService.TfsAttachmentInfo attachment)
         {
@@ -4639,18 +4931,21 @@ namespace NXProject.Views
 
             // Anexos da Task: os que vieram do DevOps na carga + o enviado agora pelo 📎 (que so
             // chega na lista do DevOps no proximo reload). Sem repetir o mesmo arquivo.
-            var cardAttachments = AttachmentsOf(t);
+            var allAttachments = AttachmentsOf(t);
+            var cardAttachments = CardListed(allAttachments);
+            // Anexo que existe mas nao entra na lista do card (imagem, zip, etc.): vira contador.
+            var notListed = allAttachments.Count - cardAttachments.Count;
             if (cardAttachments.Count > MaxAttachmentsOnCard)
             {
                 // Muitos anexos esticariam o card: fica um resumo, e a lista completa esta na edicao.
                 var summary = new TextBlock
                 {
-                    Text = $"📎 {cardAttachments.Count} anexos — ver na edição",
+                    Text = $"📎 {allAttachments.Count} anexos — ver na edição",
                     FontSize = 10, TextDecorations = TextDecorations.Underline,
                     Cursor = System.Windows.Input.Cursors.Hand,
                     Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
                     Margin = new Thickness(0, 2, 0, 0),
-                    ToolTip = string.Join(Environment.NewLine, cardAttachments.Select(a => a.Name))
+                    ToolTip = string.Join(Environment.NewLine, allAttachments.Select(a => a.Name))
                 };
                 summary.MouseLeftButtonUp += async (_, ev) =>
                 {
@@ -4659,6 +4954,27 @@ namespace NXProject.Views
                 };
                 sp.Children.Add(summary);
                 cardAttachments.Clear();   // nao lista um por um
+                notListed = 0;             // o resumo ja cobre todos
+            }
+            if (notListed > 0)
+            {
+                // Nao lista nome de imagem/zip no card: so avisa que existe e leva para a edicao.
+                var more = new TextBlock
+                {
+                    Text = $"📎 +{notListed} anexo(s) — ver na edição",
+                    FontSize = 10, TextDecorations = TextDecorations.Underline,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
+                    Margin = new Thickness(0, 2, 0, 0),
+                    ToolTip = string.Join(Environment.NewLine,
+                        allAttachments.Except(cardAttachments).Select(a => a.Name))
+                };
+                more.MouseLeftButtonUp += async (_, ev) =>
+                {
+                    ev.Handled = true;
+                    await EditDescriptionAsync(t.Id, t.Title, t.AssignedTo ?? "", "Task", t.IterationPath);
+                };
+                sp.Children.Add(more);
             }
             foreach (var attachment in cardAttachments)
             {

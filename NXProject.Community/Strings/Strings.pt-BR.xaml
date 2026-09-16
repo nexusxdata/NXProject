@@ -1944,6 +1944,9 @@
     <sys:String x:Key="Sprint_SearchMinChars">Digite ao menos {0} caracteres para buscar.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Abrir ao iniciar o NX</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Abre o TaskBoard automaticamente quando o NX iniciar (ideal para o perfil desenvolvedor).</sys:String>
+    <sys:String x:Key="Sprint_PersonOrderHelp">Ordem desta visão: Pessoa → rank do Work Item Project → rank do EPIC → rank da Feature → rank da Story → prioridade da Task → rank da Task. Os ranks são a ordem do backlog no DevOps (StackRank); item sem rank vai para o fim do seu nível. A prioridade ordena as Tasks dentro da Story, mantendo os blocos de Feature e Story inteiros.</sys:String>
+    <sys:String x:Key="Sprint_CardDocsOnly">No card, listar só PDF, Word e Excel</sys:String>
+    <sys:String x:Key="Sprint_CardDocsOnlyTip">O card lista pelo nome só os anexos de documento (PDF, Word, Excel). Os demais — imagem, zip, executável — entram no contador "ver na edição", onde a lista completa continua disponível. Desmarque para listar todos os anexos no card.</sys:String>
     <sys:String x:Key="Sprint_FieldCache">Ler campos do TFS em cache</sys:String>
     <sys:String x:Key="Sprint_FieldCacheTip">Guarda quais campos do DevOps correspondem à Data Início Prevista e à Data Alvo, acelerando a abertura em alguns segundos. O cache vale pelo dia: a primeira abertura de cada dia consulta o DevOps de novo, e ele também é descartado se o DevOps recusar o campo. Desmarque para consultar o DevOps sempre.</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Selecionar uma ou várias sprints</sys:String>
@@ -2013,6 +2016,7 @@
     <sys:String x:Key="Sprint_EditDesc">Editar descrição</sys:String>
     <sys:String x:Key="Sprint_EditTramite">Trâmite (comentário)</sys:String>
     <sys:String x:Key="Sprint_UpdateDone">{0} atualizada(s) no TFS.</sys:String>
+    <sys:String x:Key="Sprint_UpdateWipNote">Desse total, {0} são só a tag de WIP, que o NXProject acerta sozinho quando um card entra ou sai do limite da pessoa.</sys:String>
     <sys:String x:Key="Sprint_UpdatePartial">{0} atualizada(s); {1} falharam:&#10;{2}</sys:String>
     <sys:String x:Key="Sprint_UpStory">Story:</sys:String>
     <sys:String x:Key="Sprint_NoStory">(sem Story)</sys:String>

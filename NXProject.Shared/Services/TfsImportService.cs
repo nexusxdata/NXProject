@@ -490,6 +490,12 @@ namespace NXProject.Services
             public string AcceptanceCriteria { get; set; } = "";
             /// <summary>Responsável (demandante) da Feature pai — exibido no card da Feature.</summary>
             public string FeatureAssignedTo { get; set; } = "";
+            /// <summary>Ordem do backlog (StackRank) da Feature/EPIC/Project acima da Story. NaN
+            /// quando o DevOps nao devolveu o campo. Usado para ordenar a visao Pessoa &amp; Task
+            /// pela hierarquia, e nao so pelo nome.</summary>
+            public double FeatureRank { get; set; } = double.NaN;
+            public double FeatureEpicRank { get; set; } = double.NaN;
+            public double FeatureProjectRank { get; set; } = double.NaN;
             /// <summary>Título do EPIC pai da Feature — exibido no card da Feature.</summary>
             public string FeatureEpicTitle { get; set; } = "";
             /// <summary>Id do EPIC pai (para abrir no DevOps).</summary>
@@ -794,6 +800,7 @@ namespace NXProject.Services
             var featureTitle = new System.Collections.Generic.Dictionary<int, string>();
             var featureOwner = new System.Collections.Generic.Dictionary<int, string>();
             // Ancestrais (id -> título/pai/tipo) para subir Feature → EPIC → Work Item "Project".
+            var nodeRank = new System.Collections.Generic.Dictionary<int, double>();
             var nodeTitle = new System.Collections.Generic.Dictionary<int, string>();
             var nodeParent = new System.Collections.Generic.Dictionary<int, int>();
             var nodeType = new System.Collections.Generic.Dictionary<int, string>();
@@ -834,6 +841,7 @@ namespace NXProject.Services
                             var tt = f.TryGetProperty("System.Title", out var tp) ? tp.GetString() ?? "" : "";
                             nodeTitle[wid] = tt;
                             if (f.TryGetProperty("System.State", out var wst)) nodeState[wid] = wst.GetString() ?? "";
+                            nodeRank[wid] = ReadRank(f);
                             if (f.TryGetProperty("System.WorkItemType", out var wtp)) nodeType[wid] = wtp.GetString() ?? "";
                             // Pai: primeiro o campo System.Parent; senão, a relação Hierarchy-Reverse.
                             if (f.TryGetProperty("System.Parent", out var ppx) && ppx.ValueKind == JsonValueKind.Number)
@@ -908,6 +916,9 @@ namespace NXProject.Services
                     st.FeatureId = featI; st.FeatureTitle = featT; st.FeatureAssignedTo = featO; st.FeatureState = featS;
                     st.FeatureEpicTitle = epicT; st.FeatureEpicId = epicI; st.FeatureEpicState = epicS;
                     st.FeatureProjectTitle = projT; st.FeatureProjectId = projI; st.FeatureProjectState = projS;
+                    st.FeatureRank = nodeRank.TryGetValue(featI, out var frk) ? frk : double.NaN;
+                    st.FeatureEpicRank = nodeRank.TryGetValue(epicI, out var erk) ? erk : double.NaN;
+                    st.FeatureProjectRank = nodeRank.TryGetValue(projI, out var prk) ? prk : double.NaN;
                 }
 
             // 3c) Itens de nível (Feature/EPIC/Project na sprint) com EPIC/Project acima deles.
@@ -1864,7 +1875,31 @@ namespace NXProject.Services
                             !string.IsNullOrWhiteSpace(currentDesc) &&
                             string.Equals(ToPlainText(desiredDesc), ToPlainText(currentDesc), StringComparison.Ordinal);
 
-                        if (!string.Equals(desiredDesc.Trim(), currentDesc.Trim(), StringComparison.Ordinal) && !sameAsPlainText)
+                        // TEXTO PURO NAO APAGA IMAGEM: grade e planilha so conhecem texto, e
+                        // regravar trocaria a imagem/tabela do DevOps por letras. Em vez de perder
+                        // o que o usuario escreveu, o texto vira TRAMITE (comentario, que e sempre
+                        // acrescentado) e a descricao com imagem fica como esta.
+                        bool plainOverRich = HasRichDescriptionContent(currentDesc)
+                                             && !HasRichDescriptionContent(desiredDesc);
+
+                        if (!string.Equals(desiredDesc.Trim(), currentDesc.Trim(), StringComparison.Ordinal)
+                            && !sameAsPlainText && plainOverRich)
+                        {
+                            var asTramite = "<div><i>Descrição alterada no NXProject (a descrição no DevOps "
+                                + "tem imagem e foi preservada):</i></div>" + PlainTextToSimpleHtml(desiredDesc);
+                            var postedAsComment = false;
+                            if (task.TfsId is > 0)
+                            {
+                                try { postedAsComment = await AddWorkItemCommentIfChangedAsync(options, task.TfsId.Value, asTramite); }
+                                catch { postedAsComment = false; }
+                            }
+                            report.LogWarning($"{TaskSyncLabel(task)} ({task.Name}): descrição preservada no DevOps porque tem imagem; "
+                                + (postedAsComment
+                                    ? "o texto alterado foi registrado como trâmite."
+                                    : "o texto alterado NÃO pôde ser registrado como trâmite — altere pelo editor de descrição do NX."));
+                        }
+                        else if (!string.Equals(desiredDesc.Trim(), currentDesc.Trim(), StringComparison.Ordinal)
+                                 && !sameAsPlainText)
                         {
                             ops.Add(PatchAdd("/fields/System.Description", desiredDesc));
                             changes.Add("descrição");
@@ -5088,7 +5123,14 @@ namespace NXProject.Services
             if (string.IsNullOrWhiteSpace(text) || tfsId <= 0) return false;
 
             var last = await GetLastWorkItemCommentAsync(options, tfsId, ct);
-            if (last != null && string.Equals(NormalizeCommentText(last), NormalizeCommentText(text), StringComparison.OrdinalIgnoreCase))
+            // Com imagem, comparar so o texto plano daria "igual" para dois prints diferentes
+            // (ambos viram string vazia) e o segundo nunca seria postado.
+            var sameAsLast = last != null && (
+                ((last.Contains("<img", StringComparison.OrdinalIgnoreCase)
+                  || text.Contains("<img", StringComparison.OrdinalIgnoreCase))
+                    ? string.Equals(last.Trim(), text.Trim(), StringComparison.Ordinal)
+                    : string.Equals(NormalizeCommentText(last), NormalizeCommentText(text), StringComparison.OrdinalIgnoreCase)));
+            if (sameAsLast)
                 return false;
 
             var orgBase = options.OrganizationUrl.TrimEnd('/');
@@ -5105,6 +5147,14 @@ namespace NXProject.Services
             using var resp = await Http.SendAsync(req, ct);
             return resp.IsSuccessStatusCode;
         }
+
+        /// <summary>
+        /// Um tramite tem conteudo quando sobra TEXTO ou quando ha IMAGEM. Olhar so o texto plano
+        /// fazia o tramite que era so print ser tratado como vazio e descartado antes de sair do NX.
+        /// </summary>
+        public static bool HasCommentContent(string? html)
+            => !string.IsNullOrWhiteSpace(NormalizeCommentText(html))
+               || (html ?? "").Contains("<img", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Texto plano do comentário: remove tags HTML, decodifica entidades e colapsa espaços.</summary>
         public static string NormalizeCommentText(string? html)
