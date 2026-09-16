@@ -1043,6 +1043,8 @@
     <sys:String x:Key="Sprint_SearchMinChars">Type at least {0} characters to search.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Open on NX startup</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Automatically opens the TaskBoard when NX starts (ideal for the developer profile).</sys:String>
+    <sys:String x:Key="Sprint_FieldCache">Cache TFS field lookup</sys:String>
+    <sys:String x:Key="Sprint_FieldCacheTip">Remembers which DevOps fields match the planned start date and the target date, saving a few seconds when opening. The cache lasts for the day: the first open of each day asks DevOps again, and it is also dropped whenever DevOps rejects the field. Clear it to always ask DevOps.</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Select one or more sprints</sys:String>
     <sys:String x:Key="Sprint_MultiHint">Check sprints (with start–end dates) to view/combine items. None checked = all.</sys:String>
     <sys:String x:Key="Sprint_MultiN">{0} sprints ▾</sys:String>
@@ -1160,6 +1162,10 @@
     <sys:String x:Key="Imp_Import">Import</sys:String>
     <sys:String x:Key="Imp_Importing">Importing...</sys:String>
     <sys:String x:Key="Imp_Cancel">Cancel</sys:String>
+    <sys:String x:Key="Imp_ViewLog">View last log</sys:String>
+    <sys:String x:Key="Imp_ViewLogTip">Shows the report of the last import in this session. When the import finishes without errors, the window closes on its own and the log stays here.</sys:String>
+    <sys:String x:Key="Imp_NoLogYet">No log yet: no import has run in this session.</sys:String>
+    <sys:String x:Key="Imp_ViewLogOf">View the import log for "{0}".</sys:String>
     <sys:String x:Key="Imp_NoConnectionStatus">Azure DevOps connection not configured. Click "Configure..." above.</sys:String>
     <sys:String x:Key="Imp_ErrorTitle">Azure DevOps import error</sys:String>
     <sys:String x:Key="Sync_ConfirmBody">Synchronize with Azure DevOps?&#10;&#10;Project (root Work Item): {0} ({1})&#10;Team Project (DevOps container): {2}&#10;Organization: {3}&#10;&#10;This will update the linked work items (title/description, hours and dates per the rules).</sys:String>

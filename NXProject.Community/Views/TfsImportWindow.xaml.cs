@@ -20,7 +20,6 @@ namespace NXProject.Views
     {
         private readonly string _storageKey;
         private bool _isImporting;
-        private bool _syncingImportConfig;
         private string _devOpsProjectListPath = string.Empty;
         private List<DevOpsProject> _devOpsProjects = new();
         private TfsConnectionOptions _savedOptions = new();
@@ -34,6 +33,7 @@ namespace NXProject.Views
             _storageKey = string.IsNullOrWhiteSpace(storageKey) ? "NXProject.Community" : storageKey.Trim();
 
             _savedOptions = TfsConnectionStore.Load(_storageKey);
+            UpdateViewLogButton();
 
             if (!string.IsNullOrWhiteSpace(_savedOptions.DevOpsProjectListPath))
                 LoadProjectList(_savedOptions.DevOpsProjectListPath, _savedOptions.RootWorkItemId);
@@ -129,36 +129,26 @@ namespace NXProject.Views
         private void SyncImportConfig()
         {
             if (LoadTasksOnImportBox == null) return;
+            // Sempre reposiciona pelo projeto selecionado: sem cadastro no Portfólio, nasce
+            // desmarcada. Nunca herda o que ficou marcado para o projeto anterior.
             var selected = DevOpsProjectCombo.SelectedItem as DevOpsProject;
-            _syncingImportConfig = true;
-            try
-            {
-                LoadTasksOnImportBox.IsEnabled = selected != null;
-                LoadTasksOnImportBox.IsChecked = selected?.LoadTasksOnImport == true;
-            }
-            finally
-            {
-                _syncingImportConfig = false;
-            }
+            LoadTasksOnImportBox.IsEnabled = selected != null;
+            LoadTasksOnImportBox.IsChecked = selected?.LoadTasksOnImport == true;
+            UpdateViewLogButton();
         }
 
-        private void OnLoadTasksOnImportChanged(object sender, RoutedEventArgs e)
+        /// <summary>O log e de UM projeto: trocar a combo para outro projeto desabilita o botao,
+        /// senao o log do projeto anterior parecia ser do que esta selecionado agora.</summary>
+        private void UpdateViewLogButton()
         {
-            if (_syncingImportConfig) return;
-            PersistSelectedImportConfig();
-        }
-
-        private void PersistSelectedImportConfig()
-        {
-            if (DevOpsProjectCombo.SelectedItem is not DevOpsProject selected)
-                return;
-
-            selected.LoadTasksOnImport = LoadTasksOnImportBox.IsChecked == true;
-            if (string.IsNullOrWhiteSpace(_devOpsProjectListPath))
-                return;
-
-            try { DevOpsProjectListService.Save(_devOpsProjects, _devOpsProjectListPath); }
-            catch { /* configuração de importação é conveniência; a importação ainda pode seguir */ }
+            if (ViewLogButton == null) return;
+            var log = TfsImportService.LastImportLog;
+            var rootId = (DevOpsProjectCombo.SelectedItem as DevOpsProject)?.RootWorkItemId
+                         ?? (int.TryParse(RootIdBox.Text?.Trim(), out var typed) ? typed : 0);
+            ViewLogButton.IsEnabled = log != null && log.RootWorkItemId == rootId && rootId > 0;
+            ViewLogButton.ToolTip = log != null && ViewLogButton.IsEnabled
+                ? AppStrings.Get("Imp_ViewLogOf", log.ProjectName)
+                : AppStrings.Get("Imp_ViewLogTip");
         }
 
         private void OnManageListClick(object sender, RoutedEventArgs e)
@@ -210,8 +200,10 @@ namespace NXProject.Views
             options.RootWorkItemId = rootId;
             options.DevOpsProjectListPath = _devOpsProjectListPath;
             var selectedPortfolioProject = DevOpsProjectCombo.SelectedItem as DevOpsProject;
-            PersistSelectedImportConfig();
-            var loadTasksOnImport = selectedPortfolioProject?.LoadTasksOnImport == true;
+            // Marcação válida só para ESTA importação: quem manda no padrão é o cadastro do
+            // Portfólio (SyncImportConfig semeia a caixa). Gravar de volta aqui fazia a marcação
+            // de um projeto sobrar marcada para o próximo; o default é sempre sem marcar.
+            var loadTasksOnImport = LoadTasksOnImportBox.IsChecked == true;
 
             SetImporting(true);
             try
@@ -256,9 +248,18 @@ namespace NXProject.Views
                 DialogResult = true;
                 Close();
 
-                if (importResult.Report.Log.Count > 0)
+                // Deu certo: nao prende o usuario numa janela de log so para ele fechar. O relatorio
+                // fica guardado e sai pelo botao "Ver log". Com ERRO, ai sim abre sozinha.
+                TfsImportService.LastImportLog = new TfsImportService.LastImportLogInfo
+                {
+                    Report = importResult.Report,
+                    RootWorkItemId = project.DevOpsRootWorkItemId,
+                    ProjectName = selectedPortfolioProject?.Name ?? project.Name ?? ""
+                };
+                if (importResult.Report.HasIssues)
                 {
                     var reportWin = new ImportResultWindow(importResult.Report) { Owner = System.Windows.Application.Current.MainWindow };
+                    reportWin.Title += " — " + TfsImportService.LastImportLog.ProjectName;
                     reportWin.Show();
                 }
             }
@@ -286,6 +287,21 @@ namespace NXProject.Views
             {
                 SetImporting(false);
             }
+        }
+
+        // Mostra o relatorio da ultima importacao (a janela nao abre mais sozinha quando da certo).
+        private void OnViewLogClick(object sender, RoutedEventArgs e)
+        {
+            var log = TfsImportService.LastImportLog;
+            if (log == null)
+            {
+                ShowStatus(AppStrings.Get("Imp_NoLogYet"));
+                return;
+            }
+            // Titulo com o Work Item Project: deixa claro de QUAL importacao e este log.
+            var win = new ImportResultWindow(log.Report) { Owner = this };
+            if (!string.IsNullOrWhiteSpace(log.ProjectName)) win.Title += " — " + log.ProjectName;
+            win.Show();
         }
 
         // Abre a página de Personal Access Tokens da organização no navegador.

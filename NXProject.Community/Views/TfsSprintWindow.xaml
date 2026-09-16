@@ -275,6 +275,9 @@
                         <CheckBox x:Name="AutoOpenCheck" Click="OnAutoOpenChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_AutoOpen}"
                                   ToolTip="{DynamicResource Sprint_AutoOpenTip}"/>
+                        <CheckBox x:Name="FieldCacheCheck" Click="OnFieldCacheChanged" Margin="8,2,0,2"
+                                  Content="{DynamicResource Sprint_FieldCache}"
+                                  ToolTip="{DynamicResource Sprint_FieldCacheTip}"/>
                     </StackPanel>
                 </Border>
             </Popup>

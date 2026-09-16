@@ -198,6 +198,9 @@ namespace NXProject.Views
             public Dictionary<string, string>? StateColors { get; set; } // estado(lower) -> #RRGGBB
             public bool AutoOpen { get; set; }   // abrir o TaskBoard ao iniciar o NX
             public int? WipLimit { get; set; }   // limite de Tasks em andamento POR PESSOA (0 = sem limite; null = 3)
+            public int? PriorityMax { get; set; } // maximo de Priority do template (descoberto via validateOnly)
+            public DateTime? PriorityMaxAt { get; set; } // quando foi descoberto (vence: o template pode mudar)
+            public bool? FieldCache { get; set; } // ler campos do TFS em cache (null = ligado)
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
             public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
             public List<int>? CollapsedEpics { get; set; } // legado (so EPICs); lido na abertura
@@ -302,10 +305,21 @@ namespace NXProject.Views
             SearchScopeCombo.SelectedIndex = 0;
             // Carrega os últimos filtros salvos (aplicados na 1ª carga do board).
             _prefs = LoadPrefs();
+            // Maximo de Priority: a descoberta custa ~1,4s em VALIDATEONLY e era refeita a cada
+            // abertura (o campo vive na janela, e a janela e nova toda vez). Guardado nas prefs.
+            // Vale so no dia em que foi descoberto: a 1a abertura do dia redescobre e o valor se
+            // corrige sozinho se o template mudar a faixa.
+            if (_prefs.PriorityMax is int prioMax && prioMax > 0
+                && _prefs.PriorityMaxAt is DateTime prioAt
+                && prioAt.ToLocalTime().Date == DateTime.Today)
+                _discoveredPrioMax = prioMax;
             // Visao ja nasce na opcao salva (0 = Projeto & Story, 1 = Pessoa & Task). Antes
             // marcava a 0 aqui e so trocava na 1a carga do board, e o botao "pulava" na tela.
             ViewIndex = _prefs.View is int vw0 && vw0 is 0 or 1 ? vw0 : 0;
             AutoOpenCheck.IsChecked = _prefs.AutoOpen;
+            // Cache dos campos do TFS: ligado por padrao (null = ligado).
+            FieldCacheCheck.IsChecked = _prefs.FieldCache ?? true;
+            TfsImportService.FieldRefCacheEnabled = FieldCacheCheck.IsChecked == true;
             WipLimitBox.Text = WipLimit().ToString();
             // Restaura geometria/estado da janela do TaskBoard.
             if (_prefs.WinWidth > 200 && _prefs.WinHeight > 200)
@@ -328,8 +342,15 @@ namespace NXProject.Views
             BeginLoading();
             try
             {
+                // Estas duas ficam FORA do cronometro do board, mas pesam na impressao de lentidao:
+                // entram na mesma medicao por etapa.
+                TfsImportService.LoadTrace.Reset();
+                var userWatch = Stopwatch.StartNew();
                 _currentUser = await TfsImportService.GetCurrentUserDisplayNameAsync(_options);
+                TfsImportService.LoadTrace.Mark("connectionData", userWatch.ElapsedMilliseconds);
+                var sprintWatch = Stopwatch.StartNew();
                 _sprints = await TfsImportService.ListSprintsAsync(_options);
+                TfsImportService.LoadTrace.Mark("iterations", sprintWatch.ElapsedMilliseconds);
                 // Lista multi-seleção (estilo do filtro de pessoa): cada sprint com data início–fim.
                 PopulateSprintList();
                 // Seleção inicial: multi salva → última sprint salva → sprint atual (data)
@@ -558,7 +579,9 @@ namespace NXProject.Views
                         "NXProject.Community", "load-perf.txt");
                     System.IO.File.AppendAllText(perfFile,
                         $"TaskBoard.Load: {loadWatch.ElapsedMilliseconds} ms ({_board.Stories.Count} stories, "
-                        + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine + Environment.NewLine);
+                        + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine
+                        + "  etapas: " + TfsImportService.LoadTrace.Dump() + Environment.NewLine + Environment.NewLine);
+                    TfsImportService.LoadTrace.Reset();
                 }
                 catch { /* medicao nunca derruba a carga */ }
                 var people = BoardPeople(_board);
@@ -683,7 +706,32 @@ namespace NXProject.Views
                     var sample = _board.Stories.SelectMany(s => s.Tasks).FirstOrDefault(t => t.Id > 0);
                     if (sample != null)
                     {
+                        // Roda DEPOIS do cronometro do board: ganha linha propria no log.
+                        var prioWatch = Stopwatch.StartNew();
                         _discoveredPrioMax = await TfsImportService.DiscoverTaskPriorityMaxAsync(_options, sample.Id);
+                        try
+                        {
+                            System.IO.File.AppendAllText(
+                                System.IO.Path.Combine(
+                                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                    "NXProject.Community", "load-perf.txt"),
+                                "TaskBoard.PrioridadeMax: " + prioWatch.ElapsedMilliseconds + " ms"
+                                + Environment.NewLine + Environment.NewLine);
+                        }
+                        catch { /* medicao nunca derruba a carga */ }
+                        if (_discoveredPrioMax > 0)
+                        {
+                            // Grava direto: o SavePrefs comum ainda pode estar bloqueado nesta 1a carga.
+                            _prefs.PriorityMax = _discoveredPrioMax;
+                            _prefs.PriorityMaxAt = DateTime.UtcNow;
+                            try
+                            {
+                                var pp = SprintSettingsPath;
+                                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(pp)!);
+                                System.IO.File.WriteAllText(pp, System.Text.Json.JsonSerializer.Serialize(_prefs));
+                            }
+                            catch { }
+                        }
                         if (_discoveredPrioMax > 0) Render(); // re-render com a faixa correta
                     }
                 }
@@ -970,6 +1018,17 @@ namespace NXProject.Views
         private void OnAutoOpenChanged(object sender, RoutedEventArgs e)
         {
             _prefs.AutoOpen = AutoOpenCheck.IsChecked == true;
+            SavePrefs();
+        }
+
+        // Desmarcar tambem JOGA FORA o que ja estava guardado: quem desliga o cache normalmente
+        // quer justamente parar de ver o valor antigo.
+        private void OnFieldCacheChanged(object sender, RoutedEventArgs e)
+        {
+            var on = FieldCacheCheck.IsChecked == true;
+            TfsImportService.FieldRefCacheEnabled = on;
+            if (!on) TfsImportService.InvalidateFieldRefCache(_options);
+            _prefs.FieldCache = on;
             SavePrefs();
         }
 

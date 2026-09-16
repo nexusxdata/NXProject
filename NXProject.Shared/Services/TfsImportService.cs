@@ -564,6 +564,37 @@ namespace NXProject.Services
 
         /// <summary>Versão multi-sprint: une os itens de várias iterações (OR de UNDER). Lista vazia
         /// ou com caminho vazio = todas as sprints (sem filtro de iteração).</summary>
+        /// <summary>
+        /// Medicao POR ETAPA da abertura do TaskBoard. Cada ida ao DevOps marca aqui o proprio
+        /// tempo e a janela despeja tudo no load-perf.txt. Com so o total na mao, otimizar seria
+        /// chute: o custo e de rede em chamadas enfileiradas, e e preciso ver qual delas pesa.
+        /// </summary>
+        public static class LoadTrace
+        {
+            private static readonly object Lock = new();
+            private static readonly System.Collections.Generic.List<string> Marks = new();
+
+            public static void Reset() { lock (Lock) Marks.Clear(); }
+
+            public static void Mark(string phase, long ms)
+            {
+                lock (Lock) Marks.Add(phase + " " + ms + "ms");
+            }
+
+            /// <summary>Cronometra uma etapa ja disparada (serve para a que roda em paralelo).</summary>
+            public static async Task<T> TimeAsync<T>(string phase, Task<T> work)
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                try { return await work; }
+                finally { Mark(phase, sw.ElapsedMilliseconds); }
+            }
+
+            public static string Dump()
+            {
+                lock (Lock) return Marks.Count == 0 ? "(sem etapas)" : string.Join(" | ", Marks);
+            }
+        }
+
         public static async Task<SprintBoard> BuildSprintBoardAsync(
             TfsConnectionOptions options, System.Collections.Generic.IReadOnlyCollection<string> iterationPaths,
             CancellationToken ct = default)
@@ -572,7 +603,7 @@ namespace NXProject.Services
             // Campo da data alvo e customizado (Data_Fim ou o configurado). A resolucao baixa a
             // lista de campos da organizacao: dispara JUNTO com o WIQL em vez de travar a carga
             // antes dele, e so e aguardada quando os itens forem montados.
-            var finishRefTask = ResolveFinishFieldRefAsync(options, ct);
+            var finishRefTask = LoadTrace.TimeAsync("campos", ResolveFinishFieldRefAsync(options, ct));
             var proj = Uri.EscapeDataString(ctx.TeamProject);
             string Esc(string s) => s.Replace("'", "''");
 
@@ -594,6 +625,7 @@ namespace NXProject.Services
                         + " AND [System.State] <> 'Removed'";
             var wiql = JsonSerializer.Serialize(new { query });
             var wiqlUrl = $"{ctx.OrgBase}/{proj}/_apis/wit/wiql?{QueryApiVersion}";
+            var wiqlWatch = System.Diagnostics.Stopwatch.StartNew();
             using (var req = new HttpRequestMessage(HttpMethod.Post, wiqlUrl)
             { Content = new StringContent(wiql, Encoding.UTF8, "application/json") })
             {
@@ -606,6 +638,7 @@ namespace NXProject.Services
                         if (w.TryGetProperty("id", out var idp)) ids.Add(idp.GetInt32());
             }
 
+            LoadTrace.Mark("wiql(" + ids.Count + " ids)", wiqlWatch.ElapsedMilliseconds);
             var boardFinishRef = await finishRefTask;
             // 2) Campos ($expand=all).
             var stories = new System.Collections.Generic.List<SprintStoryRow>();
@@ -618,9 +651,14 @@ namespace NXProject.Services
             var people = new System.Collections.Generic.SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
             var statesSeen = new System.Collections.Generic.HashSet<string>();
 
-            for (int i = 0; i < ids.Count; i += 200)
+            // Pedacos de 100 EM PARALELO: numa tirada so de 143 itens o batch custava ~870ms, e o
+            // tempo e de rede/payload, nao de CPU. As respostas so sao lidas depois, na ordem.
+            var chunks = new System.Collections.Generic.List<System.Collections.Generic.List<int>>();
+            for (int i = 0; i < ids.Count; i += 100)
+                chunks.Add(ids.GetRange(i, Math.Min(100, ids.Count - i)));
+
+            async Task<string> FetchBatchAsync(System.Collections.Generic.List<int> chunk)
             {
-                var chunk = ids.GetRange(i, Math.Min(200, ids.Count - i));
                 var body = $"{{\"ids\":[{string.Join(",", chunk)}],\"$expand\":\"all\"}}";
                 var batchUrl = $"{ctx.OrgBase}/_apis/wit/workitemsbatch?{QueryApiVersion}";
                 using var req = new HttpRequestMessage(HttpMethod.Post, batchUrl)
@@ -628,7 +666,16 @@ namespace NXProject.Services
                 req.Headers.Authorization = ctx.Authorization;
                 using var resp = await Http.SendAsync(req, ct);
                 resp.EnsureSuccessStatusCode();
-                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                return await resp.Content.ReadAsStringAsync(ct);
+            }
+
+            var batchWatch = System.Diagnostics.Stopwatch.StartNew();
+            var payloads = await Task.WhenAll(chunks.Select(FetchBatchAsync));
+            LoadTrace.Mark("batch(" + ids.Count + " em " + chunks.Count + ")", batchWatch.ElapsedMilliseconds);
+
+            foreach (var payload in payloads)
+            {
+                using var doc = JsonDocument.Parse(payload);
                 if (!doc.RootElement.TryGetProperty("value", out var vals)) continue;
                 foreach (var it in vals.EnumerateArray())
                 {
@@ -804,13 +851,17 @@ namespace NXProject.Services
             }
 
             var featureIds = storyParent.Values.Distinct().Where(fid => !featureTitle.ContainsKey(fid)).ToList();
+            var featWatch = System.Diagnostics.Stopwatch.StartNew();
             await FetchNodesAsync(featureIds, wantOwner: true);
+            LoadTrace.Mark("features(" + featureIds.Count + ")", featWatch.ElapsedMilliseconds);
             // Sobe a árvore genericamente (até 5 níveis) buscando os ancestrais ainda desconhecidos.
             for (int level = 0; level < 5; level++)
             {
                 var nextIds = nodeParent.Values.Where(pid => pid > 0 && !nodeTitle.ContainsKey(pid)).Distinct().ToList();
                 if (nextIds.Count == 0) break;
+                var lvlWatch = System.Diagnostics.Stopwatch.StartNew();
                 await FetchNodesAsync(nextIds, wantOwner: false);
+                LoadTrace.Mark("ancestrais L" + (level + 1) + "(" + nextIds.Count + ")", lvlWatch.ElapsedMilliseconds);
             }
 
             // Classifica os ancestrais PELO TIPO do work item, não pela posição na árvore:
@@ -1206,6 +1257,18 @@ namespace NXProject.Services
 
             public bool HasIssues => Log.Any(e => e.Level == SyncLogLevel.Error);
         }
+
+        /// <summary>Log da ultima importacao, junto do projeto a que ele pertence. O relatorio e
+        /// guardado porque a janela deixou de abrir sozinha quando da certo (sai pelo botao "Ver
+        /// log"), e o projeto vem junto para o log nao aparecer solto quando se troca a combo.</summary>
+        public sealed class LastImportLogInfo
+        {
+            public ImportReport Report { get; init; } = new();
+            public int RootWorkItemId { get; init; }
+            public string ProjectName { get; init; } = "";
+        }
+
+        public static LastImportLogInfo? LastImportLog { get; set; }
 
         public sealed class ImportResult
         {
@@ -4452,6 +4515,13 @@ namespace NXProject.Services
         {
             lock (FieldMapCache)  FieldMapCache.Clear();
             lock (FieldTypeCache) FieldTypeCache.Clear();
+            // Tambem zera os reference names resolvidos, inclusive o cache em disco: sem isso
+            // trocar o campo configurado continuaria valendo o valor antigo entre execucoes.
+            lock (_startRefCache)  _startRefCache.Clear();
+            lock (_finishRefCache) _finishRefCache.Clear();
+            _fieldRefDisk = null;
+            try { if (System.IO.File.Exists(FieldRefCachePath)) System.IO.File.Delete(FieldRefCachePath); }
+            catch { /* limpar cache nunca pode derrubar a operacao */ }
         }
 
         private static async Task<Dictionary<string, string>> LoadFieldMapCachedAsync(
@@ -6640,6 +6710,114 @@ namespace NXProject.Services
             catch (Exception ex) { return (false, ex.Message); }
         }
 
+        // Cache EM DISCO dos reference names ja resolvidos. O cache de memoria so vale dentro do
+        // processo: a cada abertura do NX a lista de campos da organizacao era baixada de novo e
+        // custava ~2s na primeira carga do TaskBoard. Limpo por ResetMetadataCaches().
+        private static string FieldRefCachePath => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NXProject", "field-refs.json");
+
+        /// <summary>Entrada do cache em disco: o reference name e QUANDO foi resolvido.</summary>
+        private sealed class FieldRefEntry
+        {
+            public string Ref { get; set; } = "";
+            public DateTimeOffset At { get; set; }
+        }
+
+        // Validade: vale so no DIA em que foi resolvido. A primeira abertura de cada dia refaz o
+        // cache (paga ~2s uma vez) e o resto do dia sai de graca. O processo do DevOps muda (campo
+        // novo, campo excluido/renomeado) e o cache nao pode congelar a resposta.
+        private static bool IsFieldRefFresh(FieldRefEntry e) => e.At.ToLocalTime().Date == DateTime.Today;
+
+        /// <summary>Opcao "Ler campos do TFS em cache" (TaskBoard). Desligada, cada resolucao vai
+        /// ao DevOps: mais lento, porem sempre em dia com o processo.</summary>
+        public static bool FieldRefCacheEnabled { get; set; } = true;
+
+        private static Dictionary<string, FieldRefEntry>? _fieldRefDisk;
+
+        private static Dictionary<string, FieldRefEntry> FieldRefDisk()
+        {
+            if (_fieldRefDisk != null) return _fieldRefDisk;
+            try
+            {
+                var p = FieldRefCachePath;
+                if (System.IO.File.Exists(p))
+                    _fieldRefDisk = JsonSerializer.Deserialize<Dictionary<string, FieldRefEntry>>(
+                        System.IO.File.ReadAllText(p));
+            }
+            catch { /* cache e conveniencia: qualquer falha volta a resolver online */ }
+            return _fieldRefDisk ??= new Dictionary<string, FieldRefEntry>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string? ReadFieldRefDisk(string key)
+        {
+            if (!FieldRefCacheEnabled) return null;
+            var all = FieldRefDisk();
+            lock (all)
+            {
+                if (!all.TryGetValue(key, out var e) || e == null) return null;
+                if (!IsFieldRefFresh(e)) { all.Remove(key); return null; }
+                return e.Ref;
+            }
+        }
+
+        /// <summary>Descarta o que foi guardado sobre os campos desta organizacao. Chamado quando o
+        /// DevOps recusa o campo (excluido ou renomeado): sem isso o cache repetiria o erro ate
+        /// vencer o prazo.</summary>
+        public static void InvalidateFieldRefCache(TfsConnectionOptions options)
+        {
+            try
+            {
+                var ctx = CreateTfsAuthContext(options, "limpar cache de campos", requireTeamProject: false);
+                lock (_startRefCache)  _startRefCache.Remove(ctx.OrgBase);
+                lock (_finishRefCache) _finishRefCache.Remove(ctx.OrgBase);
+                var all = FieldRefDisk();
+                string json;
+                lock (all)
+                {
+                    foreach (var k in all.Keys
+                                 .Where(k => k.Contains("|" + ctx.OrgBase + "|", StringComparison.OrdinalIgnoreCase))
+                                 .ToList())
+                        all.Remove(k);
+                    json = JsonSerializer.Serialize(all);
+                }
+                var p = FieldRefCachePath;
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p)!);
+                System.IO.File.WriteAllText(p, json);
+            }
+            catch { /* limpar cache nunca pode derrubar a operacao */ }
+        }
+
+        // 400 do DevOps costuma ser "campo inexistente"; a mensagem citando o proprio campo
+        // confirma. So nesses casos o cache e descartado — um 403 de permissao, nao.
+        private static void InvalidateFieldRefOnFieldError(
+            TfsConnectionOptions options, int status, string message, string? fieldRef)
+        {
+            if (status == 400
+                || (!string.IsNullOrEmpty(fieldRef)
+                    && (message ?? "").Contains(fieldRef!, StringComparison.OrdinalIgnoreCase)))
+                InvalidateFieldRefCache(options);
+        }
+
+        private static void WriteFieldRefDisk(string key, string value)
+        {
+            if (!FieldRefCacheEnabled) return;
+            try
+            {
+                var all = FieldRefDisk();
+                string json;
+                lock (all)
+                {
+                    all[key] = new FieldRefEntry { Ref = value, At = DateTimeOffset.UtcNow };
+                    json = JsonSerializer.Serialize(all);
+                }
+                var p = FieldRefCachePath;
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p)!);
+                System.IO.File.WriteAllText(p, json);
+            }
+            catch { /* nao gravar o cache nunca pode derrubar a carga */ }
+        }
+
         // Cache do reference name do campo de Data de Início por organização (evita re-resolver).
         private static readonly Dictionary<string, string> _startRefCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -6647,12 +6825,20 @@ namespace NXProject.Services
         public static async Task<string?> ResolveStartFieldRefAsync(TfsConnectionOptions options, CancellationToken ct = default)
         {
             var ctx = CreateTfsAuthContext(options, "ler campos", requireTeamProject: false);
-            if (_startRefCache.TryGetValue(ctx.OrgBase, out var cached)) return string.IsNullOrEmpty(cached) ? null : cached;
+            if (FieldRefCacheEnabled && _startRefCache.TryGetValue(ctx.OrgBase, out var cached))
+                return string.IsNullOrEmpty(cached) ? null : cached;
+            var startKey ="start|" + ctx.OrgBase + "|" + (options.StartFieldName ?? "");
+            if (ReadFieldRefDisk(startKey) is { } savedStart)
+            {
+                _startRefCache[ctx.OrgBase] = savedStart;
+                return string.IsNullOrEmpty(savedStart) ? null : savedStart;
+            }
             try
             {
-                var map = await LoadFieldMapAsync(ctx.OrgBase, ctx.Authorization, ct);
+                var map = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
                 var r = ResolveField(map, options.StartFieldName, StartFieldNames);
                 _startRefCache[ctx.OrgBase] = r ?? "";
+                WriteFieldRefDisk(startKey, r ?? "");
                 return string.IsNullOrEmpty(r) ? null : r;
             }
             catch { return null; }
@@ -6666,12 +6852,20 @@ namespace NXProject.Services
         public static async Task<string?> ResolveFinishFieldRefAsync(TfsConnectionOptions options, CancellationToken ct = default)
         {
             var ctx = CreateTfsAuthContext(options, "ler campos", requireTeamProject: false);
-            if (_finishRefCache.TryGetValue(ctx.OrgBase, out var cached)) return string.IsNullOrEmpty(cached) ? null : cached;
+            if (FieldRefCacheEnabled && _finishRefCache.TryGetValue(ctx.OrgBase, out var cached))
+                return string.IsNullOrEmpty(cached) ? null : cached;
+            var finishKey ="finish|" + ctx.OrgBase + "|" + (options.FinishFieldName ?? "");
+            if (ReadFieldRefDisk(finishKey) is { } savedFinish)
+            {
+                _finishRefCache[ctx.OrgBase] = savedFinish;
+                return string.IsNullOrEmpty(savedFinish) ? null : savedFinish;
+            }
             try
             {
-                var map = await LoadFieldMapAsync(ctx.OrgBase, ctx.Authorization, ct);
+                var map = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
                 var r = ResolveField(map, options.FinishFieldName, FinishFieldNames);
                 _finishRefCache[ctx.OrgBase] = r ?? "";
+                WriteFieldRefDisk(finishKey, r ?? "");
                 return string.IsNullOrEmpty(r) ? null : r;
             }
             catch { return null; }
@@ -6758,7 +6952,11 @@ namespace NXProject.Services
             req.Headers.Authorization = ctx.Authorization;
             req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             using var resp = await Http.SendAsync(req, ct);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (!resp.IsSuccessStatusCode)
+            {
+                InvalidateFieldRefOnFieldError(options, (int)resp.StatusCode, "", startRef);
+                return null;
+            }
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             if (doc.RootElement.TryGetProperty("fields", out var f) && f.TryGetProperty(startRef, out var v)
                 && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
@@ -6825,7 +7023,11 @@ namespace NXProject.Services
             req.Headers.Authorization = ctx.Authorization;
             req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             using var resp = await Http.SendAsync(req, ct);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (!resp.IsSuccessStatusCode)
+            {
+                InvalidateFieldRefOnFieldError(options, (int)resp.StatusCode, "", finishRef);
+                return null;
+            }
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             if (doc.RootElement.TryGetProperty("fields", out var f) && f.TryGetProperty(finishRef, out var v)
                 && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
@@ -6839,6 +7041,12 @@ namespace NXProject.Services
             TfsConnectionOptions options, int id, DateTime? date, CancellationToken ct = default)
         {
             var finishRef = await ResolveFinishFieldRefAsync(options, ct);
+            if (string.IsNullOrEmpty(finishRef))
+            {
+                // Pode ser cache de "nao existe" de um campo criado depois: descarta e tenta 1x.
+                InvalidateFieldRefCache(options);
+                finishRef = await ResolveFinishFieldRefAsync(options, ct);
+            }
             if (string.IsNullOrEmpty(finishRef)) return (false, "campo de Data de Fim nao encontrado no DevOps");
             var ctx = CreateTfsAuthContext(options, "gravar Data de Fim", requireTeamProject: false);
             var ops = date.HasValue
@@ -6869,6 +7077,12 @@ namespace NXProject.Services
             TfsConnectionOptions options, int id, DateTime? date, CancellationToken ct = default)
         {
             var startRef = await ResolveStartFieldRefAsync(options, ct);
+            if (string.IsNullOrEmpty(startRef))
+            {
+                // Pode ser cache de "nao existe" de um campo criado depois: descarta e tenta 1x.
+                InvalidateFieldRefCache(options);
+                startRef = await ResolveStartFieldRefAsync(options, ct);
+            }
             if (string.IsNullOrEmpty(startRef)) return (false, "campo de Data de Início não encontrado no DevOps");
             var ctx = CreateTfsAuthContext(options, "gravar Data de Início", requireTeamProject: false);
             var ops = date.HasValue

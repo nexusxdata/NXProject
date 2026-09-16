@@ -699,6 +699,10 @@
     <sys:String x:Key="Imp_Import">Importar</sys:String>
     <sys:String x:Key="Imp_Importing">Importando...</sys:String>
     <sys:String x:Key="Imp_Cancel">Cancelar</sys:String>
+    <sys:String x:Key="Imp_ViewLog">Ver último log</sys:String>
+    <sys:String x:Key="Imp_ViewLogTip">Mostra o relatório da última importação desta sessão. Quando a importação termina sem erro, a janela fecha sozinha e o log fica aqui.</sys:String>
+    <sys:String x:Key="Imp_NoLogYet">Ainda não há log: nenhuma importação foi feita nesta sessão.</sys:String>
+    <sys:String x:Key="Imp_ViewLogOf">Ver o log da importação de "{0}".</sys:String>
     <sys:String x:Key="Imp_NoConnectionStatus">Conexão com o Azure DevOps não configurada. Clique em "Configurar..." acima.</sys:String>
     <sys:String x:Key="Imp_ErrorTitle">Erro na importação do Azure DevOps</sys:String>
     <sys:String x:Key="Sync_ConfirmBody">Sincronizar com o Azure DevOps?&#10;&#10;Projeto (Work Item raiz): {0} ({1})&#10;Team Project (contêiner DevOps): {2}&#10;Organização: {3}&#10;&#10;Isto vai atualizar os work items vinculados (título/descrição, horas e datas conforme as regras).</sys:String>
@@ -1940,6 +1944,8 @@
     <sys:String x:Key="Sprint_SearchMinChars">Digite ao menos {0} caracteres para buscar.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Abrir ao iniciar o NX</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Abre o TaskBoard automaticamente quando o NX iniciar (ideal para o perfil desenvolvedor).</sys:String>
+    <sys:String x:Key="Sprint_FieldCache">Ler campos do TFS em cache</sys:String>
+    <sys:String x:Key="Sprint_FieldCacheTip">Guarda quais campos do DevOps correspondem à Data Início Prevista e à Data Alvo, acelerando a abertura em alguns segundos. O cache vale pelo dia: a primeira abertura de cada dia consulta o DevOps de novo, e ele também é descartado se o DevOps recusar o campo. Desmarque para consultar o DevOps sempre.</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Selecionar uma ou várias sprints</sys:String>
     <sys:String x:Key="Sprint_MultiHint">Marque as sprints (com data início–fim) para ver/unir os itens. Nenhuma marcada = todas.</sys:String>
     <sys:String x:Key="Sprint_MultiN">{0} sprints ▾</sys:String>
