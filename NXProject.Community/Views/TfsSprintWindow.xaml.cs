@@ -157,6 +157,13 @@ namespace NXProject.Views
         /// <summary>Data alvo (Data_Fim) da Task na fila do "Atualizar TFS".</summary>
         private readonly Dictionary<int, DateTime?> _finishPending = new();
         /// <summary>
+        /// Datas JA GRAVADAS no DevOps nesta sessao. O card le a data da carga do board, que so e
+        /// refeita no reload: sem esta baseline, gravar a data alvo tirava a pendencia e o card
+        /// voltava a mostrar o valor velho — parecia que a gravacao nao tinha funcionado.
+        /// </summary>
+        private readonly Dictionary<int, DateTime?> _finishApplied = new();
+        private readonly Dictionary<int, DateTime?> _startApplied = new();
+        /// <summary>
         /// Data alvo colocada pelo proprio arrasto, por origem. Cada regra so desfaz a data que
         /// ELA colocou: antes o "saiu de Closed" apagava qualquer data alvo igual a hoje — e a
         /// calculada no arrasto para Active (Task curta, que termina no mesmo dia) sumia na hora.
@@ -697,8 +704,9 @@ namespace NXProject.Views
                 _taskParentPending.Clear();
                 _taskParentApplied.Clear();
                 _moveTaskId = 0;
-                _startPending.Clear();
-                _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
+                _startPending.Clear(); _startApplied.Clear();
+                _finishPending.Clear(); _finishApplied.Clear();
+                _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
             _acPending.Clear();
                 _acPending.Clear();
                 _newCards.Clear();
@@ -1566,6 +1574,8 @@ namespace NXProject.Views
             _moveTaskId = 0;
             _startPending.Clear();
             _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
+            // O "Reverter" desfaz PENDENCIAS; o que ja foi gravado continua valendo na tela.
+
             // Anexo marcado para excluir volta a aparecer: nada foi ao DevOps ainda.
             _attachRemovePending.Clear(); _removedAttachmentUrls.Clear();
             _newCards.Clear();
@@ -1781,14 +1791,14 @@ namespace NXProject.Views
             foreach (var kv in _startPending.ToList())
             {
                 var (success, msg) = await TfsImportService.SetWorkItemStartDateAsync(_options, kv.Key, kv.Value);
-                if (success) { _startPending.Remove(kv.Key); ok++; }
+                if (success) { _startApplied[kv.Key] = kv.Value; _startPending.Remove(kv.Key); ok++; }
                 else fails.Add($"#{kv.Key} (data início): {msg}");
             }
             // 3i2) Data alvo (Data_Fim) da Task.
             foreach (var kv in _finishPending.ToList())
             {
                 var (success, msg) = await TfsImportService.SetWorkItemFinishDateAsync(_options, kv.Key, kv.Value);
-                if (success) { _finishPending.Remove(kv.Key); ok++; }
+                if (success) { _finishApplied[kv.Key] = kv.Value; _finishPending.Remove(kv.Key); ok++; }
                 else fails.Add($"#{kv.Key} (data alvo): {msg}");
             }
 
@@ -4369,6 +4379,11 @@ namespace NXProject.Views
             : _storyStateApplied.TryGetValue(s.Id, out var a) ? a : s.State;
 
         // Responsável efetivo de um work item (pendente > aplicado > valor original).
+        /// <summary>Data alvo efetiva: pendente > gravada nesta sessao > o que veio na carga.</summary>
+        private DateTime? EffFinishDate(TfsImportService.SprintTaskCard t) =>
+            _finishPending.TryGetValue(t.Id, out var p) ? p
+            : _finishApplied.TryGetValue(t.Id, out var a) ? a : t.FinishDate;
+
         private string EffOwner(int id, string original) =>
             _ownerPending.TryGetValue(id, out var p) ? p
             : _ownerApplied.TryGetValue(id, out var a) ? a : original;
@@ -5319,8 +5334,9 @@ namespace NXProject.Views
             if (!isNew && TfsImportService.NormalizeTaskState(EffState(t)) == "Active")
             {
                 var finishPend = _finishPending.TryGetValue(t.Id, out var fpv);
+                var finishBase = _finishApplied.TryGetValue(t.Id, out var fav) ? fav : t.FinishDate;
                 // Vencida: a data alvo ja passou e a Task continua Active.
-                var effFinish = finishPend ? fpv : t.FinishDate;
+                var effFinish = finishPend ? fpv : finishBase;
                 var overdue = effFinish is DateTime ef && ef.Date < DateTime.Today;
                 var red = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30));
                 var targetRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0),
@@ -5335,7 +5351,7 @@ namespace NXProject.Views
                 });
                 var targetPicker = new DatePicker
                 {
-                    SelectedDate = finishPend ? fpv : t.FinishDate, FontSize = 10, Width = 108,
+                    SelectedDate = effFinish, FontSize = 10, Width = 108,
                     VerticalAlignment = VerticalAlignment.Center,
                     BorderBrush = overdue ? red
                         : finishPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : null,
@@ -5345,8 +5361,8 @@ namespace NXProject.Views
                 targetPicker.SelectedDateChanged += (_, _) =>
                 {
                     var picked = targetPicker.SelectedDate?.Date;
-                    // Voltou ao valor do DevOps: nao ha o que gravar.
-                    if (picked == t.FinishDate?.Date) _finishPending.Remove(t.Id);
+                    // Voltou ao valor que esta no DevOps (inclusive o gravado agora): nada a fazer.
+                    if (picked == finishBase?.Date) _finishPending.Remove(t.Id);
                     else _finishPending[t.Id] = picked;
                     _finishAutoByActive.Remove(t.Id); _finishAutoByClosed.Remove(t.Id);
                     UpdatePendingButton();
