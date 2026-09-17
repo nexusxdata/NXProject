@@ -2051,6 +2051,17 @@
     <sys:String x:Key="Sprint_UpdateWipNote">Desse total, {0} são só a tag de WIP, que o NXProject acerta sozinho quando um card entra ou sai do limite da pessoa.</sys:String>
     <sys:String x:Key="Sprint_UpdatePartial">{0} atualizada(s); {1} falharam:&#10;{2}</sys:String>
     <sys:String x:Key="Sprint_UpStory">Story:</sys:String>
+    <sys:String x:Key="Sprint_OpenParentDevOps">Abrir no Azure DevOps o item #{0} em que estas Tasks estão penduradas (não é uma Story).</sys:String>
+    <sys:String x:Key="Sprint_DeleteHasChildrenDevOps">Não dá para excluir o #{0}: ele tem {1} filho(s) no DevOps — possivelmente em sprints que não estão carregadas no board. Abra no DevOps (🔗) para tratar lá.</sys:String>
+    <sys:String x:Key="Sprint_DeleteCheckFailed">Não deu para conferir no DevOps se o #{0} tem filhos, então a exclusão não foi marcada. Tente de novo.</sys:String>
+    <sys:String x:Key="Sprint_OutOfSprintTip">Este item está na sprint "{0}", fora das sprints carregadas no board. Ele só apareceu aqui porque uma Task dele está nas sprints carregadas — ajuste a sprint da Task ou a do item.</sys:String>
+    <sys:String x:Key="Sprint_OutOfSprintAdvice">⚠ Esta Story está na sprint "{0}", diferente da sprint da Task que a trouxe para o board. O Mapa de Alocação fecha as horas POR SPRINT, então uma Story que atravessa sprints não deixa as horas caírem na sprint em que o trabalho aconteceu. O ideal é ENCERRAR a Story nesta sprint (com as horas realizadas) e CRIAR outra Story na sprint seguinte para o que falta: a Task pode migrar de sprint, mas a Story deve ficar na sprint do responsável pela Task. Mudar a sprint da Story aqui leva TODO o HH dela para a outra sprint.</sys:String>
+    <sys:String x:Key="Sprint_OutOfSprintAdviceTask">⚠ A Story #{0} desta Task está na sprint "{1}" e a Task, em "{2}". O Mapa de Alocação fecha as horas POR SPRINT, então o ideal é ENCERRAR a Story em "{1}" (com as horas realizadas) e CRIAR outra Story em "{2}" para o que falta: a Task pode migrar de sprint, mas a Story deve ficar na sprint do responsável pela Task.</sys:String>
+    <sys:String x:Key="Sprint_DeleteEpicTip">Marcar o EPIC #{0} para excluir no "Atualizar TFS". Só é possível porque ele está sem Feature e sem Story.</sys:String>
+    <sys:String x:Key="Sprint_DeleteEpicHasChild">Não dá para excluir: este EPIC tem Feature ou Story abaixo. Abra no DevOps (🔗) para tratar lá.</sys:String>
+    <sys:String x:Key="Sprint_DeleteFeatureTip">Marcar a Feature #{0} para excluir no "Atualizar TFS". Só é possível porque ela não tem Story nem Task solta.</sys:String>
+    <sys:String x:Key="Sprint_DeleteFeatureHasStory">Não dá para excluir: esta Feature tem Story. Abra no DevOps (🔗) para tratar lá.</sys:String>
+    <sys:String x:Key="Sprint_DeleteFeatureHasTasks">Não dá para excluir: ainda há Task pendurada nesta Feature. Marque as Tasks para excluir primeiro.</sys:String>
     <sys:String x:Key="Sprint_CreateStoryHere">➕ Clique aqui para criar a Story</sys:String>
     <sys:String x:Key="Sprint_CreateStoryHereTip">Estas Tasks estão penduradas direto na Feature, sem Story. O botão cria a Story que falta sob essa Feature e, ao clicar em "Atualizar TFS", move todas as Tasks da Feature para ela.</sys:String>
     <sys:String x:Key="Sprint_NoStory">(sem Story)</sys:String>

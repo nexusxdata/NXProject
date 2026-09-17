@@ -499,6 +499,15 @@ namespace NXProject.Services
             public string AcceptanceCriteria { get; set; } = "";
             /// <summary>Responsável (demandante) da Feature pai — exibido no card da Feature.</summary>
             public string FeatureAssignedTo { get; set; } = "";
+            /// <summary>
+            /// Story/Feature que NAO esta na(s) sprint(s) carregada(s): veio junto so porque uma
+            /// Task dela esta. O board mostra a sprint dela em vermelho, para o usuario ajustar.
+            /// </summary>
+            public bool OutOfSprint { get; set; }
+            public bool FeatureOutOfSprint { get; set; }
+            /// <summary>Iteracao da Feature pai (para avisar quando ela esta em outra sprint).</summary>
+            public string FeatureIterationPath { get; set; } = "";
+
             /// <summary>Ordem do backlog (StackRank) da Feature/EPIC/Project acima da Story. NaN
             /// quando o DevOps nao devolveu o campo. Usado para ordenar a visao Pessoa &amp; Task
             /// pela hierarquia, e nao so pelo nome.</summary>
@@ -751,7 +760,7 @@ namespace NXProject.Services
                             FinishDate = !string.IsNullOrEmpty(boardFinishRef)
                                 && f.TryGetProperty(boardFinishRef, out var fdv) && fdv.ValueKind == JsonValueKind.String
                                 && DateTime.TryParse(fdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var fdd)
-                                    ? fdd.ToLocalTime().Date : (DateTime?)null
+                                    ? fdd.Date : (DateTime?)null
                         });
                         statesSeen.Add(state);
                     }
@@ -819,6 +828,7 @@ namespace NXProject.Services
             var featureTitle = new System.Collections.Generic.Dictionary<int, string>();
             var featureOwner = new System.Collections.Generic.Dictionary<int, string>();
             // Ancestrais (id -> título/pai/tipo) para subir Feature → EPIC → Work Item "Project".
+            var nodeIter = new System.Collections.Generic.Dictionary<int, string>();
             var nodeRank = new System.Collections.Generic.Dictionary<int, double>();
             var nodeTitle = new System.Collections.Generic.Dictionary<int, string>();
             var nodeParent = new System.Collections.Generic.Dictionary<int, int>();
@@ -832,7 +842,7 @@ namespace NXProject.Services
             foreach (var li in levelRaw)
             {
                 nodeTitle[li.Id] = li.Title; nodeType[li.Id] = li.Kind; nodeOwner[li.Id] = li.Who;
-                nodeState[li.Id] = li.State;
+                nodeState[li.Id] = li.State; nodeIter[li.Id] = li.Iter;
                 if (li.ParentId is int lp && lp > 0) nodeParent[li.Id] = lp;
                 if (li.Kind == "Feature") { featureTitle[li.Id] = li.Title; featureOwner[li.Id] = li.Who; }
             }
@@ -860,6 +870,7 @@ namespace NXProject.Services
                             var tt = f.TryGetProperty("System.Title", out var tp) ? tp.GetString() ?? "" : "";
                             nodeTitle[wid] = tt;
                             if (f.TryGetProperty("System.State", out var wst)) nodeState[wid] = wst.GetString() ?? "";
+                            if (f.TryGetProperty("System.IterationPath", out var wip)) nodeIter[wid] = wip.GetString() ?? "";
                             nodeRank[wid] = ReadRank(f);
                             if (f.TryGetProperty("System.WorkItemType", out var wtp)) nodeType[wid] = wtp.GetString() ?? "";
                             // Pai: primeiro o campo System.Parent; senão, a relação Hierarchy-Reverse.
@@ -939,10 +950,56 @@ namespace NXProject.Services
                     st.FeatureId = featI; st.FeatureTitle = featT; st.FeatureAssignedTo = featO; st.FeatureState = featS;
                     st.FeatureEpicTitle = epicT; st.FeatureEpicId = epicI; st.FeatureEpicState = epicS;
                     st.FeatureProjectTitle = projT; st.FeatureProjectId = projI; st.FeatureProjectState = projS;
+                    st.FeatureIterationPath = nodeIter.TryGetValue(featI, out var fit) ? fit : "";
+                    st.FeatureOutOfSprint = featI > 0 && !InSprintScope(st.FeatureIterationPath);
                     st.FeatureRank = nodeRank.TryGetValue(featI, out var frk) ? frk : double.NaN;
                     st.FeatureEpicRank = nodeRank.TryGetValue(epicI, out var erk) ? erk : double.NaN;
                     st.FeatureProjectRank = nodeRank.TryGetValue(projI, out var prk) ? prk : double.NaN;
                 }
+
+            // Esta dentro do recorte de sprint carregado? (mesma semantica do WIQL: UNDER)
+            bool InSprintScope(string? iter)
+            {
+                if (paths.Count == 0) return true;                 // "todas as sprints"
+                if (string.IsNullOrWhiteSpace(iter)) return false;
+                return paths.Any(p => string.Equals(iter, p, StringComparison.OrdinalIgnoreCase)
+                                      || iter!.StartsWith(p + "\\", StringComparison.OrdinalIgnoreCase));
+            }
+
+            // 3b-1) Task cuja STORY esta em OUTRA sprint: a Story existe, so nao veio no recorte.
+            // Em vez de deixar a Task como "(sem Story)", traz a Story de verdade para o board,
+            // marcada como fora da sprint — o card mostra a sprint dela em vermelho, para ajuste.
+            foreach (var pid in orphanByParent.Keys.Where(k => k > 0).ToList())
+            {
+                var ptype0 = nodeType.TryGetValue(pid, out var pt0) ? pt0 : "";
+                if (!IsStoryType(ptype0)) continue;
+                var orphanRow = orphanByParent[pid];
+                var promoted = new SprintStoryRow(pid,
+                    nodeTitle.TryGetValue(pid, out var ptt) ? ptt : $"#{pid}",
+                    nodeState.TryGetValue(pid, out var pss) ? pss : "",
+                    nodeOwner.TryGetValue(pid, out var poo) ? poo : "",
+                    orphanRow.Tasks)
+                {
+                    IterationPath = nodeIter.TryGetValue(pid, out var pii) ? pii : "",
+                    OutOfSprint = true
+                };
+                var (pFeatT, pFeatI, pFeatO, pFeatS, pEpicT, pEpicI, pEpicS, pProjT, pProjI, pProjS)
+                    = ResolveAncestry(pid);
+                promoted.FeatureId = pFeatI; promoted.FeatureTitle = pFeatT;
+                promoted.FeatureAssignedTo = pFeatO; promoted.FeatureState = pFeatS;
+                promoted.FeatureEpicId = pEpicI; promoted.FeatureEpicTitle = pEpicT; promoted.FeatureEpicState = pEpicS;
+                promoted.FeatureProjectId = pProjI; promoted.FeatureProjectTitle = pProjT; promoted.FeatureProjectState = pProjS;
+                promoted.FeatureRank = nodeRank.TryGetValue(pFeatI, out var pfr) ? pfr : double.NaN;
+                promoted.FeatureEpicRank = nodeRank.TryGetValue(pEpicI, out var per) ? per : double.NaN;
+                promoted.FeatureProjectRank = nodeRank.TryGetValue(pProjI, out var ppr) ? ppr : double.NaN;
+                promoted.FeatureIterationPath = nodeIter.TryGetValue(pFeatI, out var pfi) ? pfi : "";
+                promoted.FeatureOutOfSprint = pFeatI > 0 && !InSprintScope(promoted.FeatureIterationPath);
+
+                stories.Remove(orphanRow);
+                orphanByParent.Remove(pid);
+                stories.Add(promoted);
+                storyById[pid] = promoted;
+            }
 
             // 3b-2) Linha "(sem Story)": resolve a hierarquia PELO PROPRIO PAI das Tasks. Quando
             // o pai e uma Feature, ela aparece na coluna da Feature e o board pode oferecer a
@@ -4465,11 +4522,14 @@ namespace NXProject.Services
             var finishRef = await ResolveFinishFieldRefAsync(options, cancellationToken);
             if (!string.IsNullOrEmpty(startRef)) fields.Add(startRef);
             if (!string.IsNullOrEmpty(finishRef)) fields.Add(finishRef);
+            // Data_Inicio/Data_Fim sao DATA, nao instante: o TFS guarda meia-noite UTC. Converter
+            // para o fuso local jogava o valor para o dia anterior (14/09 00:00Z vira 13/09 21:00
+            // em BRT). Fica a data em UTC mesmo, como fazem os leitores da importacao.
             static DateTime? ReadDate(JsonElement f, string? refName) =>
                 !string.IsNullOrEmpty(refName) && f.ValueKind == JsonValueKind.Object
                 && f.TryGetProperty(refName, out var v) && v.ValueKind == JsonValueKind.String
                 && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
-                    ? dt.ToLocalTime().Date : (DateTime?)null;
+                    ? dt.Date : (DateTime?)null;
 
             var items = await LoadWorkItemsAsync(
                 orgBase,
@@ -6570,6 +6630,23 @@ namespace NXProject.Services
                 ops.Add(PatchAdd("/fields/System.AssignedTo", assignedTo));
             if (estimatedHours is > 0)
                 ops.Add(PatchAdd("/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", estimatedHours.Value));
+
+            // Campos OBRIGATORIOS do processo do cliente (ex.: Custom.Type na Feature). Sem eles
+            // o DevOps recusa a criacao com TF401320 ("Rule Error for field ..."). A
+            // sincronizacao ja preenchia; a criacao pelo TaskBoard nao, e a Feature nao nascia.
+            // Valor: o proprio tipo, quando ele esta na lista de valores; senao, o primeiro.
+            options.TypeFieldMappings.TryGetValue(type, out var cfgType);
+            if (cfgType == null) options.TypeFieldMappings.TryGetValue("*", out cfgType);
+            foreach (var fd in cfgType?.CustomDevopsFields ?? new List<ClassificationFieldDef>())
+            {
+                if (string.IsNullOrWhiteSpace(fd.Field)) continue;
+                var allowed = (fd.Values ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var value = allowed.FirstOrDefault(v => string.Equals(v, type, StringComparison.OrdinalIgnoreCase))
+                            ?? allowed.FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(value)) ops.Add(PatchAdd($"/fields/{fd.Field}", value));
+            }
+
             if (parentId > 0)
                 ops.Add(new
                 {
@@ -7067,8 +7144,38 @@ namespace NXProject.Services
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             if (doc.RootElement.TryGetProperty("fields", out var f) && f.TryGetProperty(startRef, out var v)
                 && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
-                return dt.ToLocalTime().Date;
+                return dt.Date;   // data-only: sem converter para o fuso local (veja ReadDate)
             return null;
+        }
+
+        /// <summary>
+        /// Quantos FILHOS o work item tem no DevOps (relacao Hierarchy-Forward). O board so conhece
+        /// o que veio das sprints carregadas, entao "sem filho na tela" nao quer dizer "sem filho no
+        /// DevOps" — quem vai excluir precisa perguntar para o servidor. -1 quando nao deu para ler.
+        /// </summary>
+        public static async Task<int> CountChildrenAsync(
+            TfsConnectionOptions options, int id, CancellationToken ct = default)
+        {
+            if (id <= 0) return 0;
+            try
+            {
+                var ctx = CreateTfsAuthContext(options, "conferir filhos", requireTeamProject: false);
+                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?$expand=relations&{QueryApiVersion}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = ctx.Authorization;
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                using var resp = await Http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode) return -1;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                if (!doc.RootElement.TryGetProperty("relations", out var rels)
+                    || rels.ValueKind != JsonValueKind.Array) return 0;
+                var n = 0;
+                foreach (var r in rels.EnumerateArray())
+                    if (r.TryGetProperty("rel", out var rt)
+                        && rt.GetString() == "System.LinkTypes.Hierarchy-Forward") n++;
+                return n;
+            }
+            catch { return -1; }
         }
 
         /// <summary>Um nivel da cadeia de pais de um work item.</summary>
@@ -7138,7 +7245,7 @@ namespace NXProject.Services
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             if (doc.RootElement.TryGetProperty("fields", out var f) && f.TryGetProperty(finishRef, out var v)
                 && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
-                return dt.ToLocalTime().Date;
+                return dt.Date;   // data-only: sem converter para o fuso local (veja ReadDate)
             return null;
         }
 

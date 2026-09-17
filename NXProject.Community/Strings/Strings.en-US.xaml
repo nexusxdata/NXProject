@@ -1118,6 +1118,17 @@
     <sys:String x:Key="Sprint_UpdateWipNote">Of that total, {0} are just the WIP tag, which NXProject fixes on its own when a card enters or leaves the person's limit.</sys:String>
     <sys:String x:Key="Sprint_UpdatePartial">{0} updated; {1} failed:&#10;{2}</sys:String>
     <sys:String x:Key="Sprint_UpStory">Story:</sys:String>
+    <sys:String x:Key="Sprint_OpenParentDevOps">Open in Azure DevOps the item #{0} these Tasks hang from (it is not a Story).</sys:String>
+    <sys:String x:Key="Sprint_DeleteHasChildrenDevOps">Cannot delete #{0}: it has {1} child item(s) in DevOps — possibly in sprints not loaded on the board. Open it in DevOps (🔗) to handle it there.</sys:String>
+    <sys:String x:Key="Sprint_DeleteCheckFailed">Could not check in DevOps whether #{0} has children, so deletion was not marked. Please try again.</sys:String>
+    <sys:String x:Key="Sprint_OutOfSprintTip">This item is in sprint "{0}", outside the sprints loaded on the board. It only shows up here because one of its Tasks is in the loaded sprints — adjust the Task's sprint or the item's.</sys:String>
+    <sys:String x:Key="Sprint_OutOfSprintAdvice">⚠ This Story is in sprint "{0}", different from the sprint of the Task that brought it to the board. The Allocation Map closes hours PER SPRINT, so a Story spanning sprints keeps its hours out of the sprint where the work actually happened. The right move is to CLOSE this Story in this sprint (with the hours done) and CREATE another Story in the next sprint for what is left: the Task may move sprints, but the Story should stay in the sprint of the Task's owner. Changing the Story's sprint here moves ALL of its hours to the other sprint.</sys:String>
+    <sys:String x:Key="Sprint_OutOfSprintAdviceTask">⚠ This Task's Story #{0} is in sprint "{1}" while the Task is in "{2}". The Allocation Map closes hours PER SPRINT, so the right move is to CLOSE the Story in "{1}" (with the hours done) and CREATE another Story in "{2}" for what is left: the Task may move sprints, but the Story should stay in the sprint of the Task's owner.</sys:String>
+    <sys:String x:Key="Sprint_DeleteEpicTip">Mark EPIC #{0} for deletion on "Update TFS". Allowed because it has no Feature and no Story.</sys:String>
+    <sys:String x:Key="Sprint_DeleteEpicHasChild">Cannot delete: this EPIC has Features or Stories below it. Open it in DevOps (🔗) to handle it there.</sys:String>
+    <sys:String x:Key="Sprint_DeleteFeatureTip">Mark Feature #{0} for deletion on "Update TFS". Allowed because it has no Story and no loose Task.</sys:String>
+    <sys:String x:Key="Sprint_DeleteFeatureHasStory">Cannot delete: this Feature has Stories. Open it in DevOps (🔗) to handle it there.</sys:String>
+    <sys:String x:Key="Sprint_DeleteFeatureHasTasks">Cannot delete: there are still Tasks hanging from this Feature. Mark the Tasks for deletion first.</sys:String>
     <sys:String x:Key="Sprint_CreateStoryHere">➕ Click here to create the Story</sys:String>
     <sys:String x:Key="Sprint_CreateStoryHereTip">These Tasks hang directly from the Feature, with no Story. The button creates the missing Story under that Feature and, on "Update TFS", moves every Task of the Feature into it.</sys:String>
     <sys:String x:Key="Sprint_NoStory">(no Story)</sys:String>

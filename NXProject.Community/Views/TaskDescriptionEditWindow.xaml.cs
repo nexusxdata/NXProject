@@ -72,6 +72,18 @@ namespace NXProject.Views
 
         // Edição da Sprint (iteração): habilitada quando 'sprints' é fornecido.
         public bool SprintEnabled { get; }
+
+        /// <summary>
+        /// Mostra o aviso de sprint acima da descricao. Usado quando a Story esta numa sprint
+        /// diferente da Task: o Mapa de Alocacao so fecha as horas da sprint se a Story terminar
+        /// nela, entao o certo e encerrar a Story aqui e abrir outra na sprint seguinte.
+        /// </summary>
+        public void ShowSprintAdvice(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            SprintAdviceText.Text = text;
+            SprintAdvicePanel.Visibility = Visibility.Visible;
+        }
         public string? SelectedIteration { get; private set; }
         public bool IterationChanged { get; private set; }
         private readonly string _initialIteration = "";

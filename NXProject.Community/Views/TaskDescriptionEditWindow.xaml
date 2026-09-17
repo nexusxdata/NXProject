@@ -81,6 +81,12 @@
                           ToolTip="{DynamicResource Sprint_UnplannedTip}"/>
             </StackPanel>
             </WrapPanel>
+            <!-- Aviso de sprint (Story/Task em sprints diferentes): explica o efeito no Mapa de
+                 Alocacao e o que fazer, logo acima da descricao e perto do combo de Sprint. -->
+            <Border x:Name="SprintAdvicePanel" Visibility="Collapsed" Margin="0,8,0,0"
+                    Background="#FFF6E5" BorderBrush="#E0A000" BorderThickness="1" CornerRadius="3" Padding="8,6">
+                <TextBlock x:Name="SprintAdviceText" FontSize="12" Foreground="#7A5200" TextWrapping="Wrap"/>
+            </Border>
             <TextBlock Text="{DynamicResource Desc_DescriptionLabel}" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0"/>
         </StackPanel>
 

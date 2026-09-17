@@ -943,6 +943,93 @@ namespace NXProject.Views
             return Light(btn);
         }
 
+        /// <summary>
+        /// 🗑 do card de EPIC: marca o EPIC para excluir no "Atualizar TFS". So habilita quando
+        /// ele esta VAZIO no board — sem Feature e sem Story abaixo. Com filho, excluir deixaria
+        /// trabalho orfao no DevOps, entao o botao fica apagado e sobra o 🔗 para resolver la.
+        /// </summary>
+        /// <summary>
+        /// 🗑 do card da FEATURE: marca para excluir no "Atualizar TFS". So habilita com a
+        /// Feature VAZIA no board — sem Story e sem Task pendurada direto nela (Task marcada
+        /// para excluir nao conta). Com filho vivo, excluir deixaria trabalho orfao no DevOps.
+        /// </summary>
+        /// <summary>
+        /// Marca (ou desmarca) o item para excluir. Antes de MARCAR, pergunta ao DevOps se ele tem
+        /// filho: o board so enxerga as sprints carregadas, e um EPIC "vazio" na tela pode ter
+        /// Features em outras sprints. Desmarcar nao precisa de checagem.
+        /// </summary>
+        private async Task ToggleDeleteWithChildCheckAsync(int id)
+        {
+            if (id <= 0) return;
+            if (_deletePending.Remove(id))
+            {
+                UpdatePendingButton(); Render();
+                return;
+            }
+
+            var n = await TfsImportService.CountChildrenAsync(_options, id);
+            if (n > 0)
+            {
+                MessageBox.Show(this, AppStrings.Get("Sprint_DeleteHasChildrenDevOps", id.ToString(), n.ToString()),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (n < 0)
+            {
+                MessageBox.Show(this, AppStrings.Get("Sprint_DeleteCheckFailed", id.ToString()),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            _deletePending.Add(id);
+            UpdatePendingButton(); Render();
+        }
+
+        private UIElement? BuildDeleteFeatureButton(int featureId)
+        {
+            if (featureId <= 0 || EditModeCheck.IsChecked != true) return null;
+            var marked = _deletePending.Contains(featureId);
+            var hasStory = _board?.Stories.Any(s2 => s2.Id > 0 && s2.FeatureId == featureId) == true;
+            var hasTask = _board?.Stories.Where(s2 => s2.OrphanParentId == featureId)
+                              .SelectMany(s2 => s2.Tasks)
+                              .Any(t2 => t2.Id > 0 && !_deletePending.Contains(t2.Id)) == true;
+            // Nao da para excluir: o botao NEM APARECE (em vez de aparecer apagado), para o card
+            // so mostrar o que de fato da para fazer ali. Marcada, o ↩ continua visivel p/ desfazer.
+            if (!marked && (hasStory || hasTask)) return null;
+            var btn = new Button
+            {
+                Content = marked ? "↩" : "🗑", FontSize = 11,
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 4, 3, 0),
+                Height = LevelButtonHeight, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
+                ToolTip = marked ? AppStrings.Get("Sprint_UndoDelete")
+                    : AppStrings.Get("Sprint_DeleteFeatureTip", featureId.ToString())
+            };
+            btn.Click += async (_, _) => await ToggleDeleteWithChildCheckAsync(featureId);
+            return Light(btn);
+        }
+
+        private UIElement? BuildDeleteEpicButton(int epicId)
+        {
+            if (epicId <= 0 || EditModeCheck.IsChecked != true) return null;
+            var marked = _deletePending.Contains(epicId);
+            var hasChild = _board?.Stories.Any(s2 => s2.FeatureEpicId == epicId
+                               && (s2.FeatureId > 0 || s2.Id > 0)) == true
+                           || _board?.LevelItems.Any(li => li.EpicId == epicId) == true;
+            // Com filho abaixo, o botao NEM APARECE (ver BuildDeleteFeatureButton).
+            if (!marked && hasChild) return null;
+            var btn = new Button
+            {
+                Content = marked ? "↩" : "🗑", FontSize = 11,
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 4, 3, 0),
+                Height = LevelButtonHeight, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
+                ToolTip = marked ? AppStrings.Get("Sprint_UndoDelete")
+                    : AppStrings.Get("Sprint_DeleteEpicTip", epicId.ToString())
+            };
+            btn.Click += async (_, _) => await ToggleDeleteWithChildCheckAsync(epicId);
+            return Light(btn);
+        }
+
         // ✎ dos cards de EPIC/Feature: abre o mesmo editor da Story (nome, responsavel,
         // descricao). Segue a regra do "+": so com o item existente no DevOps e no modo edicao.
         private UIElement? BuildEditLevelButton(int id, string title, string kind)
@@ -1241,6 +1328,33 @@ namespace NXProject.Views
         }
 
         // Descrição: abre o editor (WebView) com a descrição atual do DevOps (ou o rascunho pendente).
+        /// <summary>
+        /// Texto de orientacao quando a Story esta numa sprint e a Task em outra. O Mapa de
+        /// Alocacao fecha as horas POR SPRINT: se a Story atravessa sprints, as horas dela nao
+        /// caem na sprint em que o trabalho aconteceu. O certo e encerrar a Story na sprint atual
+        /// e criar outra na sprint seguinte — a Task pode migrar, a Story fica com o autor dela.
+        /// Devolve null quando nao ha divergencia.
+        /// </summary>
+        private string? SprintAdviceFor(int id, string kind)
+        {
+            if (id <= 0) return null;
+            if (kind == "Story")
+            {
+                var st = StoryById(id);
+                if (st == null || !st.OutOfSprint) return null;
+                return AppStrings.Get("Sprint_OutOfSprintAdvice", IterLeaf(st.IterationPath));
+            }
+            if (kind == "Task")
+            {
+                if (!_cardById.TryGetValue(id, out var card) || (card.ParentId ?? 0) <= 0) return null;
+                var st = StoryById(card.ParentId ?? 0);
+                if (st == null || !st.OutOfSprint) return null;
+                return AppStrings.Get("Sprint_OutOfSprintAdviceTask", st.Id.ToString(),
+                    IterLeaf(st.IterationPath), IterLeaf(EffIter(id, card.IterationPath)));
+            }
+            return null;
+        }
+
         private async Task EditDescriptionAsync(int id, string title, string currentOwner = "", string kind = "Story", string currentIteration = "")
         {
             // Nome efetivo (pendente > aplicado > título recebido), editável na mesma tela.
@@ -1393,6 +1507,9 @@ namespace NXProject.Views
                 attachments: kind == "Task" && _cardById.TryGetValue(id, out var attCard) ? AttachmentsOf(attCard) : null,
                 onOpenAttachment: a => _ = OpenAttachmentAsync(a),
                 onRemoveAttachment: a => RemoveAttachmentAsync(id, a)) { Owner = this };
+            // Story fora da sprint da Task: aqui e onde a sprint muda, entao e aqui que o aviso
+            // tem que estar — trocar a sprint da Story arrasta o HH dela para a outra sprint.
+            if (SprintAdviceFor(id, kind) is { } advice) dlg.ShowSprintAdvice(advice);
             if (dlg.ShowDialog() == true)
             {
                 _descPending[id] = pt.Description ?? string.Empty;
@@ -3122,8 +3239,27 @@ namespace NXProject.Views
 
         // Card da Feature — mesmo visual nas visões "Por Story" e "Pessoa & Task".
         // `extra` recebe um botão adicional da visão (ex.: "+Story" na visão Por Story).
+        /// <summary>
+        /// Linha "🗓 sprint" EM VERMELHO para Story/Feature que nao esta na sprint carregada: ela so
+        /// veio para o board porque uma Task dela esta aqui. O vermelho e o aviso de que a hierarquia
+        /// precisa de ajuste (a Task e o pai estao em sprints diferentes).
+        /// </summary>
+        private static TextBlock? OutOfSprintLine(string iterationPath)
+        {
+            var leaf = IterLeaf(iterationPath);
+            if (string.IsNullOrWhiteSpace(leaf)) return null;
+            return new TextBlock
+            {
+                Text = "🗓 " + leaf + " ⚠", FontSize = 10, FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
+                ToolTip = AppStrings.Get("Sprint_OutOfSprintTip", leaf)
+            };
+        }
+
         private Border BuildFeatureCard(int featId, string featTitle, string featOwner,
-            string featEpic, string featProj, bool multiProject, UIElement? extra = null, string featState = "")
+            string featEpic, string featProj, bool multiProject, UIElement? extra = null, string featState = "",
+            string outOfSprintIter = "")
         {
             // Cor configurável na paleta (chave "feature").
             var featColor = (StateBrush(FeatureColorKey) as SolidColorBrush)?.Color ?? FactoryStateColor(FeatureColorKey);
@@ -3142,6 +3278,7 @@ namespace NXProject.Views
             featSp.Children.Add(new TextBlock { Text = "📦 " + featTitle, FontSize = 11, FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap, Foreground = featBrush });
             if (LevelStateLine(featId, featState, 10) is { } featStLine) featSp.Children.Add(featStLine);
+            if (OutOfSprintLine(outOfSprintIter) is { } featOut) featSp.Children.Add(featOut);
             if (!string.IsNullOrWhiteSpace(featOwner))
                 featSp.Children.Add(new TextBlock { Text = "👤 " + featOwner, FontSize = 10,
                     Margin = new Thickness(0, 2, 0, 0), Foreground = featBrush, TextWrapping = TextWrapping.Wrap });
@@ -3425,7 +3562,25 @@ namespace NXProject.Views
                         var orphanFeatTitle = entry.Feat;
                         var orphanTasks = tks.ToList();
                         createSt.Click += (_, _) => CreateStoryForOrphans(orphanFeat, orphanFeatTitle, personKey, orphanTasks);
-                        storySp.Children.Add(createSt);
+
+                        // Abre no DevOps o item em que as Tasks estao penduradas — que NAO e uma
+                        // Story (normalmente a Feature). Sem isto nao havia como chegar nele daqui.
+                        var openOrphan = new Button
+                        {
+                            Content = "🔗", FontSize = 11, Padding = new Thickness(3, 0, 3, 0),
+                            Margin = new Thickness(0, 4, 3, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                            ToolTip = AppStrings.Get("Sprint_OpenParentDevOps", orphanFeat.ToString())
+                        };
+                        openOrphan.Click += (_, _) => OpenInDevOps(orphanFeat);
+                        // Excluir a Feature: so quando ela NAO tem Story e nenhuma Task solta
+                        // sobrando. Com filho vivo, excluir deixaria trabalho orfao no DevOps —
+                        // ai o botao fica desabilitado e sobra o 🔗 para abrir e resolver la.
+                        var orphanRow = new StackPanel { Orientation = Orientation.Horizontal };
+                        orphanRow.Children.Add(openOrphan);
+                        // Mesmo botao (e mesma regra) do card da Feature: so aparece se der para excluir.
+                        if (BuildDeleteFeatureButton(orphanFeat) is { } delFeat) orphanRow.Children.Add(delFeat);
+                        orphanRow.Children.Add(createSt);
+                        storySp.Children.Add(orphanRow);
                     }
                     else if (storyId > 0)
                     {
@@ -3443,7 +3598,9 @@ namespace NXProject.Views
                                 FontSize = 10, FontStyle = FontStyles.Italic, Foreground = new SolidColorBrush(Color.FromRgb(0xB2, 0x6A, 0x00)) });
                         // Sprint da Story quando há mais de uma sprint no board.
                         var sIter = IterLeaf(EffIter(storyId, StoryById(storyId)?.IterationPath ?? ""));
-                        if (_sprintPaths.Count != 1 && !string.IsNullOrEmpty(sIter))
+                        if (stRow?.OutOfSprint == true && OutOfSprintLine(stRow.IterationPath) is { } sOut)
+                            storySp.Children.Add(sOut);
+                        else if (_sprintPaths.Count != 1 && !string.IsNullOrEmpty(sIter))
                             storySp.Children.Add(new TextBlock { Text = "🗓 " + sIter, FontSize = 10, TextWrapping = TextWrapping.Wrap,
                                 Foreground = _iterPending.ContainsKey(storyId) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray });
                         var stActions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
@@ -3514,6 +3671,9 @@ namespace NXProject.Views
                     var featEpic = storyId > 0 ? (StoryById(storyId)?.FeatureEpicTitle ?? "") : "";
                     var featProj = storyId > 0 ? (StoryById(storyId)?.FeatureProjectTitle ?? "") : "";
                     var featState = storyId > 0 ? (StoryById(storyId)?.FeatureState ?? "") : "";
+                    // Feature em outra sprint (veio junto com a Task): sprint dela sai em vermelho.
+                    var featOutIter = storyId > 0 && StoryById(storyId)?.FeatureOutOfSprint == true
+                        ? (StoryById(storyId)?.FeatureIterationPath ?? "") : "";
                     // Coluna Feature desligada: a Feature (e o EPIC/Projeto, se também estiverem
                     // desligados) entram como linhas no TOPO do card da Story.
                     if (!showFeat)
@@ -3570,11 +3730,14 @@ namespace NXProject.Views
                             b.Click += (_, _) => AddNewStory(fId, fName, personKey);
                             addStoryBtn = Light(b);
                         }
-                        var featExtra = JoinButtons(BuildCollapseButton(featId), addStoryBtn);
+                        var featExtra = JoinButtons(BuildCollapseButton(featId), addStoryBtn,
+                            BuildDeleteFeatureButton(featId));
                         UIElement featCell = string.IsNullOrWhiteSpace(featTitle) ? new TextBlock()
-                            : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, extra: featExtra, featState: featState)
+                            : showEpic ? BuildFeatureCard(featId, featTitle, featOwner, "", "", false, extra: featExtra, featState: featState,
+                                outOfSprintIter: featOutIter)
                             : BuildFeatureCard(featId, featTitle, featOwner, featEpic,
-                                showProj ? "" : featProj, multiProject && !showProj, extra: featExtra, featState: featState);
+                                showProj ? "" : featProj, multiProject && !showProj, extra: featExtra, featState: featState,
+                                outOfSprintIter: featOutIter);
                         AddCell(row, cFeat, featCell);
                     }
                     AddCell(row, cStory, storyBorder);
@@ -3864,11 +4027,15 @@ namespace NXProject.Views
                     b2.Click += (_, _) => AddNewStory(fId2, fName2, personKey);
                     addSt = Light(b2);
                 }
-                var featExtra2 = JoinButtons(BuildCollapseButton(st.FeatureId), addSt);
+                var featExtra2 = JoinButtons(BuildCollapseButton(st.FeatureId), addSt,
+                    BuildDeleteFeatureButton(st.FeatureId));
+                var featOut2 = st.FeatureOutOfSprint ? st.FeatureIterationPath : "";
                 AddCell(row, cFeat, string.IsNullOrWhiteSpace(st.FeatureTitle) ? new TextBlock()
-                    : showEpic ? BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, "", "", false, extra: featExtra2, featState: st.FeatureState)
+                    : showEpic ? BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, "", "", false, extra: featExtra2, featState: st.FeatureState,
+                        outOfSprintIter: featOut2)
                     : BuildFeatureCard(st.FeatureId, st.FeatureTitle, st.FeatureAssignedTo, st.FeatureEpicTitle,
-                        showProj ? "" : st.FeatureProjectTitle, multiProject && !showProj, extra: featExtra2, featState: st.FeatureState));
+                        showProj ? "" : st.FeatureProjectTitle, multiProject && !showProj, extra: featExtra2, featState: st.FeatureState,
+                        outOfSprintIter: featOut2));
             }
             AddCell(row, cStory, BuildPersonStoryCardNoTask(st, personKey));
         }
@@ -3937,11 +4104,7 @@ namespace NXProject.Views
                     Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
                     Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
                     ToolTip = AppStrings.Get(stDel ? "Sprint_UndoDelete" : "Sprint_DeleteTask") };
-                delNoTask.Click += (_, _) =>
-                {
-                    if (!_deletePending.Remove(st.Id)) _deletePending.Add(st.Id);
-                    UpdatePendingButton(); Render();
-                };
+                delNoTask.Click += async (_, _) => await ToggleDeleteWithChildCheckAsync(st.Id);
                 actions.Children.Add(delNoTask);
             }
             actions.Children.Add(BuildBlockButton(st.Id, st.Tags ?? "", isStory: true));
@@ -4137,7 +4300,8 @@ namespace NXProject.Views
                             extra: JoinButtons(
                                 BuildCollapseButton(featRow?.FeatureEpicId ?? 0),
                                 BuildEditLevelButton(featRow?.FeatureEpicId ?? 0, epicTitle, "Epic"),
-                                BuildAddChildButton(featRow?.FeatureEpicId ?? 0, epicTitle, "Feature")),
+                                BuildAddChildButton(featRow?.FeatureEpicId ?? 0, epicTitle, "Feature"),
+                                BuildDeleteEpicButton(featRow?.FeatureEpicId ?? 0)),
                             state: featRow?.FeatureEpicState ?? ""));
                     }
                     AddCell(row, cEpic, epicSp);
@@ -4181,7 +4345,8 @@ namespace NXProject.Views
                     AddCell(row, cFeat, new TextBlock());   // EPIC/Projeto da sprint sem Feature: fica em branco
                 else
                 {
-                    var featExtra = JoinButtons(BuildCollapseButton(featureId), addStory);
+                    var featExtra = JoinButtons(BuildCollapseButton(featureId), addStory,
+                        BuildDeleteFeatureButton(featureId));
                     AddCell(row, cFeat, showEpicCol
                         ? BuildFeatureCard(featureId, featName, featRow?.FeatureAssignedTo ?? "", "", "", false, featExtra,
                             featState: featRow?.FeatureState ?? "")
@@ -4734,7 +4899,9 @@ namespace NXProject.Views
                     sp.Children.Add(hhStory);
                 // Sprint da Story (🗓). Laranja quando há troca pendente.
                 var iterLeaf = IterLeaf(EffIter(story.Id, story.IterationPath));
-                if (!string.IsNullOrEmpty(iterLeaf))
+                if (story.OutOfSprint && OutOfSprintLine(story.IterationPath) is { } stOutLine)
+                    sp.Children.Add(stOutLine);
+                else if (!string.IsNullOrEmpty(iterLeaf))
                     sp.Children.Add(new TextBlock { Text = "🗓 " + iterLeaf, FontSize = 10, TextWrapping = TextWrapping.Wrap,
                         Foreground = _iterPending.ContainsKey(story.Id) ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray });
                 // StoryBoard = nível Story: aqui NÃO cria Task (isso é na visão Pessoa & Task).
@@ -4752,11 +4919,7 @@ namespace NXProject.Views
                     var delSt = new Button { Content = storyToDelete ? "↩" : "🗑", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
                         Margin = new Thickness(0, 0, 4, 0), Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
                         ToolTip = AppStrings.Get(storyToDelete ? "Sprint_UndoDelete" : "Sprint_DeleteTask") };
-                    delSt.Click += (_, _) =>
-                    {
-                        if (!_deletePending.Remove(story.Id)) _deletePending.Add(story.Id);
-                        UpdatePendingButton(); Render();
-                    };
+                    delSt.Click += async (_, _) => await ToggleDeleteWithChildCheckAsync(story.Id);
                     actions.Children.Add(delSt);
                 }
                 // Bloquear/desbloquear a Story (tag "Blocked") — último botão, como na Task.
