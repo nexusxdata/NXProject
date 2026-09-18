@@ -375,6 +375,7 @@ namespace NXProject.Views
             public DateTime? PriorityMaxAt { get; set; } // quando foi descoberto (vence: o template pode mudar)
             public bool? FieldCache { get; set; } // ler campos do TFS em cache (null = ligado)
             public bool? CardDocsOnly { get; set; } // no card, listar so PDF/Word/Excel (null = ligado)
+            public string? CardDocExtensions { get; set; } // extensoes de "documento", separadas por virgula
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
             public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
             public List<int>? CollapsedEpics { get; set; } // legado (so EPICs); lido na abertura
@@ -493,6 +494,9 @@ namespace NXProject.Views
             AutoOpenCheck.IsChecked = _prefs.AutoOpen;
             // Cache dos campos do TFS: ligado por padrao (null = ligado).
             CardDocsOnlyCheck.IsChecked = _prefs.CardDocsOnly ?? true;
+            ApplyCardDocExtensions(_prefs.CardDocExtensions);
+            CardDocExtsBox.Text = FormatExtensions(_cardDocExtensions);
+            CardDocExtsBox.IsEnabled = CardDocsOnlyCheck.IsChecked == true;
             FieldCacheCheck.IsChecked = _prefs.FieldCache ?? true;
             TfsImportService.FieldRefCacheEnabled = FieldCacheCheck.IsChecked == true;
             // Sem a variavel de ambiente, as marcacoes de tempo nem sao montadas.
@@ -1407,6 +1411,23 @@ namespace NXProject.Views
         private void OnCardDocsOnlyChanged(object sender, RoutedEventArgs e)
         {
             _prefs.CardDocsOnly = CardDocsOnlyCheck.IsChecked == true;
+            CardDocExtsBox.IsEnabled = CardDocsOnlyCheck.IsChecked == true;
+            SavePrefs();
+            Render();
+        }
+
+        private void OnCardDocExtsKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter) OnCardDocExtsChanged(sender, e);
+        }
+
+        /// <summary>Grava a lista de extensoes digitada e redesenha. Lista vazia volta ao padrao.</summary>
+        private void OnCardDocExtsChanged(object sender, RoutedEventArgs e)
+        {
+            ApplyCardDocExtensions(CardDocExtsBox.Text);
+            // Normaliza o que ficou na caixa: sem ponto, minusculo, sem repetir.
+            CardDocExtsBox.Text = FormatExtensions(_cardDocExtensions);
+            _prefs.CardDocExtensions = CardDocExtsBox.Text;
             SavePrefs();
             Render();
         }
@@ -5658,19 +5679,45 @@ namespace NXProject.Views
         // Um anexo so no card: o resto fica na edicao, atras do link "+N". Card enxuto.
         private const int MaxAttachmentsOnCard = 1;
 
-        /// <summary>Anexo de documento: o que vale a pena ler pelo nome no card.</summary>
-        private static readonly HashSet<string> CardDocExtensions = new(StringComparer.OrdinalIgnoreCase)
+        /// <summary>Extensoes de "documento" quando a lista configurada esta vazia.</summary>
+        private static readonly string[] DefaultCardDocExtensions = { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png" };
+
+        /// <summary>
+        /// Anexo de documento: o que vem na frente no card. Configuravel no ⚙ como lista separada
+        /// por virgula ("pdf, docx, xlsx" — com ou sem ponto).
+        /// </summary>
+        private HashSet<string> _cardDocExtensions = new(DefaultCardDocExtensions, StringComparer.OrdinalIgnoreCase);
+
+        private void ApplyCardDocExtensions(string? text)
         {
-            ".pdf", ".doc", ".docx", ".xls", ".xlsx"
-        };
+            var list = (text ?? "")
+                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim().TrimStart('*').TrimStart('.'))
+                .Where(x => x.Length > 0)
+                .Select(x => "." + x.ToLowerInvariant())
+                .Distinct()
+                .ToList();
+            // Lista vazia (ou so lixo) volta ao padrao — "documento nenhum" nao e uma escolha util.
+            _cardDocExtensions = new HashSet<string>(list.Count > 0 ? list : DefaultCardDocExtensions,
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string FormatExtensions(IEnumerable<string> exts) =>
+            string.Join(", ", exts.Select(x => x.TrimStart('.')));
 
         /// <summary>Anexos que o CARD lista pelo nome. Com a opcao ligada (padrao), so documento —
         /// o resto vira contador, e a lista inteira continua na edicao.</summary>
+        /// <summary>
+        /// Ordem dos anexos para o card, que mostra so o PRIMEIRO. Com a opcao "so documentos"
+        /// ligada, PDF/Word/Excel vem na frente — mas nada e escondido: sem documento, o card mostra
+        /// o primeiro anexo que houver (uma imagem, por exemplo), em vez de ficar sem nome nenhum.
+        /// </summary>
         private List<TfsAttachmentService.TfsAttachmentInfo> CardListed(
             List<TfsAttachmentService.TfsAttachmentInfo> all)
         {
             if (CardDocsOnlyCheck?.IsChecked != true) return all;
-            return all.Where(a => CardDocExtensions.Contains(System.IO.Path.GetExtension(a.Name))).ToList();
+            return all.OrderBy(a => _cardDocExtensions.Contains(System.IO.Path.GetExtension(a.Name)) ? 0 : 1)
+                      .ToList();
         }
 
         private async Task OpenAttachmentAsync(TfsAttachmentService.TfsAttachmentInfo attachment)

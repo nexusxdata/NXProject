@@ -1049,8 +1049,10 @@
     <sys:String x:Key="Sprint_AutoOpen">Open on NX startup</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Automatically opens the TaskBoard when NX starts (ideal for the developer profile).</sys:String>
     <sys:String x:Key="Sprint_PersonOrderHelp">Order in this view: Person → Work Item Project rank → EPIC rank → Feature rank → Story rank → Task priority → Task rank. Ranks are the DevOps backlog order (StackRank); an item with no rank goes last within its level. Priority orders the Tasks inside the Story, keeping Feature and Story blocks whole.</sys:String>
-    <sys:String x:Key="Sprint_CardDocsOnly">On the card, list only PDF, Word and Excel</sys:String>
-    <sys:String x:Key="Sprint_CardDocsOnlyTip">The card lists by name only document attachments (PDF, Word, Excel). Everything else — images, zip, executables — goes into the "see in edit" counter, where the full list is still available. Clear it to list every attachment on the card.</sys:String>
+    <sys:String x:Key="Sprint_CardDocExts">Document extensions:</sys:String>
+    <sys:String x:Key="Sprint_CardDocExtsTip">Extensions treated as documents, separated by commas (e.g. pdf, docx, xlsx, png). With the option above checked, an attachment of these types is shown first on the card. Leave empty to restore the default.</sys:String>
+    <sys:String x:Key="Sprint_CardDocsOnly">On the card, show a document first (PDF, Word, Excel)</sys:String>
+    <sys:String x:Key="Sprint_CardDocsOnlyTip">The card shows a single attachment. When checked, a PDF, Word or Excel file is shown if the Task has one; otherwise the first attachment is shown (an image, for example). The rest stay behind the "see all in edit" link.</sys:String>
     <sys:String x:Key="Sprint_FieldCache">Cache TFS field lookup</sys:String>
     <sys:String x:Key="Sprint_FieldCacheTip">Remembers which DevOps fields match the planned start date and the target date, saving a few seconds when opening. The cache lasts for the day: the first open of each day asks DevOps again, and it is also dropped whenever DevOps rejects the field. Clear it to always ask DevOps.</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Select one or more sprints</sys:String>

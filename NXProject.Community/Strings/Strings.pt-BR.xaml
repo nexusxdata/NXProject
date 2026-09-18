@@ -2030,8 +2030,10 @@
     <sys:String x:Key="Sprint_AutoOpen">Abrir ao iniciar o NX</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Abre o TaskBoard automaticamente quando o NX iniciar (ideal para o perfil desenvolvedor).</sys:String>
     <sys:String x:Key="Sprint_PersonOrderHelp">Ordem desta visão: Pessoa → rank do Work Item Project → rank do EPIC → rank da Feature → rank da Story → prioridade da Task → rank da Task. Os ranks são a ordem do backlog no DevOps (StackRank); item sem rank vai para o fim do seu nível. A prioridade ordena as Tasks dentro da Story, mantendo os blocos de Feature e Story inteiros.</sys:String>
-    <sys:String x:Key="Sprint_CardDocsOnly">No card, listar só PDF, Word e Excel</sys:String>
-    <sys:String x:Key="Sprint_CardDocsOnlyTip">O card lista pelo nome só os anexos de documento (PDF, Word, Excel). Os demais — imagem, zip, executável — entram no contador "ver na edição", onde a lista completa continua disponível. Desmarque para listar todos os anexos no card.</sys:String>
+    <sys:String x:Key="Sprint_CardDocExts">Extensões de documento:</sys:String>
+    <sys:String x:Key="Sprint_CardDocExtsTip">Extensões que contam como documento, separadas por vírgula (ex.: pdf, docx, xlsx, png). Com a opção acima marcada, um anexo destes tipos aparece primeiro no card. Deixe vazio para voltar ao padrão.</sys:String>
+    <sys:String x:Key="Sprint_CardDocsOnly">No card, mostrar documento primeiro (PDF, Word, Excel)</sys:String>
+    <sys:String x:Key="Sprint_CardDocsOnlyTip">O card mostra um anexo só. Marcado, se a Task tiver algum PDF, Word ou Excel, é ele que aparece; sem documento, aparece o primeiro anexo que houver (uma imagem, por exemplo). Os demais ficam no link "ver todos na edição".</sys:String>
     <sys:String x:Key="Sprint_FieldCache">Ler campos do TFS em cache</sys:String>
     <sys:String x:Key="Sprint_FieldCacheTip">Guarda quais campos do DevOps correspondem à Data Início Prevista e à Data Alvo, acelerando a abertura em alguns segundos. O cache vale pelo dia: a primeira abertura de cada dia consulta o DevOps de novo, e ele também é descartado se o DevOps recusar o campo. Desmarque para consultar o DevOps sempre.</sys:String>
     <sys:String x:Key="Sprint_MultiTip">Selecionar uma ou várias sprints</sys:String>

@@ -295,6 +295,15 @@
                         <CheckBox x:Name="CardDocsOnlyCheck" Click="OnCardDocsOnlyChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_CardDocsOnly}"
                                   ToolTip="{DynamicResource Sprint_CardDocsOnlyTip}"/>
+                        <!-- Quais extensoes contam como "documento" (vem na frente no card). Lista
+                             separada por virgula; vale ao sair do campo ou com Enter. -->
+                        <StackPanel Orientation="Horizontal" Margin="28,0,0,2">
+                            <TextBlock Text="{DynamicResource Sprint_CardDocExts}" VerticalAlignment="Center"
+                                       FontSize="11" Foreground="#555"/>
+                            <TextBox x:Name="CardDocExtsBox" Width="190" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     LostFocus="OnCardDocExtsChanged" KeyDown="OnCardDocExtsKeyDown"
+                                     ToolTip="{DynamicResource Sprint_CardDocExtsTip}"/>
+                        </StackPanel>
 
                         <!-- Aplicar: fecha a configuracao e redesenha, como nos demais filtros.
                              As opcoes acima ja valem na hora em que sao marcadas; este botao e o
