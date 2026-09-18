@@ -165,11 +165,40 @@ public static class UpdateService
         return remoteAssetUpdatedAt > knownTimestamp.Value;
     }
 
-    /// <summary>Le a data do NXProject-Setup.zip que era o mais recente quando este
-    /// build do NXProject.Community foi gerado (arquivo embutido em tempo de release).
-    /// Retorna null se o build nao tiver essa informacao (ex.: build local de desenvolvimento).</summary>
+    /// <summary>Nome do carimbo que o Setup deixa NA PASTA DE INSTALACAO.</summary>
+    public const string InstalledSetupStampFileName = "setup-build-timestamp.txt";
+
+    /// <summary>
+    /// Carimbo do Setup que ESTA INSTALADO nesta maquina. O Setup copia esse arquivo junto com a
+    /// base, entao ele diz qual base o usuario realmente tem — diferente do recurso embutido, que
+    /// so diz qual Setup era o atual quando ESTE build do Community foi gerado.
+    /// Null quando nao existe (instalacao antiga, ou app rodando fora da pasta instalada).
+    /// </summary>
+    private static DateTimeOffset? GetInstalledSetupTimestamp()
+    {
+        try
+        {
+            var file = Path.Combine(AppContext.BaseDirectory, InstalledSetupStampFileName);
+            if (!File.Exists(file)) return null;
+            var text = File.ReadAllText(file).Trim();
+            return DateTimeOffset.TryParse(text, out var dt) ? dt : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Baseline para decidir se a base precisa ser reinstalada.
+    ///
+    /// Vale o carimbo do Setup INSTALADO na maquina; o recurso embutido no build e so o plano B.
+    /// A ordem importa: atualizar apenas o app (Release.zip) troca o binario e, com ele, o recurso
+    /// embutido — a maquina passaria a "achar" que tem uma base mais nova do que realmente tem e
+    /// nunca mais seria avisada da atualizacao de base. Lendo o arquivo deixado pelo Setup, a
+    /// comparacao passa a ser o que ESTA instalado contra o que ESTA publicado.
+    /// </summary>
     private static DateTimeOffset? GetKnownSetupTimestamp()
     {
+        if (GetInstalledSetupTimestamp() is { } installed) return installed;
+
         var asm = Assembly.GetExecutingAssembly();
         var resourceName = asm.GetManifestResourceNames()
             .FirstOrDefault(n => n.EndsWith("known-setup-timestamp.txt", StringComparison.OrdinalIgnoreCase));

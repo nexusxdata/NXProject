@@ -281,6 +281,11 @@
                         <!-- Preferência da tela (não filtra nada) -->
                         <TextBlock Text="{DynamicResource Sprint_GroupPrefs}" FontSize="10" FontWeight="SemiBold"
                                    Foreground="#6B7A8A" Margin="0,0,0,2"/>
+                        <!-- Ver Resumo: desmarcado, o resumo por estado nunca aparece e a altura fica
+                             para os cards. Vale so para esta sessao: o board sempre abre com ele. -->
+                        <CheckBox x:Name="ShowSummaryCheck" IsChecked="True" Click="OnShowSummaryChanged" Margin="8,2,0,2"
+                                  Content="{DynamicResource Sprint_ShowSummary}"
+                                  ToolTip="{DynamicResource Sprint_ShowSummaryTip}"/>
                         <CheckBox x:Name="AutoOpenCheck" Click="OnAutoOpenChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_AutoOpen}"
                                   ToolTip="{DynamicResource Sprint_AutoOpenTip}"/>

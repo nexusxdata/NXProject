@@ -240,7 +240,9 @@ namespace NXProject.Views
         private readonly Dictionary<int, string> _titleApplied = new();
         // Anexos do TFS enviados pelo botão do card. A UI só guarda o nome do arquivo; o real
         // fica no Azure DevOps e o id do attachment pode ser usado para download futuro.
-        private readonly Dictionary<int, TfsAttachmentService.TfsAttachmentInfo> _attachments = new();
+        // Anexos enviados NESTA sessao, por Task — todos, nao so o ultimo: antes um segundo envio
+        // substituia o primeiro no card ate a recarga, e parecia que so cabia um arquivo.
+        private readonly Dictionary<int, List<TfsAttachmentService.TfsAttachmentInfo>> _attachments = new();
         /// <summary>Urls de anexos excluidos nesta sessao: somem do card sem esperar o reload.</summary>
         private readonly HashSet<string> _removedAttachmentUrls = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Anexos marcados para excluir: so vao ao DevOps no "Atualizar TFS".</summary>
@@ -271,7 +273,7 @@ namespace NXProject.Views
         /// escolhe-se a Story destino pelo menu de contexto dela. Vale so para a sessao; nao e
         /// alteracao pendente ate o "mover para esta Story" ser confirmado.
         /// </summary>
-        private int _moveTaskId;
+        private readonly List<int> _moveTaskIds = new();
 
         /// <summary>
         /// Itens recolhidos (Work Item Project, EPIC, Feature ou Story): o card do proprio item
@@ -840,7 +842,7 @@ namespace NXProject.Views
                 _featureApplied.Clear();
                 _taskParentPending.Clear();
                 _taskParentApplied.Clear();
-                _moveTaskId = 0;
+                _moveTaskIds.Clear();
                 _startPending.Clear(); _startApplied.Clear();
                 _finishPending.Clear(); _finishApplied.Clear();
                 _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
@@ -1302,10 +1304,52 @@ namespace NXProject.Views
         {
             PersonFilterList.Children.Clear();
             foreach (var p in people)
-                PersonFilterList.Children.Add(new CheckBox { Content = p, Tag = p,
-                    IsChecked = _selectedPeople.Contains(p), Margin = new Thickness(0, 1, 0, 1) });
+            {
+                var cb = new CheckBox { Content = p, Tag = p,
+                    IsChecked = _selectedPeople.Contains(p), Margin = new Thickness(0, 1, 0, 1),
+                    ToolTip = AppStrings.Get("Sprint_PersonCtrlClickTip") };
+                // Ctrl+clique NAO marca/desmarca: so leva a lista ate a faixa dessa pessoa.
+                cb.PreviewMouseLeftButtonDown += (s, ev) =>
+                {
+                    if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0) return;
+                    ev.Handled = true;
+                    PersonFilterToggle.IsChecked = false;          // fecha o popup para ver o board
+                    ScrollToPerson(p);
+                };
+                PersonFilterList.Children.Add(cb);
+            }
             ApplyPersonSearch();
             UpdatePersonToggleText();
+        }
+
+        /// <summary>
+        /// Rola o board ate a faixa da pessoa, deixando-a no TOPO. Nao mexe em filtro nenhum: e so
+        /// navegacao, para nao ter que procurar a pessoa descendo a lista.
+        /// </summary>
+        private void ScrollToPerson(string person)
+        {
+            // Espera o popup fechar e o layout assentar, senao a posicao vem desatualizada.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_personCellByKey.TryGetValue(person, out var cell) || !cell.IsVisible)
+                {
+                    // Tres motivos diferentes, cada um com a sua mensagem: a visao nao tem faixa
+                    // de pessoa, a pessoa esta fora do filtro, ou esta no filtro mas sem card.
+                    StatusText.Text = ViewPersonBtn.IsChecked != true
+                        ? AppStrings.Get("Sprint_PersonNotPersonView")
+                        : _selectedPeople.Count > 0 && !_selectedPeople.Contains(person)
+                            ? AppStrings.Get("Sprint_PersonOutOfFilter", person)
+                            : AppStrings.Get("Sprint_PersonNoCards", person);
+                    return;
+                }
+                try
+                {
+                    var y = cell.TransformToAncestor(BoardHost).Transform(new Point(0, 0)).Y;
+                    BoardScroll.ScrollToVerticalOffset(Math.Max(0, y - 4));
+                    StatusText.Text = "";
+                }
+                catch (InvalidOperationException) { /* celula fora da arvore visual: ignora */ }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         /// <summary>
@@ -1825,7 +1869,7 @@ namespace NXProject.Views
             _blockPending.Clear(); _unplannedPending.Clear();
             _featurePending.Clear();
             _taskParentPending.Clear();
-            _moveTaskId = 0;
+            _moveTaskIds.Clear();
             _startPending.Clear();
             _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
             // O "Reverter" desfaz PENDENCIAS; o que ja foi gravado continua valendo na tela.
@@ -1996,7 +2040,12 @@ namespace NXProject.Views
                         }
                     }
                     kv.Value.Remove(att);
-                    if (error == null) { _attachments.Remove(kv.Key); ok++; }
+                    if (error == null)
+                    {
+                        if (_attachments.TryGetValue(kv.Key, out var sent))
+                            sent.RemoveAll(a => string.Equals(a.Url, att.Url, StringComparison.OrdinalIgnoreCase));
+                        ok++;
+                    }
                     else
                     {
                         _removedAttachmentUrls.Remove(att.Url);
@@ -2429,9 +2478,25 @@ namespace NXProject.Views
         private void OnBoardScrollMouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
             => UpdateSummaryVisibility();
 
+        /// <summary>"Ver Resumo": liga/desliga o resumo por estado. Vale so para esta sessao,
+        /// de proposito: o board sempre abre com o resumo, que e o panorama da sprint.</summary>
+        private void OnShowSummaryChanged(object sender, RoutedEventArgs e)
+        {
+            if (SummaryBox == null) return;
+            // Religado: volta a aparecer ja, se a lista estiver no topo (a regra de sempre).
+            SummaryBox.Visibility = Visibility.Collapsed;
+            UpdateSummaryVisibility();
+        }
+
         private void UpdateSummaryVisibility()
         {
             if (SummaryBox == null || BoardScroll == null) return;
+            // "Ver Resumo" desmarcado: o resumo nunca aparece, nem com a lista no topo.
+            if (ShowSummaryCheck?.IsChecked != true)
+            {
+                if (SummaryBox.Visibility != Visibility.Collapsed) SummaryBox.Visibility = Visibility.Collapsed;
+                return;
+            }
             var off = BoardScroll.VerticalOffset;
             if (off > 60 && SummaryBox.Visibility == Visibility.Visible)
                 SummaryBox.Visibility = Visibility.Collapsed;
@@ -3057,6 +3122,7 @@ namespace NXProject.Views
         {
             SummaryHost.Items.Clear();
             BoardHost.Children.Clear();
+            _personCellByKey.Clear();
             HeaderHost.Children.Clear();
             if (_board == null) return;
 
@@ -4080,17 +4146,32 @@ namespace NXProject.Views
         {
             if (t.Id <= 0) return;   // card novo ainda nao existe no DevOps
             var menu = card.ContextMenu ??= new ContextMenu();
-            if (_moveTaskId == t.Id)
+            // Selecao MULTIPLA: cada Task entra ou sai do conjunto; o destino e uma Story so.
+            if (_moveTaskIds.Contains(t.Id))
             {
-                var cancel = new MenuItem { Header = AppStrings.Get("Sprint_MoveCancel") };
-                cancel.Click += (_, _) => { _moveTaskId = 0; Render(); };
-                menu.Items.Add(cancel);
+                var unmark = new MenuItem { Header = AppStrings.Get("Sprint_MoveUnmark") };
+                unmark.Click += (_, _) => { _moveTaskIds.Remove(t.Id); MoveSelectionChanged(); };
+                menu.Items.Add(unmark);
             }
             else
             {
-                var mark = new MenuItem { Header = AppStrings.Get("Sprint_MoveMark") };
-                mark.Click += (_, _) => { _moveTaskId = t.Id; Render(); };
+                var mark = new MenuItem
+                {
+                    Header = _moveTaskIds.Count == 0
+                        ? AppStrings.Get("Sprint_MoveMark")
+                        : AppStrings.Get("Sprint_MoveMarkMore", _moveTaskIds.Count.ToString())
+                };
+                mark.Click += (_, _) => { _moveTaskIds.Add(t.Id); MoveSelectionChanged(); };
                 menu.Items.Add(mark);
+            }
+            if (_moveTaskIds.Count > 0)
+            {
+                var cancel = new MenuItem
+                {
+                    Header = AppStrings.Get("Sprint_MoveCancelAll", _moveTaskIds.Count.ToString())
+                };
+                cancel.Click += (_, _) => { _moveTaskIds.Clear(); MoveSelectionChanged(); };
+                menu.Items.Add(cancel);
             }
             if (_taskParentPending.ContainsKey(t.Id))
             {
@@ -4111,29 +4192,49 @@ namespace NXProject.Views
             // A auditoria de bloqueio vale para toda Story; o destino do "mover Task" so quando ha
             // uma Task marcada — por isso ela entra antes das saidas abaixo.
             AttachBlockAuditMenu(card, storyId);
-            if (_moveTaskId <= 0) return;
-            if (!_cardById.TryGetValue(_moveTaskId, out var moving)) return;
-            if (EffTaskParent(moving) == storyId) return;
+            if (_moveTaskIds.Count == 0) return;
+            // So as que ainda NAO estao nesta Story: marcar uma Task e clicar na propria Story
+            // dela nao pode virar movimento.
+            var movable = _moveTaskIds
+                .Where(id => _cardById.TryGetValue(id, out var c) && EffTaskParent(c) != storyId)
+                .ToList();
+            if (movable.Count == 0) return;
 
             var menu = card.ContextMenu ??= new ContextMenu();
             var apply = new MenuItem
             {
-                Header = AppStrings.Get("Sprint_MoveApply", "#" + _moveTaskId,
-                    EffTitle(_moveTaskId, moving.Title))
+                Header = movable.Count == 1 && _cardById.TryGetValue(movable[0], out var only)
+                    ? AppStrings.Get("Sprint_MoveApply", "#" + movable[0], EffTitle(movable[0], only.Title))
+                    : AppStrings.Get("Sprint_MoveApplyMany", movable.Count.ToString())
             };
-            var taskId = _moveTaskId;
             apply.Click += (_, _) =>
             {
-                // Voltar para o pai original cancela a pendencia em vez de gravar o mesmo valor.
-                var baseParent = _taskParentApplied.TryGetValue(taskId, out var ap) ? ap : (moving.ParentId ?? 0);
-                if (storyId == baseParent) _taskParentPending.Remove(taskId);
-                else _taskParentPending[taskId] = storyId;
-                _moveTaskId = 0;
+                foreach (var taskId in movable)
+                {
+                    if (!_cardById.TryGetValue(taskId, out var moving)) continue;
+                    // Voltar para o pai original cancela a pendencia em vez de gravar o mesmo valor.
+                    var baseParent = _taskParentApplied.TryGetValue(taskId, out var ap) ? ap : (moving.ParentId ?? 0);
+                    if (storyId == baseParent) _taskParentPending.Remove(taskId);
+                    else _taskParentPending[taskId] = storyId;
+                }
+                _moveTaskIds.Clear();
                 UpdatePendingButton();
-                Render();
+                MoveSelectionChanged();
             };
             // O "mover para ca" vai no TOPO: e a acao do momento, a auditoria e consulta.
             menu.Items.Insert(0, apply);
+        }
+
+        /// <summary>
+        /// Redesenha o board e atualiza o contador da selecao de "mover Task" na barra de status —
+        /// com varias Tasks marcadas, espalhadas pelo board, e ali que se ve quantas sao.
+        /// </summary>
+        private void MoveSelectionChanged()
+        {
+            Render();
+            StatusText.Text = _moveTaskIds.Count > 0
+                ? AppStrings.Get("Sprint_MoveSelectionCount", _moveTaskIds.Count.ToString())
+                : "";
         }
 
         /// <summary>Story pai efetiva da Task: pendente -> ja gravada -> a do DevOps.</summary>
@@ -4202,10 +4303,17 @@ namespace NXProject.Views
 
         /// <summary>Celula da pessoa: nome, selo de WIP e alvo de arrasto para trocar o
         /// responsavel da Story. Usada tanto na 1a linha com Task quanto nas Stories sem Task.</summary>
+        /// <summary>Celula do nome de cada pessoa no desenho atual — e o ponto de chegada do
+        /// Ctrl+clique no filtro de pessoas. Refeito a cada Render.</summary>
+        private readonly Dictionary<string, FrameworkElement> _personCellByKey =
+            new(StringComparer.CurrentCultureIgnoreCase);
+
         private UIElement MakePersonCell(string personKey)
         {
             var personCell = new TextBlock { Text = personKey, FontWeight = FontWeights.Bold,
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 2, 4, 2) };
+            // So a PRIMEIRA celula de cada pessoa conta: e o topo da faixa dela.
+            _personCellByKey.TryAdd(personKey, personCell);
             if (EditModeCheck.IsChecked == true)
             {
                 personCell.AllowDrop = true;
@@ -5451,25 +5559,42 @@ namespace NXProject.Views
 
             var dlg = new OpenFileDialog
             {
-                Title = "Selecionar arquivo para anexar à Task",
+                Title = "Selecionar arquivo(s) para anexar à Task",
                 Filter = "Todos os arquivos|*.*",
-                Multiselect = false
+                Multiselect = true
             };
 
             if (dlg.ShowDialog(this) != true)
                 return;
 
-            try
+            // Um arquivo por vez: se um falhar, os outros seguem, e no fim a mensagem diz
+            // exatamente quais entraram e quais nao.
+            var sentNames = new List<string>();
+            var failed = new List<string>();
+            if (!_attachments.TryGetValue(taskId, out var list))
+                _attachments[taskId] = list = new List<TfsAttachmentService.TfsAttachmentInfo>();
+            foreach (var file in dlg.FileNames)
             {
-                var info = await TfsAttachmentService.UploadAttachmentAsync(_options, taskId, dlg.FileName);
-                _attachments[taskId] = info;
-                StatusText.Text = $"Anexo enviado: {info.Name}";
-                Render();
+                try
+                {
+                    StatusText.Text = $"Enviando anexo {sentNames.Count + failed.Count + 1} de {dlg.FileNames.Length}: {System.IO.Path.GetFileName(file)}…";
+                    var info = await TfsAttachmentService.UploadAttachmentAsync(_options, taskId, file);
+                    list.Add(info);
+                    sentNames.Add(info.Name);
+                }
+                catch (Exception ex)
+                {
+                    failed.Add($"{System.IO.Path.GetFileName(file)}: {ex.Message}");
+                }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, $"Falha ao anexar arquivo no Azure DevOps:\n\n{ex.Message}", "Anexo", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            StatusText.Text = sentNames.Count == 0 ? "" :
+                sentNames.Count == 1 ? $"Anexo enviado: {sentNames[0]}"
+                                     : $"{sentNames.Count} anexos enviados: {string.Join(", ", sentNames)}";
+            Render();
+            if (failed.Count > 0)
+                MessageBox.Show(this,
+                    $"Falha ao anexar {failed.Count} arquivo(s) no Azure DevOps:\n\n{string.Join("\n", failed)}",
+                    "Anexo", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         /// <summary>
@@ -5493,10 +5618,11 @@ namespace NXProject.Views
                 .Where(a => !string.IsNullOrWhiteSpace(a.Name)
                             && !TfsAttachmentService.IsInlineImageAttachment(a.Name)
                             && !_removedAttachmentUrls.Contains(a.Url)).ToList();
-            if (_attachments.TryGetValue(t.Id, out var justSent)
-                && !_removedAttachmentUrls.Contains(justSent.Url)
-                && !list.Any(a => string.Equals(a.Url, justSent.Url, StringComparison.OrdinalIgnoreCase)))
-                list.Add(justSent);
+            if (_attachments.TryGetValue(t.Id, out var justSent))
+                foreach (var sent in justSent)
+                    if (!_removedAttachmentUrls.Contains(sent.Url)
+                        && !list.Any(a => string.Equals(a.Url, sent.Url, StringComparison.OrdinalIgnoreCase)))
+                        list.Add(sent);
             return list;
         }
 
@@ -5529,7 +5655,8 @@ namespace NXProject.Views
         }
 
         /// <summary>Ate este numero os anexos aparecem no card; acima, so um resumo (lista na edicao).</summary>
-        private const int MaxAttachmentsOnCard = 2;
+        // Um anexo so no card: o resto fica na edicao, atras do link "+N". Card enxuto.
+        private const int MaxAttachmentsOnCard = 1;
 
         /// <summary>Anexo de documento: o que vale a pena ler pelo nome no card.</summary>
         private static readonly HashSet<string> CardDocExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -5718,49 +5845,11 @@ namespace NXProject.Views
             // chega na lista do DevOps no proximo reload). Sem repetir o mesmo arquivo.
             var allAttachments = AttachmentsOf(t);
             var cardAttachments = CardListed(allAttachments);
-            // Anexo que existe mas nao entra na lista do card (imagem, zip, etc.): vira contador.
-            var notListed = allAttachments.Count - cardAttachments.Count;
-            if (cardAttachments.Count > MaxAttachmentsOnCard)
-            {
-                // Muitos anexos esticariam o card: fica um resumo, e a lista completa esta na edicao.
-                var summary = new TextBlock
-                {
-                    Text = $"📎 {allAttachments.Count} anexos — ver na edição",
-                    FontSize = 10, TextDecorations = TextDecorations.Underline,
-                    Cursor = System.Windows.Input.Cursors.Hand,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
-                    Margin = new Thickness(0, 2, 0, 0),
-                    ToolTip = string.Join(Environment.NewLine, allAttachments.Select(a => a.Name))
-                };
-                summary.MouseLeftButtonUp += async (_, ev) =>
-                {
-                    ev.Handled = true;
-                    await EditDescriptionAsync(t.Id, t.Title, t.AssignedTo ?? "", "Task", t.IterationPath);
-                };
-                sp.Children.Add(summary);
-                cardAttachments.Clear();   // nao lista um por um
-                notListed = 0;             // o resumo ja cobre todos
-            }
-            if (notListed > 0)
-            {
-                // Nao lista nome de imagem/zip no card: so avisa que existe e leva para a edicao.
-                var more = new TextBlock
-                {
-                    Text = $"📎 +{notListed} anexo(s) — ver na edição",
-                    FontSize = 10, TextDecorations = TextDecorations.Underline,
-                    Cursor = System.Windows.Input.Cursors.Hand,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
-                    Margin = new Thickness(0, 2, 0, 0),
-                    ToolTip = string.Join(Environment.NewLine,
-                        allAttachments.Except(cardAttachments).Select(a => a.Name))
-                };
-                more.MouseLeftButtonUp += async (_, ev) =>
-                {
-                    ev.Handled = true;
-                    await EditDescriptionAsync(t.Id, t.Title, t.AssignedTo ?? "", "Task", t.IterationPath);
-                };
-                sp.Children.Add(more);
-            }
+            // Card mostra UM anexo (o primeiro listavel). Todo o resto — outros documentos e o que
+            // nao se lista no card, como imagem ou zip — vira um "+N", que abre a edicao com a
+            // lista completa.
+            cardAttachments = cardAttachments.Take(MaxAttachmentsOnCard).ToList();
+            var moreCount = allAttachments.Count - cardAttachments.Count;
             foreach (var attachment in cardAttachments)
             {
                 // Nome clicavel: baixa do DevOps e abre (tipos seguros) ou so salva (o resto).
@@ -5790,6 +5879,27 @@ namespace NXProject.Views
                 attachLink.ContextMenu = attMenu;
                 attachLink.ToolTip = "Clique para baixar do Azure DevOps \u00B7 bot\u00E3o direito para excluir";
                 sp.Children.Add(attachLink);
+            }
+            if (moreCount > 0)
+            {
+                // Logo abaixo do anexo mostrado: "+N" com os nomes no hint, e o clique abre a edicao.
+                var more = new TextBlock
+                {
+                    Text = cardAttachments.Count == 0
+                        ? $"📎 {moreCount} anexo(s) — ver na edição"
+                        : $"📎 +{moreCount} — ver todos na edição",
+                    FontSize = 10, TextDecorations = TextDecorations.Underline,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x1F, 0x4E, 0x79)),
+                    Margin = new Thickness(0, 2, 0, 0),
+                    ToolTip = string.Join(Environment.NewLine, allAttachments.Select(a => a.Name))
+                };
+                more.MouseLeftButtonUp += async (_, ev) =>
+                {
+                    ev.Handled = true;
+                    await EditDescriptionAsync(t.Id, t.Title, t.AssignedTo ?? "", "Task", t.IterationPath);
+                };
+                sp.Children.Add(more);
             }
 
             // HH Estimado (e Realizado quando encerrada).
@@ -6019,13 +6129,14 @@ namespace NXProject.Views
             }
             // Mover de Story: marcada (aguardando destino) ou ja com destino na fila.
             AttachTaskMoveMenu(border, t);
-            if (_moveTaskId == t.Id)
+            if (_moveTaskIds.IndexOf(t.Id) is var movePos and >= 0)
             {
                 border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x7A, 0x3D, 0xB8));
                 border.BorderThickness = new Thickness(2);
                 sp.Children.Insert(0, new TextBlock
                 {
-                    Text = AppStrings.Get("Sprint_MoveMarked"), FontSize = 10, FontWeight = FontWeights.SemiBold,
+                    Text = AppStrings.Get("Sprint_MoveMarked", (movePos + 1).ToString(), _moveTaskIds.Count.ToString()),
+                    FontSize = 10, FontWeight = FontWeights.SemiBold,
                     Foreground = new SolidColorBrush(Color.FromRgb(0x7A, 0x3D, 0xB8)), TextWrapping = TextWrapping.Wrap
                 });
             }
