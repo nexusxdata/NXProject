@@ -60,6 +60,10 @@ namespace NXProject.Views
             public string CompletedHours { get; init; } = "";
             public string StartDate { get; init; } = "";
             public string FinishDate { get; init; } = "";
+            /// <summary>Desde quando o item esta no estado atual (data ja formatada).</summary>
+            public string StateSince { get; init; } = "";
+            /// <summary>Data e hora completas da mudanca de estado — vai no hint da celula.</summary>
+            public string StateSinceFull { get; init; } = "";
             /// <summary>Sprint (ultimo trecho do IterationPath).</summary>
             public string Sprint { get; init; } = "";
             /// <summary>Caminho completo da iteracao — o board precisa dele para carregar a sprint.</summary>
@@ -177,6 +181,8 @@ namespace NXProject.Views
                         CompletedHours = r.CompletedHours is double ch ? ch.ToString("0.##") : "",
                         StartDate  = r.StartDate?.ToString("dd/MM/yyyy") ?? "",
                         FinishDate = r.FinishDate?.ToString("dd/MM/yyyy") ?? "",
+                        StateSince = r.StateChangeDate?.ToString("dd/MM/yyyy") ?? "",
+                        StateSinceFull = r.StateChangeDate?.ToString("dd/MM/yyyy HH:mm") ?? "",
                         Sprint     = r.SprintName,
                         IterationPath = r.IterationPath,
                         Tags        = r.Tags,

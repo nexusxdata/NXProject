@@ -1104,6 +1104,10 @@ namespace NXProject.Views
                      "• Prioridade da Task é editável direto no card (picklist)."),
                     ("Fechar exige HH Realizado",
                      "Ao arrastar um card para Closed, aparece um campo HH Realizado direto no card, já sugerindo o HH Estimado como padrão (quando ainda não há realizado). O Salvar TFS não fecha a Task sem o HH Realizado preenchido."),
+                    ("Auditoria de BLOCK (tempo de impedimento)",
+                     "Botão direito no card da Story ou da Task e escolha a Auditoria de BLOCK. A tela lê o histórico do Azure DevOps NA HORA (nada é armazenado no NXProject) e mostra: desde quando o item está em andamento, cada bloqueio com início, fim, duração e quem bloqueou/liberou, e no rodapé o TEMPO IMPEDIDO contra o TEMPO ÚTIL da atividade — o número que ajuda a decidir entre trocar de atividade ou tratar a causa raiz. Bloqueio ainda aberto aparece em vermelho e continua contando.\n\n" +
+                     "Ao bloquear e ao desbloquear, o NXProject grava um trâmite no próprio work item dizendo quem fez — o motivo fica visível no DevOps, inclusive para quem não usa o NX.\n\n" +
+                     "OPCIONAL: se o seu processo tiver um campo numérico para a duração do impedimento (padrão block_duration_hours), habilite-o em Configurar Azure DevOps → Campos avançados. Com ele, o card da Task ganha um atalho para a auditoria assim que o item acumula impedimento. Sem o campo — que é o padrão — tudo continua funcionando e a auditoria segue no botão direito."),
                     ("Bloquear, criar e excluir",
                      "• Bloquear/desbloquear (tag 'Blocked' do board): botão 🔒/🔓 no card de Task e opção no editor da Story — o card bloqueado fica com borda vermelha. Entra na fila do Salvar TFS.\n" +
                      "• Criar Story/Task novas direto no card (com Sprint quando há várias selecionadas).\n" +
@@ -1991,6 +1995,10 @@ namespace NXProject.Views
                      "• Task priority is editable right on the card (picklist)."),
                     ("Closing requires Completed hours",
                      "When you drag a card to Closed, a Completed hours field appears on the card, pre-filled with the Estimated hours as default (when there are none yet). Save TFS won't close a Task without Completed hours."),
+                    ("BLOCK audit (impediment time)",
+                     "Right-click a Story or Task card and pick the BLOCK audit. The window reads the Azure DevOps history LIVE (nothing is stored in NXProject) and shows: since when the item has been in progress, every block with start, end, duration and who blocked/released it, and at the bottom the BLOCKED TIME against the USEFUL TIME of the activity — the number that helps you decide between switching activities or tackling the root cause. A block that is still open shows in red and keeps counting.\n\n" +
+                     "On block and unblock, NXProject writes a comment on the work item saying who did it — the reason stays visible in DevOps, even for people who do not use NX.\n\n" +
+                     "OPTIONAL: if your process has a numeric field for the impediment duration (default block_duration_hours), enable it under Configure Azure DevOps → Advanced fields. With it, the Task card gets a shortcut to the audit as soon as the item accumulates impediment. Without the field — the default — everything still works and the audit stays on the right-click menu."),
                     ("Block, create and delete",
                      "• Block/unblock (board 'Blocked' tag): 🔒/🔓 button on the Task card and an option in the Story editor — a blocked card gets a red border. It enters the Save TFS queue.\n" +
                      "• Create new Story/Task right in the card (with Sprint when several are selected).\n" +

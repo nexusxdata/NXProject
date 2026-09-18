@@ -214,6 +214,30 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- Duracao do impedimento (opcional): campo numerico com o total de horas
+                         que o item ficou com a tag de bloqueio. Sem o campo no processo do DevOps,
+                         deixe desmarcado: o bloqueio segue funcionando so com tag e tramite. -->
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Bottom">
+                            <CheckBox x:Name="BlockDurationFieldEnabledBox"
+                                      Content="{DynamicResource Cfg_BlockDurationEnable}"
+                                      ToolTip="{DynamicResource Cfg_BlockDurationTip}"
+                                      FontSize="11" Margin="0,0,0,6"
+                                      Checked="OnBlockDurationFieldEnabledChanged"
+                                      Unchecked="OnBlockDurationFieldEnabledChanged"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Cfg_BlockDurationField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                            <TextBox x:Name="BlockDurationFieldBox" Height="26" Padding="6,3" IsEnabled="False"
+                                     ToolTip="{DynamicResource Cfg_BlockDurationTip}"/>
+                        </StackPanel>
+                    </Grid>
+
                     <!-- Grupo administrador do NX (opcional): membros do grupo podem sincronizar -->
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
@@ -365,6 +389,15 @@
                         <Button Content="{DynamicResource Cfg_AddField}" HorizontalAlignment="Left" Padding="8,4"
                                 Margin="0,4,0,0" Click="OnAddExtraField"/>
                     </StackPanel>
+                    <!-- Detectar no DevOps quais campos existem em cada tipo de work item -->
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="DetectFieldsButton" Content="{DynamicResource Cfg_DetectFields}"
+                                Height="28" Padding="12,0" Click="OnDetectFieldsClick"
+                                ToolTip="{DynamicResource Cfg_DetectFieldsTip}"/>
+                        <TextBlock x:Name="DetectFieldsStatus" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   FontSize="11" Foreground="#666" TextWrapping="Wrap"/>
+                    </StackPanel>
+
                     <!-- Campos de classificação por tipo DevOps -->
                     <StackPanel Margin="0,14,0,0">
                         <TextBlock Text="{DynamicResource Cfg_ClassSection}" FontSize="11" FontWeight="SemiBold" Foreground="#444" Margin="0,0,0,4"/>

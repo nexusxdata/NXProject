@@ -67,7 +67,9 @@ Today NXProject turns Azure DevOps data into a management view of planning and e
 
 **First time installing?** Download and run the Setup — it installs the .NET runtime, third-party libraries and a Desktop shortcut, then automatically fetches the latest NXProject version:
 
-- [Download NXProject-Setup.zip](../../releases/latest/download/NXProject-Setup.zip)
+- [Download NXProject-Setup.zip](../../releases/download/nxsetup-latest/NXProject-Setup.zip)
+
+  The Setup lives in its own fixed release, [`nxsetup-latest`](../../releases/tag/nxsetup-latest), and is republished only when the installer base itself changes — not on every NXProject version.
 
 **Already installed?** Just grab the small update package and extract it over your existing installation:
 
@@ -268,6 +270,15 @@ The **Task** uses only **standard** Azure DevOps fields, which already exist on 
 | Assigned To / State / Activity | `System.AssignedTo` / `System.State` / `Microsoft.VSTS.Common.Activity` | — |
 
 > **`Approved` field (optional, Task only).** If your process has a boolean `Approved` field (`Custom.Approved`) on the Task, NXProject reads and writes the Task approval. Enabled by default; ignored if the Task lacks the field. Configurable under **Advanced fields**.
+
+> **`block_duration_hours` field (optional, Task).** A numeric field that stores **how many hours the
+> item was impeded** (blocked with the BLOCK tag), always in whole hours — under one hour becomes `0`.
+> NXProject recalculates the total from the DevOps history when you unblock, and the Task card shows a
+> ⏱ shortcut to the **BLOCK audit** when the value is greater than zero.
+> **Disabled by default and entirely optional**: leave the checkbox off — under **Advanced fields** —
+> and NXProject never writes to it. Blocking keeps working with the tag plus a comment, and the BLOCK
+> audit (right-click on a Story or Task card) still reads the full history online, with or without this
+> field. Nothing in the process template is required.
 
 > Dates, `Perc_Alocacao`, `EPIC_TYPE`, `Tipo_Centro_Custo` and `Sync_version`/`Sync_Name` do **not** apply to Tasks — planning (dates and duration) is derived from the parent Story.
 

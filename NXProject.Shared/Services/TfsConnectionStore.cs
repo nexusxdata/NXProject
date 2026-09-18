@@ -157,6 +157,21 @@ namespace NXProject.Services
         /// <summary>Tag que marca a Story/Task como BLOQUEADA no DevOps.</summary>
         public string BlockedTagName { get; set; } = "BLOCK";
 
+        /// <summary>
+        /// Habilita gravar no DevOps quanto tempo o item ficou impedido (campo
+        /// <see cref="BlockDurationFieldName"/>). DESLIGADO por padrão: o campo é opcional e
+        /// precisa existir no processo do DevOps. Desligado, o bloqueio funciona como sempre —
+        /// tag + trâmite — e nada é gravado nesse campo.
+        /// </summary>
+        public bool BlockDurationFieldEnabled { get; set; }
+
+        /// <summary>
+        /// Nome (ou reference name) do campo numérico que recebe o tempo TOTAL de impedimento do
+        /// item, em horas inteiras — ex.: "block_duration_hours" ou "Custom.block_duration_hours".
+        /// Só é usado com <see cref="BlockDurationFieldEnabled"/> ligado.
+        /// </summary>
+        public string BlockDurationFieldName { get; set; } = "block_duration_hours";
+
         /// <summary>Sincroniza links de predecessora no DevOps durante Export → Sincronizar.</summary>
         public bool SyncPredecessorLinks { get; set; } = true;
 
@@ -309,6 +324,8 @@ namespace NXProject.Services
         /// <summary>Tag que marca a Story/Task como BLOQUEADA no DevOps.</summary>
         public string BlockedTagName { get; set; } = "BLOCK";
 
+            public bool   BlockDurationFieldEnabled { get; set; }
+            public string BlockDurationFieldName { get; set; } = "block_duration_hours";
             public bool   ApprovedFieldEnabled { get; set; } = true;
             public string ApprovedFieldName { get; set; } = "Approved";
             public bool   EpicTypeFieldEnabled { get; set; } = true;
@@ -390,6 +407,9 @@ namespace NXProject.Services
                 // O cronograma lê a tag de bloqueio por um ponto estático (ViewModels não têm
                 // as opções em mãos) — mantém os dois lados com o mesmo nome.
                 TfsImportService.BlockTagName = options.BlockedTagName;
+                options.BlockDurationFieldEnabled = stored.BlockDurationFieldEnabled;
+                options.BlockDurationFieldName = string.IsNullOrWhiteSpace(stored.BlockDurationFieldName)
+                    ? options.BlockDurationFieldName : stored.BlockDurationFieldName.Trim();
                 options.ApprovedFieldEnabled = stored.ApprovedFieldEnabled;
                 options.ApprovedFieldName = string.IsNullOrWhiteSpace(stored.ApprovedFieldName)
                     ? options.ApprovedFieldName : stored.ApprovedFieldName.Trim();
@@ -452,6 +472,9 @@ namespace NXProject.Services
                 UnplannedTagName = string.IsNullOrWhiteSpace(options.UnplannedTagName) ? "NP" : options.UnplannedTagName.Trim(),
                 WipTagName = string.IsNullOrWhiteSpace(options.WipTagName) ? "WIP" : options.WipTagName.Trim(),
                 BlockedTagName = string.IsNullOrWhiteSpace(options.BlockedTagName) ? "BLOCK" : options.BlockedTagName.Trim(),
+                BlockDurationFieldEnabled = options.BlockDurationFieldEnabled,
+                BlockDurationFieldName = string.IsNullOrWhiteSpace(options.BlockDurationFieldName)
+                    ? "block_duration_hours" : options.BlockDurationFieldName.Trim(),
                 ApprovedFieldEnabled = options.ApprovedFieldEnabled,
                 ApprovedFieldName = string.IsNullOrWhiteSpace(options.ApprovedFieldName) ? "Approved" : options.ApprovedFieldName.Trim(),
                 EpicTypeFieldEnabled = options.EpicTypeFieldEnabled,

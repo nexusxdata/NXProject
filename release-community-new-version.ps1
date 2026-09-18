@@ -286,6 +286,8 @@ Set-ProjectVersion $ProjectFile $NewVersion
 # A release do Community NAO recarimba esse valor — so cria a tag. Isso evita que
 # cada release faca o UpdateService achar que o Setup mudou (falso positivo).
 $KnownSetupTimestampPath = Join-Path $SolutionDir "NXProject.Community\Assets\known-setup-timestamp.txt"
+# Tag FIXA da release do Setup (a mesma constante de UpdateService.SetupReleaseTag).
+$SetupReleaseTag = "nxsetup-latest"
 if (Test-Path $KnownSetupTimestampPath) {
     $embeddedSetupStamp = (Get-Content -Path $KnownSetupTimestampPath -Raw).Trim()
     Write-Host "  Timestamp intrinseco do Setup (preservado): $embeddedSetupStamp" -ForegroundColor DarkGray
@@ -515,31 +517,19 @@ if (-not $ghAvailable) {
         Write-Host "Release $tag publicada com sucesso no GitHub!" -ForegroundColor Green
         Write-Host "  https://github.com/nexusxdata/NXProject/releases/tag/$tag" -ForegroundColor DarkGray
 
-        # Reaproveita o NXProject-Setup.zip ja gerado (nao muda a cada release do
-        # Community) e sobe na mesma tag, para aparecer junto na mesma release.
-        $SetupZipPath = Join-Path $SolutionDir "dist\setup\NXProject-Setup.zip"
-        if (Test-Path $SetupZipPath) {
-            Write-Step "Publicando NXProject-Setup.zip na mesma release $tag..."
-            gh release upload $tag $SetupZipPath --repo nexusxdata/NXProject --clobber
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "  NXProject-Setup.zip publicado junto na release $tag." -ForegroundColor Green
-            } else {
-                Write-Host "  Aviso: falha ao publicar NXProject-Setup.zip na release." -ForegroundColor Yellow
-            }
-
-            # Companheiro com o timestamp INTRINSECO do Setup (mesmo valor embutido no
-            # build). E ele que o UpdateService compara — nao o UpdatedAt do GitHub —
-            # entao re-subir o mesmo Setup em novas tags nao dispara reinstalacao.
-            if (Test-Path $KnownSetupTimestampPath) {
-                $StampAsset = Join-Path $SolutionDir "dist\setup\NXProject-Setup.timestamp.txt"
-                Copy-Item -Path $KnownSetupTimestampPath -Destination $StampAsset -Force
-                gh release upload $tag $StampAsset --repo nexusxdata/NXProject --clobber
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "  NXProject-Setup.timestamp.txt publicado (timestamp intrinseco)." -ForegroundColor Green
-                }
-            }
+        # O Setup NAO sobe aqui. Ele nao muda a cada release do Community (eram 76 MB por tag
+        # so para repetir o mesmo arquivo) e vive na release FIXA "$SetupReleaseTag", publicada
+        # pelo release-nxproject-setup.ps1 quando o Setup e regerado. O NXProject busca sempre
+        # essa tag, entao a release nova nao precisa de copia.
+        $setupOk = $false
+        $setupInfo = gh release view $SetupReleaseTag --repo nexusxdata/NXProject --json assets 2>$null
+        if ($LASTEXITCODE -eq 0 -and $setupInfo) {
+            $setupOk = ($setupInfo | ConvertFrom-Json).assets.name -contains "NXProject-Setup.zip"
+        }
+        if ($setupOk) {
+            Write-Host "  Setup: mantido na release $SetupReleaseTag (nao republicado nesta tag)." -ForegroundColor DarkGray
         } else {
-            Write-Host "  Aviso: NXProject-Setup.zip nao encontrado em dist\setup\; rode release-nxproject-setup.ps1 pelo menos uma vez." -ForegroundColor Yellow
+            Write-Host "  Aviso: a release $SetupReleaseTag nao tem o NXProject-Setup.zip; rode release-nxproject-setup.ps1 -Upload." -ForegroundColor Yellow
         }
     } else {
         Write-Host "  Falha ao criar a release. Verifique se esta autenticado: gh auth login" -ForegroundColor Red

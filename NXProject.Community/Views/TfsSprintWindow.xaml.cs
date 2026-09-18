@@ -71,6 +71,143 @@ namespace NXProject.Views
             }
             catch { /* medicao nunca derruba a carga */ }
         }
+        // ── DIAGNOSTICO do filtro do board (DESLIGADO por padrao) ────────────────────────
+        // Grava, a cada desenho, o estado dos filtros e o motivo de cada Task NAO aparecer.
+        // Serve para responder "por que esta Task nao aparece" sem ficar adivinhando. Liga com
+        // a variavel de ambiente NXPROJECT_FILTERLOG=1; o arquivo sai em filter-log.txt.
+        private static readonly bool FilterLogEnabled =
+            Environment.GetEnvironmentVariable("NXPROJECT_FILTERLOG") == "1";
+
+        private static string FilterLogPath => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NXProject.Community", "filter-log.txt");
+
+        private void DumpFilterLog()
+        {
+            if (!FilterLogEnabled || _board == null) return;
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"=== {DateTime.Now:dd/MM/yyyy HH:mm:ss} — desenho do board ===");
+                sb.AppendLine($"Sprints carregadas : {string.Join(" | ", _sprintPaths)}");
+                sb.AppendLine($"Closed ultimos dias: {_closedDays} (0 = todos)   Hoje: {DateTime.Today:dd/MM/yyyy}");
+                sb.AppendLine($"Estados ocultos    : {(_hiddenStates.Count == 0 ? "(nenhum)" : string.Join(", ", _hiddenStates))}");
+                sb.AppendLine($"Pessoas filtradas  : {(_selectedPeople.Count == 0 ? "(todas)" : string.Join(", ", _selectedPeople))}");
+                sb.AppendLine($"Stories filtradas  : {(_selectedStoryIds.Count == 0 ? "(todas)" : string.Join(", ", _selectedStoryIds))}");
+                sb.AppendLine($"Busca              : '{SearchQuery()}'");
+                sb.AppendLine($"OnlySchedule={OnlyScheduleCheck.IsChecked} OnlyBlocked={OnlyBlockedCheck.IsChecked} "
+                            + $"OnlyUnplanned={OnlyUnplannedCheck.IsChecked} OnlyDoing={OnlyDoingCheck.IsChecked} "
+                            + $"OnlyDoneActive={OnlyDoneActiveCheck.IsChecked} OnlyTaskActive={OnlyTaskActiveCheck.IsChecked}");
+
+                var all = EffectiveStories().SelectMany(x => x.Tasks).ToList();
+                var hidden = all.Where(t => !PassesFilters(t)).ToList();
+                sb.AppendLine($"Tasks carregadas: {all.Count} — visiveis: {all.Count - hidden.Count} — escondidas: {hidden.Count}");
+                foreach (var t in hidden.Take(200))
+                {
+                    var why = WhyHidden(t);
+                    sb.AppendLine($"  #{t.Id} [{EffState(t)}] {t.Title}");
+                    sb.AppendLine($"      resp={t.AssignedTo} pai={EffTaskParent(t)} sprint={t.IterationPath}");
+                    sb.AppendLine($"      ClosedDate={(t.ClosedDate is DateTime cdl ? cdl.ToString("dd/MM/yyyy HH:mm") : "(nulo)")} "
+                                + $"StateChange={(t.StateChangeDate is DateTime scl ? scl.ToString("dd/MM/yyyy HH:mm") : "(nulo)")}");
+                    sb.AppendLine($"      motivo: {(string.IsNullOrWhiteSpace(why) ? "(WhyHidden nao apontou regra — ver acima)" : why)}");
+                }
+                if (hidden.Count > 200) sb.AppendLine($"  ... e mais {hidden.Count - 200} Tasks escondidas.");
+                sb.AppendLine();
+                System.IO.File.AppendAllText(FilterLogPath, sb.ToString());
+            }
+            catch { /* diagnostico nunca derruba o board */ }
+        }
+
+        /// <summary>
+        /// Onde o usuario pediu para VER as Tasks encerradas que os filtros escondem (estado
+        /// Closed oculto ou corte de "Closed dos ultimos N dias"). A chave e Story + PESSOA da
+        /// faixa: na visao Pessoa x Task o 👁 revela so as Tasks encerradas DAQUELA pessoa, nao
+        /// as da Story inteira. Pessoa vazia = todas (visao Projeto & Story, que nao tem faixa).
+        /// E temporario: nao mexe no filtro da tela, nao vai para as preferencias e morre ao
+        /// fechar o board.
+        /// </summary>
+        private readonly HashSet<string> _revealClosed = new(StringComparer.CurrentCultureIgnoreCase);
+
+        private static string RevealKey(int storyId, string person) => storyId + "|" + (person ?? "");
+
+        /// <summary>A Task esta liberada pelo 👁 da Story (pela faixa da pessoa dela ou pelo
+        /// revelar geral da visao Projeto &amp; Story)?</summary>
+        private bool IsRevealed(TfsImportService.SprintTaskCard t)
+        {
+            var parent = EffTaskParent(t);
+            return _revealClosed.Contains(RevealKey(parent, t.AssignedTo ?? ""))
+                || _revealClosed.Contains(RevealKey(parent, ""));
+        }
+
+        /// <summary>Botao 👁 do card da Story: mostra/esconde as Tasks encerradas DESTA PESSOA.
+        /// So aparece quando ha o que revelar (ou quando ja esta revelado, para dar como desfazer).
+        /// personKey vazio = visao sem faixa de pessoa, ai vale para todas as Tasks da Story.</summary>
+        private UIElement? BuildRevealClosedButton(int storyId, string personKey)
+        {
+            if (storyId <= 0) return null;
+            var key = RevealKey(storyId, personKey);
+            var on = _revealClosed.Contains(key);
+            var story = StoryById(storyId);
+            if (story == null) return null;
+            // So conta as Tasks da faixa (quando ha pessoa). Com o botao ligado elas ja passam
+            // nos filtros, entao o teste olha o estado encerrado + o motivo de estarem fora.
+            var mine = string.IsNullOrEmpty(personKey)
+                ? story.Tasks
+                : story.Tasks.Where(t => string.Equals(t.AssignedTo ?? "", personKey,
+                    StringComparison.CurrentCultureIgnoreCase)).ToList();
+            var hasHidden = mine.Any(t => IsClosedState(EffState(t)) && (on || !PassesFilters(t)));
+            if (!hasHidden) return null;
+
+            var btn = new Button
+            {
+                Content = on ? "🙈" : "👁", FontSize = 11,
+                Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
+                ToolTip = AppStrings.Get(on ? "Sprint_HideClosedTasksTip" : "Sprint_ShowClosedTasksTip")
+            };
+            btn.Click += (_, _) =>
+            {
+                if (!_revealClosed.Remove(key)) _revealClosed.Add(key);
+                Render();
+            };
+            return btn;
+        }
+
+        /// <summary>
+        /// Trilha das gravacoes de TAG no DevOps (bloqueio/NP), em tfs-write-log.txt na pasta do
+        /// usuario. E uma linha por gravacao — volume baixo — e responde "o NX mandou o que?".
+        /// </summary>
+        private static void AppendTagWriteLog(string line)
+        {
+            try
+            {
+                var file = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "NXProject.Community", "tfs-write-log.txt");
+                System.IO.File.AppendAllText(file,
+                    $"{DateTime.Now:dd/MM/yyyy HH:mm:ss} {line}{Environment.NewLine}");
+            }
+            catch { /* diagnostico nunca derruba a gravacao */ }
+        }
+
+        /// <summary>
+        /// Recalcula e grava, em segundo plano, o tempo TOTAL de impedimento dos itens que acabaram
+        /// de ser desbloqueados. Fica fora do "Atualizar TFS" de proposito: e uma leitura de
+        /// historico por item e o desbloqueio ja foi aplicado — falhar aqui so avisa, nao desfaz.
+        /// </summary>
+        private async Task UpdateBlockDurationsAsync(List<int> ids)
+        {
+            var bad = new List<string>();
+            foreach (var id in ids)
+            {
+                var (okDur, msgDur) = await BlockService.UpdateTotalDurationAsync(_options, id);
+                AppendTagWriteLog($"#{id} duracao de bloqueio: {(okDur ? "OK" : "FALHOU: " + msgDur)}");
+                if (!okDur) bad.Add($"#{id}: {msgDur}");
+            }
+            if (bad.Count == 0) return;
+            await Dispatcher.InvokeAsync(() =>
+                StatusText.Text = AppStrings.Get("Sprint_BlockDurationFailed", string.Join(" · ", bad)));
+        }
+
         private string? _currentUser;
         // Estado alterado localmente (arrasto), pendente de gravar; e o já gravado com sucesso.
         private readonly Dictionary<int, string> _pending = new();
@@ -1946,15 +2083,37 @@ namespace NXProject.Views
                 else fails.Add($"#{kv.Key} (feature): {msg}");
             }
 
-            // 3g) Bloqueio (tag "Blocked"), preservando as demais tags. 403 = sem permissão.
+            // 3g) Bloqueio: tag + tramite + conferencia, tudo no BlockService (mesmo caminho da
+            // sincronizacao e da grade do tech lead). 403 = sem permissão.
+            var blockDurationIds = new List<int>();
             foreach (var kv in _blockPending.ToList())
             {
                 var cur = _cardById.TryGetValue(kv.Key, out var cc2) ? cc2.Tags : (StoryById(kv.Key)?.Tags ?? "");
-                var newTags = TfsImportService.ToggleTag(EffTags(kv.Key, cur), BlockedTag(), kv.Value);
-                var (success, msg) = await TfsImportService.SetWorkItemTagsAsync(_options, kv.Key, newTags);
-                if (success) { _tagsApplied[kv.Key] = newTags; _blockPending.Remove(kv.Key); ok++; }
-                else fails.Add($"#{kv.Key} (bloqueio): {msg}");
+                var note = AppStrings.Get(kv.Value ? "Sprint_BlockHistory" : "Sprint_UnblockHistory",
+                    BlockedTag(), string.IsNullOrWhiteSpace(_currentUser) ? "NXProject" : _currentUser!);
+                var res = await BlockService.SetBlockedAsync(
+                    _options, kv.Key, kv.Value, EffTags(kv.Key, cur), _currentUser, note);
+                // Trilha da gravacao da tag: sem ela nao da para saber se o NX mandou o valor certo,
+                // se o DevOps recusou, ou se a tag voltou na releitura do board.
+                AppendTagWriteLog($"#{kv.Key} bloqueio={kv.Value} tag='{BlockedTag()}'"
+                    + $" | origem='{cur}' | efetivas='{EffTags(kv.Key, cur)}' | enviado='{res.Tags}'"
+                    + $" | resultado={(res.Ok ? "OK" : "FALHOU: " + res.Message)}");
+                if (res.Ok)
+                {
+                    _tagsApplied[kv.Key] = res.Tags; _blockPending.Remove(kv.Key); ok++;
+                    // Campo de duracao (opcional): ao BLOQUEAR marca 1 na hora — e barato e o card
+                    // ja mostra o icone. Ao DESBLOQUEAR o total vem do historico, o que custa uma
+                    // leitura por item: sai depois, sem segurar a tela.
+                    if (BlockService.DurationEnabled(_options))
+                    {
+                        if (kv.Value) await BlockService.MarkBlockedAsync(_options, kv.Key);
+                        else blockDurationIds.Add(kv.Key);
+                    }
+                }
+                else fails.Add($"#{kv.Key} (bloqueio): {res.Message}");
             }
+            // Dispara o calculo do total DEPOIS de tudo: o board volta a responder na hora.
+            if (blockDurationIds.Count > 0) _ = UpdateBlockDurationsAsync(blockDurationIds);
 
             // 3h) Tag "nao planejada" (NP), preservando as demais tags.
             foreach (var kv in _unplannedPending.ToList())
@@ -2448,6 +2607,15 @@ namespace NXProject.Views
             };
         }
 
+        /// <summary>Botao "Aplicar" da configuracao: fecha o popup e redesenha o board, o mesmo
+        /// gesto dos filtros de Projeto/Sprint/Pessoa. As opcoes ja valem ao serem marcadas.</summary>
+        private void OnConfigApplyClick(object sender, RoutedEventArgs e)
+        {
+            ConfigToggle.IsChecked = false;
+            SavePrefs();
+            Render();
+        }
+
         private async void OnRestoreFiltersClick(object sender, RoutedEventArgs e)
         {
             if (_restoreFilters is { } restore)
@@ -2559,6 +2727,9 @@ namespace NXProject.Views
             if (!PassesBaseFilters(t)) return false;
             if (_pending.ContainsKey(t.Id)) return true;
             var eff = EffState(t);
+            // Story com "mostrar encerradas" ligado: as Tasks dela furam o recorte por ESTADO e o
+            // corte de dias. Os demais filtros (pessoa, Story, busca, tags) continuam valendo.
+            if (IsClosedState(eff) && IsRevealed(t)) return true;
             if (_hiddenStates.Contains(eff)) return false;
             if (_closedDays > 0 && IsClosedState(eff)
                 && t.ClosedDate is DateTime cd && cd.Date < DateTime.Today.AddDays(-_closedDays))
@@ -2893,6 +3064,7 @@ namespace NXProject.Views
             var eff = EffectiveStories();
             _cardById.Clear();
             foreach (var c in eff.SelectMany(x => x.Tasks)) _cardById[c.Id] = c;
+            DumpFilterLog();   // diagnostico temporario: precisa do _cardById ja preenchido
             // WIP é calculado sobre TUDO que está carregado (não sobre o que passou nos filtros):
             // esconder cards não pode fazer o limite de uma pessoa parecer menor do que é.
             RecomputeWip(eff.SelectMany(x => x.Tasks));
@@ -3414,9 +3586,24 @@ namespace NXProject.Views
                             && StoryStatePasses(x.Story))
                 .Select(x => x.Story)
                 .ToList();
+            // De quem e a faixa da Story sem Task visivel. Normalmente do responsavel dela. Mas
+            // com FILTRO DE PESSOA ativo a Story pode ter entrado no board por causa da Task de
+            // uma pessoa filtrada (StoryPasses aceita por responsavel OU por Task) e a Task ter
+            // sido escondida pelo corte de estado/dias — ai a Story ia para a faixa do dono, que
+            // nem esta no filtro, e sumia de quem trabalhou nela. Nesse caso ela vai para a
+            // pessoa FILTRADA que tem Task nela.
+            string NoTaskPersonKey(TfsImportService.SprintStoryRow st)
+            {
+                var owner = EffOwner(st.Id, st.AssignedTo);
+                if (_selectedPeople.Count == 0 || (!string.IsNullOrWhiteSpace(owner) && _selectedPeople.Contains(owner)))
+                    return string.IsNullOrWhiteSpace(owner) ? noOwner : owner;
+                var helper = st.Tasks.Select(t => t.AssignedTo ?? "")
+                    .FirstOrDefault(a => !string.IsNullOrWhiteSpace(a) && _selectedPeople.Contains(a));
+                if (!string.IsNullOrWhiteSpace(helper)) return helper;
+                return string.IsNullOrWhiteSpace(owner) ? noOwner : owner;
+            }
             var noTaskByPerson = storiesNoTask
-                .GroupBy(st => { var o = EffOwner(st.Id, st.AssignedTo); return string.IsNullOrWhiteSpace(o) ? noOwner : o; },
-                         StringComparer.CurrentCultureIgnoreCase)
+                .GroupBy(NoTaskPersonKey, StringComparer.CurrentCultureIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.OrderBy(st => StoryRankOf(st.Id))
                                                 .ThenBy(st => st.Title, StringComparer.CurrentCultureIgnoreCase).ToList(),
                               StringComparer.CurrentCultureIgnoreCase);
@@ -3622,6 +3809,8 @@ namespace NXProject.Views
                         stActions.Children.Add(addTask);
                         // Bloquear/desbloquear a Story — último botão, igual à visão Projeto & Story.
                         stActions.Children.Add(BuildBlockButton(storyId, StoryById(storyId)?.Tags ?? "", isStory: true));
+                        // 👁 (mostrar encerradas desta pessoa) e o ULTIMO botao do card.
+                        if (BuildRevealClosedButton(openStId, personKey) is { } revPerson) stActions.Children.Add(revPerson);
                         storySp.Children.Add(stActions);
                     }
                     // Destaque laranja quando a Story tem alteração pendente (rank/responsável/nome).
@@ -3823,10 +4012,74 @@ namespace NXProject.Views
         /// Menu do botao direito no card da Task: marca (ou desmarca) a Task para mover de Story.
         /// A troca so acontece quando a Story destino for escolhida no menu dela.
         /// </summary>
+        /// <summary>
+        /// Acrescenta "Auditoria de BLOCK" ao menu do botao direito do card. E consulta pura: le o
+        /// historico no DevOps na hora, nao grava nada e nao mexe no item.
+        /// </summary>
+        private void AttachBlockAuditMenu(FrameworkElement card, int id)
+        {
+            if (id <= 0) return;
+            var menu = card.ContextMenu ??= new ContextMenu();
+            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+            var item = new MenuItem
+            {
+                Header = AppStrings.Get("Block_MenuItem"),
+                ToolTip = AppStrings.Get("Block_MenuItemTip")
+            };
+            item.Click += async (_, _) => await ShowBlockAuditAsync(id);
+            menu.Items.Add(item);
+        }
+
+        /// <summary>
+        /// Atalho para a Auditoria de BLOCK no card da Task. So existe quando o campo opcional de
+        /// duracao esta habilitado E o item ja acumulou impedimento (> 0) — assim o icone marca de
+        /// longe quem tem historico de bloqueio, sem custar leitura de historico por card.
+        /// </summary>
+        private UIElement? BuildBlockAuditButton(TfsImportService.SprintTaskCard t)
+        {
+            if (t.Id <= 0 || !BlockService.DurationEnabled(_options)) return null;
+            if (t.BlockDurationHours is not double h || h <= 0) return null;
+
+            var btn = new Button
+            {
+                Content = "⏱", FontSize = 11,
+                Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
+                ToolTip = AppStrings.Get("Sprint_BlockAuditShortcut", h.ToString("0"))
+            };
+            btn.Click += async (_, _) => await ShowBlockAuditAsync(t.Id);
+            return btn;
+        }
+
+        /// <summary>Le a auditoria de bloqueio no DevOps e abre a tela. Sempre online, sob demanda.</summary>
+        private async Task ShowBlockAuditAsync(int id)
+        {
+            try
+            {
+                StatusText.Text = AppStrings.Get("Block_Loading", id.ToString());
+                var audit = await TfsImportService.LoadBlockAuditAsync(_options, id);
+                StatusText.Text = "";
+                if (audit == null)
+                {
+                    MessageBox.Show(this, AppStrings.Get("Block_NoHistory", id.ToString()),
+                        "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                new TfsBlockAuditWindow(audit, OpenInDevOps,
+                    () => TfsImportService.LoadBlockAuditAsync(_options, id)) { Owner = this }.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "";
+                MessageBox.Show(this, AppStrings.Get("Block_Failed", id.ToString(), ex.Message),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
         private void AttachTaskMoveMenu(FrameworkElement card, TfsImportService.SprintTaskCard t)
         {
             if (t.Id <= 0) return;   // card novo ainda nao existe no DevOps
-            var menu = new ContextMenu();
+            var menu = card.ContextMenu ??= new ContextMenu();
             if (_moveTaskId == t.Id)
             {
                 var cancel = new MenuItem { Header = AppStrings.Get("Sprint_MoveCancel") };
@@ -3845,7 +4098,7 @@ namespace NXProject.Views
                 undo.Click += (_, _) => { _taskParentPending.Remove(t.Id); UpdatePendingButton(); Render(); };
                 menu.Items.Add(undo);
             }
-            card.ContextMenu = menu;
+            AttachBlockAuditMenu(card, t.Id);
         }
 
         /// <summary>
@@ -3854,11 +4107,15 @@ namespace NXProject.Views
         /// </summary>
         private void AttachStoryMoveTargetMenu(FrameworkElement card, int storyId)
         {
-            if (storyId <= 0 || _moveTaskId <= 0) return;
+            if (storyId <= 0) return;
+            // A auditoria de bloqueio vale para toda Story; o destino do "mover Task" so quando ha
+            // uma Task marcada — por isso ela entra antes das saidas abaixo.
+            AttachBlockAuditMenu(card, storyId);
+            if (_moveTaskId <= 0) return;
             if (!_cardById.TryGetValue(_moveTaskId, out var moving)) return;
             if (EffTaskParent(moving) == storyId) return;
 
-            var menu = new ContextMenu();
+            var menu = card.ContextMenu ??= new ContextMenu();
             var apply = new MenuItem
             {
                 Header = AppStrings.Get("Sprint_MoveApply", "#" + _moveTaskId,
@@ -3875,8 +4132,8 @@ namespace NXProject.Views
                 UpdatePendingButton();
                 Render();
             };
-            menu.Items.Add(apply);
-            card.ContextMenu = menu;
+            // O "mover para ca" vai no TOPO: e a acao do momento, a auditoria e consulta.
+            menu.Items.Insert(0, apply);
         }
 
         /// <summary>Story pai efetiva da Task: pendente -> ja gravada -> a do DevOps.</summary>
@@ -4070,6 +4327,14 @@ namespace NXProject.Views
                 Foreground = _ownerPending.ContainsKey(st.Id)
                     ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray
             });
+            // A Story pode estar na faixa de quem TEM Task nela, e nao do responsavel (filtro de
+            // pessoa + Task escondida pelo corte de estado/dias). Deixa claro que e colaboracao.
+            if (!string.IsNullOrWhiteSpace(owner) && !string.Equals(owner, personKey, StringComparison.CurrentCultureIgnoreCase))
+                sp.Children.Add(new TextBlock
+                {
+                    Text = AppStrings.Get("Sprint_Helping"), FontSize = 10, FontStyle = FontStyles.Italic,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xB2, 0x6A, 0x00))
+                });
             sp.Children.Add(new TextBlock
             {
                 Text = AppStrings.Get("Sprint_StoryNoTask"), FontSize = 10, FontStyle = FontStyles.Italic,
@@ -4108,6 +4373,8 @@ namespace NXProject.Views
                 actions.Children.Add(delNoTask);
             }
             actions.Children.Add(BuildBlockButton(st.Id, st.Tags ?? "", isStory: true));
+            // 👁 (mostrar encerradas desta pessoa) e o ULTIMO botao do card.
+            if (BuildRevealClosedButton(st.Id, personKey) is { } revNoTask) actions.Children.Add(revNoTask);
             sp.Children.Add(actions);
 
             var pend = _storyRankPending.Contains(st.Id) || _ownerPending.ContainsKey(st.Id)
@@ -4720,28 +4987,62 @@ namespace NXProject.Views
         /// e 🔴 para Task. Livre mostra só o ícone; bloqueado mostra o selo completo com "BLOCK".
         /// Entra na fila do "Atualizar TFS".
         /// </summary>
+        /// <summary>
+        /// Cadeado DESENHADO (vetor), nao emoji: o WPF nao suporta fonte colorida, entao 🔒 sempre
+        /// saia como contorno vazado e sem aceitar cor. Aqui o corpo e preenchido e o arco e
+        /// tracejado na mesma cor, entao o icone fica cheio e acompanha a cor do estado.
+        /// </summary>
+        private static UIElement BuildPadlockIcon(Color color, bool closed, double size)
+        {
+            var brush = new SolidColorBrush(color);
+            var canvas = new Canvas { Width = 14, Height = 15 };
+            // Arco (haste): fechado desce nos dois lados; aberto so no lado esquerdo, aberto p/ cima.
+            var shackle = new System.Windows.Shapes.Path
+            {
+                Stroke = brush, StrokeThickness = 1.8,
+                StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+                Data = Geometry.Parse(closed
+                    ? "M 3.6,7 L 3.6,4.6 A 3.4,3.4 0 0 1 10.4,4.6 L 10.4,7"
+                    : "M 3.6,7 L 3.6,4.6 A 3.4,3.4 0 0 1 10.4,4.6")
+            };
+            // Corpo: retangulo arredondado CHEIO + furo da fechadura vazado na cor do fundo.
+            var body = new System.Windows.Shapes.Rectangle
+            {
+                Width = 12, Height = 8.5, RadiusX = 1.8, RadiusY = 1.8, Fill = brush
+            };
+            Canvas.SetLeft(body, 1); Canvas.SetTop(body, 6.5);
+            var hole = new System.Windows.Shapes.Ellipse
+            {
+                Width = 2.6, Height = 2.6, Fill = Brushes.White, Opacity = 0.9
+            };
+            Canvas.SetLeft(hole, 5.7); Canvas.SetTop(hole, 9.4);
+            canvas.Children.Add(shackle);
+            canvas.Children.Add(body);
+            canvas.Children.Add(hole);
+            return new Viewbox { Width = size, Height = size * 15 / 14, Child = canvas };
+        }
+
         private Button BuildBlockButton(int id, string tags, bool isStory)
         {
             var blocked = EffBlocked(id, tags);
-            var label = AppStrings.Get(isStory ? "Grid_BlockedStoryLabel" : "Grid_BlockedByChildLabel");
-            // O rótulo do NX é "<ícone> BLOCK": sem marcação mostra só o ícone.
-            var icon = label.Split(' ')[0];
-            var bg = isStory ? Color.FromRgb(0xFD, 0xE7, 0xE9) : Color.FromRgb(0xFF, 0xF4, 0xCE);
-            var bd = isStory ? Color.FromRgb(0xD1, 0x34, 0x38) : Color.FromRgb(0xC8, 0xA6, 0x00);
-            var fg = isStory ? Color.FromRgb(0xC0, 0x30, 0x30) : Color.FromRgb(0x7A, 0x52, 0x00);
+            // No card o bloqueio e um CADEADO (fechado/aberto), nao o rotulo "⛔ BLOCK" do
+            // cronograma: ali o texto cabe na coluna, aqui ele espremia a linha de botoes.
+            // As chaves Grid_Blocked* seguem valendo para a grade e o Gantt.
+            // Bloqueado e VERMELHO nos dois niveis (Story e Task): o bloqueio significa a mesma
+            // coisa nos dois, e o amarelo da Task nao chamava tanto quanto o vermelho.
+            var bg = Color.FromRgb(0xFD, 0xE7, 0xE9);
+            var bd = Color.FromRgb(0xD1, 0x34, 0x38);
+            var fg = Color.FromRgb(0xC0, 0x30, 0x30);
             var btn = new Button
             {
                 Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
                 ToolTip = AppStrings.Get(blocked ? "Sprint_Unblock" : "Sprint_Block"),
                 Background = new SolidColorBrush(blocked ? bg : Color.FromRgb(0xF2, 0xF2, 0xF2)),
                 BorderBrush = new SolidColorBrush(blocked ? bd : Color.FromRgb(0xC8, 0xC8, 0xC8)),
-                Content = new TextBlock
-                {
-                    Text = blocked ? label : icon,
-                    FontSize = blocked ? 9 : 11, FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(blocked ? fg : Color.FromRgb(0x8A, 0x8A, 0x8A)),
-                    Opacity = blocked ? 1.0 : 0.6
-                }
+                // Bloqueado sai um ponto maior: e um alerta, nao mais um botao.
+                Content = BuildPadlockIcon(blocked ? fg : Color.FromRgb(0x8A, 0x8A, 0x8A),
+                                           blocked, blocked ? 13 : 11),
+                Opacity = blocked ? 1.0 : 0.55
             };
             btn.Click += (_, _) => ToggleBlockPending(id, tags);
             return btn;
@@ -4924,6 +5225,8 @@ namespace NXProject.Views
                 }
                 // Bloquear/desbloquear a Story (tag "Blocked") — último botão, como na Task.
                 actions.Children.Add(BuildBlockButton(story.Id, story.Tags, isStory: true));
+                // 👁 por ultimo. Projeto & Story nao tem faixa de pessoa: vale para a Story inteira.
+                if (BuildRevealClosedButton(story.Id, "") is { } revStory) actions.Children.Add(revStory);
                 sp.Children.Add(actions);
             }
             else
@@ -5685,6 +5988,9 @@ namespace NXProject.Views
             AddEditButtons(actions, t.Id, t.Title, t.AssignedTo, "Task"); // ✎ descrição e 💬 trâmite da Task
             // Bloquear/desbloquear é o ÚLTIMO botão do card (tag "Blocked").
             actions.Children.Add(BuildBlockButton(t.Id, t.Tags, isStory: false));
+            // Atalho da Auditoria de BLOCK: so aparece quando o campo de duracao diz que ESTA Task
+            // ja foi impedida (> 0). Sem o campo configurado, a auditoria fica so no botao direito.
+            if (BuildBlockAuditButton(t) is { } auditBtn) actions.Children.Add(auditBtn);
             // Excluir: só Tasks reais no estado New (evita apagar itens já em andamento/encerrados).
             // Marca para excluir (pendente); a exclusão no DevOps ocorre no Salvar TFS.
             if (t.Id > 0 && string.Equals(EffState(t), "New", StringComparison.OrdinalIgnoreCase))

@@ -133,6 +133,10 @@
                     </DockPanel>
                 </Border>
             </Popup>
+            <!-- Limpar filtros: fica ANTES da escolha da Sprint, junto do filtro de Projeto. -->
+            <Button x:Name="ResetFiltersButton" VerticalAlignment="Center"
+                    Padding="6,2" Margin="0,0,10,0" Click="OnResetFiltersClick"
+                    Content="⟲" ToolTip="{DynamicResource Sprint_ResetFiltersTip}"/>
             <TextBlock Text="{DynamicResource Sprint_Pick}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ToggleButton x:Name="SprintFilterToggle" VerticalAlignment="Center" Padding="8,2" MinWidth="240"
                           Content="{DynamicResource Sprint_AllSprints}" ToolTip="{DynamicResource Sprint_MultiTip}"
@@ -153,9 +157,6 @@
                     </DockPanel>
                 </Border>
             </Popup>
-            <Button x:Name="ResetFiltersButton" VerticalAlignment="Center"
-                    Padding="6,2" Margin="4,0,0,0" Click="OnResetFiltersClick"
-                    Content="⟲" ToolTip="{DynamicResource Sprint_ResetFiltersTip}"/>
             <Button x:Name="ReloadButton" VerticalAlignment="Center" Padding="6,2" Margin="4,0,0,0"
                     Click="OnReloadClick" Content="🔄" ToolTip="{DynamicResource Sprint_Reload}"/>
             <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Sprint_Person}" VerticalAlignment="Center" Margin="14,0,6,0"/>
@@ -289,6 +290,15 @@
                         <CheckBox x:Name="CardDocsOnlyCheck" Click="OnCardDocsOnlyChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_CardDocsOnly}"
                                   ToolTip="{DynamicResource Sprint_CardDocsOnlyTip}"/>
+
+                        <!-- Aplicar: fecha a configuracao e redesenha, como nos demais filtros.
+                             As opcoes acima ja valem na hora em que sao marcadas; este botao e o
+                             "pronto" da tela, para nao ter que clicar fora do popup. -->
+                        <Separator Margin="0,8,0,6"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="{DynamicResource Sprint_StoryApply}" Click="OnConfigApplyClick"
+                                    Padding="10,2" ToolTip="{DynamicResource Sprint_ConfigApplyTip}"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Popup>

@@ -1,0 +1,82 @@
+<Window x:Class="NXProject.Views.TfsBlockAuditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Block_Title}"
+        Width="900" Height="560"
+        MinWidth="720" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cabecalho: item auditado -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold" Foreground="#2B579A"
+                       TextWrapping="Wrap"/>
+            <TextBlock x:Name="SubtitleText" FontSize="11" Foreground="#666" Margin="0,2,0,0"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Janela medida (desde quando conta) -->
+        <Border Grid.Row="1" Background="#F3F6F4" BorderBrush="#D5DDD7" BorderThickness="1"
+                CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+            <TextBlock x:Name="WindowText" FontSize="12" TextWrapping="Wrap" Foreground="#333"/>
+        </Border>
+
+        <!-- Linha do tempo dos bloqueios -->
+        <DataGrid x:Name="ItemsGrid" Grid.Row="2"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  CanUserAddRows="False" SelectionMode="Single"
+                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                  TextElement.FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="#" Width="34" Binding="{Binding Seq}"/>
+                <DataGridTextColumn Header="{DynamicResource Block_ColFrom}" Width="135" Binding="{Binding FromText}"/>
+                <DataGridTextColumn Header="{DynamicResource Block_ColTo}" Width="135" Binding="{Binding ToText}"/>
+                <DataGridTextColumn Header="{DynamicResource Block_ColElapsed}" Width="105" Binding="{Binding ElapsedText}"/>
+                <DataGridTextColumn Header="{DynamicResource Block_ColWorkHours}" Width="105" Binding="{Binding WorkHoursText}"/>
+                <DataGridTextColumn Header="{DynamicResource Block_ColBlockedBy}" Width="150" Binding="{Binding BlockedBy}"/>
+                <DataGridTextColumn Header="{DynamicResource Block_ColUnblockedBy}" Width="150" Binding="{Binding UnblockedBy}"/>
+            </DataGrid.Columns>
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <!-- Bloqueio ainda ABERTO: linha em vermelho claro, e o que exige acao. -->
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Open}" Value="True">
+                            <Setter Property="Background" Value="#FDE7E9"/>
+                            <Setter Property="Foreground" Value="#C03030"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+        </DataGrid>
+
+        <!-- Totais: e o que responde "troco de atividade ou trato a causa raiz?" -->
+        <Border Grid.Row="3" Background="#FFF8E1" BorderBrush="#E0A000" BorderThickness="1"
+                CornerRadius="4" Padding="10,8" Margin="0,10,0,0">
+            <StackPanel>
+                <TextBlock x:Name="TotalsText" FontSize="13" TextWrapping="Wrap" Foreground="#3B2F00"/>
+                <TextBlock x:Name="TotalsHintText" FontSize="11" Foreground="#7A5200"
+                           TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="RefreshButton" Content="🔄" Width="34" Height="28" Margin="0,0,8,0"
+                    ToolTip="{DynamicResource Block_RefreshTip}" Click="OnRefresh"/>
+            <Button x:Name="OpenDevOpsButton" Content="🔗" Width="34" Height="28" Margin="0,0,8,0"
+                    ToolTip="{DynamicResource Sprint_OpenDevOps}" Click="OnOpenDevOps"/>
+            <Button x:Name="CloseButton" Content="{DynamicResource Online_Close}" Width="110" Height="28"
+                    IsCancel="True" Click="OnClose"/>
+        </StackPanel>
+    </Grid>
+</Window>

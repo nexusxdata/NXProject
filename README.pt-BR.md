@@ -264,6 +264,15 @@ A **Task** usa apenas campos **padrão** do Azure DevOps, que já existem no tip
 | Ordem do backlog | `Microsoft.VSTS.Common.StackRank` / `BacklogPriority` | Campo padrão do processo (não precisa criar) |
 | Responsável / Estado / Categoria | `System.AssignedTo` / `System.State` / `Microsoft.VSTS.Common.Activity` | — |
 
+> **Campo `block_duration_hours` (opcional, na Task).** Campo numérico que guarda **quantas horas o
+> item ficou impedido** (bloqueado com a tag BLOCK), sempre em horas inteiras — menos de uma hora vira
+> `0`. O NXProject recalcula o total a partir do histórico do DevOps quando você desbloqueia, e o card
+> da Task passa a mostrar um atalho ⏱ para a **Auditoria de BLOCK** quando o valor for maior que zero.
+> **Desabilitado por padrão e totalmente opcional**: deixe o checkbox desmarcado — em **Campos
+> avançados** — e o NXProject nunca grava nele. O bloqueio continua funcionando com a tag mais um
+> trâmite, e a Auditoria de BLOCK (botão direito no card da Story ou da Task) segue lendo o histórico
+> completo online, com ou sem esse campo. Nada é exigido do template do processo.
+
 > **Campo `Approved` (opcional, só na Task).** Se o seu processo tiver um campo booleano `Approved` (`Custom.Approved`) na Task, o NXProject lê e grava a aprovação da Task. Habilitado por padrão; se a Task não tiver o campo, é ignorado. Configurável em **Campos avançados**.
 
 > Datas, `Perc_Alocacao`, `EPIC_TYPE`, `Tipo_Centro_Custo` e `Sync_version`/`Sync_Name` **não** se aplicam à Task — o planejamento (datas e duração) é derivado da Story pai.

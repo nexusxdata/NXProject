@@ -69,6 +69,10 @@ namespace NXProject.Views
             ApprovedFieldEnabledBox.IsChecked = saved.ApprovedFieldEnabled;
             ApprovedFieldBox.Text = string.IsNullOrWhiteSpace(saved.ApprovedFieldName) ? "Approved" : saved.ApprovedFieldName;
             ApprovedFieldBox.IsEnabled = saved.ApprovedFieldEnabled;
+            BlockDurationFieldEnabledBox.IsChecked = saved.BlockDurationFieldEnabled;
+            BlockDurationFieldBox.Text = string.IsNullOrWhiteSpace(saved.BlockDurationFieldName)
+                ? "block_duration_hours" : saved.BlockDurationFieldName;
+            BlockDurationFieldBox.IsEnabled = saved.BlockDurationFieldEnabled;
             AdmGroupFieldEnabledBox.IsChecked = saved.AdmGroupFieldEnabled;
             AdmGroupFieldBox.Text = string.IsNullOrWhiteSpace(saved.AdmGroupFieldName) ? "Adm_NX" : saved.AdmGroupFieldName;
             AdmGroupFieldBox.IsEnabled = saved.AdmGroupFieldEnabled;
@@ -160,6 +164,165 @@ namespace NXProject.Views
         {
             if (ApprovedFieldBox == null) return;
             ApprovedFieldBox.IsEnabled = ApprovedFieldEnabledBox.IsChecked == true;
+        }
+
+        private void OnBlockDurationFieldEnabledChanged(object sender, RoutedEventArgs e)
+        {
+            if (BlockDurationFieldBox == null) return;
+            BlockDurationFieldBox.IsEnabled = BlockDurationFieldEnabledBox.IsChecked == true;
+        }
+
+        /// <summary>
+        /// Pergunta ao DevOps quais dos campos digitados existem e em quais tipos de work item.
+        /// So informa e SUGERE: nunca marca nem desmarca um checkbox sozinho — desligar um recurso
+        /// em uso por causa de uma leitura seria pior que o problema.
+        /// </summary>
+        private async void OnDetectFieldsClick(object sender, RoutedEventArgs e)
+        {
+            var opts = BuildOptions();
+            if (string.IsNullOrWhiteSpace(opts.OrganizationUrl) || string.IsNullOrWhiteSpace(opts.TeamProject)
+                || string.IsNullOrWhiteSpace(opts.PersonalAccessToken))
+            {
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_DetectNeedsConnection");
+                return;
+            }
+
+            // Cada campo vai com os nomes ALTERNATIVOS que a importacao aceita — senao "HH
+            // Estimado", que na API e "Esforco Estimado", apareceria como inexistente.
+            var wanted = new List<(string Label, string Name, string Kind)>
+            {
+                (AppStrings.Get("Cfg_EffortField"), EffortFieldBox.Text, "effort"),
+                (AppStrings.Get("Cfg_StartField"), StartFieldBox.Text, "start"),
+                (AppStrings.Get("Cfg_FinishField"), FinishFieldBox.Text, "finish"),
+                (AppStrings.Get("Cfg_PercAlocField"), PercAlocFieldBox.Text, "percAloc"),
+                (AppStrings.Get("Cfg_PercConclusaoField"), PercConclusaoFieldBox.Text, "percConclusao"),
+                (AppStrings.Get("Cfg_EpicTypeField"), EpicTypeFieldBox.Text, "epicType"),
+                (AppStrings.Get("Cfg_ApprovedField"), ApprovedFieldBox.Text, "approved"),
+                (AppStrings.Get("Cfg_AdmGroupField"), AdmGroupFieldBox.Text, "admGroup"),
+                (AppStrings.Get("Cfg_BlockDurationField"), BlockDurationFieldBox.Text, "blockDuration"),
+                (AppStrings.Get("Cfg_SyncVersionField"), SyncVersionFieldBox.Text, "syncVersion"),
+                (AppStrings.Get("Cfg_SyncNameField"), SyncNameFieldBox.Text, "syncName"),
+            };
+
+            // Onde cada campo DEVE existir para o recurso funcionar. E o que transforma
+            // "existe/nao existe" em "da para habilitar ou nao".
+            static string[] Scope(string kind) => kind switch
+            {
+                "effort" or "start" or "finish" or "syncVersion" or "syncName"
+                    => new[] { "User Story", "Feature", "Epic" },
+                "percAloc" or "percConclusao" => new[] { "User Story" },
+                "epicType" => new[] { "Epic" },
+                "approved" or "blockDuration" => new[] { "Task" },
+                "admGroup" => new[] { "Project" },
+                _ => System.Array.Empty<string>()
+            };
+
+            try
+            {
+                DetectFieldsButton.IsEnabled = false;
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_DetectRunning");
+                var probes = await TfsImportService.ProbeFieldsAsync(
+                    opts, wanted.Select(w => (w.Name, TfsImportService.FieldAliases(w.Kind))));
+
+                var lines = new List<string>();
+                var missing = 0;
+                foreach (var (label, name, _) in wanted)
+                {
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+                    var pr = probes.FirstOrDefault(x =>
+                        string.Equals(x.Configured, name.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (pr is null) continue;
+                    var scope = Scope(wanted.First(w => w.Label == label).Kind);
+                    if (!pr.Exists)
+                    {
+                        missing++;
+                        // Dizer ONDE o campo deveria estar e o que torna o aviso acionavel.
+                        var need = scope.Length > 0
+                            ? " — " + AppStrings.Get("Cfg_DetectExpectedIn", string.Join(", ", scope))
+                            : "";
+                        lines.Add($"❌ {label}: '{name.Trim()}' "
+                                  + AppStrings.Get("Cfg_DetectNotFound") + need);
+                        continue;
+                    }
+                    var where = pr.Types.Count > 0 ? string.Join(", ", pr.Types)
+                                                   : AppStrings.Get("Cfg_DetectNoType");
+                    var tp = string.IsNullOrEmpty(pr.FieldType) ? "" : $" [{pr.FieldType}]";
+                    // So avisa falta onde o campo FAZ FALTA: cobrar "Esforco Estimado" na Task
+                    // ou na Project so gerava ruido, porque o NX nunca usa o campo ali.
+                    var gapTypes = pr.MissingTypes
+                        .Where(t => scope.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
+                    var gap = gapTypes.Count > 0
+                        ? "  ⚠ " + AppStrings.Get("Cfg_DetectMissingIn", string.Join(", ", gapTypes))
+                        : "";
+                    // Achado por nome ALTERNATIVO: o que voce digitou nao existe no DevOps. O NX
+                    // funciona assim mesmo (a importacao usa a mesma lista), mas quem configurou
+                    // precisa saber — senao um nome errado passa por validado.
+                    var via = pr.MatchedByAlias
+                        ? "  ⚠ " + AppStrings.Get("Cfg_DetectViaAlias", pr.MatchedBy)
+                        : "";
+                    lines.Add($"✅ {label}: {pr.ReferenceName} {tp} — {where}{via}{gap}".Replace("  —", " —"));
+                }
+
+                // Campos com checkbox: a deteccao MARCA o que existe no tipo em que o NX usa e
+                // DESMARCA o que nao existe. Nada e gravado aqui — so vale se voce Salvar, e o
+                // Cancelar desfaz tudo.
+                var toggled = new List<string>();
+                void ApplyCheck(string kind, CheckBox box, TextBox nameBox, string label)
+                {
+                    var name = nameBox.Text?.Trim() ?? "";
+                    if (string.IsNullOrWhiteSpace(name)) return;
+                    var pr = probes.FirstOrDefault(x =>
+                        string.Equals(x.Configured, name, StringComparison.OrdinalIgnoreCase));
+                    if (pr is null) return;
+                    // Existir na organizacao nao basta: tem que existir NO TIPO em que o NX usa.
+                    var scope = Scope(kind);
+                    var usable = pr.Exists && (scope.Length == 0
+                        || scope.Any(t => pr.Types.Contains(t, StringComparer.OrdinalIgnoreCase)));
+                    if ((box.IsChecked == true) == usable) return;
+                    box.IsChecked = usable;
+                    nameBox.IsEnabled = usable;
+                    toggled.Add((usable ? "✔ " : "✖ ") + label);
+                }
+                ApplyCheck("epicType", EpicTypeFieldEnabledBox, EpicTypeFieldBox, AppStrings.Get("Cfg_EpicTypeField"));
+                ApplyCheck("approved", ApprovedFieldEnabledBox, ApprovedFieldBox, AppStrings.Get("Cfg_ApprovedField"));
+                ApplyCheck("admGroup", AdmGroupFieldEnabledBox, AdmGroupFieldBox, AppStrings.Get("Cfg_AdmGroupField"));
+                ApplyCheck("blockDuration", BlockDurationFieldEnabledBox, BlockDurationFieldBox,
+                           AppStrings.Get("Cfg_BlockDurationField"));
+                // Duas opcoes desta tela nao dependem de CAMPO:
+                //  • predecessoras: depende do TIPO DE LINK do processo — isso da para detectar;
+                //  • fechar Story so com Task: e regra do proprio NX, sem contraparte no DevOps —
+                //    o detector apenas devolve o valor recomendado, e diz que foi por isso.
+                var hasDep = await TfsImportService.HasPredecessorLinkTypeAsync(opts);
+                if (hasDep is bool dep && (SyncPredecessorLinksCheck.IsChecked == true) != dep)
+                {
+                    SyncPredecessorLinksCheck.IsChecked = dep;
+                    toggled.Add((dep ? "✔ " : "✖ ") + AppStrings.Get("Cfg_SyncPredecessorLinks"));
+                }
+                if (EnforceStoryCompletionWithTasksCheck.IsChecked != true)
+                {
+                    EnforceStoryCompletionWithTasksCheck.IsChecked = true;
+                    toggled.Add("✔ " + AppStrings.Get("Cfg_EnforceStoryCompletionWithTasks")
+                                + " (" + AppStrings.Get("Cfg_DetectNxRule") + ")");
+                }
+
+                if (toggled.Count > 0)
+                    lines.Add(Environment.NewLine + AppStrings.Get("Cfg_DetectToggled")
+                              + Environment.NewLine + string.Join(Environment.NewLine, toggled));
+
+                DetectFieldsStatus.Text = missing == 0
+                    ? AppStrings.Get("Cfg_DetectAllOk")
+                    : AppStrings.Get("Cfg_DetectMissing", missing.ToString());
+                MessageBox.Show(this,
+                    string.Join(Environment.NewLine, lines) + Environment.NewLine + Environment.NewLine
+                    + AppStrings.Get("Cfg_DetectFooter"),
+                    AppStrings.Get("Cfg_DetectFields"), MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                DetectFieldsStatus.Text = "";
+                MessageBox.Show(this, ex.Message, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally { DetectFieldsButton.IsEnabled = true; }
         }
 
         private void OnAdmGroupFieldEnabledChanged(object sender, RoutedEventArgs e)
@@ -284,6 +447,9 @@ namespace NXProject.Views
             PercConclusaoFieldName = string.IsNullOrWhiteSpace(PercConclusaoFieldBox.Text) ? "Perc_Conclusao" : PercConclusaoFieldBox.Text.Trim(),
             EpicTypeFieldEnabled = EpicTypeFieldEnabledBox.IsChecked == true,
             EpicTypeFieldName = string.IsNullOrWhiteSpace(EpicTypeFieldBox.Text) ? "EPIC_TYPE" : EpicTypeFieldBox.Text.Trim(),
+            BlockDurationFieldEnabled = BlockDurationFieldEnabledBox.IsChecked == true,
+            BlockDurationFieldName = string.IsNullOrWhiteSpace(BlockDurationFieldBox.Text)
+                ? "block_duration_hours" : BlockDurationFieldBox.Text.Trim(),
             ApprovedFieldEnabled = ApprovedFieldEnabledBox.IsChecked == true,
             ApprovedFieldName = string.IsNullOrWhiteSpace(ApprovedFieldBox.Text) ? "Approved" : ApprovedFieldBox.Text.Trim(),
             AdmGroupFieldEnabled = AdmGroupFieldEnabledBox.IsChecked == true,

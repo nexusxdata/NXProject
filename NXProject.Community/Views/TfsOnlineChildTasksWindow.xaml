@@ -51,6 +51,12 @@
                 <DataGridTextColumn Header="{DynamicResource Online_ColType}" Width="52" Binding="{Binding Type}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColName}" Width="230" Binding="{Binding Name}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColStatus}" Width="80" Binding="{Binding State}"/>
+                <!-- Desde quando esta no estado (StateChangeDate): o hint traz a hora tambem. -->
+                <DataGridTextColumn Header="{DynamicResource Online_ColStateSince}" Width="95" Binding="{Binding StateSince}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock"><Setter Property="ToolTip" Value="{Binding StateSinceFull}"/></Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="{DynamicResource Online_ColStartDate}" Width="95" Binding="{Binding StartDate}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColTargetDate}" Width="85" Binding="{Binding FinishDate}"/>
                 <DataGridTextColumn Header="{DynamicResource Online_ColSprint}" Width="120" Binding="{Binding Sprint}"/>

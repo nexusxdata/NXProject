@@ -55,6 +55,9 @@ namespace NXProject.Services
             public DateTime? FinishDate { get; init; }
             /// <summary>Caminho da iteracao (sprint) no DevOps.</summary>
             public string IterationPath { get; init; } = "";
+            /// <summary>Desde quando o item esta no estado atual (Microsoft.VSTS.Common.StateChangeDate).
+            /// E um instante de verdade (nao um campo so-data), entao vai para o fuso local.</summary>
+            public DateTime? StateChangeDate { get; init; }
             /// <summary>Nome da sprint: ultimo trecho do IterationPath (o caminho inteiro nao cabe na grade).</summary>
             public string SprintName => string.IsNullOrWhiteSpace(IterationPath)
                 ? "" : IterationPath.Split('\\').Last();
@@ -468,6 +471,12 @@ namespace NXProject.Services
             /// <summary>Desde quando a Task esta no estado atual
             /// (Microsoft.VSTS.Common.StateChangeDate) — exibida no card.</summary>
             public DateTime? StateChangeDate { get; init; }
+            /// <summary>
+            /// Horas TOTAIS de impedimento (campo opcional configurado, padrao
+            /// "block_duration_hours"). Maior que zero = ja houve bloqueio, e o card mostra o
+            /// atalho para a Auditoria de BLOCK. Null quando o recurso esta desligado.
+            /// </summary>
+            public double? BlockDurationHours { get; init; }
             /// <summary>Data alvo (campo configurado, padrao Data_Fim) — editavel no card Active.</summary>
             public DateTime? FinishDate { get; init; }
             /// <summary>Anexos da Task (relacoes "AttachedFile"), lidos na mesma carga do board.</summary>
@@ -698,6 +707,20 @@ namespace NXProject.Services
                 return await resp.Content.ReadAsStringAsync(ct);
             }
 
+            // Campo de duracao do bloqueio (opcional): resolve o reference name uma vez so. O
+            // $expand=all ja traz o valor, entao ler nao custa chamada nenhuma a mais.
+            string? blockDurRef = null;
+            if (options.BlockDurationFieldEnabled && !string.IsNullOrWhiteSpace(options.BlockDurationFieldName))
+            {
+                try
+                {
+                    var fmap = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
+                    blockDurRef = ResolveField(fmap, options.BlockDurationFieldName,
+                        new[] { options.BlockDurationFieldName, "block_duration_hours" });
+                }
+                catch { /* campo opcional: sem ele o board abre igual */ }
+            }
+
             var batchWatch = System.Diagnostics.Stopwatch.StartNew();
             var payloads = await Task.WhenAll(chunks.Select(FetchBatchAsync));
             LoadTrace.Mark("batch(" + ids.Count + " em " + chunks.Count + ")", batchWatch.ElapsedMilliseconds);
@@ -748,8 +771,13 @@ namespace NXProject.Services
                         // e nao so do desenho: assim nao entra em contagem, WIP nem resumo.
                         // Ele continua existindo no DevOps e no cronograma.
                         if (IsMilestoneTaskTag(S("System.Tags"))) continue;
+                        double? blockDur = !string.IsNullOrEmpty(blockDurRef)
+                            && f.TryGetProperty(blockDurRef!, out var bdv)
+                            && bdv.ValueKind == JsonValueKind.Number && bdv.TryGetDouble(out var bdd)
+                            ? bdd : (double?)null;
                         tasks.Add(new SprintTaskCard(id, S("System.Title"), state, who, eff, parentId, S("System.Tags"), closedDate, prio, ReadRank(f))
                         {
+                            BlockDurationHours = blockDur,
                             IterationPath = S("System.IterationPath"),
                             EstimateHours = double.IsNaN(effN) ? (double?)null : effN,
                             CompletedHours = compN,
@@ -4514,7 +4542,8 @@ namespace NXProject.Services
                 "System.Tags",
                 "System.Description",
                 "Microsoft.VSTS.Scheduling.OriginalEstimate",
-                "Microsoft.VSTS.Scheduling.CompletedWork"
+                "Microsoft.VSTS.Scheduling.CompletedWork",
+                "Microsoft.VSTS.Common.StateChangeDate"
             };
             // Datas: os campos sao customizados (Data_Inicio/Data_Fim ou o que estiver configurado),
             // entao o reference name e resolvido no DevOps antes de pedir.
@@ -4525,6 +4554,15 @@ namespace NXProject.Services
             // Data_Inicio/Data_Fim sao DATA, nao instante: o TFS guarda meia-noite UTC. Converter
             // para o fuso local jogava o valor para o dia anterior (14/09 00:00Z vira 13/09 21:00
             // em BRT). Fica a data em UTC mesmo, como fazem os leitores da importacao.
+            // StateChangeDate e um INSTANTE (data + hora reais), ao contrario de Data_Inicio/Data_Fim:
+            // aqui converter para o fuso local e o certo, e nao o erro que a leitura de data evita.
+            static DateTime? ReadInstant(JsonElement f, string refName) =>
+                f.ValueKind == JsonValueKind.Object
+                && f.TryGetProperty(refName, out var v) && v.ValueKind == JsonValueKind.String
+                && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var dt)
+                    ? dt.ToLocalTime() : (DateTime?)null;
+
             static DateTime? ReadDate(JsonElement f, string? refName) =>
                 !string.IsNullOrEmpty(refName) && f.ValueKind == JsonValueKind.Object
                 && f.TryGetProperty(refName, out var v) && v.ValueKind == JsonValueKind.String
@@ -4559,6 +4597,7 @@ namespace NXProject.Services
                     CompletedHours = GetDoubleField(item.Fields, "Microsoft.VSTS.Scheduling.CompletedWork"),
                     StartDate = ReadDate(item.Fields, startRef),
                     FinishDate = ReadDate(item.Fields, finishRef),
+                    StateChangeDate = ReadInstant(item.Fields, "Microsoft.VSTS.Common.StateChangeDate"),
                     IterationPath = item.IterationPath ?? ""
                 });
             }
@@ -6802,20 +6841,28 @@ namespace NXProject.Services
 
         /// <summary>Grava o conjunto de tags (System.Tags, CSV "a; b") de um work item.
         /// (Ok, Mensagem); 403 = sem permissão de escrita.</summary>
+        /// <param name="historyComment">Tramite (System.History) gravado NA MESMA revisao da tag.
+        /// Alem de deixar o motivo visivel no DevOps, ele faz a alteracao ter uma segunda operacao —
+        /// e um PATCH que so zera as tags o DevOps aceita sem aplicar.</param>
         public static async Task<(bool Ok, string Message)> SetWorkItemTagsAsync(
-            TfsConnectionOptions options, int id, string tagsCsv, CancellationToken ct = default)
+            TfsConnectionOptions options, int id, string tagsCsv, CancellationToken ct = default,
+            string? historyComment = null)
         {
             var ctx = CreateTfsAuthContext(options, "gravar tags", requireTeamProject: false);
-            var ops = new List<object> { PatchAdd("/fields/System.Tags", tagsCsv ?? string.Empty) };
-            var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?{QueryApiVersion}";
-            using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url)
+            var want = tagsCsv ?? string.Empty;
+
+            async Task<(bool Ok, string Message)> SendAsync(string op)
             {
-                Content = new StringContent(JsonSerializer.Serialize(ops), Encoding.UTF8, "application/json-patch+json")
-            };
-            req.Headers.Authorization = ctx.Authorization;
-            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            try
-            {
+                var ops = new List<object> { new { op, path = "/fields/System.Tags", value = want } };
+                if (!string.IsNullOrWhiteSpace(historyComment))
+                    ops.Add(PatchAdd("/fields/System.History", historyComment));
+                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?{QueryApiVersion}";
+                using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(ops), Encoding.UTF8, "application/json-patch+json")
+                };
+                req.Headers.Authorization = ctx.Authorization;
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 using var resp = await Http.SendAsync(req, ct);
                 if (resp.IsSuccessStatusCode) return (true, string.Empty);
                 var body = await resp.Content.ReadAsStringAsync(ct);
@@ -6823,7 +6870,260 @@ namespace NXProject.Services
                 try { using var d = JsonDocument.Parse(body); if (d.RootElement.TryGetProperty("message", out var m)) msg = m.GetString() ?? msg; } catch { }
                 return (false, msg);
             }
+
+            try
+            {
+                var (ok, msg) = await SendAsync("add");
+                if (!ok) return (ok, msg);
+
+                // O DevOps devolve 200 e NAO aplica quando o valor e vazio (tirar a ULTIMA tag):
+                // o 200 sozinho nao prova nada, entao confere o que ficou gravado. Se nao bateu,
+                // tenta "replace" e, persistindo, avisa em vez de dar sucesso falso.
+                var after = await ReadWorkItemTagsAsync(ctx, id, ct);
+                if (after is null) return (true, string.Empty);      // nao deu para conferir: nao inventa erro
+                if (TagsMatch(after, want)) return (true, string.Empty);
+
+                (ok, msg) = await SendAsync("replace");
+                if (!ok) return (ok, msg);
+                after = await ReadWorkItemTagsAsync(ctx, id, ct);
+                if (after is null || TagsMatch(after, want)) return (true, string.Empty);
+
+                return (false, $"o DevOps aceitou mas manteve as tags '{after}' (esperado '{want}')");
+            }
             catch (Exception ex) { return (false, ex.Message); }
+        }
+
+        /// <summary>Tags gravadas no item agora. Null quando nao deu para ler (nao e erro de escrita).</summary>
+        private static async Task<string?> ReadWorkItemTagsAsync(
+            TfsAuthContext ctx, int id, CancellationToken ct)
+        {
+            try
+            {
+                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?fields=System.Tags&{QueryApiVersion}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = ctx.Authorization;
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                using var resp = await Http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode) return null;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                if (!doc.RootElement.TryGetProperty("fields", out var f)) return null;
+                return f.TryGetProperty("System.Tags", out var tg) ? tg.GetString() ?? "" : "";
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Compara dois CSV de tags ignorando ordem, espacos e maiusculas.</summary>
+        private static bool TagsMatch(string a, string b)
+        {
+            static string[] Norm(string t) => (t ?? "")
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim()).Where(x => x.Length > 0)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+            return Norm(a).SequenceEqual(Norm(b), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Grava um valor numerico num campo do DevOps identificado pelo NOME configurado (ou pelo
+        /// reference name). Resolve o campo no catalogo da organizacao — configurar "HH Estimado"
+        /// tem que funcionar igual a "Custom.HH_Estimado". Campo inexistente vira mensagem clara,
+        /// nao excecao: e um recurso opcional.
+        /// </summary>
+        public static async Task<(bool Ok, string Message)> SetNumericFieldAsync(
+            TfsConnectionOptions options, int id, string fieldName, double value,
+            CancellationToken ct = default)
+        {
+            if (id <= 0 || string.IsNullOrWhiteSpace(fieldName)) return (true, string.Empty);
+            var ctx = CreateTfsAuthContext(options, "gravar campo", requireTeamProject: false);
+            try
+            {
+                var map = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
+                var refName = ResolveField(map, fieldName, new[] { fieldName });
+                if (string.IsNullOrEmpty(refName))
+                    return (false, $"o campo '{fieldName}' nao existe nesta organizacao do DevOps");
+
+                var ops = new List<object> { PatchAdd("/fields/" + refName, value) };
+                var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?{QueryApiVersion}";
+                using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(ops), Encoding.UTF8,
+                        "application/json-patch+json")
+                };
+                req.Headers.Authorization = ctx.Authorization;
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                using var resp = await Http.SendAsync(req, ct);
+                if (resp.IsSuccessStatusCode) return (true, string.Empty);
+
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                var msg = $"HTTP {(int)resp.StatusCode}";
+                try
+                {
+                    using var d = JsonDocument.Parse(body);
+                    if (d.RootElement.TryGetProperty("message", out var m)) msg = m.GetString() ?? msg;
+                }
+                catch { }
+                // Tipo diferente do esperado (campo texto, por exemplo) cai aqui com a mensagem
+                // do proprio DevOps — e o aviso que combinamos, em vez de validar tudo antes.
+                InvalidateFieldRefOnFieldError(options, (int)resp.StatusCode, msg, refName);
+                return (false, $"campo '{fieldName}': {msg}");
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
+        /// <summary>
+        /// Nomes ALTERNATIVOS que a importacao aceita para cada campo configuravel. A tela de
+        /// configuracao usa esta mesma lista ao detectar, para nao acusar como inexistente um campo
+        /// que o NX encontra perfeitamente por outro nome.
+        /// </summary>
+        public static string[] FieldAliases(string kind) => kind switch
+        {
+            "effort" => HoursFieldNames,
+            "start" => StartFieldNames,
+            "finish" => FinishFieldNames,
+            "percAloc" => PercAlocFieldNames,
+            "percConclusao" => PercConclusaoFieldNames,
+            "epicType" => new[] { "EPIC_TYPE", "Tipo_Epic" },
+            "approved" => new[] { "Approved", "Aprovado" },
+            "admGroup" => new[] { "Adm_NX", "AdmNX", "Adm NX" },
+            "syncVersion" => new[] { "Sync_version", "SyncVersion", "Sync Version" },
+            "syncName" => new[] { "Sync_Name", "SyncName", "Sync Name" },
+            "blockDuration" => new[] { "block_duration_hours", "Block_Duration_Hours", "Block Duration Hours" },
+            _ => System.Array.Empty<string>()
+        };
+
+        /// <summary>
+        /// A organizacao tem o tipo de link de PREDECESSORA (System.LinkTypes.Dependency)? E o que
+        /// a opcao "sincronizar predecessoras" precisa para funcionar — sem o tipo de link, gravar
+        /// a dependencia so daria erro. Null quando nao deu para consultar.
+        /// </summary>
+        public static async Task<bool?> HasPredecessorLinkTypeAsync(
+            TfsConnectionOptions options, CancellationToken ct = default)
+        {
+            try
+            {
+                var ctx = CreateTfsAuthContext(options, "detectar tipos de link", requireTeamProject: false);
+                var url = $"{ctx.OrgBase}/_apis/wit/workitemrelationtypes?{QueryApiVersion}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = ctx.Authorization;
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                using var resp = await Http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode) return null;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                if (!doc.RootElement.TryGetProperty("value", out var arr)) return null;
+                foreach (var r in arr.EnumerateArray())
+                    if (r.TryGetProperty("referenceName", out var rn)
+                        && (rn.GetString() ?? "").StartsWith("System.LinkTypes.Dependency",
+                                                             StringComparison.OrdinalIgnoreCase))
+                        return true;
+                return false;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Onde um campo configurado foi encontrado no DevOps.</summary>
+        /// <param name="Configured">O nome como esta na configuracao do NX.</param>
+        /// <param name="ReferenceName">Reference name resolvido, vazio quando nao existe.</param>
+        /// <param name="FieldType">Tipo declarado no processo (integer, boolean, string...).</param>
+        /// <param name="Types">Tipos de work item que TEM o campo (Task, User Story...).</param>
+        public sealed record FieldProbe(
+            string Configured, string ReferenceName, string FieldType,
+            System.Collections.Generic.List<string> Types)
+        {
+            public bool Exists => !string.IsNullOrEmpty(ReferenceName);
+            /// <summary>
+            /// Nome que REALMENTE resolveu o campo. Diferente de Configured = o nome digitado nao
+            /// existe e o NX achou o campo por um nome alternativo. Continua funcionando, mas quem
+            /// configurou precisa saber — senao acha que validou um nome que o DevOps nem tem.
+            /// </summary>
+            public string MatchedBy { get; init; } = "";
+            public bool MatchedByAlias =>
+                Exists && !string.Equals(MatchedBy, Configured, StringComparison.OrdinalIgnoreCase);
+            /// <summary>Tipos consultados nesta deteccao — o que nao esta em Types, falta.</summary>
+            public System.Collections.Generic.List<string> Queried { get; init; } = new();
+            /// <summary>Tipos em que o campo NAO esta.</summary>
+            public System.Collections.Generic.List<string> MissingTypes =>
+                Queried.Where(t => !Types.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
+        }
+
+        /// <summary>
+        /// Confere, no DevOps, quais dos campos configurados existem e em QUAIS tipos de work item
+        /// eles estao. O catalogo da organizacao (_apis/wit/fields) responde "existe e e de que
+        /// tipo"; a lista por tipo (workitemtypes/{tipo}/fields) responde "esta na Task ou na
+        /// Story". Sao poucas chamadas — uma por tipo — e so quando o usuario pede.
+        ///
+        /// Isto NAO substitui a gravacao: regra de processo e permissao so aparecem na hora de
+        /// gravar, e ai o erro do proprio DevOps e a resposta.
+        /// </summary>
+        public static async Task<System.Collections.Generic.List<FieldProbe>> ProbeFieldsAsync(
+            TfsConnectionOptions options,
+            System.Collections.Generic.IEnumerable<(string Name, string[] Aliases)> fields,
+            System.Collections.Generic.IEnumerable<string>? workItemTypes = null,
+            CancellationToken ct = default)
+        {
+            var ctx = CreateTfsAuthContext(options, "detectar campos");
+            var map = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
+            var types = (workItemTypes
+                ?? new[] { "Task", "User Story", "Feature", "Epic", "Project" }).ToList();
+
+            // refName -> tipos que tem o campo
+            var byType = new Dictionary<string, System.Collections.Generic.List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var t in types)
+            {
+                try
+                {
+                    var url = $"{ctx.OrgBase}/{Uri.EscapeDataString(ctx.TeamProject)}"
+                            + $"/_apis/wit/workitemtypes/{Uri.EscapeDataString(t)}/fields?{QueryApiVersion}";
+                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.Authorization = ctx.Authorization;
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    using var resp = await Http.SendAsync(req, ct);
+                    if (!resp.IsSuccessStatusCode) continue;   // tipo inexistente no processo
+                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                    if (!doc.RootElement.TryGetProperty("value", out var arr)) continue;
+                    foreach (var fld in arr.EnumerateArray())
+                    {
+                        var rn = fld.TryGetProperty("referenceName", out var r) ? r.GetString() : null;
+                        if (string.IsNullOrEmpty(rn)) continue;
+                        if (!byType.TryGetValue(rn!, out var list))
+                            byType[rn!] = list = new System.Collections.Generic.List<string>();
+                        list.Add(t);
+                    }
+                }
+                catch { /* um tipo que falha nao derruba a deteccao dos outros */ }
+            }
+
+            // So os tipos que o DevOps respondeu entram como "consultados": tipo inexistente no
+            // processo nao pode virar "o campo falta aqui".
+            var probedTypes = types.Where(t => byType.Values.Any(v =>
+                v.Contains(t, StringComparer.OrdinalIgnoreCase))).ToList();
+            var result = new System.Collections.Generic.List<FieldProbe>();
+            foreach (var (name, aliases) in fields.Where(f => !string.IsNullOrWhiteSpace(f.Name)))
+            {
+                // Mesma resolucao da importacao. Sem os alternativos a deteccao mente: "HH Estimado"
+                // na tela e "Esforco Estimado" na API, e o campo apareceria como inexistente.
+                // Aqui a busca e em duas etapas so para saber QUAL nome resolveu — o resultado
+                // final e identico ao da importacao.
+                var matched = "";
+                var refName = ResolveField(map, name, System.Array.Empty<string>()) ?? "";
+                if (!string.IsNullOrEmpty(refName)) matched = name.Trim();
+                else
+                    foreach (var alias in aliases ?? System.Array.Empty<string>())
+                    {
+                        refName = ResolveField(map, alias, System.Array.Empty<string>()) ?? "";
+                        if (string.IsNullOrEmpty(refName)) continue;
+                        matched = alias;
+                        break;
+                    }
+                var fieldType = "";
+                if (!string.IsNullOrEmpty(refName))
+                    lock (FieldTypeCache)
+                        if (FieldTypeCache.TryGetValue(ctx.OrgBase, out var tmap)
+                            && tmap.TryGetValue(refName, out var tp)) fieldType = tp;
+                result.Add(new FieldProbe(name.Trim(), refName, fieldType,
+                    !string.IsNullOrEmpty(refName) && byType.TryGetValue(refName, out var l)
+                        ? l : new System.Collections.Generic.List<string>())
+                { Queried = probedTypes, MatchedBy = matched });
+            }
+            return result;
         }
 
         /// <summary>Adiciona/remove uma tag preservando as demais. Retorna o CSV resultante.</summary>
@@ -7146,6 +7446,136 @@ namespace NXProject.Services
                 && v.ValueKind == JsonValueKind.String && DateTime.TryParse(v.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt))
                 return dt.Date;   // data-only: sem converter para o fuso local (veja ReadDate)
             return null;
+        }
+
+        /// <summary>Um trecho da linha do tempo do item: bloqueio (BLOCK) com inicio, fim e quem fez.
+        /// Fim nulo = ainda bloqueado agora.</summary>
+        public sealed record BlockPeriod(DateTime Start, DateTime? End, string BlockedBy, string UnblockedBy)
+        {
+            public bool Open => End is null;
+        }
+
+        /// <summary>Auditoria de bloqueio de um work item, montada do historico do DevOps.</summary>
+        public sealed record BlockAudit(
+            int Id, string Title, string Type, string State,
+            DateTime? ActiveSince, DateTime? ClosedAt,
+            System.Collections.Generic.List<BlockPeriod> Periods)
+        {
+            /// <summary>Fim da janela medida: encerramento do item ou agora.</summary>
+            public DateTime WindowEnd => ClosedAt ?? DateTime.Now;
+            public bool StillBlocked => Periods.Any(x => x.Open);
+        }
+
+        /// <summary>
+        /// Le o HISTORICO do work item no DevOps e monta a auditoria de bloqueio: desde quando ele
+        /// esta em andamento (primeira ida para Active), cada vez que a tag de bloqueio entrou e
+        /// saiu, e ate agora se nunca saiu. Nao grava nada no NX — e sempre online, sob demanda.
+        /// </summary>
+        public static async Task<BlockAudit?> LoadBlockAuditAsync(
+            TfsConnectionOptions options, int id, CancellationToken ct = default)
+        {
+            if (id <= 0) return null;
+            var ctx = CreateTfsAuthContext(options, "auditar bloqueio", requireTeamProject: false);
+
+            // O endpoint de updates pagina em no maximo 200 por chamada ($top acima disso volta
+            // 400). Item com muita revisao precisa das paginas seguintes, senao o bloqueio some.
+            const int Page = 200;
+            var updates = new System.Collections.Generic.List<JsonElement>();
+            var docs = new System.Collections.Generic.List<JsonDocument>();
+            try
+            {
+                for (var skip = 0; ; skip += Page)
+                {
+                    var url = $"{ctx.OrgBase}/_apis/wit/workItems/{id}/updates"
+                            + $"?$top={Page}&$skip={skip}&{QueryApiVersion}";
+                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.Authorization = ctx.Authorization;
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    using var resp = await Http.SendAsync(req, ct);
+                    if (!resp.IsSuccessStatusCode)
+                        throw new InvalidOperationException(
+                            $"DevOps recusou o historico do #{id}: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+
+                    var docPage = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                    docs.Add(docPage);
+                    if (!docPage.RootElement.TryGetProperty("value", out var page)
+                        || page.ValueKind != JsonValueKind.Array) break;
+                    var n = 0;
+                    foreach (var u in page.EnumerateArray()) { updates.Add(u); n++; }
+                    if (n < Page) break;
+                }
+                return BuildBlockAudit(id, updates);
+            }
+            finally
+            {
+                foreach (var d in docs) d.Dispose();
+            }
+        }
+
+        /// <summary>Monta a auditoria a partir das revisoes ja lidas (ordenadas da mais antiga).</summary>
+        private static BlockAudit? BuildBlockAudit(int id, System.Collections.Generic.List<JsonElement> ups)
+        {
+            if (ups.Count == 0) return null;
+
+            string title = $"#{id}", type = "", state = "";
+            DateTime? activeSince = null, closedAt = null;
+            var periods = new System.Collections.Generic.List<BlockPeriod>();
+            DateTime? openStart = null; var openBy = "";
+            var wasBlocked = false;
+
+            // A data de CADA revisao vem em System.ChangedDate.newValue. O revisedDate do topo
+            // volta 9999-01-01 na revisao corrente, entao ele nao serve como relogio.
+            static string FieldNew(JsonElement fields, string name) =>
+                fields.ValueKind == JsonValueKind.Object && fields.TryGetProperty(name, out var f)
+                && f.TryGetProperty("newValue", out var v) && v.ValueKind == JsonValueKind.String
+                    ? v.GetString() ?? "" : "";
+            static string FieldOld(JsonElement fields, string name) =>
+                fields.ValueKind == JsonValueKind.Object && fields.TryGetProperty(name, out var f)
+                && f.TryGetProperty("oldValue", out var v) && v.ValueKind == JsonValueKind.String
+                    ? v.GetString() ?? "" : "";
+
+            foreach (var up in ups)
+            {
+                up.TryGetProperty("fields", out var fields);
+                var whenText = FieldNew(fields, "System.ChangedDate");
+                DateTime? when = DateTime.TryParse(whenText, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var wdt)
+                    ? wdt.ToLocalTime() : (DateTime?)null;
+
+                var who = up.TryGetProperty("revisedBy", out var rb)
+                          && rb.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
+
+                var t = FieldNew(fields, "System.Title"); if (!string.IsNullOrEmpty(t)) title = t;
+                var ty = FieldNew(fields, "System.WorkItemType"); if (!string.IsNullOrEmpty(ty)) type = ty;
+
+                var st = FieldNew(fields, "System.State");
+                if (!string.IsNullOrEmpty(st))
+                {
+                    state = st;
+                    if (string.Equals(st, "Active", StringComparison.OrdinalIgnoreCase) && activeSince is null)
+                        activeSince = when;
+                    closedAt = IsClosedState(st) ? when : null;   // reabrir zera o encerramento
+                }
+
+                // Tag de bloqueio: compara o conjunto antigo com o novo desta revisao.
+                if (fields.ValueKind == JsonValueKind.Object && fields.TryGetProperty("System.Tags", out _))
+                {
+                    var nowBlocked = HasTagIn(FieldNew(fields, "System.Tags"), BlockTagName);
+                    var beforeBlocked = HasTagIn(FieldOld(fields, "System.Tags"), BlockTagName);
+                    if (nowBlocked && !beforeBlocked && when is DateTime s0)
+                    {
+                        openStart = s0; openBy = who; wasBlocked = true;
+                    }
+                    else if (!nowBlocked && beforeBlocked && wasBlocked && openStart is DateTime s1)
+                    {
+                        periods.Add(new BlockPeriod(s1, when, openBy, who));
+                        openStart = null; openBy = ""; wasBlocked = false;
+                    }
+                }
+            }
+            if (openStart is DateTime sOpen) periods.Add(new BlockPeriod(sOpen, null, openBy, ""));
+
+            return new BlockAudit(id, title, type, state, activeSince, closedAt, periods);
         }
 
         /// <summary>

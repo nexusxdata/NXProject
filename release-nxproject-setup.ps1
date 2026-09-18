@@ -14,7 +14,10 @@ param(
     [ValidateSet("Release", "Debug")]
     [string]$Configuration = "Release",
 
-    [string]$TagName = "",
+    # Tag da release onde o Setup e publicado. O padrao e a release FIXA do Setup: ele nao
+    # acompanha a versao do Community, entao nao faz sentido uma copia de ~76 MB por tag.
+    # Passe outra tag so se quiser anexar o Setup a uma release especifica.
+    [string]$TagName = "nxsetup-latest",
 
     [switch]$Upload
 )
@@ -165,6 +168,23 @@ if ($Upload) {
         exit 1
     }
 
+    # A release do Setup e fixa: se ainda nao existe, cria; se existe, so troca os assets.
+    # Ela nasce como pre-release para NAO virar a "Latest" do repositorio — a Latest tem
+    # que continuar sendo a ultima versao do NXProject.Community.
+    gh release view $TagName --repo nexusxdata/NXProject --json tagName 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Step "Criando a release fixa do Setup ($TagName)..."
+        gh release create $TagName `
+            --title "NXProject Setup (base)" `
+            --notes "Instalador base do NXProject. Esta release e fixa: sempre traz o NXProject-Setup.zip mais recente. As versoes do NXProject.Community tem tags proprias (vX.Y.Z.W)." `
+            --prerelease `
+            --repo nexusxdata/NXProject
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Falha ao criar a release $TagName no GitHub." -ForegroundColor Red
+            exit 1
+        }
+    }
+
     Write-Step "Publicando NXProject-Setup.zip na release $TagName..."
     gh release upload $TagName $SetupOutputZip --repo nexusxdata/NXProject --clobber
     if ($LASTEXITCODE -ne 0) {
@@ -180,4 +200,5 @@ if ($Upload) {
 
     Write-Host "Asset publicado:" -ForegroundColor Green
     Write-Host "  NXProject-Setup.zip + NXProject-Setup.timestamp.txt" -ForegroundColor DarkGray
+    Write-Host "  Release: https://github.com/nexusxdata/NXProject/releases/tag/$TagName" -ForegroundColor DarkGray
 }

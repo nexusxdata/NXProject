@@ -21,6 +21,12 @@ namespace NXProject.Services;
 public static class UpdateService
 {
     private const string ApiUrl = "https://api.github.com/repos/nexusxdata/NXProject/releases/latest";
+    // Release FIXA do Setup. O Setup nao acompanha a versao do Community (76 MB repetidos por
+    // tag so para publicar o mesmo arquivo): ele vive numa release propria, sempre nesta tag,
+    // atualizada so quando o Setup e regerado (release-nxproject-setup.ps1).
+    public const string SetupReleaseTag = "nxsetup-latest";
+    private const string SetupReleaseUrl =
+        "https://api.github.com/repos/nexusxdata/NXProject/releases/tags/" + SetupReleaseTag;
     public const string CommunityReleaseAssetName = "NXProject.Community-Release.zip";
     public const string SetupZipAssetName = "NXProject-Setup.zip";
     public const string SetupExeAssetName = "NXProject-Setup.exe";
@@ -70,16 +76,48 @@ public static class UpdateService
         return ToReleaseInfo(release, CommunityReleaseAssetName);
     }
 
-    /// <summary>Retorna o asset do instalador da release mais recente.
-    /// Prefere o ZIP para reduzir bloqueios de download de executaveis, mantendo
-    /// fallback para o .exe em releases antigas.</summary>
+    /// <summary>Retorna o asset do instalador da release MAIS RECENTE QUE O PUBLICOU.
+    /// O Setup muda muito menos que o Community: ele so e publicado quando e regerado, e as
+    /// releases seguintes apontam para essa. Prefere o ZIP para reduzir bloqueios de download
+    /// de executaveis, mantendo fallback para o .exe em releases antigas.</summary>
     public static async Task<ReleaseInfo?> GetLatestSetupReleaseInfoAsync(CancellationToken ct = default)
     {
         using var client = CreateClient();
-        var release = await client.GetFromJsonAsync<GithubRelease>(ApiUrl, ct);
+        var release = await FindLatestReleaseWithSetupAsync(client, ct);
         if (release is null) return null;
 
         return ToReleaseInfo(release, SetupZipAssetName, SetupExeAssetName);
+    }
+
+    /// <summary>
+    /// Acha a release que traz o Setup: a release FIXA "nxsetup-latest". Se ela ainda nao existir
+    /// (versoes publicadas antes desta mudanca, que levavam o Setup dentro da release do
+    /// Community), cai para a "latest" — assim quem esta instalado hoje continua achando o
+    /// Setup. Devolve null quando nenhuma das duas tem o asset.
+    /// </summary>
+    private static async Task<GithubRelease?> FindLatestReleaseWithSetupAsync(HttpClient client, CancellationToken ct)
+    {
+        static bool HasSetup(GithubRelease? r) =>
+            r?.Assets is not null && r.Assets.Exists(a =>
+                string.Equals(a.Name, SetupZipAssetName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(a.Name, SetupExeAssetName, StringComparison.OrdinalIgnoreCase));
+
+        try
+        {
+            var setupRelease = await client.GetFromJsonAsync<GithubRelease>(SetupReleaseUrl, ct);
+            if (HasSetup(setupRelease)) return setupRelease;
+        }
+        catch (HttpRequestException) { /* release fixa ainda nao publicada: usa a latest */ }
+
+        try
+        {
+            var latest = await client.GetFromJsonAsync<GithubRelease>(ApiUrl, ct);
+            return HasSetup(latest) ? latest : null;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Decide se o Setup publicado precisa ser reinstalado. Compara o timestamp
@@ -90,7 +128,7 @@ public static class UpdateService
     public static async Task<SetupUpdateInfo?> CheckForSetupUpdateAsync(CancellationToken ct = default)
     {
         using var client = CreateClient();
-        var release = await client.GetFromJsonAsync<GithubRelease>(ApiUrl, ct);
+        var release = await FindLatestReleaseWithSetupAsync(client, ct);
         if (release?.Assets is null) return null;
 
         var zipAsset = release.Assets.Find(a => string.Equals(a.Name, SetupZipAssetName, StringComparison.OrdinalIgnoreCase));
