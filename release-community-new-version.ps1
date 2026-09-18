@@ -526,6 +526,9 @@ if (-not $ghAvailable) {
         if ($LASTEXITCODE -eq 0 -and $setupInfo) {
             $setupOk = ($setupInfo | ConvertFrom-Json).assets.name -contains "NXProject-Setup.zip"
         }
+        # A consulta acima deixa $LASTEXITCODE=1 quando a release ainda nao existe, e o script
+        # terminaria com codigo de erro mesmo tendo publicado tudo. Limpa o codigo aqui.
+        $global:LASTEXITCODE = 0
         if ($setupOk) {
             Write-Host "  Setup: mantido na release $SetupReleaseTag (nao republicado nesta tag)." -ForegroundColor DarkGray
         } else {
