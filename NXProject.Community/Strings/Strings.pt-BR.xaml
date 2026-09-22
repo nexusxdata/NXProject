@@ -1950,6 +1950,12 @@
     <sys:String x:Key="Sprint_CreatedOn">🗓 Criada em {0}</sys:String>
     <sys:String x:Key="Sprint_ClosedOn">🏁 Encerrada em {0}</sys:String>
     <sys:String x:Key="Sprint_StateSince">🕒 Neste estado desde {0}</sys:String>
+    <sys:String x:Key="Sprint_LastSprintPerPerson">Última sprint</sys:String>
+    <sys:String x:Key="Sprint_LastSprintPerPersonTip">Mostra apenas o que está na sprint EM ANDAMENTO (início &lt;= hoje &lt;= fim). Quem não tem nada na sprint corrente aparece com a última sprint dele que já começou — o corte é por pessoa. Sprint futura nunca entra, mesmo quando a Story pai entra. Quem decide é a Story: as Tasks dela vêm junto. Ao marcar, o board recarrega com todas as sprints — é a única forma de saber a última de cada um. Os filtros de Projeto e de Pessoa continuam valendo por cima; o "limpar filtros" desliga.</sys:String>
+    <sys:String x:Key="Sprint_ShowStoryNoTask">Mostrar Story sem Task</sys:String>
+    <sys:String x:Key="Sprint_ShowStoryNoTaskTip">Story que ainda não tem Task aparece no board, na faixa do responsável. Desmarcado, só aparecem Stories que têm Task. O "limpar filtros" volta a mostrar.</sys:String>
+    <sys:String x:Key="Sprint_ShowFeatureNoStory">Mostrar Feature/EPIC sem Story</sys:String>
+    <sys:String x:Key="Sprint_ShowFeatureNoStoryTip">Feature ou EPIC que ainda não tem Story aparece como uma linha própria na coluna do seu nível. Desmarcado, eles somem do board. O "limpar filtros" volta a mostrar.</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStory">Somente Story do cronograma</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStoryTip">Mostra apenas as Stories que estão no cronograma aberto. As Tasks continuam vindo do TFS normalmente, para você conferir se os filtros atendem.</sys:String>
     <sys:String x:Key="Sprint_FSOnlyScheduleStory">Somente Story do cronograma</sys:String>
@@ -1962,6 +1968,8 @@
     <sys:String x:Key="Sprint_NoFeature">(sem Feature)</sys:String>
     <sys:String x:Key="Sprint_Search">Buscar:</sys:String>
     <sys:String x:Key="Sprint_New">🆕 novo (salvar no TFS)</sys:String>
+    <sys:String x:Key="Sprint_NewFeature">Nova Feature</sys:String>
+    <sys:String x:Key="Sprint_NewEpic">Novo EPIC</sys:String>
     <sys:String x:Key="Sprint_NewStory">Nova Story (nome)</sys:String>
     <sys:String x:Key="Sprint_NewTask">Nova Task (nome)</sys:String>
     <sys:String x:Key="Sprint_AddStory">➕ Story</sys:String>
@@ -2098,7 +2106,8 @@
     <sys:String x:Key="Sprint_StateFilter">Estados ▾</sys:String>
     <sys:String x:Key="Sprint_ShowSummary">Ver Resumo</sys:String>
     <sys:String x:Key="Sprint_ShowSummaryTip">Mostra o resumo por estado no topo do board. Desmarcado, o resumo fica sempre escondido e sobra mais espaço para os cards.</sys:String>
-    <sys:String x:Key="Sprint_PersonCtrlClickTip">Clique marca/desmarca no filtro. Ctrl+clique leva o board até os cards desta pessoa, sem mexer no filtro.</sys:String>
+    <sys:String x:Key="Sprint_PersonGoToTip">📍 filtra o board SÓ nesta pessoa e rola até os cards dela. Com Ctrl, mantém quem já está marcado e soma esta pessoa.</sys:String>
+    <sys:String x:Key="Sprint_PersonCtrlClickTip">Clique marca/desmarca no filtro. O 📍 ao lado do nome deixa o board só com esta pessoa; Ctrl+clique no nome (ou no 📍) mantém as demais e soma esta.</sys:String>
     <sys:String x:Key="Sprint_PersonNotPersonView">Ctrl+clique leva até a pessoa só na visão Pessoa &amp; Task.</sys:String>
     <sys:String x:Key="Sprint_PersonOutOfFilter">{0} está fora do filtro de pessoas — marque-a (ou deixe "todas") para ver os cards dela.</sys:String>
     <sys:String x:Key="Sprint_PersonNoCards">Não há cards no filtro atual para {0}.</sys:String>

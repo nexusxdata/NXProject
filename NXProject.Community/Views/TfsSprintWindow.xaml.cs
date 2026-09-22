@@ -375,6 +375,9 @@ namespace NXProject.Views
             public DateTime? PriorityMaxAt { get; set; } // quando foi descoberto (vence: o template pode mudar)
             public bool? FieldCache { get; set; } // ler campos do TFS em cache (null = ligado)
             public bool? CardDocsOnly { get; set; } // no card, listar so PDF/Word/Excel (null = ligado)
+            public bool? LastSprintPerPerson { get; set; } // so a ultima sprint (ja iniciada) de cada pessoa
+            public bool? ShowStoryNoTask { get; set; }     // Story sem Task no board (null = mostra)
+            public bool? ShowFeatureNoStory { get; set; }  // Feature/EPIC sem Story (null = mostra)
             public string? CardDocExtensions { get; set; } // extensoes de "documento", separadas por virgula
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
             public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
@@ -494,6 +497,9 @@ namespace NXProject.Views
             AutoOpenCheck.IsChecked = _prefs.AutoOpen;
             // Cache dos campos do TFS: ligado por padrao (null = ligado).
             CardDocsOnlyCheck.IsChecked = _prefs.CardDocsOnly ?? true;
+            LastSprintPerPersonCheck.IsChecked = _prefs.LastSprintPerPerson ?? false;
+            ShowStoryNoTaskCheck.IsChecked = _prefs.ShowStoryNoTask ?? true;
+            ShowFeatureNoStoryCheck.IsChecked = _prefs.ShowFeatureNoStory ?? true;
             ApplyCardDocExtensions(_prefs.CardDocExtensions);
             CardDocExtsBox.Text = FormatExtensions(_cardDocExtensions);
             CardDocExtsBox.IsEnabled = CardDocsOnlyCheck.IsChecked == true;
@@ -635,6 +641,11 @@ namespace NXProject.Views
             OnlyDoneActiveCheck.IsChecked = false;
             OnlyDoingCheck.IsChecked = false;
             OnlyTaskActiveCheck.IsChecked = false;
+            // Padrao: os "vazios" aparecem. O limpar sempre volta a mostrar Story sem Task e
+            // Feature/EPIC sem Story — esconde-los e uma escolha momentanea, nao o estado normal.
+            ShowStoryNoTaskCheck.IsChecked = true;
+            ShowFeatureNoStoryCheck.IsChecked = true;
+            LastSprintPerPersonCheck.IsChecked = false;   // recorte forte: o limpar sempre desliga
 
             // Padrao de tela nova: Closed escondido e o corte de dias de volta ao default.
             _hiddenStates.Clear();
@@ -920,14 +931,19 @@ namespace NXProject.Views
         {
             var list = new List<(TfsImportService.SprintStoryRow, List<TfsImportService.SprintTaskCard>)>();
             if (_board == null) return list;
+            // Os dois agrupamentos saem UMA vez, nao por Story: com o board inteiro carregado,
+            // varrer todas as Stories (e todos os cards novos) dentro do laco custava caro.
+            var movedByTarget = _board.Stories.SelectMany(o => o.Tasks)
+                .Where(t => HasLiveParentMove(t.Id))
+                .ToLookup(t => _taskParentPending[t.Id]);
+            var newTasksByParent = _newCards.Where(n => n.Type == "Task").ToLookup(n => n.ParentId);
             foreach (var s in _board.Stories)
             {
                 // Move de Story pendente: a Task ja aparece na Story DESTINO (e sai da origem),
                 // mesmo antes de gravar — o selo laranja no card diz que a troca esta na fila.
                 var tks = s.Tasks.Where(t => !HasLiveParentMove(t.Id)).ToList();
-                tks.AddRange(_board.Stories.SelectMany(o => o.Tasks)
-                    .Where(t => HasLiveParentMove(t.Id) && _taskParentPending[t.Id] == s.Id));
-                tks.AddRange(_newCards.Where(n => n.Type == "Task" && n.ParentId == s.Id).Select(NewToCard));
+                tks.AddRange(movedByTarget[s.Id]);
+                tks.AddRange(newTasksByParent[s.Id].Select(NewToCard));
                 list.Add((s, tks));
             }
             foreach (var ns in _newCards.Where(n => n.Type == "Story"))
@@ -950,7 +966,7 @@ namespace NXProject.Views
                     FeatureEpicRank = sib?.FeatureEpicRank ?? double.NaN,
                     FeatureProjectRank = sib?.FeatureProjectRank ?? double.NaN
                 };
-                var tks = _newCards.Where(n => n.Type == "Task" && n.ParentId == ns.TempId).Select(NewToCard).ToList();
+                var tks = newTasksByParent[ns.TempId].Select(NewToCard).ToList();
                 list.Add((row, tks));
             }
             return list;
@@ -1055,18 +1071,24 @@ namespace NXProject.Views
         // cards novos — o work item so nasce no DevOps no "Atualizar TFS".
         private void AddNewFeature(int epicId, string epicTitle)
         {
-            _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Feature", ParentId = epicId,
+            var tempId = _nextTempId--;
+            _newCards.Add(new NewCard { TempId = tempId, Type = "Feature", ParentId = epicId,
                 FeatureTitle = epicTitle, IterationPath = DefaultNewIterationPath() });
             ExpandTo(epicId);
-            UpdatePendingButton(); Render();
+            // Feature sem Story cai numa linha propria, que pode ficar no fim do board: rola ate
+            // ela, senao o usuario cria e acha que nao aconteceu nada.
+            _scrollToNewCard = tempId;
+            UpdatePendingButton(); Render(); ScrollToNewCardIfAny();
         }
 
         private void AddNewEpic(int projectId, string projectTitle)
         {
-            _newCards.Add(new NewCard { TempId = _nextTempId--, Type = "Epic", ParentId = projectId,
+            var tempId = _nextTempId--;
+            _newCards.Add(new NewCard { TempId = tempId, Type = "Epic", ParentId = projectId,
                 FeatureTitle = projectTitle, IterationPath = DefaultNewIterationPath() });
             ExpandTo(projectId);
-            UpdatePendingButton(); Render();
+            _scrollToNewCard = tempId;
+            UpdatePendingButton(); Render(); ScrollToNewCardIfAny();
         }
 
         // Botao "+X" dos cards de Projeto/EPIC. So aparece com o pai ja existente no DevOps
@@ -1273,8 +1295,120 @@ namespace NXProject.Views
             }
         }
 
+        /// <summary>
+        /// <summary>
+        /// Sprints aceitas de cada pessoa no recorte "ultima sprint". E um CONJUNTO, nao um path:
+        /// a mesma sprint aparece com paths diferentes em cada projeto/time, e guardar so um deles
+        /// fazia a Story do outro projeto sumir do board.
+        /// </summary>
+        private readonly Dictionary<string, HashSet<string>> _lastSprintByPerson =
+            new(StringComparer.CurrentCultureIgnoreCase);
+
+        /// <summary>Sprints EM ANDAMENTO hoje (Start &lt;= hoje &lt;= Fim). Sempre entram no recorte.</summary>
+        private readonly HashSet<string> _runningSprintPaths = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Sprints que ainda nao comecaram (Start &gt; hoje). Nunca entram no recorte.</summary>
+        private readonly HashSet<string> _futureSprintPaths = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Recorte ligado? Guardado a parte: os conjuntos acima podem ficar vazios.</summary>
+        private bool _lastSprintCutOn;
+
+        /// <summary>
+        /// Marcar o recorte exige TODAS as sprints no board: a ultima sprint de alguem pode estar
+        /// fora do recorte carregado, e ai a conta sairia errada. Desmarcar nao recarrega — as
+        /// sprints ja estao em maos e o board so volta a mostrar tudo.
+        /// </summary>
+        private async void OnLastSprintPerPersonChanged(object sender, RoutedEventArgs e)
+        {
+            _prefs.LastSprintPerPerson = LastSprintPerPersonCheck.IsChecked == true;
+            SavePrefs();
+            if (LastSprintPerPersonCheck.IsChecked == true && _sprintPaths.Count > 0)
+            {
+                await ReloadBoardAsync(new List<string>());   // todas as sprints
+                return;
+            }
+            RenderBusy();
+        }
+
+        /// <summary>
+        /// Monta o recorte: a sprint em andamento (para todos) e, para cada pessoa, a sprint mais
+        /// recente JA INICIADA em que ela tem item — usada por quem nao tem nada na corrente.
+        /// Tudo vira dicionario/HashSet aqui, uma vez por desenho, porque o teste roda por card.
+        /// </summary>
+        private void RebuildLastSprintByPerson()
+        {
+            _lastSprintByPerson.Clear();
+            _runningSprintPaths.Clear();
+            _futureSprintPaths.Clear();
+            _lastSprintCutOn = _board != null && LastSprintPerPersonCheck?.IsChecked == true;
+            if (!_lastSprintCutOn) return;
+
+            var today = DateTime.Today;
+            var rankByPath = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < _sprints.Count; i++)
+            {
+                var sp = _sprints[i];
+                if (string.IsNullOrEmpty(sp.Path)) continue;
+                if (sp.Start is DateTime st && st.Date > today) { _futureSprintPaths.Add(sp.Path); continue; }
+                // Comecou. Se ainda nao terminou (ou nao tem fim cadastrado), esta em andamento.
+                if (sp.Start is DateTime st2 && st2.Date <= today
+                    && (sp.End is not DateTime en || en.Date >= today))
+                    _runningSprintPaths.Add(sp.Path);
+                rankByPath[sp.Path] = sp.Start?.Ticks ?? i;   // sem data: posicao na lista do DevOps
+            }
+
+            var bestRank = new Dictionary<string, double>(StringComparer.CurrentCultureIgnoreCase);
+            void Consider(string? who, string? path)
+            {
+                if (string.IsNullOrWhiteSpace(who) || string.IsNullOrWhiteSpace(path)) return;
+                if (!rankByPath.TryGetValue(path!, out var rank)) return;
+                if (bestRank.TryGetValue(who!, out var cur) && rank < cur) return;
+                if (!bestRank.TryGetValue(who!, out cur) || rank > cur)
+                {
+                    bestRank[who!] = rank;
+                    _lastSprintByPerson[who!] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                }
+                _lastSprintByPerson[who!].Add(path!);   // empate de data: os dois paths valem
+            }
+
+            foreach (var s in _board!.Stories)
+            {
+                Consider(s.AssignedTo, s.IterationPath);
+                foreach (var t in s.Tasks) Consider(t.AssignedTo, t.IterationPath);
+            }
+            foreach (var it in _board.LevelItems) Consider(it.AssignedTo, it.IterationPath);
+        }
+
+        /// <summary>
+        /// Sprint que ainda NAO comecou (Start &gt; hoje). Com o recorte ligado ela fica de fora
+        /// mesmo quando a Story pai entra: o board mostra o que esta em andamento, nao o planejado.
+        /// </summary>
+        private bool IsFutureSprint(string? iterationPath)
+        {
+            if (!_lastSprintCutOn || string.IsNullOrWhiteSpace(iterationPath)) return false;
+            return _futureSprintPaths.Contains(iterationPath!);
+        }
+
+        /// <summary>
+        /// O item passa no recorte? Sem recorte, sempre passa. A sprint EM ANDAMENTO passa para
+        /// todo mundo — foi o caso das Stories que sumiam: a pessoa tinha itens na sprint corrente
+        /// sob outro path de projeto, e o desempate escolhia so um deles.
+        /// </summary>
+        private bool LastSprintOk(string? who, string? iterationPath)
+        {
+            if (!_lastSprintCutOn) return true;
+            var path = iterationPath ?? "";
+            if (_runningSprintPaths.Contains(path)) return true;
+            if (string.IsNullOrWhiteSpace(who)) return true;                  // sem responsavel: fica
+            if (!_lastSprintByPerson.TryGetValue(who!, out var accepted)) return true;
+            return accepted.Contains(path);
+        }
+
         private void OnFilterChanged(object sender, RoutedEventArgs e)
         {
+            // Os dois recortes de "itens vazios" ficam salvos como as demais preferencias de tela.
+            if (ShowStoryNoTaskCheck != null) _prefs.ShowStoryNoTask = ShowStoryNoTaskCheck.IsChecked == true;
+            if (ShowFeatureNoStoryCheck != null) _prefs.ShowFeatureNoStory = ShowFeatureNoStoryCheck.IsChecked == true;
             // Ao entrar em "Pessoa & Task" sem ninguém marcado, já traz o usuário do NX.
             if (ViewIndex == 1 && _selectedPeople.Count == 0
                 && _board != null && MatchCurrentUser() is { } me)
@@ -1309,7 +1443,31 @@ namespace NXProject.Views
             PersonFilterList.Children.Clear();
             foreach (var p in people)
             {
-                var cb = new CheckBox { Content = p, Tag = p,
+                // Nome + 📍. O 📍 e o comando VISIVEL de "ir ate a pessoa no board"; o Ctrl+clique
+                // no nome faz o mesmo, para quem ja pegou o atalho. O conteudo do CheckBox virou
+                // painel, mas o nome continua no Tag — e por ele que a busca e o filtro trabalham.
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                row.Children.Add(new TextBlock { Text = p, VerticalAlignment = VerticalAlignment.Center });
+                var goTo = new TextBlock
+                {
+                    Text = "📍", Margin = new Thickness(6, 0, 0, 0), FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x2B, 0x57, 0x9A)),
+                    ToolTip = AppStrings.Get("Sprint_PersonGoToTip")
+                };
+                // Handled = true impede que o clique no icone marque/desmarque o checkbox.
+                goTo.PreviewMouseLeftButtonDown += (s, ev) =>
+                {
+                    ev.Handled = true;
+                    // Sem Ctrl o 📍 ISOLA a pessoa (desmarca as demais); com Ctrl, soma a selecao.
+                    var keepOthers = (System.Windows.Input.Keyboard.Modifiers
+                                      & System.Windows.Input.ModifierKeys.Control) != 0;
+                    GoToPerson(p, keepOthers);
+                };
+                row.Children.Add(goTo);
+
+                var cb = new CheckBox { Content = row, Tag = p,
                     IsChecked = _selectedPeople.Contains(p), Margin = new Thickness(0, 1, 0, 1),
                     ToolTip = AppStrings.Get("Sprint_PersonCtrlClickTip") };
                 // Ctrl+clique NAO marca/desmarca: so leva a lista ate a faixa dessa pessoa.
@@ -1317,13 +1475,43 @@ namespace NXProject.Views
                 {
                     if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0) return;
                     ev.Handled = true;
-                    PersonFilterToggle.IsChecked = false;          // fecha o popup para ver o board
-                    ScrollToPerson(p);
+                    GoToPerson(p, keepOthers: true);   // Ctrl segurado = soma a quem ja esta marcado
                 };
                 PersonFilterList.Children.Add(cb);
             }
             ApplyPersonSearch();
             UpdatePersonToggleText();
+        }
+
+        /// <summary>
+        /// Ir para a pessoa pelo 📍 (ou Ctrl+clique no nome).
+        ///
+        /// Sem Ctrl o filtro passa a ser SO ela: as demais sao desmarcadas. E o gesto de "quero
+        /// ver o quadro desta pessoa", que era o uso real — antes o board continuava cheio e a
+        /// pessoa so aparecia mais acima. Com Ctrl, a selecao que ja existia e mantida e ela e
+        /// somada, para comparar duas ou tres pessoas lado a lado.
+        /// </summary>
+        private void GoToPerson(string person, bool keepOthers = false)
+        {
+            var boxes = PersonFilterList.Children.OfType<CheckBox>().ToList();
+            var box = boxes.FirstOrDefault(c => c.Tag is string t
+                && string.Equals(t, person, StringComparison.CurrentCultureIgnoreCase));
+            if (box == null) { PersonFilterToggle.IsChecked = false; ScrollToPerson(person); return; }
+
+            if (keepOthers) box.IsChecked = true;
+            else foreach (var c in boxes) c.IsChecked = ReferenceEquals(c, box);
+
+            // Mesmo caminho do botao Aplicar: refaz a selecao a partir das caixas e redesenha.
+            var before = _selectedPeople.ToList();
+            _selectedPeople.Clear();
+            foreach (var c in boxes)
+                if (c.IsChecked == true && c.Tag is string t) _selectedPeople.Add(t);
+            var changed = !before.SequenceEqual(_selectedPeople);
+            if (changed) { UpdatePersonToggleText(); SavePrefs(); }
+
+            PersonFilterToggle.IsChecked = false;    // fecha o popup para ver o board
+            if (changed) RenderBusy();               // redesenha antes de procurar a faixa
+            ScrollToPerson(person);
         }
 
         /// <summary>
@@ -1593,14 +1781,17 @@ namespace NXProject.Views
                 // Estado EFETIVO (considera arrasto pendente p/ Closed) → libera o HH Realizado.
                 hState = _cardById.TryGetValue(id, out var cardH) ? EffState(cardH) : st;
             }
-            // Sprint editável para Story e Task (Feature NÃO fica em sprint). Valor efetivo (pendente).
+            // Sprint editável em TODOS os níveis: Task, Story, Feature e EPIC. A Feature/EPIC
+            // também mora numa sprint no DevOps, e é por ela que o board decide o que carregar —
+            // sem poder trocar aqui, o item ficava preso na sprint errada.
             System.Collections.Generic.IReadOnlyList<(string Name, string Path)>? sprints = null;
             var effIter = "";
-            if (id > 0 && kind != "Feature")
+            if (id > 0)
             {
-                // Para Task, a iteração-base vem do próprio card se não veio no parâmetro.
+                // Para Task, a iteração-base vem do próprio card se não veio no parâmetro; para
+                // Feature/EPIC, do item de nível carregado do DevOps.
                 var baseIterOrig = !string.IsNullOrEmpty(currentIteration) ? currentIteration
-                    : (_cardById.TryGetValue(id, out var cIt) ? cIt.IterationPath : "");
+                    : (_cardById.TryGetValue(id, out var cIt) ? cIt.IterationPath : LevelIterationOf(id));
                 sprints = _sprints.Where(s => !string.IsNullOrEmpty(s.Path)).Select(s => (s.Name, s.Path)).ToList();
                 effIter = _iterPending.TryGetValue(id, out var ip) ? ip
                     : _iterApplied.TryGetValue(id, out var ia) ? ia : baseIterOrig;
@@ -2436,6 +2627,17 @@ namespace NXProject.Views
             if (OnlyTaskActiveCheck.IsChecked == true
                 && TfsImportService.NormalizeTaskState(EffState(t)) != "Active") return false;
             if (_selectedPeople.Count > 0 && !_selectedPeople.Contains(t.AssignedTo ?? "")) return false;
+            // Recorte "ultima sprint da pessoa": quem manda e a STORY. Se a Story entra, as
+            // Tasks dela vem junto, mesmo as de sprint anterior — Task nao se le sozinha, se le
+            // dentro da entrega. Duas excecoes: sprint FUTURA nunca entra (o recorte e do que ja
+            // comecou), e Task orfa (sem Story no board) vale pela propria sprint.
+            if (IsFutureSprint(t.IterationPath)) return false;
+            if (StoryById(EffTaskParent(t)) is { } parentStory)
+            {
+                if (!LastSprintOk(EffOwner(parentStory.Id, parentStory.AssignedTo), parentStory.IterationPath))
+                    return false;
+            }
+            else if (!LastSprintOk(t.AssignedTo, t.IterationPath)) return false;
             if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(EffTaskParent(t))) return false;
             // Busca ao vivo com escopo (Ambos / Task / Story).
             var q = SearchQuery();
@@ -2859,6 +3061,31 @@ namespace NXProject.Views
             if (_board == null) return;
 
             var stories = _board.Stories.Where(s => s.Id > 0 && !s.IsLevelPlaceholder).ToList();
+
+            // Feature/EPIC que NAO tem Story nenhuma nao apareciam na arvore — e, sem estar aqui,
+            // sumiam do board assim que qualquer filtro era aplicado, sem o usuario ter como
+            // marca-los. Entram como uma folha propria (o Tag e o id do proprio work item), sob o
+            // EPIC/Projeto a que pertencem.
+            var coveredFeat = stories.Where(x => x.FeatureId > 0).Select(x => x.FeatureId).ToHashSet();
+            var coveredEpic = stories.Where(x => x.FeatureEpicId > 0).Select(x => x.FeatureEpicId).ToHashSet();
+            foreach (var it in _board.LevelItems)
+            {
+                if (it.Id <= 0) continue;
+                if (it.Kind == "Feature" && coveredFeat.Contains(it.Id)) continue;
+                if (it.Kind == "Epic" && coveredEpic.Contains(it.Id)) continue;
+                if (it.Kind != "Feature" && it.Kind != "Epic") continue;   // Project e so no raiz
+
+                var row = new TfsImportService.SprintStoryRow(it.Id, it.Title, it.State, it.AssignedTo, new())
+                {
+                    IterationPath = it.IterationPath, Tags = it.Tags,
+                    FeatureEpicId = it.Kind == "Epic" ? it.Id : it.EpicId,
+                    FeatureEpicTitle = it.Kind == "Epic" ? it.Title : it.EpicTitle,
+                    FeatureProjectId = it.ProjectId, FeatureProjectTitle = it.ProjectTitle
+                };
+                if (it.Kind == "Feature") { row.FeatureId = it.Id; row.FeatureTitle = it.Title; }
+                stories.Add(row);
+            }
+
             if (stories.Count == 0) return;
 
             var portfolio = LoadPortfolioProjects();
@@ -3112,7 +3339,10 @@ namespace NXProject.Views
         {
             _selectedStoryIds.Clear();
             foreach (var cb in AllStoryCheckBoxes()) cb.IsChecked = true;
-            PopulateStoryFilter(); // re-marca as raízes
+            // NAO reconstruir a arvore aqui: o rebuild reaplica a regra de "sem filtro salvo", que
+            // marca apenas o cronograma aberto — e o "Todas" acabava desmarcando o resto. Basta
+            // recalcular o estado dos nos (marcado / parcial) a partir das folhas ja marcadas.
+            RefreshFilterGroupStates();
             RenderBusy();
         }
 
@@ -3144,6 +3374,9 @@ namespace NXProject.Views
             SummaryHost.Items.Clear();
             BoardHost.Children.Clear();
             _personCellByKey.Clear();
+            _newCardBorderById.Clear();
+            RebuildStoryRowCache();
+            RebuildLastSprintByPerson();
             HeaderHost.Children.Clear();
             if (_board == null) return;
 
@@ -3667,7 +3900,9 @@ namespace NXProject.Views
             // Stories SEM Task visivel: o dono acompanha a entrega sem detalhar em Task. Elas nao
             // entram no agrupamento por Task (que continua como esta) — sao acrescentadas no FIM
             // da faixa da pessoa, pelo responsavel da STORY.
-            var storiesNoTask = EffectiveStories()
+            var storiesNoTask = ShowStoryNoTaskCheck?.IsChecked != true
+                ? new List<TfsImportService.SprintStoryRow>()
+                : EffectiveStories()
                 .Where(x => !x.Story.IsLevelPlaceholder && x.Story.Id != 0
                             && !x.Tasks.Any(PassesFilters) && StoryPasses(x.Story)
                             && StoryStatePasses(x.Story))
@@ -4258,6 +4493,20 @@ namespace NXProject.Views
                 : "";
         }
 
+        /// <summary>
+        /// Sprint de um Feature/EPIC/Project, lida do que o board carregou: primeiro o item de
+        /// nivel, depois a ancestralidade das Stories (que traz a iteracao da Feature).
+        /// </summary>
+        private string LevelIterationOf(int id)
+        {
+            if (id <= 0 || _board == null) return "";
+            var lvl = _board.LevelItems.FirstOrDefault(i => i.Id == id);
+            if (lvl != null && !string.IsNullOrEmpty(lvl.IterationPath)) return lvl.IterationPath;
+            var byFeature = _board.Stories.FirstOrDefault(s => s.FeatureId == id
+                && !string.IsNullOrEmpty(s.FeatureIterationPath));
+            return byFeature?.FeatureIterationPath ?? "";
+        }
+
         /// <summary>Story pai efetiva da Task: pendente -> ja gravada -> a do DevOps.</summary>
         private int EffTaskParent(TfsImportService.SprintTaskCard t) =>
             _taskParentPending.TryGetValue(t.Id, out var p) ? p
@@ -4797,7 +5046,12 @@ namespace NXProject.Views
         private List<TfsImportService.SprintStoryRow> BuildLevelPlaceholders(List<TfsImportService.SprintStoryRow> visible)
         {
             var list = new List<TfsImportService.SprintStoryRow>();
-            if (_board == null || _board.LevelItems.Count == 0 || _selectedStoryIds.Count > 0) return list;
+            if (_board == null || _board.LevelItems.Count == 0) return list;
+            if (ShowFeatureNoStoryCheck?.IsChecked != true) return list;
+            // Com filtro ativo, o item de nivel entra se ELE estiver marcado na arvore (a Feature
+            // sem Story tem checkbox proprio la). Antes a linha era simplesmente suprimida, e a
+            // Feature sumia do board sem o usuario ter como pedi-la de volta.
+            bool FilterOk(int id) => _selectedStoryIds.Count == 0 || _selectedStoryIds.Contains(id);
 
             var q = SearchQuery();
             bool PersonOk(string who) => _selectedPeople.Count == 0 || _selectedPeople.Contains(who ?? "");
@@ -4827,7 +5081,9 @@ namespace NXProject.Views
                     "Epic"    => epicCovered.Contains(it.Id),
                     _         => projCovered.Contains(it.Id)
                 };
-                if (covered || !PersonOk(it.AssignedTo) || !SearchOk(it.Title, it.Id) || !SchedOk(it.Id)) continue;
+                if (covered || !FilterOk(it.Id) || !LastSprintOk(it.AssignedTo, it.IterationPath)
+                    || !PersonOk(it.AssignedTo)
+                    || !SearchOk(it.Title, it.Id) || !SchedOk(it.Id)) continue;
 
                 // Id negativo e fora da faixa dos cards novos (que comecam em -1): nunca colide.
                 var row = new TfsImportService.SprintStoryRow(-(1_000_000 + it.Id), it.Title, it.State, it.AssignedTo, new())
@@ -4986,6 +5242,10 @@ namespace NXProject.Views
             if (s.Id < 0) return true; // Story nova sempre visível
             if (OnlyScheduleCheck.IsChecked == true && !_scheduleIds.Contains(s.Id)) return false;
             if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(s.Id)) return false;
+            // So a sprint da STORY decide: Story de sprint antiga sai do board levando as Tasks
+            // dela junto, mesmo que alguma esteja na sprint nova.
+            if (IsFutureSprint(s.IterationPath)) return false;
+            if (!LastSprintOk(EffOwner(s.Id, s.AssignedTo), s.IterationPath)) return false;
             // Filtro de pessoa também na visão Por Story: mostra a Story se o responsável dela
             // ou alguma task sua for de uma das pessoas selecionadas.
             if (_selectedPeople.Count > 0)
@@ -5016,8 +5276,56 @@ namespace NXProject.Views
             return true;
         }
 
-        private TfsImportService.SprintStoryRow? StoryById(int id) =>
-            EffectiveStories().Select(x => x.Story).FirstOrDefault(s => s.Id == id);
+        /// <summary>
+        /// Indice id -> Story do desenho atual. Antes StoryById remontava EffectiveStories() a
+        /// cada chamada, e ela e chamada por card, varias vezes: com todas as pessoas e todas as
+        /// sprints carregadas isso virava trabalho quadratico e o board demorava a abrir.
+        /// </summary>
+        private readonly Dictionary<int, TfsImportService.SprintStoryRow> _storyRowCache = new();
+        private TfsImportService.SprintBoard? _storyRowCacheBoard;
+        private int _storyRowCacheNewCount = -1;
+
+        /// <summary>Refaz o indice. Chamado no inicio do desenho e quando o board/cards novos mudam.</summary>
+        private void RebuildStoryRowCache()
+        {
+            _storyRowCache.Clear();
+            foreach (var x in EffectiveStories())
+                if (!_storyRowCache.ContainsKey(x.Story.Id)) _storyRowCache[x.Story.Id] = x.Story;
+            _storyRowCacheBoard = _board;
+            _storyRowCacheNewCount = _newCards.Count;
+        }
+
+        private TfsImportService.SprintStoryRow? StoryById(int id)
+        {
+            if (!ReferenceEquals(_storyRowCacheBoard, _board) || _storyRowCacheNewCount != _newCards.Count)
+                RebuildStoryRowCache();
+            return _storyRowCache.TryGetValue(id, out var row) ? row : null;
+        }
+
+        /// <summary>Borders dos cards novos no desenho atual, por TempId — usados para rolar ate
+        /// o card recem-criado, que pode nascer no fim do board (pai sem Story visivel).</summary>
+        private readonly Dictionary<int, FrameworkElement> _newCardBorderById = new();
+
+        /// <summary>Card novo a mostrar assim que o board terminar de desenhar.</summary>
+        private int _scrollToNewCard;
+
+        /// <summary>Leva a rolagem ate o card novo, se ele ainda estiver no board.</summary>
+        private void ScrollToNewCardIfAny()
+        {
+            if (_scrollToNewCard == 0) return;
+            var id = _scrollToNewCard;
+            _scrollToNewCard = 0;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_newCardBorderById.TryGetValue(id, out var el) || !el.IsVisible) return;
+                try
+                {
+                    var y = el.TransformToAncestor(BoardHost).Transform(new Point(0, 0)).Y;
+                    BoardScroll.ScrollToVerticalOffset(Math.Max(0, y - 60));
+                }
+                catch (InvalidOperationException) { /* fora da arvore visual: ignora */ }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
 
         // Card NOVO editável no próprio card: Nome, Responsável, HH Estimado e Descrição.
         private Border BuildNewCardBorder(NewCard nc)
@@ -5028,10 +5336,17 @@ namespace NXProject.Views
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)), BorderThickness = new Thickness(2),
                 CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(6)
             };
+            _newCardBorderById[nc.TempId] = border;
             var sp = new StackPanel();
             sp.Children.Add(new TextBlock
             {
-                Text = "🆕 " + AppStrings.Get(nc.Type == "Story" ? "Sprint_NewStory" : "Sprint_NewTask"),
+                Text = "🆕 " + AppStrings.Get(nc.Type switch
+                {
+                    "Story" => "Sprint_NewStory",
+                    "Feature" => "Sprint_NewFeature",
+                    "Epic" => "Sprint_NewEpic",
+                    _ => "Sprint_NewTask"
+                }),
                 FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)), FontSize = 11
             });
 
@@ -5068,7 +5383,7 @@ namespace NXProject.Views
 
             // Sprint-alvo: só aparece quando há mais de uma opção (várias sprints/"Todas" selecionadas).
             var sprintOpts = NewCardSprintOptions();
-            if (sprintOpts.Count > 1)
+            if (sprintOpts.Count > 1 || (sprintOpts.Count == 1 && nc.Type is "Feature" or "Epic"))
             {
                 if (string.IsNullOrEmpty(nc.IterationPath) || sprintOpts.All(s => s.Path != nc.IterationPath))
                     nc.IterationPath = DefaultNewIterationPath();

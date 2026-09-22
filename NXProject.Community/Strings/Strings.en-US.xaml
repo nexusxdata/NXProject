@@ -969,6 +969,12 @@
     <sys:String x:Key="Sprint_CreatedOn">🗓 Created on {0}</sys:String>
     <sys:String x:Key="Sprint_ClosedOn">🏁 Closed on {0}</sys:String>
     <sys:String x:Key="Sprint_StateSince">🕒 In this state since {0}</sys:String>
+    <sys:String x:Key="Sprint_LastSprintPerPerson">Latest sprint</sys:String>
+    <sys:String x:Key="Sprint_LastSprintPerPersonTip">Shows only what is in the sprint CURRENTLY RUNNING (start &lt;= today &lt;= end). Anyone with nothing in the running sprint shows with their own latest sprint that has already started — the cut is per person. A future sprint never comes in, even when its parent Story does. The Story decides: its Tasks come along. Ticking it reloads the board with every sprint — the only way to know each person's latest. The Project and Person filters still apply on top; "Clear filters" turns it off.</sys:String>
+    <sys:String x:Key="Sprint_ShowStoryNoTask">Show Story without Task</sys:String>
+    <sys:String x:Key="Sprint_ShowStoryNoTaskTip">A Story with no Task yet shows on the board, in its owner row. Unchecked, only Stories that have Tasks appear. "Clear filters" restores it.</sys:String>
+    <sys:String x:Key="Sprint_ShowFeatureNoStory">Show Feature/EPIC without Story</sys:String>
+    <sys:String x:Key="Sprint_ShowFeatureNoStoryTip">A Feature or EPIC with no Story yet shows as its own row in its level column. Unchecked, they disappear from the board. "Clear filters" restores it.</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStory">Schedule stories only</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStoryTip">Shows only the Stories present in the open schedule. Tasks still come from TFS as usual, so you can check whether the filters cover them.</sys:String>
     <sys:String x:Key="Sprint_FSOnlyScheduleStory">Schedule stories only</sys:String>
@@ -981,6 +987,8 @@
     <sys:String x:Key="Sprint_NoFeature">(no Feature)</sys:String>
     <sys:String x:Key="Sprint_Search">Search:</sys:String>
     <sys:String x:Key="Sprint_New">🆕 new (save to TFS)</sys:String>
+    <sys:String x:Key="Sprint_NewFeature">New Feature</sys:String>
+    <sys:String x:Key="Sprint_NewEpic">New EPIC</sys:String>
     <sys:String x:Key="Sprint_NewStory">New Story (name)</sys:String>
     <sys:String x:Key="Sprint_NewTask">New Task (name)</sys:String>
     <sys:String x:Key="Sprint_AddStory">➕ Story</sys:String>
@@ -1117,7 +1125,8 @@
     <sys:String x:Key="Sprint_StateFilter">States ▾</sys:String>
     <sys:String x:Key="Sprint_ShowSummary">Show summary</sys:String>
     <sys:String x:Key="Sprint_ShowSummaryTip">Shows the per-state summary at the top of the board. Unchecked, the summary stays hidden and the cards get more room.</sys:String>
-    <sys:String x:Key="Sprint_PersonCtrlClickTip">Click ticks/unticks the filter. Ctrl+click scrolls the board to this person, without changing the filter.</sys:String>
+    <sys:String x:Key="Sprint_PersonGoToTip">📍 filters the board to THIS person only and scrolls to their cards. With Ctrl, it keeps whoever is already ticked and adds this person.</sys:String>
+    <sys:String x:Key="Sprint_PersonCtrlClickTip">Click ticks/unticks the filter. The 📍 next to the name leaves the board with this person only; Ctrl+click on the name (or the 📍) keeps the others and adds this one.</sys:String>
     <sys:String x:Key="Sprint_PersonNotPersonView">Ctrl+click jumps to the person only in the Person &amp; Task view.</sys:String>
     <sys:String x:Key="Sprint_PersonOutOfFilter">{0} is outside the person filter — tick them (or keep "all") to see their cards.</sys:String>
     <sys:String x:Key="Sprint_PersonNoCards">There are no cards in the current filter for {0}.</sys:String>

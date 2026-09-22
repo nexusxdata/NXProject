@@ -214,6 +214,12 @@
             <CheckBox x:Name="EditModeCheck" VerticalAlignment="Center"
                       Margin="14,0,0,0" Click="OnFilterChanged"
                       Content="{DynamicResource Sprint_EditMode}" ToolTip="{DynamicResource Sprint_EditModeTip}"/>
+            <!-- Recorte por sprint mais recente de cada pessoa. Marcar RECARREGA o board com
+                 todas as sprints: so assim da para saber qual e a ultima de cada um. -->
+            <CheckBox x:Name="LastSprintPerPersonCheck" VerticalAlignment="Center" Margin="14,0,0,0"
+                      Click="OnLastSprintPerPersonChanged"
+                      Content="{DynamicResource Sprint_LastSprintPerPerson}"
+                      ToolTip="{DynamicResource Sprint_LastSprintPerPersonTip}"/>
             <Button x:Name="ColorsButton" VerticalAlignment="Center" Padding="6,2" Margin="14,0,0,0"
                     Click="OnColorsClick" Content="🎨" ToolTip="{DynamicResource Sprint_Colors}"/>
             <ToggleButton x:Name="ConfigToggle" VerticalAlignment="Center" Padding="6,2" Margin="10,0,0,0"
@@ -238,6 +244,14 @@
                         <CheckBox x:Name="OnlyScheduleCheck" Click="OnFilterChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_OnlyScheduleStory}"
                                   ToolTip="{DynamicResource Sprint_OnlyScheduleStoryTip}"/>
+                        <!-- Itens "vazios": Story que ainda nao tem Task e Feature/EPIC que ainda
+                             nao tem Story. Marcados por padrao — e o que o "limpar filtros" repoe. -->
+                        <CheckBox x:Name="ShowStoryNoTaskCheck" IsChecked="True" Click="OnFilterChanged" Margin="8,2,0,2"
+                                  Content="{DynamicResource Sprint_ShowStoryNoTask}"
+                                  ToolTip="{DynamicResource Sprint_ShowStoryNoTaskTip}"/>
+                        <CheckBox x:Name="ShowFeatureNoStoryCheck" IsChecked="True" Click="OnFilterChanged" Margin="8,2,0,2"
+                                  Content="{DynamicResource Sprint_ShowFeatureNoStory}"
+                                  ToolTip="{DynamicResource Sprint_ShowFeatureNoStoryTip}"/>
 
                         <Separator Margin="0,8,0,6"/>
                         <!-- Recortes por marcação (tag) da Task -->
