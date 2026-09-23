@@ -1324,7 +1324,19 @@ namespace NXProject.Views
             SavePrefs();
             if (LastSprintPerPersonCheck.IsChecked == true && _sprintPaths.Count > 0)
             {
+                // A recarga e so para ter todas as sprints em maos — o recorte de PESSOA nao muda.
+                // Guardado e reposto aqui porque o board novo refaz a lista de pessoas, e quem
+                // estava marcado tinha que continuar marcado: marcar "ultima sprint" nao e pedido
+                // para ver o time inteiro.
+                var wasPeople = _selectedPeople.ToList();
                 await ReloadBoardAsync(new List<string>());   // todas as sprints
+                if (wasPeople.Count > 0 && _board != null)
+                {
+                    _selectedPeople.Clear();
+                    foreach (var who in wasPeople) _selectedPeople.Add(who);
+                    PopulatePersonFilter(BoardPeople(_board));
+                    RenderBusy();
+                }
                 return;
             }
             RenderBusy();
@@ -2638,7 +2650,7 @@ namespace NXProject.Views
                     return false;
             }
             else if (!LastSprintOk(t.AssignedTo, t.IterationPath)) return false;
-            if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(EffTaskParent(t))) return false;
+            if (!TaskStoryFilterOk(t)) return false;
             // Busca ao vivo com escopo (Ambos / Task / Story).
             var q = SearchQuery();
             if (!string.IsNullOrEmpty(q))
@@ -4508,6 +4520,29 @@ namespace NXProject.Views
         }
 
         /// <summary>Story pai efetiva da Task: pendente -> ja gravada -> a do DevOps.</summary>
+        /// <summary>
+        /// A Task passa no recorte de Story? Normalmente basta a Story pai estar marcada.
+        ///
+        /// O caso que ficava de fora e a Task pendurada DIRETO na Feature: ela nao tem Story, e
+        /// a arvore do filtro so lista Story (e Feature/EPIC sem Story nenhuma). Sem nada para
+        /// marcar, qualquer recorte de projeto a derrubava do board — junto com o convite de
+        /// criar a Story dela, que e justamente onde esse caso se resolve. Agora ela acompanha o
+        /// que estiver marcado ACIMA: a propria Feature, o EPIC, o Projeto ou qualquer irma
+        /// Story da mesma Feature.
+        /// </summary>
+        private bool TaskStoryFilterOk(TfsImportService.SprintTaskCard t)
+        {
+            if (_selectedStoryIds.Count == 0) return true;
+            var pid = EffTaskParent(t);
+            if (_selectedStoryIds.Contains(pid)) return true;
+            if (_board == null) return false;
+            if (StoryById(pid) is { Id: > 0 }) return false;   // o pai e Story mesmo: nao passa
+            var lvl = _board.LevelItems.FirstOrDefault(i => i.Id == pid);
+            if (lvl != null && (_selectedStoryIds.Contains(lvl.EpicId)
+                                || _selectedStoryIds.Contains(lvl.ProjectId))) return true;
+            return _board.Stories.Any(x => x.FeatureId == pid && _selectedStoryIds.Contains(x.Id));
+        }
+
         private int EffTaskParent(TfsImportService.SprintTaskCard t) =>
             _taskParentPending.TryGetValue(t.Id, out var p) ? p
             : _taskParentApplied.TryGetValue(t.Id, out var a) ? a : (t.ParentId ?? 0);
