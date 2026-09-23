@@ -4014,8 +4014,8 @@ namespace NXProject.Views
                 {
                     // Recolhido (Project, EPIC ou Feature): mostra so a linha do nivel recolhido,
                     // uma vez por pessoa, e pula o que vem abaixo dele.
-                    var entryStory = entry.Solo ?? (entry.Tasks is { } eg && _storyById.TryGetValue(
-                        eg.Select(EffTaskParent).FirstOrDefault(i2 => i2 > 0), out var est) ? est : null);
+                    var entryStory = entry.Solo ?? (entry.Tasks is { } eg
+                        ? HeadRowFor(eg.Select(EffTaskParent).FirstOrDefault(i2 => i2 > 0)) : null);
                     var entryProjId = entryStory?.FeatureProjectId ?? 0;
                     var entryEpicId = entryStory?.FeatureEpicId ?? 0;
                     var entryFeatId = entryStory?.FeatureId ?? 0;
@@ -4188,15 +4188,18 @@ namespace NXProject.Views
                         storyBorder.DragOver += (s, ev) => { ev.Effects = DragDropEffects.Move; ev.Handled = true; };
                     }
                     // Coluna Feature (📦) — card só com borda; botão 📄 abre a descrição da Feature.
-                    var featTitle = storyId > 0 ? (StoryById(storyId)?.FeatureTitle ?? "") : "";
-                    var featId = storyId > 0 ? (StoryById(storyId)?.FeatureId ?? 0) : 0;
-                    var featOwner = storyId > 0 ? (StoryById(storyId)?.FeatureAssignedTo ?? "") : "";
-                    var featEpic = storyId > 0 ? (StoryById(storyId)?.FeatureEpicTitle ?? "") : "";
-                    var featProj = storyId > 0 ? (StoryById(storyId)?.FeatureProjectTitle ?? "") : "";
-                    var featState = storyId > 0 ? (StoryById(storyId)?.FeatureState ?? "") : "";
+                    // A hierarquia vem da linha-cabecalho: a Story pai ou, no grupo "(sem Story)",
+                    // a propria linha da Feature onde as Tasks estao penduradas.
+                    var headRow = storyId > 0 ? HeadRowFor(storyId) : null;
+                    var featTitle = headRow?.FeatureTitle ?? "";
+                    var featId = headRow?.FeatureId ?? 0;
+                    var featOwner = headRow?.FeatureAssignedTo ?? "";
+                    var featEpic = headRow?.FeatureEpicTitle ?? "";
+                    var featProj = headRow?.FeatureProjectTitle ?? "";
+                    var featState = headRow?.FeatureState ?? "";
                     // Feature em outra sprint (veio junto com a Task): sprint dela sai em vermelho.
-                    var featOutIter = storyId > 0 && StoryById(storyId)?.FeatureOutOfSprint == true
-                        ? (StoryById(storyId)?.FeatureIterationPath ?? "") : "";
+                    var featOutIter = headRow?.FeatureOutOfSprint == true
+                        ? (headRow.FeatureIterationPath ?? "") : "";
                     // Coluna Feature desligada: a Feature (e o EPIC/Projeto, se também estiverem
                     // desligados) entram como linhas no TOPO do card da Story.
                     if (!showFeat)
@@ -4222,20 +4225,20 @@ namespace NXProject.Views
                     // Coluna Projeto (opcional): card proprio, como na visao Projeto & Story.
                     if (showProj)
                         AddCell(row, cProj, BuildLabelCard("🗂", featProj, strong: false,
-                            id: StoryById(storyId)?.FeatureProjectId ?? 0,
-                            extra: BuildCollapseButton(StoryById(storyId)?.FeatureProjectId ?? 0),
-                            state: StoryById(storyId)?.FeatureProjectState ?? ""));
+                            id: headRow?.FeatureProjectId ?? 0,
+                            extra: BuildCollapseButton(headRow?.FeatureProjectId ?? 0),
+                            state: headRow?.FeatureProjectState ?? ""));
                     // Coluna EPIC (opcional): card do EPIC com o Projeto (sem borda) acima quando há vários.
                     if (showEpic)
                     {
                         var epicSp = new StackPanel();
                         if (!showProj && multiProject && !string.IsNullOrWhiteSpace(featProj))
-                            epicSp.Children.Add(BuildLabelCard("🗂", featProj, strong: false, id: StoryById(storyId)?.FeatureProjectId ?? 0,
-                                state: StoryById(storyId)?.FeatureProjectState ?? ""));
+                            epicSp.Children.Add(BuildLabelCard("🗂", featProj, strong: false, id: headRow?.FeatureProjectId ?? 0,
+                                state: headRow?.FeatureProjectState ?? ""));
                         if (!string.IsNullOrWhiteSpace(featEpic))
-                            epicSp.Children.Add(BuildLabelCard("🏔", featEpic, strong: true, id: StoryById(storyId)?.FeatureEpicId ?? 0,
-                                extra: BuildCollapseButton(StoryById(storyId)?.FeatureEpicId ?? 0),
-                                state: StoryById(storyId)?.FeatureEpicState ?? ""));
+                            epicSp.Children.Add(BuildLabelCard("🏔", featEpic, strong: true, id: headRow?.FeatureEpicId ?? 0,
+                                extra: BuildCollapseButton(headRow?.FeatureEpicId ?? 0),
+                                state: headRow?.FeatureEpicState ?? ""));
                         AddCell(row, cEpic, epicSp);
                     }
                     if (showFeat)
@@ -5329,6 +5332,16 @@ namespace NXProject.Views
             _storyRowCacheBoard = _board;
             _storyRowCacheNewCount = _newCards.Count;
         }
+
+        /// <summary>
+        /// Linha que carrega a HIERARQUIA do grupo. Normalmente e a Story pai; quando a Task
+        /// esta pendurada direto na Feature nao existe Story, e a hierarquia (Feature, EPIC e
+        /// Projeto) vem da linha "(sem Story)" daquela Feature. Sem esta volta, o grupo saia com
+        /// as colunas de cima vazias — aparecia o "(sem Story)" e nenhum card da Feature.
+        /// </summary>
+        private TfsImportService.SprintStoryRow? HeadRowFor(int parentId) =>
+            StoryById(parentId) ?? _board?.Stories.FirstOrDefault(r => r.OrphanParentId == parentId);
+
 
         private TfsImportService.SprintStoryRow? StoryById(int id)
         {
