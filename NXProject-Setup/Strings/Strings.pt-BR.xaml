@@ -40,6 +40,13 @@
     <sys:String x:Key="Setup_Step4ConfigUpdated">Configuração do NXProject atualizada com a escolha de campos da Task.</sys:String>
     <sys:String x:Key="Setup_Step4ConfigUpdatedNames">Configuração do NXProject atualizada: {0} nome(s) de campo e a escolha de campos da Task.</sys:String>
     <sys:String x:Key="Setup_Step4Detect">Detectar no DevOps</sys:String>
+    <sys:String x:Key="Setup_Step4Export">Exportar .json</sys:String>
+    <sys:String x:Key="Setup_Step4ExportTip">Grava num arquivo .json os nomes dos campos, a escolha de campo padrão na Task e quais recursos opcionais valem — para passar à equipe. O token NÃO é exportado.</sys:String>
+    <sys:String x:Key="Setup_Step4Import">Importar .json</sys:String>
+    <sys:String x:Key="Setup_Step4ImportTip">Carrega um .json exportado por outra pessoa e preenche esta tela. Organização e projeto só são preenchidos se estiverem vazios aqui. Depois de importar, rode o Detectar de novo.</sys:String>
+    <sys:String x:Key="Setup_Step4Exported">Configuração exportada para {0}</sys:String>
+    <sys:String x:Key="Setup_Step4Imported">Configuração importada: {0} nome(s) de campo aplicado(s). Rode o Detectar para conferir no DevOps.</sys:String>
+    <sys:String x:Key="Setup_Step4ImportBadFile">Este arquivo não é uma configuração de campos do NXProject.</sys:String>
     <sys:String x:Key="Setup_Step4Create">Criar os campos marcados</sys:String>
     <sys:String x:Key="Setup_Step4Detecting">Consultando o DevOps…</sys:String>
     <sys:String x:Key="Setup_Step4NeedsConnection">Preencha organização, projeto e token antes de detectar.</sys:String>

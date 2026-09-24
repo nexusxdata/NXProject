@@ -40,6 +40,13 @@
     <sys:String x:Key="Setup_Step4ConfigUpdated">NXProject configuration updated with the Task field choice.</sys:String>
     <sys:String x:Key="Setup_Step4ConfigUpdatedNames">NXProject configuration updated: {0} field name(s) and the Task field choice.</sys:String>
     <sys:String x:Key="Setup_Step4Detect">Detect in DevOps</sys:String>
+    <sys:String x:Key="Setup_Step4Export">Export .json</sys:String>
+    <sys:String x:Key="Setup_Step4ExportTip">Saves the field names, the Task built-in field choice and which optional features apply to a .json file, to share with your team. The token is NOT exported.</sys:String>
+    <sys:String x:Key="Setup_Step4Import">Import .json</sys:String>
+    <sys:String x:Key="Setup_Step4ImportTip">Loads a .json exported by someone else and fills this screen. Organization and project are only filled in if empty here. After importing, run Detect again.</sys:String>
+    <sys:String x:Key="Setup_Step4Exported">Configuration exported to {0}</sys:String>
+    <sys:String x:Key="Setup_Step4Imported">Configuration imported: {0} field name(s) applied. Run Detect to check against DevOps.</sys:String>
+    <sys:String x:Key="Setup_Step4ImportBadFile">This file is not an NXProject field configuration.</sys:String>
     <sys:String x:Key="Setup_Step4Create">Create checked fields</sys:String>
     <sys:String x:Key="Setup_Step4Detecting">Querying DevOps…</sys:String>
     <sys:String x:Key="Setup_Step4NeedsConnection">Fill in organization, project and token before detecting.</sys:String>

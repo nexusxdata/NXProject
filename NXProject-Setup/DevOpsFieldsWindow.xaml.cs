@@ -133,6 +133,109 @@ public partial class DevOpsFieldsWindow : Window
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
+    /// O que viaja no arquivo de configuração. É de propósito o MÍNIMO que faz uma instalação
+    /// falar a mesma língua da outra: nomes de campo, a escolha de campo padrão na Task e quais
+    /// recursos opcionais valem. O token NUNCA entra — ele é pessoal e fica só na janela.
+    /// Organização e projeto entram como referência de onde a configuração nasceu; quem importa
+    /// decide se aproveita (é comum a mesma organização, outro projeto).
+    /// </summary>
+    private sealed class FieldConfigFile
+    {
+        public string Format { get; set; } = "nxproject-devops-fields";
+        public int Version { get; set; } = 1;
+        public string ExportedAt { get; set; } = "";
+        public string Organization { get; set; } = "";
+        public string Project { get; set; } = "";
+        public Dictionary<string, string> Fields { get; set; } = new();
+        public List<string> TaskStandard { get; set; } = new();
+        public Dictionary<string, bool> OptionalEnabled { get; set; } = new();
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions ConfigJson =
+        new() { WriteIndented = true };
+
+    private void OnExportFieldsClick(object sender, RoutedEventArgs e)
+    {
+        BuildFieldRows();
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = App.Str("Setup_Step4Export"),
+            FileName = "nxproject-devops-fields.json",
+            DefaultExt = ".json",
+            Filter = "JSON (*.json)|*.json"
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            var data = new FieldConfigFile
+            {
+                ExportedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+                Organization = DevOpsOrgBox.Text.Trim(),
+                Project = DevOpsProjectBox.Text.Trim(),
+                Fields = _fieldRows.ToDictionary(r => r.Spec.Key, r => r.Name.Text?.Trim() ?? ""),
+                TaskStandard = _fieldRows.Where(r => r.UseStandardOnTask?.IsChecked == true)
+                                         .Select(r => r.Spec.Key).ToList(),
+                OptionalEnabled = new Dictionary<string, bool>(_optionalEnabled, StringComparer.OrdinalIgnoreCase),
+            };
+            System.IO.File.WriteAllText(dlg.FileName,
+                System.Text.Json.JsonSerializer.Serialize(data, ConfigJson));
+            Step4StatusText.Text = App.Str("Setup_Step4Exported", dlg.FileName);
+        }
+        catch (Exception ex) { Step4StatusText.Text = ex.Message; }
+    }
+
+    private void OnImportFieldsClick(object sender, RoutedEventArgs e)
+    {
+        BuildFieldRows();
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = App.Str("Setup_Step4Import"),
+            DefaultExt = ".json",
+            Filter = "JSON (*.json)|*.json"
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            var data = System.Text.Json.JsonSerializer.Deserialize<FieldConfigFile>(
+                System.IO.File.ReadAllText(dlg.FileName), ConfigJson);
+            if (data == null || !string.Equals(data.Format, "nxproject-devops-fields",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Step4StatusText.Text = App.Str("Setup_Step4ImportBadFile");
+                return;
+            }
+
+            // Organizacao e projeto so entram quando a tela esta vazia: quem ja apontou para o
+            // seu projeto nao quer ser levado para o do colega sem perceber.
+            if (string.IsNullOrWhiteSpace(DevOpsOrgBox.Text) && !string.IsNullOrWhiteSpace(data.Organization))
+                DevOpsOrgBox.Text = data.Organization;
+            if (string.IsNullOrWhiteSpace(DevOpsProjectBox.Text) && !string.IsNullOrWhiteSpace(data.Project))
+                DevOpsProjectBox.Text = data.Project;
+
+            var applied = 0;
+            foreach (var row in _fieldRows)
+            {
+                if (data.Fields.TryGetValue(row.Spec.Key, out var name) && !string.IsNullOrWhiteSpace(name)
+                    && !string.Equals(row.Name.Text?.Trim(), name.Trim(), StringComparison.Ordinal))
+                {
+                    row.Name.Text = name.Trim();
+                    applied++;
+                }
+                if (row.UseStandardOnTask != null)
+                    row.UseStandardOnTask.IsChecked = data.TaskStandard
+                        .Contains(row.Spec.Key, StringComparer.OrdinalIgnoreCase);
+            }
+            foreach (var kv in data.OptionalEnabled)
+                _optionalEnabled[kv.Key] = kv.Value;
+
+            // A deteccao anterior era sobre os nomes antigos: sai de cena ate detectar de novo.
+            ResetFieldStatus();
+            Step4StatusText.Text = App.Str("Setup_Step4Imported", applied.ToString());
+        }
+        catch (Exception ex) { Step4StatusText.Text = ex.Message; }
+    }
+
+    /// <summary>
     /// Leva para a configuração do NXProject o que foi decidido aqui:
     ///
     ///  • os NOMES dos campos, quando editados — sem isso, renomear na tela do instalador seria

@@ -61,14 +61,27 @@
         <TextBlock Text="{DynamicResource Setup_Step4PrefixHint}" FontSize="10.5" Foreground="#888"
                    TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-        <StackPanel Orientation="Horizontal">
-            <Button x:Name="DetectFieldsButton" Content="{DynamicResource Setup_Step4Detect}"
-                    Width="200" Height="30" Click="OnDetectFieldsClick"/>
-            <Button x:Name="CreateFieldsButton" Content="{DynamicResource Setup_Step4Create}"
-                    Width="220" Height="30" Margin="8,0,0,0" Click="OnCreateFieldsClick" IsEnabled="False"/>
-            <Button Content="{DynamicResource Setup_Close}" Width="110" Height="30" Margin="8,0,0,0"
-                    IsCancel="True" Click="OnCloseClick"/>
-        </StackPanel>
+        <!-- Acoes principais a esquerda; exportar/importar encostados na direita, menores: sao
+             de uso ocasional (o GP ajusta os nomes uma vez e passa o .json para a equipe) e nao
+             devem competir com o Detectar/Criar. -->
+        <Grid>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button x:Name="DetectFieldsButton" Content="{DynamicResource Setup_Step4Detect}"
+                        Width="200" Height="30" Click="OnDetectFieldsClick"/>
+                <Button x:Name="CreateFieldsButton" Content="{DynamicResource Setup_Step4Create}"
+                        Width="220" Height="30" Margin="8,0,0,0" Click="OnCreateFieldsClick" IsEnabled="False"/>
+                <Button Content="{DynamicResource Setup_Close}" Width="110" Height="30" Margin="8,0,0,0"
+                        IsCancel="True" Click="OnCloseClick"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button x:Name="ExportFieldsButton" Content="{DynamicResource Setup_Step4Export}"
+                        Height="22" FontSize="10.5" Padding="8,0" Click="OnExportFieldsClick"
+                        ToolTip="{DynamicResource Setup_Step4ExportTip}"/>
+                <Button x:Name="ImportFieldsButton" Content="{DynamicResource Setup_Step4Import}"
+                        Height="22" FontSize="10.5" Padding="8,0" Margin="6,0,0,0" Click="OnImportFieldsClick"
+                        ToolTip="{DynamicResource Setup_Step4ImportTip}"/>
+            </StackPanel>
+        </Grid>
         <TextBlock x:Name="Step4StatusText" FontSize="11" Foreground="#555" TextWrapping="Wrap" Margin="0,10,0,0"/>
         <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,8,0,0"
                    Text="{DynamicResource Setup_Step4Footer}"/>
