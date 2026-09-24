@@ -1786,6 +1786,13 @@
     <sys:String x:Key="Cfg_DetectRunning">Querying DevOps…</sys:String>
     <sys:String x:Key="Cfg_DetectNeedsConnection">Fill in organization, project and token before detecting.</sys:String>
     <sys:String x:Key="Cfg_DetectViaAlias">the name you typed does not exist in DevOps; NXProject matched it by the alternative name "{0}"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdEffort">on Task use "Original Estimate"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdStart">on Task use "Start Date"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdFinish">on Task use "Finish Date"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdTip">Tick this if the Task should use the DevOps built-in field instead of the custom one. The Story keeps the custom field. It applies once you Save, and the detector stops asking for the custom field on the Task.</sys:String>
+    <sys:String x:Key="Cfg_DetectTypeConflict">the field is {0} and NXProject writes {1} — pick another name</sys:String>
+    <sys:String x:Key="Cfg_DetectTypeNarrower">the field is {0} and NXProject writes {1} — fractional values will be rounded</sys:String>
+    <sys:String x:Key="Cfg_DetectStandard">uses the DevOps built-in field on {0}</sys:String>
     <sys:String x:Key="Cfg_DetectNxRule">NXProject rule, no DevOps field — recommended value</sys:String>
     <sys:String x:Key="Cfg_DetectToggled">Options adjusted on this screen (they only apply if you Save; Cancel undoes them):</sys:String>
     <sys:String x:Key="Cfg_DetectExpectedIn">NXProject uses this field on: {0}</sys:String>

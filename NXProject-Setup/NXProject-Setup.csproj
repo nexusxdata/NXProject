@@ -23,6 +23,15 @@
     <Compile Include="..\NXProject.Community\Services\AiCliInstaller.cs">
       <Link>Services\AiCliInstaller.cs</Link>
     </Compile>
+    <Compile Include="..\NXProject.Shared\Services\NxDevOpsFieldCatalog.cs">
+      <Link>Services\NxDevOpsFieldCatalog.cs</Link>
+    </Compile>
+    <Compile Include="..\NXProject.Shared\Services\DevOpsFieldSetupService.cs">
+      <Link>Services\DevOpsFieldSetupService.cs</Link>
+    </Compile>
+    <Compile Include="..\NXProject.Shared\Services\WindowsDataProtection.cs">
+      <Link>Services\WindowsDataProtection.cs</Link>
+    </Compile>
   </ItemGroup>
 
 </Project>

@@ -1284,6 +1284,13 @@
     <sys:String x:Key="Cfg_DetectRunning">Consultando o DevOps…</sys:String>
     <sys:String x:Key="Cfg_DetectNeedsConnection">Preencha organização, projeto e token antes de detectar.</sys:String>
     <sys:String x:Key="Cfg_DetectViaAlias">o nome digitado não existe no DevOps; o NXProject achou pelo nome alternativo "{0}"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdEffort">na Task usar "Original Estimate"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdStart">na Task usar "Start Date"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdFinish">na Task usar "Finish Date"</sys:String>
+    <sys:String x:Key="Cfg_TaskStdTip">Marque se a Task deve usar o campo PADRÃO do DevOps em vez do personalizado. A Story continua no campo personalizado. Vale a partir do Salvar, e o detector deixa de cobrar o campo personalizado na Task.</sys:String>
+    <sys:String x:Key="Cfg_DetectTypeConflict">o campo é {0} e o NXProject grava {1} — escolha outro nome</sys:String>
+    <sys:String x:Key="Cfg_DetectTypeNarrower">o campo é {0} e o NXProject grava {1} — valores quebrados serão arredondados</sys:String>
+    <sys:String x:Key="Cfg_DetectStandard">usa campo padrão do DevOps em {0}</sys:String>
     <sys:String x:Key="Cfg_DetectNxRule">regra do NXProject, sem campo no DevOps — valor recomendado</sys:String>
     <sys:String x:Key="Cfg_DetectToggled">Opções ajustadas nesta tela (só valem se você Salvar; Cancelar desfaz):</sys:String>
     <sys:String x:Key="Cfg_DetectExpectedIn">o NXProject usa este campo em: {0}</sys:String>

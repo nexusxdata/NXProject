@@ -10,13 +10,38 @@ if ($wpftmp) {
     Write-Host "Arquivos temporarios _wpftmp removidos ($($wpftmp.Count))." -ForegroundColor DarkGray
 }
 
+# O exe fica travado enquanto o instalador esta aberto, e ai o build falha com MSB3027.
+# Encerrar antes de compilar evita ter que fechar a janela na mao a cada teste.
+function Stop-NXProjectSetupProcess {
+    $processes = Get-Process -Name "NXProject-Setup" -ErrorAction SilentlyContinue
+    if ($null -eq $processes) { return }
+
+    Write-Host "Encerrando NXProject-Setup em execucao..." -ForegroundColor DarkGray
+    $processes | Stop-Process -Force
+    # Stop-Process volta antes do Windows liberar o arquivo; esperar evita a corrida com o build.
+    $processes | ForEach-Object { $_.WaitForExit(5000) | Out-Null }
+}
+
 function Get-ExePath($configuration) {
     $path = Join-Path $PSScriptRoot "NXProject-Setup\bin\$configuration\net10.0-windows\win-x64\NXProject-Setup.exe"
     if (Test-Path $path) { return $path }
     return $null
 }
 
-if ($PSBoundParameters.ContainsKey('Configuration')) {
+# Compila antes de rodar (Release por padrao, como o build-community): o que aparece na tela e
+# sempre o codigo atual, sem risco de testar um exe velho.
+$buildConfig = if ($PSBoundParameters.ContainsKey('Configuration')) { $Configuration } else { "Release" }
+Stop-NXProjectSetupProcess
+
+Write-Host "Compilando NXProject-Setup ($buildConfig)..." -ForegroundColor Cyan
+& dotnet build (Join-Path $PSScriptRoot "NXProject-Setup\NXProject-Setup.csproj") -c $buildConfig -v q --nologo
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Build do NXProject-Setup falhou." -ForegroundColor Red
+    exit 1
+}
+$Configuration = $buildConfig
+
+if ($Configuration) {
     $exe = Get-ExePath $Configuration
     if ($null -eq $exe) {
         Write-Host "Executavel NXProject-Setup nao encontrado para $Configuration." -ForegroundColor Red

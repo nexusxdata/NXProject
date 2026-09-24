@@ -96,6 +96,14 @@ namespace NXProject.Views
                 _extraFields.Add(new ExtraWorkItemField { Ref = f.Ref, Value = f.Value });
             ExtraFieldsList.ItemsSource = _extraFields;
 
+            // Excecao por tipo da TASK: marcado quando o mapeamento aponta para o campo padrao.
+            if (saved.TypeFieldMappings.TryGetValue("Task", out var taskCfg))
+            {
+                EffortTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.EffortField);
+                StartTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.StartField);
+                FinishTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.FinishField);
+            }
+
             // Carrega mapeamentos de classificação por tipo
             foreach (var kv in saved.TypeFieldMappings)
             {
@@ -177,6 +185,19 @@ namespace NXProject.Views
         /// So informa e SUGERE: nunca marca nem desmarca um checkbox sozinho — desligar um recurso
         /// em uso por causa de uma leitura seria pior que o problema.
         /// </summary>
+        /// <summary>
+        /// Excecoes da Task marcadas nesta tela, no formato que o detector entende. Sao a mesma
+        /// coisa que o instalador manda: campo padrao do DevOps no lugar do personalizado.
+        /// </summary>
+        private List<DevOpsFieldSetupService.StandardChoice> TaskStandardChoices()
+        {
+            var list = new List<DevOpsFieldSetupService.StandardChoice>();
+            if (EffortTaskStdBox?.IsChecked == true) list.Add(new("effort", "Task"));
+            if (StartTaskStdBox?.IsChecked == true) list.Add(new("start", "Task"));
+            if (FinishTaskStdBox?.IsChecked == true) list.Add(new("finish", "Task"));
+            return list;
+        }
+
         private async void OnDetectFieldsClick(object sender, RoutedEventArgs e)
         {
             var opts = BuildOptions();
@@ -206,34 +227,55 @@ namespace NXProject.Views
 
             // Onde cada campo DEVE existir para o recurso funcionar. E o que transforma
             // "existe/nao existe" em "da para habilitar ou nao".
-            static string[] Scope(string kind) => kind switch
+            //
+            // Vem do catalogo — a mesma lista que o instalador usa para criar, porque a tela nao
+            // pode cobrar um campo num work item que o Setup nem cria. Saem da conta os tipos
+            // cobertos por campo PADRAO do DevOps: os que o NX sempre usou assim (HH na Task) e os
+            // que esta instalacao escolheu, via TypeFieldMappings. Sem esse desconto, quem optou
+            // pelo Start Date de fabrica na Task continuaria vendo "falta em: Task" para sempre.
+            bool CoveredByStandard(string kind, string workItemType)
             {
-                "effort" or "start" or "finish" or "syncVersion" or "syncName"
-                    => new[] { "User Story", "Feature", "Epic" },
-                "percAloc" or "percConclusao" => new[] { "User Story" },
-                "epicType" => new[] { "Epic" },
-                "approved" or "blockDuration" => new[] { "Task" },
-                "admGroup" => new[] { "Project" },
-                _ => System.Array.Empty<string>()
-            };
+                var spec = NxDevOpsFieldCatalog.Find(kind);
+                if (spec == null) return false;
+                if (spec.StandardFor(workItemType).Length > 0) return true;
+                if (!opts.TypeFieldMappings.TryGetValue(workItemType, out var cfg)) return false;
+                var configured = kind switch
+                {
+                    "effort" => cfg.EffortField,
+                    "start" => cfg.StartField,
+                    "finish" => cfg.FinishField,
+                    "percAloc" => cfg.PercAlocField,
+                    "percConclusao" => cfg.PercConclusaoField,
+                    _ => null
+                };
+                return !string.IsNullOrWhiteSpace(configured);
+            }
+
+            string[] Scope(string kind) => NxDevOpsFieldCatalog.Scope(kind)
+                .Where(t => !CoveredByStandard(kind, t)).ToArray();
 
             try
             {
                 DetectFieldsButton.IsEnabled = false;
                 DetectFieldsStatus.Text = AppStrings.Get("Cfg_DetectRunning");
-                var probes = await TfsImportService.ProbeFieldsAsync(
-                    opts, wanted.Select(w => (w.Name, TfsImportService.FieldAliases(w.Kind))));
+                // MESMO detector do NXProject-Setup: a diferenca entre as duas telas e so o
+                // botao de CRIAR, que fica no instalador. Antes eram duas implementacoes, e elas
+                // divergiam (apelidos, conflito de tipo, cobertura por campo padrao).
+                var checks = await DevOpsFieldSetupService.CheckAsync(
+                    opts.OrganizationUrl, opts.TeamProject, opts.PersonalAccessToken,
+                    wanted.Where(w => !string.IsNullOrWhiteSpace(w.Name))
+                          .Select(w => (w.Kind, w.Name.Trim())),
+                    default, TaskStandardChoices());
+                var byKind = checks.ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
 
                 var lines = new List<string>();
                 var missing = 0;
-                foreach (var (label, name, _) in wanted)
+                foreach (var (label, name, kind) in wanted)
                 {
                     if (string.IsNullOrWhiteSpace(name)) continue;
-                    var pr = probes.FirstOrDefault(x =>
-                        string.Equals(x.Configured, name.Trim(), StringComparison.OrdinalIgnoreCase));
-                    if (pr is null) continue;
-                    var scope = Scope(wanted.First(w => w.Label == label).Kind);
-                    if (!pr.Exists)
+                    if (!byKind.TryGetValue(kind, out var pr)) continue;
+                    var scope = Scope(kind);
+                    if (pr.Status == DevOpsFieldSetupService.FieldStatus.Missing)
                     {
                         missing++;
                         // Dizer ONDE o campo deveria estar e o que torna o aviso acionavel.
@@ -244,23 +286,42 @@ namespace NXProject.Views
                                   + AppStrings.Get("Cfg_DetectNotFound") + need);
                         continue;
                     }
-                    var where = pr.Types.Count > 0 ? string.Join(", ", pr.Types)
-                                                   : AppStrings.Get("Cfg_DetectNoType");
-                    var tp = string.IsNullOrEmpty(pr.FieldType) ? "" : $" [{pr.FieldType}]";
+                    if (pr.Status == DevOpsFieldSetupService.FieldStatus.Unknown)
+                    {
+                        lines.Add($"… {label}: {pr.Note}");
+                        continue;
+                    }
+                    var tp = string.IsNullOrEmpty(pr.FoundType) ? "" : $" [{pr.FoundType}]";
                     // So avisa falta onde o campo FAZ FALTA: cobrar "Esforco Estimado" na Task
                     // ou na Project so gerava ruido, porque o NX nunca usa o campo ali.
-                    var gapTypes = pr.MissingTypes
-                        .Where(t => scope.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
-                    var gap = gapTypes.Count > 0
-                        ? "  ⚠ " + AppStrings.Get("Cfg_DetectMissingIn", string.Join(", ", gapTypes))
+                    var gap = pr.MissingIn.Count > 0
+                        ? "  ⚠ " + AppStrings.Get("Cfg_DetectMissingIn", string.Join(", ", pr.MissingIn))
                         : "";
                     // Achado por nome ALTERNATIVO: o que voce digitou nao existe no DevOps. O NX
                     // funciona assim mesmo (a importacao usa a mesma lista), mas quem configurou
                     // precisa saber — senao um nome errado passa por validado.
-                    var via = pr.MatchedByAlias
-                        ? "  ⚠ " + AppStrings.Get("Cfg_DetectViaAlias", pr.MatchedBy)
+                    var via = string.IsNullOrEmpty(pr.MatchedByAlias)
+                        ? ""
+                        : "  ⚠ " + AppStrings.Get("Cfg_DetectViaAlias", pr.MatchedByAlias);
+                    // Tipo do campo diferente do que o NX grava: incompativel bloqueia, numerico
+                    // mais estreito (inteiro onde vai decimal) e so aviso.
+                    var typeNote = pr.Status switch
+                    {
+                        DevOpsFieldSetupService.FieldStatus.TypeConflict =>
+                            "  ⛔ " + AppStrings.Get("Cfg_DetectTypeConflict", pr.FoundType,
+                                NxDevOpsFieldCatalog.Find(kind)?.Type ?? ""),
+                        DevOpsFieldSetupService.FieldStatus.TypeNarrower =>
+                            "  ⚠ " + AppStrings.Get("Cfg_DetectTypeNarrower", pr.FoundType,
+                                NxDevOpsFieldCatalog.Find(kind)?.Type ?? ""),
+                        _ => ""
+                    };
+                    // Tipo coberto por campo de fabrica (sempre, ou por escolha desta instalacao).
+                    var std = pr.CoveredByStandard.Count > 0
+                        ? "  · " + AppStrings.Get("Cfg_DetectStandard", string.Join(" | ", pr.CoveredByStandard))
                         : "";
-                    lines.Add($"✅ {label}: {pr.ReferenceName} {tp} — {where}{via}{gap}".Replace("  —", " —"));
+                    if (pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict) missing++;
+                    var mark = pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict ? "⛔" : "✅";
+                    lines.Add($"{mark} {label}: {pr.ReferenceName}{tp}{via}{typeNote}{gap}{std}");
                 }
 
                 // Campos com checkbox: a deteccao MARCA o que existe no tipo em que o NX usa e
@@ -271,13 +332,14 @@ namespace NXProject.Views
                 {
                     var name = nameBox.Text?.Trim() ?? "";
                     if (string.IsNullOrWhiteSpace(name)) return;
-                    var pr = probes.FirstOrDefault(x =>
-                        string.Equals(x.Configured, name, StringComparison.OrdinalIgnoreCase));
-                    if (pr is null) return;
-                    // Existir na organizacao nao basta: tem que existir NO TIPO em que o NX usa.
+                    if (!byKind.TryGetValue(kind, out var pr)) return;
+                    // Existir na organizacao nao basta: tem que existir NO TIPO em que o NX usa —
+                    // faltar em TODOS os tipos do escopo e o mesmo que nao existir.
                     var scope = Scope(kind);
-                    var usable = pr.Exists && (scope.Length == 0
-                        || scope.Any(t => pr.Types.Contains(t, StringComparer.OrdinalIgnoreCase)));
+                    var usable = pr.Status is DevOpsFieldSetupService.FieldStatus.Ready
+                                           or DevOpsFieldSetupService.FieldStatus.TypeNarrower
+                                           or DevOpsFieldSetupService.FieldStatus.NeedsWorkItemTypes
+                        && (scope.Length == 0 || pr.MissingIn.Count < scope.Length);
                     if ((box.IsChecked == true) == usable) return;
                     box.IsChecked = usable;
                     nameBox.IsEnabled = usable;
@@ -481,6 +543,17 @@ namespace NXProject.Views
             // Limpa CustomDevopsFields de todos os tipos antes de reaplicar
             foreach (var cfg in mappings.Values)
                 cfg.CustomDevopsFields = [];
+
+            // Excecao da Task: marcada, o NX le e grava o campo PADRAO do DevOps na Task; sem
+            // marca, a exceção sai do mapeamento e vale o campo personalizado como em todo lugar.
+            if (!mappings.TryGetValue("Task", out var taskMap))
+                mappings["Task"] = taskMap = new TypeFieldConfig();
+            taskMap.EffortField = EffortTaskStdBox.IsChecked == true
+                ? NxDevOpsFieldCatalog.Find("effort")?.OptionalStandardFor("Task") : null;
+            taskMap.StartField = StartTaskStdBox.IsChecked == true
+                ? NxDevOpsFieldCatalog.Find("start")?.OptionalStandardFor("Task") : null;
+            taskMap.FinishField = FinishTaskStdBox.IsChecked == true
+                ? NxDevOpsFieldCatalog.Find("finish")?.OptionalStandardFor("Task") : null;
 
             // Agrupa por tipo DevOps e salva lista de campos
             var grouped = _classificationMappings

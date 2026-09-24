@@ -142,17 +142,29 @@
                             <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
+                        <!-- Abaixo de cada campo, a excecao da TASK: usar o campo de fabrica do
+                             DevOps ali (Original Estimate / Start Date / Finish Date) em vez do
+                             personalizado. Marcado, vira TypeFieldMappings["Task"] ao salvar. -->
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="{DynamicResource Cfg_EffortField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
                             <TextBox x:Name="EffortFieldBox" Height="26" Padding="6,3"/>
+                            <CheckBox x:Name="EffortTaskStdBox" Margin="0,4,0,0" FontSize="10.5"
+                                      Content="{DynamicResource Cfg_TaskStdEffort}"
+                                      ToolTip="{DynamicResource Cfg_TaskStdTip}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="{DynamicResource Cfg_StartField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
                             <TextBox x:Name="StartFieldBox" Height="26" Padding="6,3"/>
+                            <CheckBox x:Name="StartTaskStdBox" Margin="0,4,0,0" FontSize="10.5"
+                                      Content="{DynamicResource Cfg_TaskStdStart}"
+                                      ToolTip="{DynamicResource Cfg_TaskStdTip}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="4">
                             <TextBlock Text="{DynamicResource Cfg_FinishField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
                             <TextBox x:Name="FinishFieldBox" Height="26" Padding="6,3"/>
+                            <CheckBox x:Name="FinishTaskStdBox" Margin="0,4,0,0" FontSize="10.5"
+                                      Content="{DynamicResource Cfg_TaskStdFinish}"
+                                      ToolTip="{DynamicResource Cfg_TaskStdTip}"/>
                         </StackPanel>
                     </Grid>
                     <Grid Margin="0,8,0,0">

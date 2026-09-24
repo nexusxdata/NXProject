@@ -1079,18 +1079,18 @@ namespace NXProject.Services
         // underscore — distintos de "Data Inicio"/"Data Fim"). Casamos pelo nome
         // EXATO (case-insensitive), sem remover espacos/underscores, para nao
         // confundir campos diferentes.
-        private static readonly string[] HoursFieldNames =
-            { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado" };
+        // Os nomes aceitos vem do catalogo (NxDevOpsFieldCatalog): e a MESMA lista que a tela de
+        // configuracao usa para detectar e que o Setup usa para criar. Tres copias da mesma regra
+        // divergiram na primeira oportunidade, entao agora ha uma so.
+        private static readonly string[] HoursFieldNames = NxDevOpsFieldCatalog.Names("effort");
         private static readonly string[] OriginalHoursFieldNames =
             { "HH_Original_float", "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado", "HH Original", "HH_Original" };
         private static readonly string[] RemainingHoursFieldNames =
             { "HH_Restante_float", "HH_Restante", "HH Restante", "HHRestante" };
         private static readonly string[] CurrentHoursFieldNames =
             { "HH_Atual_float", "HH_Atual", "HH Atual", "HHAtual", "HH Realizado", "HH_Realizado", "HHRealizado" };
-        private static readonly string[] StartFieldNames =
-            { "Data_Inicio", "Data Inicio", "DataInicio" };
-        private static readonly string[] FinishFieldNames =
-            { "Data_Fim", "Data Fim", "DataFim" };
+        private static readonly string[] StartFieldNames = NxDevOpsFieldCatalog.Names("start");
+        private static readonly string[] FinishFieldNames = NxDevOpsFieldCatalog.Names("finish");
         // Criterios de Aceitacao: campo padrao do DevOps (Agile/Scrum) em Feature/Epic/Story.
         // O reference name padrao e Microsoft.VSTS.Common.AcceptanceCriteria; os nomes de
         // exibicao variam com o idioma do processo.
@@ -1098,10 +1098,8 @@ namespace NXProject.Services
         private static readonly string[] AcceptanceFieldNames =
             { "Critérios de Aceitação", "Critério de Aceitação",
               "Criterios de Aceitacao", "Criterio de Aceitacao", "Acceptance Criteria" };
-        private static readonly string[] PercAlocFieldNames =
-            { "Perc_Alocacao", "Perc_Alocação", "Perc_Aloc", "PercAloc", "Perc Aloc", "Percentual Alocacao", "Percentual_Alocacao" };
-        private static readonly string[] PercConclusaoFieldNames =
-            { "Perc_Conclusao", "Perc_Conclusão", "PercConclusao", "Percentual Conclusao", "Percentual_Conclusao" };
+        private static readonly string[] PercAlocFieldNames = NxDevOpsFieldCatalog.Names("percAloc");
+        private static readonly string[] PercConclusaoFieldNames = NxDevOpsFieldCatalog.Names("percConclusao");
         private static readonly string[] TipoCentroCustoFieldNames =
             { "Tipo_Centro_Custo", "TipoCentroCusto", "Tipo Centro Custo" };
 
@@ -1166,7 +1164,7 @@ namespace NXProject.Services
                 "Microsoft.VSTS.Common.StackRank",
                 "Microsoft.VSTS.Common.BacklogPriority"
             };
-            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
+            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, NxDevOpsFieldCatalog.Names("syncVersion"));
             var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
             // Tipo do EPIC (opcional): EPIC de BACKLOG não soma horas no total do projeto.
             var epicTypeRef = options.EpicTypeFieldEnabled && !string.IsNullOrWhiteSpace(options.EpicTypeFieldName)
@@ -1605,7 +1603,7 @@ namespace NXProject.Services
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
             var percConclusaoRef = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
-            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
+            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, NxDevOpsFieldCatalog.Names("syncVersion"));
             var syncNameRef    = ResolveField(fieldMap, options.SyncNameFieldName,    new[] { "Sync_Name", "SyncName", "Sync Name" });
             // Tipo do EPIC (opcional): só é gravado de volta quando MUDOU no cronograma.
             var syncEpicTypeRef = options.EpicTypeFieldEnabled && !string.IsNullOrWhiteSpace(options.EpicTypeFieldName)
@@ -3572,8 +3570,8 @@ namespace NXProject.Services
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
-            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, new[] { "Sync_version", "SyncVersion", "Sync Version" });
-            var syncNameRef = ResolveField(fieldMap, options.SyncNameFieldName, new[] { "Sync_Name", "SyncName", "Sync Name" });
+            var syncVersionRef = ResolveField(fieldMap, options.SyncVersionFieldName, NxDevOpsFieldCatalog.Names("syncVersion"));
+            var syncNameRef = ResolveField(fieldMap, options.SyncNameFieldName, NxDevOpsFieldCatalog.Names("syncName"));
 
             string? ResolveForType(string? tfsType, Func<TypeFieldConfig, string?> getter, string? globalRef)
             {
@@ -6974,21 +6972,11 @@ namespace NXProject.Services
         /// configuracao usa esta mesma lista ao detectar, para nao acusar como inexistente um campo
         /// que o NX encontra perfeitamente por outro nome.
         /// </summary>
-        public static string[] FieldAliases(string kind) => kind switch
-        {
-            "effort" => HoursFieldNames,
-            "start" => StartFieldNames,
-            "finish" => FinishFieldNames,
-            "percAloc" => PercAlocFieldNames,
-            "percConclusao" => PercConclusaoFieldNames,
-            "epicType" => new[] { "EPIC_TYPE", "Tipo_Epic" },
-            "approved" => new[] { "Approved", "Aprovado" },
-            "admGroup" => new[] { "Adm_NX", "AdmNX", "Adm NX" },
-            "syncVersion" => new[] { "Sync_version", "SyncVersion", "Sync Version" },
-            "syncName" => new[] { "Sync_Name", "SyncName", "Sync Name" },
-            "blockDuration" => new[] { "block_duration_hours", "Block_Duration_Hours", "Block Duration Hours" },
-            _ => System.Array.Empty<string>()
-        };
+        /// <summary>
+        /// Nomes que o NXProject aceita para um campo. Repassa o catalogo, que e a fonte unica —
+        /// detector do app, resolucao do import e criacao no Setup respondem pela mesma lista.
+        /// </summary>
+        public static string[] FieldAliases(string kind) => NxDevOpsFieldCatalog.Names(kind);
 
         /// <summary>
         /// A organizacao tem o tipo de link de PREDECESSORA (System.LinkTypes.Dependency)? E o que

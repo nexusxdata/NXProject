@@ -1,0 +1,76 @@
+<Window x:Class="NXProject.Setup.DevOpsFieldsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Setup_Step4Title}"
+        Width="820" SizeToContent="Height" MaxHeight="900"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="White">
+    <StackPanel Margin="20,16,20,16">
+        <TextBlock Text="{DynamicResource Setup_Step4Desc}" FontSize="11.5" Foreground="#555"
+                   TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+        <!-- Conexao: fica aqui, e nao na tela principal, porque so serve a este passo. -->
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Setup_Step4Org}"
+                       VerticalAlignment="Center" FontSize="11" Margin="0,0,8,4"/>
+            <TextBox   Grid.Row="0" Grid.Column="1" x:Name="DevOpsOrgBox" Margin="0,0,0,4" Height="22"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Setup_Step4Project}"
+                       VerticalAlignment="Center" FontSize="11" Margin="0,0,8,4"/>
+            <TextBox   Grid.Row="1" Grid.Column="1" x:Name="DevOpsProjectBox" Margin="0,0,0,4" Height="22"/>
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Setup_Step4Pat}"
+                       VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0"/>
+            <PasswordBox Grid.Row="2" Grid.Column="1" x:Name="DevOpsPatBox" Height="22"/>
+        </Grid>
+        <TextBlock Text="{DynamicResource Setup_Step4PatNote}" FontSize="10.5" Foreground="#888"
+                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <!-- So aparece quando o DevOps recusa o token: ai a tela para de falar em HTTP e ensina
+             a tirar um PAT com a permissao certa. -->
+        <Border x:Name="PatHelpPanel" Visibility="Collapsed" Background="#FFF8E1" BorderBrush="#FFD54F"
+                BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource Setup_Step4PatHelpTitle}" FontWeight="SemiBold"
+                           FontSize="11.5" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                <TextBlock Text="{DynamicResource Setup_Step4PatHelpSteps}" FontSize="11"
+                           Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                <TextBlock FontSize="11">
+                    <Hyperlink x:Name="PatDocLink" NavigateUri="https://learn.microsoft.com/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate"
+                               RequestNavigate="OnHyperlinkRequestNavigate">
+                        <Run Text="{DynamicResource Setup_Step4PatHelpLink}"/>
+                    </Hyperlink>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Uma linha por campo: [criar] nome editavel + tipo/onde + situacao detectada. -->
+        <Border BorderBrush="#E5E8EC" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+            <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="FieldList"/>
+            </ScrollViewer>
+        </Border>
+        <TextBlock Text="{DynamicResource Setup_Step4PrefixHint}" FontSize="10.5" Foreground="#888"
+                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <StackPanel Orientation="Horizontal">
+            <Button x:Name="DetectFieldsButton" Content="{DynamicResource Setup_Step4Detect}"
+                    Width="200" Height="30" Click="OnDetectFieldsClick"/>
+            <Button x:Name="CreateFieldsButton" Content="{DynamicResource Setup_Step4Create}"
+                    Width="220" Height="30" Margin="8,0,0,0" Click="OnCreateFieldsClick" IsEnabled="False"/>
+            <Button Content="{DynamicResource Setup_Close}" Width="110" Height="30" Margin="8,0,0,0"
+                    IsCancel="True" Click="OnCloseClick"/>
+        </StackPanel>
+        <TextBlock x:Name="Step4StatusText" FontSize="11" Foreground="#555" TextWrapping="Wrap" Margin="0,10,0,0"/>
+        <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,8,0,0"
+                   Text="{DynamicResource Setup_Step4Footer}"/>
+    </StackPanel>
+</Window>

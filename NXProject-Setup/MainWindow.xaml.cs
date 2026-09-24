@@ -49,6 +49,14 @@ public partial class MainWindow : Window
         }
     }
 
+    // Passo 4: a configuracao dos campos do DevOps abre em janela propria — a lista de campos
+    // com nome editavel nao cabia na tela principal sem empurrar o resto para fora da vista.
+    private void OnOpenFieldsClick(object sender, RoutedEventArgs e)
+    {
+        var win = new DevOpsFieldsWindow { Owner = this };
+        win.ShowDialog();
+    }
+
     // Abre o NXProject sem fechar o Setup (para o usuário ainda poder usar o Passo 3).
     private void OnOpenAppClick(object sender, RoutedEventArgs e)
     {
