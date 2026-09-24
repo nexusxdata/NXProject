@@ -6634,8 +6634,18 @@ namespace NXProject.Views
             return border;
         }
 
-        // Soltou um card numa coluna de estado: marca a mudança como pendente (grava com "Atualizar TFS").
-        private async void OnCardDrop(object sender, DragEventArgs e)
+        /// <summary>
+        /// Soltou um card numa coluna de estado: marca a mudança como pendente (grava com
+        /// "Atualizar TFS").
+        ///
+        /// O handler é SÍNCRONO de propósito. Ele roda dentro do laço modal do arrasto, e um
+        /// await aqui devolvia o controle ao WPF com o dispatcher já suspenso — dava a cascata
+        /// de "O processamento do dispatcher foi suspenso, mas mensagens ainda estão sendo
+        /// processadas". Então aqui só fica o que depende da POSIÇÃO do card (a geometria some
+        /// assim que o board é redesenhado); o resto, que consulta o DevOps, é agendado para
+        /// depois que o arrasto termina.
+        /// </summary>
+        private void OnCardDrop(object sender, DragEventArgs e)
         {
             if (sender is not FrameworkElement fe || fe.Tag is not string newState) return;
             if (!e.Data.GetDataPresent(typeof(int))) return;
@@ -6648,8 +6658,28 @@ namespace NXProject.Views
             {
                 // Mesma coluna → reordena o RANK (StackRank) DENTRO do grupo de prioridade.
                 if (id > 0 && cell != null) ReorderTaskRankInColumn(cell, id, y);
+                RepositionOrder(cell, id, y);
+                UpdatePendingButton();
+                Render();
+                return;
             }
-            else
+
+            // Ordem visual: depende da célula atual, então é lida antes de sair daqui.
+            RepositionOrder(cell, id, y);
+            // DispatcherPriority.Background: só roda quando o arrasto já se desfez e a fila do
+            // WPF voltou ao normal.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                new Action(() => _ = ApplyCardDropAsync(id, newState, dragged)));
+        }
+
+        /// <summary>
+        /// A parte do arrasto que fala com o DevOps (data de início, data alvo e HH realizado) e
+        /// que por isso não pode rodar durante o arrasto. Ver <see cref="OnCardDrop"/>.
+        /// </summary>
+        private async Task ApplyCardDropAsync(int id, string newState,
+            TfsImportService.SprintTaskCard dragged)
+        {
+            try
             {
                 // Outra coluna → muda de estado (a prioridade/rank não muda pelo arrasto).
                 var baseline = _applied.TryGetValue(id, out var a) ? a : dragged.State;
@@ -6718,7 +6748,12 @@ namespace NXProject.Views
                     }
                 }
             }
-            RepositionOrder(cell, id, y);
+            catch (Exception ex)
+            {
+                // Falha de rede aqui não pode derrubar o board: o estado pendente já está posto,
+                // e o que faltou (data/HH sugeridos) a pessoa preenche no card.
+                StatusText.Text = ex.Message;
+            }
             UpdatePendingButton();
             Render();
         }
