@@ -112,10 +112,61 @@ namespace NXProject.Views
                     sb.AppendLine($"      motivo: {(string.IsNullOrWhiteSpace(why) ? "(WhyHidden nao apontou regra — ver acima)" : why)}");
                 }
                 if (hidden.Count > 200) sb.AppendLine($"  ... e mais {hidden.Count - 200} Tasks escondidas.");
+
+                // STORIES escondidas: o log so falava de Task, e sumico de Story (e, com ela, da
+                // Feature inteira) ficava sem rastro.
+                var allStories = EffectiveStories().Select(x => x.Story)
+                    .Where(x => !x.IsLevelPlaceholder).ToList();
+                var hiddenStories = allStories.Where(x => !StoryPasses(x)).ToList();
+                sb.AppendLine($"Stories carregadas: {allStories.Count} — visiveis: "
+                            + $"{allStories.Count - hiddenStories.Count} — escondidas: {hiddenStories.Count}");
+                foreach (var st in hiddenStories.Take(200))
+                {
+                    sb.AppendLine($"  #{st.Id} [{EffStoryState(st)}] {st.Title}");
+                    sb.AppendLine($"      resp={EffOwner(st.Id, st.AssignedTo)} sprint={st.IterationPath} "
+                                + $"feature={st.FeatureId} ({st.FeatureAssignedTo}) epic={st.FeatureEpicId} "
+                                + $"proj={st.FeatureProjectId}");
+                    sb.AppendLine($"      motivo: {WhyStoryHidden(st)}");
+                }
+                if (hiddenStories.Count > 200)
+                    sb.AppendLine($"  ... e mais {hiddenStories.Count - 200} Stories escondidas.");
+
+                // Itens de nivel (Feature/EPIC/Project da sprint) e o dono de cada um: e por aqui
+                // que se ve se a Feature caiu por causa do responsavel DELA.
+                sb.AppendLine($"Itens de nivel: {_board.LevelItems.Count}");
+                foreach (var it in _board.LevelItems.Take(100))
+                    sb.AppendLine($"  {it.Kind} #{it.Id} '{it.Title}' resp={it.AssignedTo} "
+                                + $"epic={it.EpicId} proj={it.ProjectId} sprint={it.IterationPath}");
                 sb.AppendLine();
                 System.IO.File.AppendAllText(FilterLogPath, sb.ToString());
             }
             catch { /* diagnostico nunca derruba o board */ }
+        }
+
+        /// <summary>
+        /// Qual regra derrubou a Story. Mesma ordem do <see cref="StoryPasses"/>, para o log
+        /// apontar a PRIMEIRA que barrou — que e a que o usuario precisa mexer.
+        /// </summary>
+        private string WhyStoryHidden(TfsImportService.SprintStoryRow s)
+        {
+            if (OnlyScheduleCheck.IsChecked == true && !_scheduleIds.Contains(s.Id))
+                return "fora do cronograma aberto (Somente Story do cronograma)";
+            if (_selectedStoryIds.Count > 0 && !_selectedStoryIds.Contains(s.Id))
+                return "filtro de Projeto/Story: o id nao esta marcado na arvore";
+            if (IsFutureSprint(s.IterationPath))
+                return "sprint futura (recorte Ultima sprint ligado)";
+            if (!LastSprintOk(EffOwner(s.Id, s.AssignedTo), s.IterationPath))
+                return "nao e a ultima sprint do responsavel (recorte Ultima sprint ligado)";
+            if (_selectedPeople.Count > 0)
+            {
+                var owner = EffOwner(s.Id, s.AssignedTo);
+                var ownerMatch = !string.IsNullOrWhiteSpace(owner) && _selectedPeople.Contains(owner);
+                var taskMatch = s.Tasks.Any(t => _selectedPeople.Contains(t.AssignedTo ?? ""));
+                if (!ownerMatch && !taskMatch)
+                    return $"filtro de pessoa: responsavel '{owner}' fora da selecao e nenhuma Task das pessoas filtradas";
+            }
+            if (!string.IsNullOrEmpty(SearchQuery())) return "busca ativa";
+            return "(nenhuma regra apontada — ver acima)";
         }
 
         /// <summary>
