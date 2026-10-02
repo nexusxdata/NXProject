@@ -41,6 +41,7 @@ internal static class Program
         ("Cronograma: resumo soma HH rateado (OriginalEstimated), nao span do calendario", SummaryHoursUseRatedOriginalEstimateNotCalendarSpan),
         ("Recursos: Strings.*.xaml nao tem x:Key duplicada (evita crash no load)", StringsHaveNoDuplicateResourceKeys),
         ("Board local: cronograma vira board com Story, Task e niveis", LocalBoardProjectsScheduleIntoBoard),
+        ("Board local: sprint e identificada pelo IterationPath, nao pelo nome", LocalBoardSprintUsesIterationPath),
         ("Capacidades: cada destino diz o que sabe fazer (sem if por nome)", BackendCapabilitiesPerKind),
         ("WIQL: clausulas do editor voltam para o mesmo WIQL", WiqlModelRoundTripsClauses),
         ("WIQL: WHERE com parenteses nao vira editor visual", WiqlModelRefusesParentheses),
@@ -1208,6 +1209,55 @@ internal static class Program
         var semEstado = new NXProject.Models.ProjectTask { Id = 50, Name = "X", PercentComplete = 100 };
         if (NXProject.Services.LocalBoardService.StateOf(semEstado) != "Closed")
             throw new Exception("Atividade 100% sem TfsState deveria ser Closed no board local.");
+    }
+
+    /// <summary>
+    /// A sprint do board local e identificada pelo IterationPath, nao pelo nome: e por ele que a
+    /// atividade guarda a sua sprint. Com o nome, filtrar por sprint no modo local nao achava
+    /// nada — e a sprint salva nao se reconhecia ao voltar para o DevOps.
+    /// </summary>
+    private static void LocalBoardSprintUsesIterationPath()
+    {
+        var project = new NXProject.Models.Project();
+        project.Sprints.Add(new NXProject.Models.Sprint
+        {
+            Number = 5, DisplayName = "Sprint 5", Path = @"Projeto\Release 1\Sprint 5",
+            Start = new DateTime(2026, 1, 5), End = new DateTime(2026, 1, 16)
+        });
+        // Cronograma que nunca viu DevOps: sem caminho, o nome e a identidade possivel.
+        project.Sprints.Add(new NXProject.Models.Sprint
+        {
+            Number = 6, Start = new DateTime(2026, 1, 19), End = new DateTime(2026, 1, 30)
+        });
+
+        var sprints = NXProject.Services.LocalBoardService.Sprints(project);
+        if (sprints.Count != 2)
+            throw new Exception($"Esperava 2 sprints do cronograma, veio {sprints.Count}.");
+        if (sprints[0].Path != @"Projeto\Release 1\Sprint 5")
+            throw new Exception($"A sprint deveria ser identificada pelo IterationPath: veio '{sprints[0].Path}'.");
+        if (sprints[0].Name != "Sprint 5")
+            throw new Exception("O nome exibido da sprint continua sendo o nome, nao o caminho.");
+        if (sprints[1].Path != "Sprint 6")
+            throw new Exception($"Sem IterationPath, a identidade cai no nome: veio '{sprints[1].Path}'.");
+
+        // E o filtro tem de casar com o que a atividade guarda: card da sprint 5 entra, o de fora nao.
+        var dentro = new NXProject.Models.ProjectTask
+        {
+            Id = 70, Name = "Dentro", TfsType = "User Story",
+            TfsIterationPath = @"Projeto\Release 1\Sprint 5"
+        };
+        var fora = new NXProject.Models.ProjectTask
+        {
+            Id = 71, Name = "Fora", TfsType = "User Story",
+            TfsIterationPath = @"Projeto\Release 1\Sprint 4"
+        };
+        var feature = new NXProject.Models.ProjectTask
+        { Id = 60, Name = "F", TfsType = "Feature", Children = { dentro, fora } };
+        project.Tasks.Add(feature);
+
+        var board = NXProject.Services.LocalBoardService.Build(project, new[] { sprints[0].Path });
+        if (board.Stories.Count != 1 || board.Stories[0].Id != 70)
+            throw new Exception("O filtro de sprint local deveria casar com o IterationPath da atividade.");
     }
 
     /// <summary>

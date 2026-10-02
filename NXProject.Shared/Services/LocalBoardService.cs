@@ -103,11 +103,19 @@ namespace NXProject.Services
             { LevelItems = levelItems };
         }
 
-        /// <summary>Sprints do cronograma, no formato que o board usa.</summary>
+        /// <summary>
+        /// Sprints do cronograma, no formato que o board usa.
+        ///
+        /// A identidade da sprint é o <see cref="Sprint.Path"/> (o `System.IterationPath` que veio
+        /// do DevOps), porque é por ele que a atividade guarda a sua sprint — filtrar pelo nome
+        /// não acharia nada. Cronograma que nunca viu DevOps não tem caminho: aí o nome é a
+        /// identidade possível, e o filtro de sprint só funciona se as atividades também o usarem.
+        /// </summary>
         public static List<TfsImportService.SprintInfo> Sprints(Project project) =>
             (project?.Sprints?.ToList() ?? new List<Sprint>())
                 .Where(s => !string.IsNullOrWhiteSpace(s.Name))
-                .Select(s => new TfsImportService.SprintInfo(s.Name, s.Name, s.Start, s.End))
+                .Select(s => new TfsImportService.SprintInfo(
+                    s.Name, string.IsNullOrWhiteSpace(s.Path) ? s.Name : s.Path!, s.Start, s.End))
                 .ToList();
 
         /// <summary>

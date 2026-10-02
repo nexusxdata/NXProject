@@ -443,6 +443,70 @@ namespace NXProject.Views
             public double WinTop { get; set; }
             public double WinWidth { get; set; }
             public double WinHeight { get; set; }
+
+            /// <summary>
+            /// Recortes POR DESTINO: "AzureDevOps", "GitProject", "Local". Sprint, pessoas e
+            /// estados nao querem dizer a mesma coisa em destinos diferentes — as pessoas do
+            /// cronograma sao um punhado, as da organizacao sao centenas, e a sprint do DevOps e
+            /// um caminho de iteration. Guardar tudo junto fazia a sessao local apagar a escolha
+            /// do DevOps. So os campos de recorte entram aqui (ver <see cref="CopyFilters"/>);
+            /// o que e da tela — geometria, cores, WIP, cache — continua unico.
+            /// </summary>
+            public Dictionary<string, SprintPrefs>? ByBackend { get; set; }
+        }
+
+        /// <summary>Chave de preferencias do destino. Nome estavel: vai para o arquivo.</summary>
+        private static string BackendPrefsKey(NxBackendKind kind) => kind switch
+        {
+            NxBackendKind.GitProject => "GitProject",
+            NxBackendKind.Local => "Local",
+            _ => "AzureDevOps"
+        };
+
+        /// <summary>
+        /// Copia os campos de RECORTE de um bloco de preferencias para outro. Esta lista e a
+        /// definicao de "o que e do destino": o que nao esta aqui e da tela e continua comum aos
+        /// tres (geometria da janela, cores de estado, limite de WIP, cache de campos, abrir o
+        /// board junto com o NX, maximo de prioridade descoberto no processo).
+        /// </summary>
+        private static void CopyFilters(SprintPrefs from, SprintPrefs to)
+        {
+            to.LastSprintPath = from.LastSprintPath;
+            to.SprintPaths = from.SprintPaths;
+            to.Persons = from.Persons;
+            to.ClosedDays = from.ClosedDays;
+            to.View = from.View;
+            to.OnlySchedule = from.OnlySchedule;
+            to.OnlyBlocked = from.OnlyBlocked;
+            to.OnlyUnplanned = from.OnlyUnplanned;
+            to.OnlyDoneActive = from.OnlyDoneActive;
+            to.OnlyDoing = from.OnlyDoing;
+            to.OnlyTaskActive = from.OnlyTaskActive;
+            to.LastSprintPerPerson = from.LastSprintPerPerson;
+            to.HiddenStates = from.HiddenStates;
+            to.ShowStoryNoTask = from.ShowStoryNoTask;
+            to.ShowFeatureNoStory = from.ShowFeatureNoStory;
+            to.ShowEpic = from.ShowEpic;
+            to.ShowProjPerson = from.ShowProjPerson;
+            to.ShowProjCol = from.ShowProjCol;
+            to.ShowFeatCol = from.ShowFeatCol;
+            to.ShowEpicCol = from.ShowEpicCol;
+            to.CollapsedNodes = from.CollapsedNodes;
+            to.CollapsedEpics = from.CollapsedEpics;
+            to.CollapsedPeople = from.CollapsedPeople;
+            to.EditMode = from.EditMode;
+        }
+
+        /// <summary>
+        /// Traz para <c>_prefs</c> os recortes do destino atual. Sem bloco gravado, fica o que
+        /// esta na raiz do arquivo — e assim quem ja usava o TaskBoard no DevOps nao perde os
+        /// filtros na primeira abertura depois da atualizacao.
+        /// </summary>
+        private void ApplyBackendFilters()
+        {
+            if (_prefs.ByBackend != null
+                && _prefs.ByBackend.TryGetValue(BackendPrefsKey(_backend), out var blk) && blk != null)
+                CopyFilters(blk, _prefs);
         }
         private SprintPrefs _prefs = new();
         private bool _restoringPrefs;   // evita salvar enquanto restaura os controles
@@ -470,7 +534,6 @@ namespace NXProject.Views
             if (_prefs.WinMaximized) WindowState = WindowState.Maximized;
         }
 
-        private static string? LoadLastSprintPath() => LoadPrefs().LastSprintPath is { Length: > 0 } s ? s : null;
         private static int? LoadClosedDays() => LoadPrefs().ClosedDays is int d && d > 0 ? d : (int?)null;
 
         // Persiste o estado atual dos filtros (chamado a cada mudança). ClosedDays só grava se > 0.
@@ -500,6 +563,14 @@ namespace NXProject.Views
                 _prefs.OnlyTaskActive = OnlyTaskActiveCheck.IsChecked == true;
                 _prefs.EditMode = EditModeCheck.IsChecked == true;
                 _prefs.HiddenStates = _hiddenStates.ToList();
+
+                // Os recortes vao para o bloco do destino atual: gravar sobre os do outro era o
+                // que fazia a sessao local levar embora a sprint e as pessoas do DevOps.
+                _prefs.ByBackend ??= new Dictionary<string, SprintPrefs>();
+                var meu = new SprintPrefs();
+                CopyFilters(_prefs, meu);
+                _prefs.ByBackend[BackendPrefsKey(_backend)] = meu;
+
                 var p = SprintSettingsPath;
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p)!);
                 System.IO.File.WriteAllText(p, System.Text.Json.JsonSerializer.Serialize(_prefs));
@@ -565,8 +636,10 @@ namespace NXProject.Views
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeLevels")); // 3 = Feature/EPIC/Project
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopePerson")); // 4 = responsavel
             SearchScopeCombo.SelectedIndex = 0;
-            // Carrega os últimos filtros salvos (aplicados na 1ª carga do board).
+            // Carrega os últimos filtros salvos (aplicados na 1ª carga do board). Os recortes vêm
+            // do bloco do destino com que a tela nasce — cada destino tem os seus.
             _prefs = LoadPrefs();
+            ApplyBackendFilters();
             // Maximo de Priority: a descoberta custa ~1,4s em VALIDATEONLY e era refeita a cada
             // abertura (o campo vive na janela, e a janela e nova toda vez). Guardado nas prefs.
             // Vale so no dia em que foi descoberto: a 1a abertura do dia redescobre e o valor se
@@ -620,33 +693,9 @@ namespace NXProject.Views
                 _currentUser = await TfsImportService.GetCurrentUserDisplayNameAsync(_options);
                 TfsImportService.LoadTrace.Mark("connectionData", userWatch.ElapsedMilliseconds);
                 var sprintWatch = Stopwatch.StartNew();
-                _sprints = _backend == NxBackendKind.Local && _localProject != null
-                    ? LocalBoardService.Sprints(_localProject)
-                    : await TfsImportService.ListSprintsAsync(_options);
+                var initial = await ReloadSprintListAsync();
                 TfsImportService.LoadTrace.Mark("iterations", sprintWatch.ElapsedMilliseconds);
-                // Lista multi-seleção (estilo do filtro de pessoa): cada sprint com data início–fim.
-                PopulateSprintList();
-                // Seleção inicial: multi salva → última sprint salva → sprint atual (data)
-                // → sugerida do cronograma → última da lista.
-                var initial = new List<string>();
-                if (_prefs.SprintPaths is { Count: > 1 } saved2
-                    && saved2.All(p => _sprints.Any(s => string.Equals(s.Path, p, StringComparison.OrdinalIgnoreCase))))
-                    initial = saved2.ToList();
-                else
-                {
-                    string? one = null;
-                    var saved = LoadLastSprintPath();
-                    if (!string.IsNullOrWhiteSpace(saved) && _sprints.Any(s => string.Equals(s.Path, saved, StringComparison.OrdinalIgnoreCase)))
-                        one = saved;
-                    one ??= CurrentSprintPath();
-                    if (one == null && !string.IsNullOrWhiteSpace(_preferredSprint)
-                        && _sprints.Any(s => string.Equals(s.Path, _preferredSprint, StringComparison.OrdinalIgnoreCase)))
-                        one = _preferredSprint;
-                    one ??= _sprints.LastOrDefault()?.Path;
-                    if (!string.IsNullOrEmpty(one)) initial.Add(one);
-                }
                 StatusText.Text = "";
-                ApplySprintChecks(initial);
                 await ReloadBoardAsync(initial);
             }
             catch (Exception ex)
@@ -656,6 +705,44 @@ namespace NXProject.Views
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally { EndLoading(); }
+        }
+
+        /// <summary>
+        /// Carrega a lista de sprints DO DESTINO ATUAL e devolve a seleção inicial, já marcada na
+        /// lista. Vale tanto na abertura como na troca de destino: cada um tem a sua lista (as do
+        /// cronograma, no modo local) e a sua sprint salva.
+        ///
+        /// Ordem da escolha: multi salva → última sprint salva → sprint atual pela data →
+        /// sugerida pelo cronograma → última da lista. Sprint salva que não existe no destino é
+        /// ignorada, em vez de virar uma seleção vazia.
+        /// </summary>
+        private async Task<List<string>> ReloadSprintListAsync()
+        {
+            _sprints = _backend == NxBackendKind.Local && _localProject != null
+                ? LocalBoardService.Sprints(_localProject)
+                : await TfsImportService.ListSprintsAsync(_options);
+            // Lista multi-seleção (estilo do filtro de pessoa): cada sprint com data início–fim.
+            PopulateSprintList();
+
+            var initial = new List<string>();
+            if (_prefs.SprintPaths is { Count: > 1 } saved2
+                && saved2.All(p => _sprints.Any(s => string.Equals(s.Path, p, StringComparison.OrdinalIgnoreCase))))
+                initial = saved2.ToList();
+            else
+            {
+                string? one = null;
+                var saved = _prefs.LastSprintPath;
+                if (!string.IsNullOrWhiteSpace(saved) && _sprints.Any(s => string.Equals(s.Path, saved, StringComparison.OrdinalIgnoreCase)))
+                    one = saved;
+                one ??= CurrentSprintPath();
+                if (one == null && !string.IsNullOrWhiteSpace(_preferredSprint)
+                    && _sprints.Any(s => string.Equals(s.Path, _preferredSprint, StringComparison.OrdinalIgnoreCase)))
+                    one = _preferredSprint;
+                one ??= _sprints.LastOrDefault()?.Path;
+                if (!string.IsNullOrEmpty(one)) initial.Add(one);
+            }
+            ApplySprintChecks(initial);
+            return initial;
         }
 
         // Preenche os checkboxes das sprints com o rótulo "Nome (dd/MM/aa–dd/MM/aa)".
@@ -2344,12 +2431,34 @@ namespace NXProject.Views
                 return;
             }
 
+            // Guarda os recortes do destino que estou DEIXANDO, antes de trocar: sprint, pessoas
+            // e estados sao daquele destino, e e para la que eles voltam na proxima visita.
+            SavePrefs();
+
             _backend = novo;
             _caps = NxBackendCapabilities.For(novo);
             ApplyCapabilities();
-            // Recarrega do zero: o board inteiro vem de outra fonte agora.
+
+            // Agora os recortes do destino que estou ENTRANDO. Releitura do arquivo para pegar o
+            // bloco dele por inteiro, em vez de herdar o que estava na tela.
+            _prefs = LoadPrefs();
+            ApplyBackendFilters();
+
+            // Recarrega do zero: o board inteiro vem de outra fonte agora — e a lista de sprints
+            // tambem, porque no modo local as sprints sao as do cronograma.
             _firstBoardLoad = true;
-            await ReloadBoardAsync(new List<string>());
+            BeginLoading();
+            try
+            {
+                var inicial = await ReloadSprintListAsync();
+                await ReloadBoardAsync(inicial);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, AppStrings.Get("Sprint_Error", ex.Message),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally { EndLoading(); }
         }
 
         /// <summary>
@@ -3619,6 +3728,7 @@ namespace NXProject.Views
 
         private void Render()
         {
+            var renderWatch = Stopwatch.StartNew();
             SummaryHost.Items.Clear();
             BoardHost.Children.Clear();
             _personCellByKey.Clear();
@@ -3684,6 +3794,39 @@ namespace NXProject.Views
                 allVisible.Count.ToString(), _scheduleIds.Count == 0 ? "0"
                     : allVisible.Count(t => _scheduleIds.Contains(t.Id)).ToString());
             FilterSummary.Text = BuildFilterSummary();
+            MeasureRender(renderWatch, allVisible.Count);
+        }
+
+        /// <summary>
+        /// Peso do desenho, para a rolagem: o board NAO virtualiza (StackPanel), entao tudo o que
+        /// foi criado fica vivo e e redesenhado a cada rolagem. O numero que importa nao e o
+        /// tempo de montar, e a QUANTIDADE DE ELEMENTOS VISUAIS — e por isso que ele e medido
+        /// aqui, junto de quantos cards estao no cronograma aberto (cada um deles ganha botao e
+        /// borda a mais). Ligue com NXPROJECT_LOADPERF=1 e compare as duas situacoes.
+        /// </summary>
+        private void MeasureRender(Stopwatch watch, int cards)
+        {
+            if (!LoadPerfEnabled) return;
+            var montagem = watch.ElapsedMilliseconds;
+            var noCronograma = _cardById.Keys.Count(id => _scheduleIds.Contains(id));
+            // A contagem SO vale depois do layout: ate ali o template do botao ainda nao virou
+            // visual, e justamente os botoes sao o que se suspeita pesar.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+            {
+                var visuais = CountVisuals(BoardHost);
+                AppendLoadPerf($"TaskBoard.Render: {montagem} ms · {cards} cards "
+                    + $"({noCronograma} no cronograma aberto) · {visuais} elementos visuais"
+                    + $" · {(cards == 0 ? 0 : visuais / cards)} por card");
+            });
+        }
+
+        private static int CountVisuals(DependencyObject root)
+        {
+            var total = 1;
+            var n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < n; i++)
+                total += CountVisuals(System.Windows.Media.VisualTreeHelper.GetChild(root, i));
+            return total;
         }
 
         // Linha-resumo dos filtros aplicados (mostrada ao abrir a tela e a cada Render).
