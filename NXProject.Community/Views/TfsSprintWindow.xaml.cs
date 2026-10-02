@@ -4961,10 +4961,13 @@ namespace NXProject.Views
             if (_selectedStoryIds.Contains(pid)) return true;
             if (_board == null) return false;
             if (StoryById(pid) is { Id: > 0 }) return false;   // o pai e Story mesmo: nao passa
-            var lvl = _board.LevelItems.FirstOrDefault(i => i.Id == pid);
-            if (lvl != null && (_selectedStoryIds.Contains(lvl.EpicId)
-                                || _selectedStoryIds.Contains(lvl.ProjectId))) return true;
-            return _board.Stories.Any(x => x.FeatureId == pid && _selectedStoryIds.Contains(x.Id));
+            // Pelos indices: varrer LevelItems e Stories aqui era por card, e o board tem
+            // centenas dos dois — ver _levelById / _storyIdsByFeature.
+            if (_levelById.TryGetValue(pid, out var lvl)
+                && (_selectedStoryIds.Contains(lvl.EpicId) || _selectedStoryIds.Contains(lvl.ProjectId)))
+                return true;
+            return _storyIdsByFeature.TryGetValue(pid, out var irmas)
+                && irmas.Any(_selectedStoryIds.Contains);
         }
 
         private int EffTaskParent(TfsImportService.SprintTaskCard t) =>
@@ -5744,9 +5747,33 @@ namespace NXProject.Views
         private TfsImportService.SprintBoard? _storyRowCacheBoard;
         private int _storyRowCacheNewCount = -1;
 
+        /// <summary>
+        /// Indices do recorte de projeto, pelo mesmo motivo do <see cref="_storyRowCache"/>: a
+        /// Task pendurada direto na Feature procura quem esta marcado ACIMA dela, e isso varria a
+        /// lista de niveis e a de Stories A CADA CARD — trabalho quadratico, e so com o recorte
+        /// ligado (com ele vazio a funcao sai na primeira linha).
+        ///
+        /// O custo e por DESENHO, nao por rolagem: pesa a cada filtro trocado, arrasto, edicao e
+        /// F5. A rolagem em si depende de QUANTAS linhas foram desenhadas, porque o board nao
+        /// virtualiza — sao problemas diferentes, com causas diferentes.
+        /// </summary>
+        private readonly Dictionary<int, TfsImportService.SprintLevelItem> _levelById = new();
+        private readonly Dictionary<int, List<int>> _storyIdsByFeature = new();
+
         /// <summary>Refaz o indice. Chamado no inicio do desenho e quando o board/cards novos mudam.</summary>
         private void RebuildStoryRowCache()
         {
+            _levelById.Clear();
+            _storyIdsByFeature.Clear();
+            foreach (var lvl in _board?.LevelItems ?? new List<TfsImportService.SprintLevelItem>())
+                _levelById[lvl.Id] = lvl;
+            foreach (var s in _board?.Stories ?? new List<TfsImportService.SprintStoryRow>())
+                if (s.FeatureId != 0)
+                {
+                    if (!_storyIdsByFeature.TryGetValue(s.FeatureId, out var lista))
+                        _storyIdsByFeature[s.FeatureId] = lista = new List<int>();
+                    lista.Add(s.Id);
+                }
             _storyRowCache.Clear();
             foreach (var x in EffectiveStories())
                 if (!_storyRowCache.ContainsKey(x.Story.Id)) _storyRowCache[x.Story.Id] = x.Story;
