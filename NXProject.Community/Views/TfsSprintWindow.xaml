@@ -116,9 +116,25 @@
             <Button x:Name="RevertButton" DockPanel.Dock="Right" VerticalAlignment="Center"
                     Padding="8,3" Margin="8,0,0,0" IsEnabled="False" Click="OnRevertClick"
                     Content="{DynamicResource Sprint_Revert}"/>
+            <!-- Sair do TaskBoard. O icone e DESENHADO (vetor), nao emoji: a moldura aberta com a
+                 seta saindo nao existe em Unicode, e emoji ainda muda de forma conforme a fonte
+                 instalada. Assim fica igual em qualquer maquina e acompanha a cor do botao. -->
             <Button x:Name="CloseButton" DockPanel.Dock="Right" VerticalAlignment="Center"
                     Padding="8,3" Margin="8,0,0,0" Click="OnCloseClick"
-                    Content="✖" ToolTip="{DynamicResource Sprint_Close}"/>
+                    ToolTip="{DynamicResource Sprint_Close}">
+                <Viewbox Width="15" Height="15">
+                    <Canvas Width="16" Height="16">
+                        <Path Data="M10,2.5 H3.5 V13.5 H10"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                              StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"/>
+                        <Path Data="M7.5,8 H13.6 M11.2,5.4 L14,8 L11.2,10.6"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                              StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
             <ProgressBar x:Name="SaveProgress" DockPanel.Dock="Right" Width="140" Height="14"
                          VerticalAlignment="Center" Margin="0,0,8,0" Minimum="0" Visibility="Collapsed"/>
             <TextBlock x:Name="StatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#555" Margin="0,0,8,0"/>
