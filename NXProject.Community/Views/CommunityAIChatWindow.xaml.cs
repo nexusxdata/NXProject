@@ -609,7 +609,9 @@ namespace NXProject.Views
                         AddSystemNote(AppStrings.Get("AIChat_MsgCopied"));
                 };
             _chatWebReady = true;
-            if (!string.IsNullOrEmpty(_pendingChatHtml))
+            // So navega com o CoreWebView2 de pe: se o EnsureCoreWebView2Async acima falhou, o
+            // html continua pendente e entra na proxima renderizacao, em vez de estourar aqui.
+            if (!string.IsNullOrEmpty(_pendingChatHtml) && ChatWebView?.CoreWebView2 != null)
             {
                 ChatWebView.NavigateToString(_pendingChatHtml);
                 _pendingChatHtml = string.Empty;
@@ -646,12 +648,15 @@ namespace NXProject.Views
             foreach (var m in _history)
             {
                 var mine = string.Equals(m.Role, "Usuário", StringComparison.OrdinalIgnoreCase);
-                var asHtml = !mine && LooksLikeHtml(m.Text);
-                texts.Add(m.Text ?? string.Empty);
+                // Normaliza uma vez: historico antigo em disco pode trazer texto nulo, e dai em
+                // diante o texto e sempre string — inclusive para o botao "copiar".
+                var texto = m.Text ?? string.Empty;
+                var asHtml = !mine && LooksLikeHtml(texto);
+                texts.Add(texto);
                 sb.Append("<div class='row ").Append(mine ? "me" : "ai").Append("'>");
                 sb.Append("<div style='display:flex;flex-direction:column'>");
                 sb.Append("<div class='b ").Append(asHtml ? "" : "plain").Append("'>")
-                  .Append(asHtml ? m.Text : System.Net.WebUtility.HtmlEncode(m.Text))
+                  .Append(asHtml ? texto : System.Net.WebUtility.HtmlEncode(texto))
                   .Append("</div>");
                 // Rodapé: data/hora + tempo + botão "copiar" (pergunta ou resposta).
                 sb.Append("<div class='meta'>");
