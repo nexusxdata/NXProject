@@ -143,6 +143,10 @@
                 <MenuItem Header="{DynamicResource Menu_Help_AzureDevOps}" Click="OnAzureDevOpsBacklogHelpClick"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Help_Store}" Click="OnCheckUpdateClick"/>
+                <!-- Ao lado de "verificar atualizações", porque é o caminho de volta dele: versão
+                     nova com defeito, a pessoa volta para uma das últimas que funcionavam. -->
+                <MenuItem Header="{DynamicResource Menu_Help_Rollback}" Click="OnRollbackClick"
+                          ToolTip="{DynamicResource Menu_Help_RollbackTip}"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Help_License}" Click="OnLicenseClick"/>
                 <MenuItem Header="{DynamicResource Menu_Help_About}" Click="OnAboutClick"/>

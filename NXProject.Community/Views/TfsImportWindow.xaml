@@ -179,6 +179,16 @@
                         HorizontalAlignment="Left" VerticalAlignment="Center"
                         ToolTip="{DynamicResource Imp_ViewLogTip}" Click="OnViewLogClick"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- De ONDE importar. Hoje só o Azure DevOps; GitProject avisa que ainda não
+                         vale e volta (o desenho está em Plano_GitProject_Import_Sync.md). -->
+                    <TextBlock Text="{DynamicResource Imp_Source}" VerticalAlignment="Center"
+                               FontSize="11" Foreground="#666" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="SourceCombo" Width="150" Height="26" VerticalAlignment="Center"
+                              Margin="0,0,10,0" SelectedIndex="0" SelectionChanged="OnSourceChanged"
+                              ToolTip="{DynamicResource Imp_SourceTip}">
+                        <ComboBoxItem Content="{DynamicResource Sprint_TargetDevOps}"/>
+                        <ComboBoxItem Content="{DynamicResource Sprint_TargetGitProject}"/>
+                    </ComboBox>
                     <Button x:Name="ImportButton" Content="{DynamicResource Imp_Import}" Width="120" Height="34"
                             FontSize="13" FontWeight="SemiBold"
                             IsDefault="True" Click="OnImportClick"/>

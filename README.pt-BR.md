@@ -222,22 +222,39 @@ Se a sua organização não usa um tipo `Project`, você ainda importa apontando
 
 ---
 
-### Campos customizados obrigatórios (Story, Feature e Epic)
+### Campos no DevOps: o que é obrigatório e o que é opcional
 
-O NXProject lê e grava campos customizados em **Stories, Features e Epics** do Azure DevOps. É necessário criá-los no template de processo em **Configurações da Organização → Processo → [Seu Processo]** e adicioná-los a cada tipo de work item que você quer sincronizar (Story, Feature, Epic).
+O NXProject lê e grava alguns campos personalizados no Azure DevOps. Crie-os no template de processo em **Configurações da Organização → Processo → [Seu Processo]** e adicione-os aos tipos de work item indicados na coluna **Usado em**.
+
+> **Antes de criar na mão, use o NXProject-Setup.** O **Passo 4** do instalador detecta o que já existe na sua organização, **cria só o que falta** e permite **exportar/importar** a configuração em `.json` para a equipe inteira. A mesma detecção está no NXProject, em **Configuração Integração Azure DevOps → Campos avançados**; a criação é exclusiva do instalador.
+
+> **Use os campos de fábrica quando puder.** O Azure DevOps já traz `Start Date` e `Finish Date` na **Task** e na **Story**, e `Original Estimate` na Task. O NXProject usa os da Task por padrão e **oferece o mesmo para a Story**: marque *"na Story usar Start Date / Finish Date"* (nas duas telas) e você **não precisa criar** `Data_Inicio`/`Data_Fim`. A escolha é gravada por tipo de work item, então quem já usa os personalizados continua como está.
+
+#### Obrigatórios
 
 | Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Usado em | Finalidade |
 |---|---|---|---|---|---|
-| `HH Estimado` | `Custom.HHEstimado` *(exemplo)* | Inteiro ou Decimal | `HH Estimado` | Story, Feature, Epic | Esforço estimado em horas |
-| `Data_Inicio` | `Custom.DataInicio` *(exemplo)* | Data/Hora | `Data_Inicio` | Story, Feature, Epic | Data de início planejada |
-| `Data_Fim` | `Custom.DataFim` *(exemplo)* | Data/Hora | `Data_Fim` | Story, Feature, Epic | Data de fim planejada |
-| `Perc_Alocacao` | `Custom.PercAlocacao` *(exemplo)* | Decimal/Float (1–100, até 2 casas) | `Perc_Alocacao` | Story | % do dia da pessoa dedicado a esta Story |
-| `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | Story | % de conclusão (lido no import, gravado no sync) |
+| `HH Estimado` | `Custom.HHEstimado` *(exemplo)* | Decimal | `HH Estimado` | Story *(na Task, `Original Estimate` de fábrica)* | Esforço estimado em horas |
+| `Data_Inicio` | `Custom.DataInicio` *(exemplo)* | Data/Hora | `Data_Inicio` | Story, Task — **ou** `Start Date` de fábrica | Data de início planejada |
+| `Data_Fim` | `Custom.DataFim` *(exemplo)* | Data/Hora | `Data_Fim` | Story, Task — **ou** `Finish Date` de fábrica | Data de fim planejada (data alvo no TaskBoard) |
+
+#### Opcionais
+
+Cada um liga um recurso. Sem o campo, o NXProject funciona — só aquele recurso fica de fora.
+
+| Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Usado em | Finalidade |
+|---|---|---|---|---|---|
+| `Perc_Alocacao` | `Custom.PercAlocacao` *(exemplo)* | Decimal/Float (1–100, até 2 casas) | `Perc_Alocacao` | Story, Task | % do dia da pessoa dedicado a esta Story |
+| `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | Story | % de conclusão. **Sem o campo**, o percentual vem do estado do work item |
 | `EPIC_TYPE` | `Custom.EPIC_TYPE` *(exemplo)* | Texto (lista: `DELIVERY` / `BACKLOG`) | `EPIC_TYPE` | Epic | Classifica o Epic: **Delivery** (soma horas no total do projeto) ou **Backlog** (não soma). Habilitado por padrão. |
 | `Tipo_Centro_Custo` | `Custom.Tipo_Centro_Custo` *(exemplo)* | Texto (`OPEX` / `CAPEX`) | `Tipo_Centro_Custo` | Epic | Tipo do centro de custo — usado no **Portfólio de Projetos** (OPEX/CAPEX) |
+| `block_duration_hours` | `Custom.block_duration_hours` *(exemplo)* | Decimal | `block_duration_hours` | Task | Horas acumuladas em BLOCK, calculadas do histórico. **Desligado por padrão** |
+| `Approved` | `Custom.Approved` *(exemplo)* | Booleano | `Approved` | Task | Aprovação da Task. Habilitado por padrão |
 | `Sync_version` | `Custom.Syncversion` *(exemplo)* | Inteiro | `Sync_version` | Story, Feature, Epic | Contador de versão de concorrência (gerenciado automaticamente) |
 | `Sync_Name` | `Custom.SyncName` *(exemplo)* | Texto *(texto simples, não Identity)* | `Sync_Name` | Story, Feature, Epic | Quem realizou a última sincronização (gerenciado automaticamente) |
 | `Adm_NX` | `Custom.Adm_NX` *(exemplo)* | Identity (aponta um grupo/Team do DevOps) | `Adm_NX` | Project (item raiz) | Grupo administrador do NX: **somente os membros deste grupo podem Exportar/Sincronizar** no DevOps. Vazio/ausente = liberado para todos. Habilitado por padrão. |
+
+> **Feature e EPIC não precisam de HH nem de datas.** Nesses níveis os números são **consolidação dos filhos**, calculada pelo cronograma — não há o que preencher. Só `Sync_version` e `Sync_Name` fazem falta ali, porque o controle de concorrência acompanha todo item sincronizado. (Se os campos existirem na Feature/EPIC, o NXProject publica o rollup neles.)
 
 > **Campos de HH opcionais (avançado).** Além do `HH Estimado`, o NXProject reconhece campos separados de horas quando existem, para preservar o planejado em itens 100% concluídos: `HH Original` (`HH_Original_float`), `HH Restante` (`HH_Restante_float`) e `HH Atual` (`HH_Atual_float`) — em Story, Feature e Epic. Se não existirem, o NXProject deriva os valores do `HH Estimado`/estado.
 

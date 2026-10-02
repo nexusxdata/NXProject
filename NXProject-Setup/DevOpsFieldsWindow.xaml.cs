@@ -31,8 +31,12 @@ public partial class DevOpsFieldsWindow : Window
         public CheckBox Create { get; init; } = new();
         public TextBox Name { get; init; } = new();
         public TextBlock Status { get; init; } = new();
-        /// <summary>Só existe para campo que tem equivalente padrão na Task (datas).</summary>
-        public CheckBox? UseStandardOnTask { get; init; }
+        /// <summary>
+        /// Work item -> caixa "usar o campo padrão do DevOps aqui". Só existe para o tipo que
+        /// tem equivalente de fábrica (datas e HH). Na Task vem marcada; na Story é alternativa.
+        /// </summary>
+        public Dictionary<string, CheckBox> UseStandardByType { get; } =
+            new(StringComparer.CurrentCultureIgnoreCase);
     }
 
     private readonly List<FieldRow> _fieldRows = new();
@@ -59,7 +63,7 @@ public partial class DevOpsFieldsWindow : Window
     public DevOpsFieldsWindow()
     {
         InitializeComponent();
-        Loaded += (_, _) => { BuildFieldRows(); LoadInstalledConfig(); };
+        Loaded += async (_, _) => { BuildFieldRows(); await TryUseSavedPatAsync(LoadInstalledConfig()); };
     }
 
     /// <summary>
@@ -71,14 +75,48 @@ public partial class DevOpsFieldsWindow : Window
     /// Leitura direta do JSON de propósito: o instalador não carrega o modelo de configuração
     /// inteiro do app, só os punhados de campo que esta tela usa.
     /// </summary>
-    private void LoadInstalledConfig()
+    /// <summary>
+    /// O token do NXProject so e reaproveitado se ele PUDER criar campos.
+    ///
+    /// O PAT do dia a dia le e grava work item; criar campo mexe no processo e exige bem mais.
+    /// Trazer o token salvo para a tela dava a impressao de que estava tudo pronto, e o problema
+    /// so aparecia no fim, depois de tentar criar. Agora o campo nasce VAZIO e so e preenchido
+    /// quando a checagem confirma o acesso — senao a tela ja pede um token com permissao, com o
+    /// passo a passo a vista.
+    /// </summary>
+    private async Task TryUseSavedPatAsync(string savedPat)
+    {
+        if (string.IsNullOrEmpty(savedPat) || string.IsNullOrWhiteSpace(DevOpsOrgBox.Text)) return;
+
+        Step4StatusText.Text = App.Str("Setup_Step4CheckingSavedPat");
+        try
+        {
+            var (perm, _) = await DevOpsFieldSetupService.CanEditProcessAsync(
+                DevOpsOrgBox.Text.Trim(), savedPat);
+            if (perm == DevOpsFieldSetupService.PermissionProbe.Allowed)
+            {
+                DevOpsPatBox.Password = savedPat;
+                Step4StatusText.Text = App.Str("Setup_Step4SavedPatOk");
+                return;
+            }
+            // Sem acesso (ou nem deu para saber): melhor deixar em branco do que levar a pessoa
+            // a tentar criar com um token que ja sabemos insuficiente.
+            Step4StatusText.Text = App.Str(perm == DevOpsFieldSetupService.PermissionProbe.Unknown
+                ? "Setup_Step4SavedPatUnknown" : "Setup_Step4SavedPatNoAccess");
+            PatHelpPanel.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex) { Step4StatusText.Text = ex.Message; }
+    }
+
+    /// <summary>Devolve o token guardado (sem coloca-lo na tela); vazio quando nao ha.</summary>
+    private string LoadInstalledConfig()
     {
         try
         {
             var file = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "NXProject.Community", "config_nxproject.json");
-            if (!System.IO.File.Exists(file)) return;
+            if (!System.IO.File.Exists(file)) return "";
 
             using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
             var root = doc.RootElement;
@@ -121,16 +159,28 @@ public partial class DevOpsFieldsWindow : Window
             _optionalEnabled["admGroup"] = Flag("AdmGroupFieldEnabled", true);
             _optionalEnabled["blockDuration"] = Flag("BlockDurationFieldEnabled", false);
 
-            var pat = remember ? WindowsDataProtection.Decrypt(Str("EncryptedToken")) : "";
-            if (!string.IsNullOrEmpty(pat)) DevOpsPatBox.Password = pat;
-
-            Step4StatusText.Text = App.Str(string.IsNullOrEmpty(pat)
-                ? "Setup_Step4LoadedNoPat" : "Setup_Step4Loaded");
+            Step4StatusText.Text = App.Str("Setup_Step4LoadedNoPat");
+            // O token NAO vai direto para a tela: quem decide e a checagem de acesso.
+            return remember ? WindowsDataProtection.Decrypt(Str("EncryptedToken")) : "";
         }
         catch { /* configuração ilegível não impede preencher à mão */ }
+        return "";
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// Servidor onde os campos serão configurados. Só o Azure DevOps está implementado; o
+    /// GitProject (GitHub Projects) avisa e volta — o que muda em cada botão desta janela está
+    /// desenhado em <c>Plano_GitProject_Import_Sync.md</c>, na raiz do repositório.
+    /// </summary>
+    private void OnServerChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ServerCombo == null || ServerCombo.SelectedIndex == 0) return;
+        ServerCombo.SelectedIndex = 0;
+        MessageBox.Show(this, App.Str("Setup_Step4ServerTodo"),
+            App.Str("Setup_Step4ServerTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+    }
 
     /// <summary>
     /// O que viaja no arquivo de configuração. É de propósito o MÍNIMO que faz uma instalação
@@ -173,8 +223,7 @@ public partial class DevOpsFieldsWindow : Window
                 Organization = DevOpsOrgBox.Text.Trim(),
                 Project = DevOpsProjectBox.Text.Trim(),
                 Fields = _fieldRows.ToDictionary(r => r.Spec.Key, r => r.Name.Text?.Trim() ?? ""),
-                TaskStandard = _fieldRows.Where(r => r.UseStandardOnTask?.IsChecked == true)
-                                         .Select(r => r.Spec.Key).ToList(),
+                TaskStandard = StandardChoices().Select(c => c.Key + "|" + c.WorkItemType).ToList(),
                 OptionalEnabled = new Dictionary<string, bool>(_optionalEnabled, StringComparer.OrdinalIgnoreCase),
             };
             System.IO.File.WriteAllText(dlg.FileName,
@@ -221,9 +270,11 @@ public partial class DevOpsFieldsWindow : Window
                     row.Name.Text = name.Trim();
                     applied++;
                 }
-                if (row.UseStandardOnTask != null)
-                    row.UseStandardOnTask.IsChecked = data.TaskStandard
-                        .Contains(row.Spec.Key, StringComparer.OrdinalIgnoreCase);
+                foreach (var kv in row.UseStandardByType)
+                    kv.Value.IsChecked = data.TaskStandard.Contains(row.Spec.Key + "|" + kv.Key, StringComparer.OrdinalIgnoreCase)
+                        // Compatibilidade com o arquivo da primeira versao, que so tinha a Task.
+                        || (string.Equals(kv.Key, "Task", StringComparison.OrdinalIgnoreCase)
+                            && data.TaskStandard.Contains(row.Spec.Key, StringComparer.OrdinalIgnoreCase));
             }
             foreach (var kv in data.OptionalEnabled)
                 _optionalEnabled[kv.Key] = kv.Value;
@@ -266,12 +317,6 @@ public partial class DevOpsFieldsWindow : Window
                 maps = new System.Text.Json.Nodes.JsonObject();
                 node["TypeFieldMappings"] = maps;
             }
-            if (maps["Task"] is not System.Text.Json.Nodes.JsonObject task)
-            {
-                task = new System.Text.Json.Nodes.JsonObject();
-                maps["Task"] = task;
-            }
-
             // Nome de cada campo, como ficou na tela. Só grava o que mudou, para não encher o
             // arquivo de chaves iguais ao padrão.
             var nameProps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -302,8 +347,6 @@ public partial class DevOpsFieldsWindow : Window
 
             foreach (var row in _fieldRows)
             {
-                var std = row.Spec.OptionalStandardFor("Task");
-                if (string.IsNullOrEmpty(std)) continue;
                 var prop = row.Spec.Key switch
                 {
                     "start" => "StartField",
@@ -314,9 +357,20 @@ public partial class DevOpsFieldsWindow : Window
                     _ => null
                 };
                 if (prop == null) continue;
-                var chosen = choices.Any(c => string.Equals(c.Key, row.Spec.Key, StringComparison.OrdinalIgnoreCase));
-                // Desmarcado volta ao padrão global (campo personalizado): remove a exceção.
-                if (chosen) task[prop] = std; else task.Remove(prop);
+                foreach (var wit in row.UseStandardByType.Keys)
+                {
+                    var std = row.Spec.OptionalStandardFor(wit);
+                    if (string.IsNullOrEmpty(std)) continue;
+                    if (maps[wit] is not System.Text.Json.Nodes.JsonObject typeMap)
+                    {
+                        typeMap = new System.Text.Json.Nodes.JsonObject();
+                        maps[wit] = typeMap;
+                    }
+                    var chosen = choices.Any(c => string.Equals(c.Key, row.Spec.Key, StringComparison.OrdinalIgnoreCase)
+                                               && string.Equals(c.WorkItemType, wit, StringComparison.OrdinalIgnoreCase));
+                    // Desmarcado volta ao padrão global (campo personalizado): remove a exceção.
+                    if (chosen) typeMap[prop] = std; else typeMap.Remove(prop);
+                }
             }
 
             System.IO.File.WriteAllText(file, node.ToJsonString(
@@ -373,36 +427,59 @@ public partial class DevOpsFieldsWindow : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
 
-            // Campo com equivalente de fábrica na Task (Data_Inicio/Data_Fim -> Start/Finish Date):
-            // a organização escolhe qual usar ali. Marcado, o NX passa a ler e gravar o campo
-            // padrão NA TASK (via TypeFieldMappings) e o personalizado deixa de fazer falta lá.
-            var stdOnTask = spec.OptionalStandardFor("Task");
-            CheckBox? useStd = null;
-            if (!string.IsNullOrEmpty(stdOnTask))
+            // Campo com equivalente de fábrica (Data_Inicio -> Start Date, HH -> Original
+            // Estimate): a organização escolhe qual usar em CADA tipo. Marcado, o NX passa a ler
+            // e gravar o campo padrão naquele work item (via TypeFieldMappings) e o personalizado
+            // deixa de fazer falta ali.
+            var right = new StackPanel { Orientation = Orientation.Horizontal };
+            var row = new FieldRow { Spec = spec, Create = cb, Name = name, Status = status };
+            foreach (var wit in spec.Scope)
             {
-                useStd = new CheckBox
+                var std = spec.OptionalStandardFor(wit);
+                if (string.IsNullOrEmpty(std)) continue;
+                var useStd = new CheckBox
                 {
-                    Content = App.Str("Setup_Step4UseStdOnTask", ShortFieldName(stdOnTask)),
+                    Content = App.Str("Setup_Step4UseStdOnType", wit, ShortFieldName(std)),
                     FontSize = 10.5, VerticalAlignment = VerticalAlignment.Center,
                     ToolTip = App.Str("Setup_Step4UseStdOnTaskTip"),
                     Margin = new Thickness(0, 0, 8, 0),
-                    // HH da Task ja nasce marcado: e o que o NXProject faz hoje.
-                    IsChecked = spec.StandardDefaultOn("Task")
+                    // O que o NXProject ja faz hoje nasce marcado (HH da Task).
+                    IsChecked = spec.StandardDefaultOn(wit)
                 };
                 useStd.Click += (_, _) => ResetFieldStatus();
+                row.UseStandardByType[wit] = useStd;
+                right.Children.Add(useStd);
             }
-
-            var right = new StackPanel { Orientation = Orientation.Horizontal };
-            if (useStd != null) right.Children.Add(useStd);
             right.Children.Add(status);
 
             Grid.SetColumn(cb, 0); Grid.SetColumn(name, 1); Grid.SetColumn(info, 2); Grid.SetColumn(right, 3);
             grid.Children.Add(cb); grid.Children.Add(name); grid.Children.Add(info); grid.Children.Add(right);
             host.Children.Add(grid);
 
-            _fieldRows.Add(new FieldRow { Spec = spec, Create = cb, Name = name, Status = status, UseStandardOnTask = useStd });
+            _fieldRows.Add(row);
         }
         FieldList.Items.Add(host);
+    }
+
+    /// <summary>
+    /// Explica, numa janela, por que o DevOps recusou a criação e oferece abrir a página onde se
+    /// cria o PAT com o escopo necessário. Criar campo mexe no PROCESSO da organização: não basta
+    /// o token do dia a dia, que só lê e grava work item.
+    /// </summary>
+    private void ShowPatPermissionDialog()
+    {
+        var ask = MessageBox.Show(this,
+            App.Str("Setup_Step4PatDialogBody"),
+            App.Str("Setup_Step4PatDialogTitle"),
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (ask != MessageBoxResult.Yes) return;
+        try
+        {
+            var url = DevOpsFieldSetupService.TokenPageUrl(DevOpsOrgBox.Text.Trim());
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url)
+            { UseShellExecute = true });
+        }
+        catch (Exception ex) { Step4StatusText.Text = ex.Message; }
     }
 
     /// <summary>"Microsoft.VSTS.Scheduling.StartDate" -> "Start Date".</summary>
@@ -412,10 +489,11 @@ public partial class DevOpsFieldsWindow : Window
         return System.Text.RegularExpressions.Regex.Replace(last, "(?<=[a-z])(?=[A-Z])", " ");
     }
 
-    /// <summary>Campos em que esta instalação optou pelo campo padrão do DevOps na Task.</summary>
+    /// <summary>Campos em que esta instalação optou pelo campo padrão do DevOps, por tipo.</summary>
     private List<DevOpsFieldSetupService.StandardChoice> StandardChoices() => _fieldRows
-        .Where(r => r.UseStandardOnTask?.IsChecked == true)
-        .Select(r => new DevOpsFieldSetupService.StandardChoice(r.Spec.Key, "Task"))
+        .SelectMany(r => r.UseStandardByType
+            .Where(kv => kv.Value.IsChecked == true)
+            .Select(kv => new DevOpsFieldSetupService.StandardChoice(r.Spec.Key, kv.Key)))
         .ToList();
 
     /// <summary>Limpa o resultado da última detecção (nome mudou, ou vamos detectar de novo).</summary>
@@ -494,7 +572,13 @@ public partial class DevOpsFieldsWindow : Window
                         row.Create.IsChecked = true; missing++;
                         break;
                     case DevOpsFieldSetupService.FieldStatus.Missing:
-                        row.Status.Text = App.Str("Setup_Step4NotFound");
+                        // Nao existe, mas o DevOps ja pode ter um campo de fabrica equivalente:
+                        // a sugestao vem da propria deteccao (mesma do NXProject).
+                        var alt = c.SuggestedStandard.FirstOrDefault();
+                        row.Status.Text = App.Str("Setup_Step4NotFound")
+                            + (string.IsNullOrEmpty(alt.Value) ? ""
+                               : " · " + App.Str("Setup_Step4SuggestStd", alt.Key,
+                                   DevOpsFieldSetupService.ShortFieldName(alt.Value)));
                         row.Status.Foreground = new SolidColorBrush(Color.FromRgb(0xB2, 0x6A, 0x00));
                         // Obrigatório sempre; opcional só quando o recurso está ligado no NX.
                         row.Create.IsChecked = AutoCheck(row.Spec); missing++;
@@ -519,6 +603,10 @@ public partial class DevOpsFieldsWindow : Window
                 }
             }
 
+            // Pre-checagem: pergunta ao DevOps se esta conta pode editar o processo. Melhor
+            // saber agora do que no meio da criacao, com metade dos campos no ar.
+            var (perm, permDetail) = await DevOpsFieldSetupService.CanEditProcessAsync(org, pat);
+
             var parts = new List<string>();
             // 401/403 no processo é o caso comum: o token do NX serve para ler e gravar work
             // item, mas criar campo é outra permissão. Aqui a tela para de falar em HTTP e passa
@@ -535,6 +623,21 @@ public partial class DevOpsFieldsWindow : Window
                 parts.Add(App.Str("Setup_Step4ProcessSystem", _process.Name));
             else parts.Add(App.Str("Setup_Step4ProcessInherited", _process.Name));
             if (conflicts > 0) parts.Add(App.Str("Setup_Step4ConflictCount", conflicts.ToString()));
+            // O resultado da permissao e AVISO, nunca bloqueio: a API mede o direito da conta, e
+            // um falso negativo nao pode impedir quem de fato consegue criar.
+            switch (perm)
+            {
+                case DevOpsFieldSetupService.PermissionProbe.Allowed:
+                    parts.Add(App.Str("Setup_Step4PermOk")); break;
+                case DevOpsFieldSetupService.PermissionProbe.Denied:
+                    parts.Add(App.Str("Setup_Step4PermDenied"));
+                    PatHelpPanel.Visibility = Visibility.Visible; break;
+                case DevOpsFieldSetupService.PermissionProbe.TokenRefused:
+                    parts.Add(App.Str("Setup_Step4PermToken"));
+                    PatHelpPanel.Visibility = Visibility.Visible; break;
+                default:
+                    parts.Add(App.Str("Setup_Step4PermUnknown", permDetail)); break;
+            }
             parts.Add(missing == 0 ? App.Str("Setup_Step4AllOk")
                                    : App.Str("Setup_Step4MissingCount", missing.ToString()));
             Step4StatusText.Text = string.Join(" · ", parts);
@@ -544,10 +647,15 @@ public partial class DevOpsFieldsWindow : Window
         finally { DetectFieldsButton.IsEnabled = true; }
     }
 
-    /// <summary>O erro é de permissão/token, e não de rede ou de nome errado?</summary>
+    /// <summary>
+    /// O erro é de permissão/token, e não de rede ou de nome errado? Usa a mesma regra da
+    /// gravação (DevOpsFieldSetupService), que também reconhece a pagina de login devolvida em
+    /// HTML quando o PAT nao tem escopo.
+    /// </summary>
     private static bool NeedsStrongerPat(string? error) =>
         !string.IsNullOrEmpty(error)
-        && (error.Contains("HTTP 401") || error.Contains("HTTP 403") || error.Contains("HTTP 302"));
+        && (error.Contains("HTTP 401") || error.Contains("HTTP 403") || error.Contains("HTTP 302")
+            || DevOpsFieldSetupService.IsAuthProblem(0, error));
 
     private async void OnCreateFieldsClick(object sender, RoutedEventArgs e)
     {
@@ -584,12 +692,15 @@ public partial class DevOpsFieldsWindow : Window
             var ok = results.Count(r => r.Ok);
             Step4StatusText.Text = App.Str("Setup_Step4CreateDone",
                 ok.ToString(), (results.Count - ok).ToString());
-            // Recusa por permissão: mostra como gerar o token certo, em vez de deixar o usuário
-            // decifrar um "HTTP 403" no fim da linha.
-            if (results.Any(r => !r.Ok && (r.Message.Contains("HTTP 401") || r.Message.Contains("HTTP 403"))))
+            // Recusa por permissão: além do painel amarelo, um POPUP — a linha do campo é
+            // estreita e a mensagem do servidor (às vezes a URL da tela de login) não explica
+            // nada. Aqui a pessoa lê o motivo e vai direto criar o token com o escopo certo.
+            if (results.Any(r => !r.Ok && DevOpsFieldSetupService.IsAuthProblem(
+                    r.Message.Contains("HTTP 401") ? 401 : r.Message.Contains("HTTP 403") ? 403 : 0, r.Message)))
             {
                 PatHelpPanel.Visibility = Visibility.Visible;
                 Step4StatusText.Text += " " + App.Str("Setup_Step4PatNoAccess");
+                ShowPatPermissionDialog();
             }
         }
         catch (Exception ex) { Step4StatusText.Text = ex.Message; }

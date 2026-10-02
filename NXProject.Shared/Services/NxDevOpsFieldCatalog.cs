@@ -139,8 +139,12 @@ namespace NXProject.Services
                 Scope = new[] { "User Story", "Task" },
                 // Muita organização já usa o Start Date de fábrica na Task. Quem preferir liga a
                 // opção no instalador e o NX passa a ler/gravar ele ali, sem campo personalizado.
+                // Start Date / Finish Date sao de fabrica no DevOps. Na Task vem marcado; na
+                // Story fica como alternativa, oferecida quando o campo personalizado nao existe
+                // — organizacao nova nao precisa criar campo para ter data de inicio e fim.
                 OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
-                { ["Task"] = "Microsoft.VSTS.Scheduling.StartDate" },
+                { ["Task"] = "Microsoft.VSTS.Scheduling.StartDate",
+                  ["User Story"] = "Microsoft.VSTS.Scheduling.StartDate" },
                 // Nasce marcada: a Task do DevOps ja traz esse campo de fabrica, e e nele que as
                 // equipes preenchem. Desmarcar volta ao campo personalizado na Task.
                 StandardOnByDefault = new[] { "Task" },
@@ -152,7 +156,8 @@ namespace NXProject.Services
                 Names = new[] { "Data_Fim", "Data Fim", "DataFim" },
                 Scope = new[] { "User Story", "Task" },
                 OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
-                { ["Task"] = "Microsoft.VSTS.Scheduling.FinishDate" },
+                { ["Task"] = "Microsoft.VSTS.Scheduling.FinishDate",
+                  ["User Story"] = "Microsoft.VSTS.Scheduling.FinishDate" },
                 // Nasce marcada: a Task do DevOps ja traz esse campo de fabrica, e e nele que as
                 // equipes preenchem. Desmarcar volta ao campo personalizado na Task.
                 StandardOnByDefault = new[] { "Task" },

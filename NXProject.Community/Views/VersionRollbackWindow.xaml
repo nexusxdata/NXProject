@@ -1,0 +1,42 @@
+﻿<Window x:Class="NXProject.Views.VersionRollbackWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Roll_Title}"
+        Width="640" SizeToContent="Height" MaxHeight="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="White">
+    <StackPanel Margin="18">
+        <TextBlock Text="{DynamicResource Roll_Intro}" FontSize="12" Foreground="#555"
+                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <!-- Aviso: voltar versão é ação de emergência, e cronograma salvo por versão nova pode
+             não abrir numa antiga. Fica sempre visível, não escondido num tooltip. -->
+        <Border Background="#FFF8E1" BorderBrush="#FFD54F" BorderThickness="1"
+                CornerRadius="4" Padding="10" Margin="0,0,0,12">
+            <TextBlock Text="{DynamicResource Roll_Warning}" FontSize="11.5"
+                       Foreground="#555" TextWrapping="Wrap"/>
+        </Border>
+
+        <TextBlock x:Name="CurrentText" FontSize="11.5" Foreground="#2B579A"
+                   FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+        <Border BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="4">
+            <ListBox x:Name="VersionsList" BorderThickness="0" Height="220"
+                     SelectionChanged="OnVersionSelected"/>
+        </Border>
+
+        <ProgressBar x:Name="Progress" Height="16" Margin="0,10,0,0" Minimum="0" Maximum="100"
+                     Visibility="Collapsed"/>
+        <TextBlock x:Name="StatusText" FontSize="11" Foreground="#555" TextWrapping="Wrap"
+                   Margin="0,8,0,0"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="InstallBtn" Content="{DynamicResource Roll_Install}" Width="220" Height="32"
+                    IsEnabled="False" Click="OnInstallClick"
+                    Background="#B26A00" Foreground="White" FontWeight="SemiBold"/>
+            <Button Content="{DynamicResource Roll_Close}" Width="110" Height="32" Margin="8,0,0,0"
+                    IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

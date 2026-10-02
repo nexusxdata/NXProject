@@ -158,6 +158,9 @@
                             <CheckBox x:Name="StartTaskStdBox" Margin="0,4,0,0" FontSize="10.5"
                                       Content="{DynamicResource Cfg_TaskStdStart}"
                                       ToolTip="{DynamicResource Cfg_TaskStdTip}"/>
+                            <CheckBox x:Name="StartStoryStdBox" Margin="0,2,0,0" FontSize="10.5"
+                                      Content="{DynamicResource Cfg_StoryStdStart}"
+                                      ToolTip="{DynamicResource Cfg_StoryStdTip}"/>
                         </StackPanel>
                         <StackPanel Grid.Column="4">
                             <TextBlock Text="{DynamicResource Cfg_FinishField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
@@ -165,6 +168,9 @@
                             <CheckBox x:Name="FinishTaskStdBox" Margin="0,4,0,0" FontSize="10.5"
                                       Content="{DynamicResource Cfg_TaskStdFinish}"
                                       ToolTip="{DynamicResource Cfg_TaskStdTip}"/>
+                            <CheckBox x:Name="FinishStoryStdBox" Margin="0,2,0,0" FontSize="10.5"
+                                      Content="{DynamicResource Cfg_StoryStdFinish}"
+                                      ToolTip="{DynamicResource Cfg_StoryStdTip}"/>
                         </StackPanel>
                     </Grid>
                     <Grid Margin="0,8,0,0">

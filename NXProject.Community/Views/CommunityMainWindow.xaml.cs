@@ -473,6 +473,14 @@ namespace NXProject.Views
             vm.AddMilestone(asChild);
         }
 
+        /// <summary>
+        /// Voltar para uma versão anterior do NXProject. Fica ao lado de "verificar atualizações"
+        /// por ser o caminho inverso dele: quando a versão nova chega com defeito, a pessoa não
+        /// fica parada esperando a correção.
+        /// </summary>
+        private void OnRollbackClick(object sender, RoutedEventArgs e) =>
+            new VersionRollbackWindow { Owner = this }.ShowDialog();
+
         private async void OnCheckUpdateClick(object sender, RoutedEventArgs e)
         {
             try
@@ -1061,7 +1069,19 @@ namespace NXProject.Views
             // Item raiz do cronograma aberto: o filtro do TaskBoard marca esse no da arvore e
             // rotula com "(Aberto no NX)".
             var openRootId = vm?.Project?.DevOpsRootWorkItemId ?? 0;
-            new NXProject.Views.TfsSprintWindow(scheduleIds, FocusScheduleTaskByTfsId, preferred, scheduleOrder, openRootId)
+            // O cronograma aberto vai junto: é dele que o board monta a visão no modo
+            // "Projeto Local" (sem servidor). No modo DevOps ele fica sem uso.
+            // Além do cronograma, o board recebe COMO salvá-lo: no modo local o "Salvar" grava
+            // no .nxproject pelo mesmo caminho do Salvar da tela principal (marca sujo, grava,
+            // avisa quem escuta), em vez de reimplementar a gravação.
+            void SalvarCronograma()
+            {
+                if (vm == null) return;
+                vm.Project.IsDirty = true;
+                vm.SaveProjectCommand.Execute(null);
+            }
+            new NXProject.Views.TfsSprintWindow(scheduleIds, FocusScheduleTaskByTfsId, preferred,
+                    scheduleOrder, openRootId, vm?.Project, SalvarCronograma)
                 { Owner = this }.Show();
         }
 
@@ -2080,10 +2100,26 @@ namespace NXProject.Views
                 rootName, rootId, options.TeamProject ?? "", options.OrganizationUrl ?? "");
             if (targetDiffers)
                 confirmBody += "\n\n" + AppStrings.Get("Sync_ConfirmDiffersNote");
-            var confirm = MessageBox.Show(
-                confirmBody,
-                "Sincronizar TFS/DevOps", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-            if (confirm != MessageBoxResult.OK)
+            // A confirmação que já existia passa a perguntar TAMBÉM o destino. Virou diálogo de
+            // escolha em vez de ganhar um combo: o Sincronizar não tem tela própria, e um modal a
+            // mais a cada sincronização seria pior do que uma linha extra neste.
+            var escolha = ChoiceDialog.Ask(this, "Sincronizar TFS/DevOps", confirmBody, new[]
+            {
+                new ChoiceDialog.Option(AppStrings.Get("Sprint_TargetDevOps"),
+                    AppStrings.Get("Sync_TargetDevOpsDesc"), 1, IsPrimary: true),
+                new ChoiceDialog.Option(AppStrings.Get("Sprint_TargetGitProject"),
+                    AppStrings.Get("Sync_TargetGitProjectDesc"), 2),
+                new ChoiceDialog.Option(AppStrings.Get("Imp_Cancel"), null, 0),
+            });
+            if (escolha == 2)
+            {
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_TargetTodo", AppStrings.Get("Sprint_TargetGitProject"),
+                        "Plano_GitProject_Import_Sync.md"),
+                    AppStrings.Get("Sprint_TargetTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (escolha != 1)
                 return;
 
             if (!ConfirmKnownTfsResources(vm))

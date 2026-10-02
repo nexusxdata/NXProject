@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Sprint_BoardTitle}"
         Height="680" Width="1180"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        PreviewKeyDown="OnBoardPreviewKeyDown">
     <Window.Resources>
         <!-- Seletor de visao: RadioButton exclusivo com template proprio. O template padrao do
              ToggleButton pinta o IsChecked de azul-claro por cima do Background, o que apagava o
@@ -101,6 +102,17 @@
                     Padding="10,3" Margin="8,0,0,0" IsEnabled="False" Click="OnUpdateTfsClick"
                     Background="#107C10" Foreground="White" FontWeight="SemiBold"
                     Content="{DynamicResource Sprint_UpdateTfs}"/>
+            <!-- Para ONDE o board grava. Hoje só o Azure DevOps está implementado; as outras duas
+                 opções existem para discutir o caminho (cada uma tem um plano em .md na raiz do
+                 repositório) e avisam que ainda não valem. -->
+            <ComboBox x:Name="TargetCombo" DockPanel.Dock="Right" VerticalAlignment="Center"
+                      Width="150" Margin="8,0,0,0" SelectedIndex="0"
+                      SelectionChanged="OnTargetChanged"
+                      ToolTip="{DynamicResource Sprint_TargetTip}">
+                <ComboBoxItem Content="{DynamicResource Sprint_TargetDevOps}"/>
+                <ComboBoxItem Content="{DynamicResource Sprint_TargetGitProject}"/>
+                <ComboBoxItem Content="{DynamicResource Sprint_TargetLocal}"/>
+            </ComboBox>
             <Button x:Name="RevertButton" DockPanel.Dock="Right" VerticalAlignment="Center"
                     Padding="8,3" Margin="8,0,0,0" IsEnabled="False" Click="OnRevertClick"
                     Content="{DynamicResource Sprint_Revert}"/>

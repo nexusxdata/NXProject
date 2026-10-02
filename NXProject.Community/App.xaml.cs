@@ -62,6 +62,26 @@ namespace NXProject
             return v;
         }
 
+        /// <summary>
+        /// Guarda a exceção inteira em error-log.txt, ao lado das demais configurações do usuário.
+        /// O diálogo mostra só o começo da pilha e some quando a pessoa clica OK; o arquivo é o
+        /// que permite entender depois o que aconteceu — inclusive a exceção interna, que não
+        /// cabe na tela.
+        /// </summary>
+        private static void LogUnhandled(Exception ex)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "NXProject.Community");
+                System.IO.Directory.CreateDirectory(dir);
+                System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "error-log.txt"),
+                    $"=== {DateTime.Now:dd/MM/yyyy HH:mm:ss} ==={Environment.NewLine}{ex}{Environment.NewLine}{Environment.NewLine}");
+            }
+            catch { /* log nunca pode virar o proximo erro */ }
+        }
+
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -71,16 +91,23 @@ namespace NXProject
                     if (string.Equals(a?.Trim(), "--install-llama", StringComparison.OrdinalIgnoreCase))
                         InstallLlamaOnStart = true;
 
-            // Captura exceções não tratadas para exibir mensagem em vez de fechar silenciosamente
+            // Captura exceções não tratadas para exibir mensagem em vez de fechar silenciosamente.
+            //
+            // O diálogo é ADIADO de propósito. Há momentos em que o WPF suspende o processamento
+            // do dispatcher — o arrasto de um card é o caso clássico —, e abrir um modal ali
+            // estoura de novo, com a mensagem "o processamento do dispatcher foi suspenso". O
+            // resultado era uma pilha de janelas de erro, e o erro ORIGINAL ficava escondido
+            // atrás do erro do próprio tratador. Adiando para quando a fila do WPF voltar ao
+            // normal, aparece uma janela só, com a falha de verdade.
             DispatcherUnhandledException += (_, args) =>
             {
                 args.Handled = true;
+                LogUnhandled(args.Exception);
                 if (ShowMissingLibraryMessage(args.Exception)) return;
-                MessageBox.Show(
-                    $"Erro inesperado:\n\n{args.Exception.Message}\n\n{args.Exception.StackTrace}",
-                    "Erro — NXProject",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                var text = $"Erro inesperado:\n\n{args.Exception.Message}\n\n{args.Exception.StackTrace}";
+                Dispatcher.BeginInvoke(new Action(() =>
+                    MessageBox.Show(text, "Erro — NXProject", MessageBoxButton.OK, MessageBoxImage.Error)),
+                    System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             };
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             {

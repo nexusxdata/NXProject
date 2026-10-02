@@ -176,6 +176,21 @@ namespace NXProject.Views
             }
         }
 
+        /// <summary>
+        /// Origem da importação. Só o Azure DevOps está implementado; GitProject (GitHub Projects)
+        /// avisa e volta — o desenho do conector está em <c>Plano_GitProject_Import_Sync.md</c>,
+        /// na raiz do repositório.
+        /// </summary>
+        private void OnSourceChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (SourceCombo == null || SourceCombo.SelectedIndex == 0) return;
+            SourceCombo.SelectedIndex = 0;
+            MessageBox.Show(this,
+                AppStrings.Get("Sprint_TargetTodo", AppStrings.Get("Sprint_TargetGitProject"),
+                    "Plano_GitProject_Import_Sync.md"),
+                AppStrings.Get("Sprint_TargetTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         private async void OnImportClick(object sender, RoutedEventArgs e)
         {
             if (_isImporting)

@@ -103,6 +103,11 @@ namespace NXProject.Views
                 StartTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.StartField);
                 FinishTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.FinishField);
             }
+            if (saved.TypeFieldMappings.TryGetValue("User Story", out var storyCfg))
+            {
+                StartStoryStdBox.IsChecked = !string.IsNullOrWhiteSpace(storyCfg.StartField);
+                FinishStoryStdBox.IsChecked = !string.IsNullOrWhiteSpace(storyCfg.FinishField);
+            }
 
             // Carrega mapeamentos de classificação por tipo
             foreach (var kv in saved.TypeFieldMappings)
@@ -195,6 +200,8 @@ namespace NXProject.Views
             if (EffortTaskStdBox?.IsChecked == true) list.Add(new("effort", "Task"));
             if (StartTaskStdBox?.IsChecked == true) list.Add(new("start", "Task"));
             if (FinishTaskStdBox?.IsChecked == true) list.Add(new("finish", "Task"));
+            if (StartStoryStdBox?.IsChecked == true) list.Add(new("start", "User Story"));
+            if (FinishStoryStdBox?.IsChecked == true) list.Add(new("finish", "User Story"));
             return list;
         }
 
@@ -282,8 +289,14 @@ namespace NXProject.Views
                         var need = scope.Length > 0
                             ? " — " + AppStrings.Get("Cfg_DetectExpectedIn", string.Join(", ", scope))
                             : "";
+                        // Sugestao vinda da deteccao (a mesma do NXProject-Setup): nao precisa
+                        // criar campo onde o DevOps ja tem um de fabrica.
+                        var alt = pr.SuggestedStandard.FirstOrDefault();
+                        var suggest = string.IsNullOrEmpty(alt.Value) ? ""
+                            : "  💡 " + AppStrings.Get("Cfg_DetectSuggestStd", alt.Key,
+                                DevOpsFieldSetupService.ShortFieldName(alt.Value));
                         lines.Add($"❌ {label}: '{name.Trim()}' "
-                                  + AppStrings.Get("Cfg_DetectNotFound") + need);
+                                  + AppStrings.Get("Cfg_DetectNotFound") + need + suggest);
                         continue;
                     }
                     if (pr.Status == DevOpsFieldSetupService.FieldStatus.Unknown)
@@ -554,6 +567,15 @@ namespace NXProject.Views
                 ? NxDevOpsFieldCatalog.Find("start")?.OptionalStandardFor("Task") : null;
             taskMap.FinishField = FinishTaskStdBox.IsChecked == true
                 ? NxDevOpsFieldCatalog.Find("finish")?.OptionalStandardFor("Task") : null;
+
+            // Mesma excecao para a Story: quem nao tem Data_Inicio/Data_Fim personalizados usa o
+            // Start Date / Finish Date de fabrica do DevOps.
+            if (!mappings.TryGetValue("User Story", out var storyMap))
+                mappings["User Story"] = storyMap = new TypeFieldConfig();
+            storyMap.StartField = StartStoryStdBox.IsChecked == true
+                ? NxDevOpsFieldCatalog.Find("start")?.OptionalStandardFor("User Story") : null;
+            storyMap.FinishField = FinishStoryStdBox.IsChecked == true
+                ? NxDevOpsFieldCatalog.Find("finish")?.OptionalStandardFor("User Story") : null;
 
             // Agrupa por tipo DevOps e salva lista de campos
             var grouped = _classificationMappings

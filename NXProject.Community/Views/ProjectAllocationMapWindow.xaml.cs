@@ -2492,6 +2492,24 @@ namespace NXProject.Views
             };
 
         // ── Handlers ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Destino de cada projeto do Portfólio. É a configuração que faz o TaskBoard, o Importar
+        /// e o Sincronizar nascerem no lugar certo — e, no Projeto Local, define a pasta de
+        /// artefatos, que ali é obrigatória.
+        /// </summary>
+        private void OnPortfolioTargetsClick(object sender, RoutedEventArgs e)
+        {
+            var opts = TfsConnectionStore.Load();
+            if (opts.PortfolioProjectConfigs.Count == 0)
+            {
+                MessageBox.Show(this, AppStrings.Get("PMap_EmptyListMsg"),
+                    AppStrings.Get("PMap_Targets"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            new PortfolioTargetWindow(opts) { Owner = this }.ShowDialog();
+        }
+
         private async void OnSelectProjectsClick(object sender, RoutedEventArgs e)
         {
             var opts       = TfsConnectionStore.Load();

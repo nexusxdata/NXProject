@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -52,6 +52,47 @@ public static class UpdateService
 
     public record ReleaseInfo(string TagName, string DownloadUrl, string HtmlUrl);
     public record SetupUpdateInfo(string TagName, string DownloadUrl, string HtmlUrl, DateTimeOffset UpdatedAt);
+
+    /// <summary>Uma versão publicada, para a tela de voltar versão.</summary>
+    public record PublishedVersion(string TagName, Version Version, string DownloadUrl,
+        string HtmlUrl, DateTimeOffset PublishedAt, bool IsCurrent);
+
+    /// <summary>
+    /// As últimas versões publicadas do NXProject, da mais nova para a mais antiga — é o que a
+    /// opção "Voltar versão" oferece quando uma versão nova sai com problema.
+    ///
+    /// Só entram releases que realmente têm o pacote do app; a release fixa do instalador
+    /// (nxsetup-latest) fica de fora de propósito: voltar versão é do NXProject, não do Setup.
+    /// </summary>
+    public static async Task<IReadOnlyList<PublishedVersion>> ListPublishedVersionsAsync(
+        int max = 5, CancellationToken ct = default)
+    {
+        var list = new List<PublishedVersion>();
+        try
+        {
+            using var client = CreateClient();
+            // per_page com folga: entre as releases vêm as que não têm o asset do app.
+            var releases = await client.GetFromJsonAsync<List<GithubRelease>>(
+                "https://api.github.com/repos/nexusxdata/NXProject/releases?per_page=30", ct);
+            if (releases is null) return list;
+
+            var atual = GetCurrentVersion();
+            foreach (var r in releases)
+            {
+                if (r is null || string.IsNullOrWhiteSpace(r.TagName)) continue;
+                if (string.Equals(r.TagName, SetupReleaseTag, StringComparison.OrdinalIgnoreCase)) continue;
+                var info = ToReleaseInfo(r, CommunityReleaseAssetName);
+                if (info is null || string.IsNullOrEmpty(info.DownloadUrl)) continue;
+                var ver = ParseVersion(r.TagName);
+                if (ver == new Version(0, 0)) continue;
+                list.Add(new PublishedVersion(r.TagName, ver, info.DownloadUrl, info.HtmlUrl,
+                    r.PublishedAt ?? DateTimeOffset.MinValue, ver == atual));
+            }
+        }
+        catch { /* sem rede, a tela mostra lista vazia com o aviso */ }
+
+        return list.OrderByDescending(v => v.Version).Take(Math.Max(1, max)).ToList();
+    }
 
     public static async Task<ReleaseInfo?> CheckForUpdateAsync(CancellationToken ct = default)
     {
@@ -352,7 +393,7 @@ public static class UpdateService
 
     private static string Escape(string path) => path.Replace("'", "''");
 
-    private static Version GetCurrentVersion()
+    public static Version GetCurrentVersion()
     {
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         return v ?? new Version(0, 0, 0);
@@ -403,6 +444,10 @@ public static class UpdateService
 
         [JsonPropertyName("assets")]
         public List<GithubAsset>? Assets { get; set; }
+
+        /// <summary>Quando a release foi publicada — a tela de voltar versão mostra a data.</summary>
+        [JsonPropertyName("published_at")]
+        public DateTimeOffset? PublishedAt { get; set; }
     }
 
     private sealed class GithubAsset

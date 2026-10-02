@@ -227,19 +227,34 @@ If your organization doesn't use a `Project` type, you can still import by point
 
 ---
 
-### Required custom fields (Story, Feature and Epic)
+### DevOps fields: what is required and what is optional
 
-NXProject reads and writes custom fields on **Stories, Features and Epics** in Azure DevOps. You must create them in your process template under **Organization Settings → Process → [Your Process]** and add them to each work item type you want to sync (Story, Feature, Epic).
+NXProject reads and writes a few custom fields in Azure DevOps. Create them in your process template under **Organization Settings → Process → [Your Process]** and add them to the work item types listed under **Used on**.
+
+> **Before creating them by hand, use NXProject-Setup.** **Step 4** of the installer detects what already exists in your organization, **creates only what is missing**, and can **export/import** the configuration as `.json` for the whole team. The same detection lives in NXProject under **Azure DevOps Integration Settings → Advanced fields**; creation is exclusive to the installer.
+
+> **Use the built-in fields when you can.** Azure DevOps already ships `Start Date` and `Finish Date` on **Task** and **Story**, and `Original Estimate` on Task. NXProject uses the Task ones by default and **offers the same for the Story**: tick *"on Story use Start Date / Finish Date"* (in either screen) and you **do not need to create** `Data_Inicio`/`Data_Fim`. The choice is stored per work item type, so teams already using the custom fields keep working as before.
+
+#### Required
 
 | Field name (display) | Reference name | Type | Default in NXProject | Used on | Purpose |
 |---|---|---|---|---|---|
-| `HH Estimado` | `Custom.HHEstimado` *(example)* | Integer or Decimal | `HH Estimado` | Story, Feature, Epic | Estimated effort in hours |
-| `Data_Inicio` | `Custom.DataInicio` *(example)* | Date/Time | `Data_Inicio` | Story, Feature, Epic | Planned start date |
-| `Data_Fim` | `Custom.DataFim` *(example)* | Date/Time | `Data_Fim` | Story, Feature, Epic | Planned finish date |
-| `Perc_Alocacao` | `Custom.PercAlocacao` *(example)* | Decimal/Float (1–100, up to 2 decimals) | `Perc_Alocacao` | Story | % of person's day dedicated to this Story |
-| `Perc_Conclusao` | `Custom.PercConclusao` *(example)* | Integer (0–100) | `Perc_Conclusao` | Story | % completion (read on import, written on sync) |
+| `HH Estimado` | `Custom.HHEstimado` *(example)* | Decimal | `HH Estimado` | Story *(Task uses the built-in `Original Estimate`)* | Estimated effort in hours |
+| `Data_Inicio` | `Custom.DataInicio` *(example)* | Date/Time | `Data_Inicio` | Story, Task — **or** the built-in `Start Date` | Planned start date |
+| `Data_Fim` | `Custom.DataFim` *(example)* | Date/Time | `Data_Fim` | Story, Task — **or** the built-in `Finish Date` | Planned finish date (target date on the TaskBoard) |
+
+#### Optional
+
+Each one enables a feature. Without the field NXProject still works — only that feature is left out.
+
+| Field name (display) | Reference name | Type | Default in NXProject | Used on | Purpose |
+|---|---|---|---|---|---|
+| `Perc_Alocacao` | `Custom.PercAlocacao` *(example)* | Decimal/Float (1–100, up to 2 decimals) | `Perc_Alocacao` | Story, Task | % of person's day dedicated to this Story |
+| `Perc_Conclusao` | `Custom.PercConclusao` *(example)* | Integer (0–100) | `Perc_Conclusao` | Story | % completion. **Without the field**, the percentage comes from the work item state |
 | `EPIC_TYPE` | `Custom.EPIC_TYPE` *(example)* | Text (list: `DELIVERY` / `BACKLOG`) | `EPIC_TYPE` | Epic | Classifies the Epic: **Delivery** (adds hours to the project total) or **Backlog** (does not). Enabled by default. |
 | `Tipo_Centro_Custo` | `Custom.Tipo_Centro_Custo` *(example)* | Text (`OPEX` / `CAPEX`) | `Tipo_Centro_Custo` | Epic | Cost-center type — used by the **Projects Portfolio** (OPEX/CAPEX) |
+| `block_duration_hours` | `Custom.block_duration_hours` *(example)* | Decimal | `block_duration_hours` | Task | Hours accumulated in BLOCK, computed from history. **Off by default** |
+| `Approved` | `Custom.Approved` *(example)* | Boolean | `Approved` | Task | Task approval. Enabled by default |
 | `Sync_version` | `Custom.Syncversion` *(example)* | Integer | `Sync_version` | Story, Feature, Epic | Concurrency version counter (auto-managed) |
 | `Sync_Name` | `Custom.SyncName` *(example)* | Text *(plain text, not Identity)* | `Sync_Name` | Story, Feature, Epic | Who last synced (auto-managed) |
 | `Adm_NX` | `Custom.Adm_NX` *(example)* | Identity (points to a DevOps group/Team) | `Adm_NX` | Project (root item) | NX admin group: **only members of this group can Export/Sync** to DevOps. Empty/missing = open to everyone. Enabled by default. |

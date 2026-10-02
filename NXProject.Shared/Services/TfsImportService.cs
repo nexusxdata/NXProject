@@ -165,6 +165,159 @@ namespace NXProject.Services
             return null;
         }
 
+        /// <summary>
+        /// Todos os campos da organização, como colunas possíveis para a query — é o que alimenta
+        /// o "Column options" do editor. Vem do mesmo endpoint que o detector de campos usa.
+        /// </summary>
+        public static async Task<System.Collections.Generic.List<DevOpsQueryColumn>>
+            ListOrganizationFieldsAsync(TfsConnectionOptions options, CancellationToken ct = default)
+        {
+            var list = new System.Collections.Generic.List<DevOpsQueryColumn>();
+            var ctx = CreateTfsAuthContext(options, "listar campos", requireTeamProject: false);
+            var url = $"{ctx.OrgBase}/_apis/wit/fields?{QueryApiVersion}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = ctx.Authorization;
+            using var resp = await Http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode) return list;
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            if (!doc.RootElement.TryGetProperty("value", out var vals)) return list;
+            foreach (var f in vals.EnumerateArray())
+            {
+                var rn = f.TryGetProperty("referenceName", out var r) ? r.GetString() ?? "" : "";
+                var nm = f.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                if (!string.IsNullOrEmpty(rn)) list.Add(new DevOpsQueryColumn(rn, nm));
+            }
+            return list.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+
+        /// <summary>Texto WIQL de uma query salva, do jeito que o DevOps guarda.</summary>
+        public sealed record DevOpsQueryWiql(string Name, string Wiql, string QueryType, bool IsFolder);
+
+        /// <summary>
+        /// Lê a definição de uma query salva para edição: nome, tipo e o WIQL. É o mesmo endpoint
+        /// que a execução já usa ($expand=all), então não custa chamada nova no servidor.
+        /// </summary>
+        public static async Task<DevOpsQueryWiql> LoadQueryWiqlAsync(
+            TfsConnectionOptions options, string queryId, CancellationToken ct = default)
+        {
+            var ctx = CreateTfsAuthContext(options, "ler query");
+            var proj = Uri.EscapeDataString(ctx.TeamProject);
+            var url = $"{ctx.OrgBase}/{proj}/_apis/wit/queries/{queryId}?$expand=all&{QueryApiVersion}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = ctx.Authorization;
+            using var resp = await Http.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            var r = doc.RootElement;
+            string S(string n) => r.TryGetProperty(n, out var v) ? v.GetString() ?? "" : "";
+            var folder = r.TryGetProperty("isFolder", out var f) && f.ValueKind == JsonValueKind.True;
+            return new DevOpsQueryWiql(S("name"), S("wiql"), S("queryType"), folder);
+        }
+
+        /// <summary>
+        /// Executa um WIQL avulso (o texto que a pessoa editou), sem gravar nada no DevOps —
+        /// é a prévia do "Executar" do editor. As colunas vêm do SELECT que o próprio servidor
+        /// devolve; o resto do caminho é o mesmo da query salva.
+        /// </summary>
+        public static async Task<DevOpsQueryRunResult> RunWiqlTextAsync(
+            TfsConnectionOptions options, string wiql,
+            System.Collections.Generic.IReadOnlyList<DevOpsQueryColumn>? chosenColumns = null,
+            CancellationToken ct = default)
+        {
+            var ctx = CreateTfsAuthContext(options, "executar WIQL");
+            var proj = Uri.EscapeDataString(ctx.TeamProject);
+            var columns = new System.Collections.Generic.List<DevOpsQueryColumn>();
+            var ids = new System.Collections.Generic.List<int>();
+
+            var body = JsonSerializer.Serialize(new { query = wiql });
+            using (var req = new HttpRequestMessage(HttpMethod.Post,
+                       $"{ctx.OrgBase}/{proj}/_apis/wit/wiql?{QueryApiVersion}")
+                   { Content = new StringContent(body, Encoding.UTF8, "application/json") })
+            {
+                req.Headers.Authorization = ctx.Authorization;
+                using var resp = await Http.SendAsync(req, ct);
+                var text = await resp.Content.ReadAsStringAsync(ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    // O DevOps diz exatamente o que está errado no WIQL (campo inexistente,
+                    // sintaxe, operador inválido): essa mensagem vale mais que um HTTP 400.
+                    string msg;
+                    try
+                    {
+                        using var err = JsonDocument.Parse(text);
+                        msg = err.RootElement.TryGetProperty("message", out var m)
+                            ? m.GetString() ?? text : text;
+                    }
+                    catch { msg = text; }
+                    throw new InvalidOperationException(msg);
+                }
+                using var doc = JsonDocument.Parse(text);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("columns", out var cols) && cols.ValueKind == JsonValueKind.Array)
+                    foreach (var c in cols.EnumerateArray())
+                        columns.Add(new DevOpsQueryColumn(
+                            c.TryGetProperty("referenceName", out var rn) ? rn.GetString() ?? "" : "",
+                            c.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : ""));
+                // Flat traz workItems; arvore/one-hop traz workItemRelations (achatamos no alvo).
+                if (root.TryGetProperty("workItems", out var wis) && wis.ValueKind == JsonValueKind.Array)
+                    foreach (var w in wis.EnumerateArray())
+                        if (w.TryGetProperty("id", out var idp)) ids.Add(idp.GetInt32());
+                else if (root.TryGetProperty("workItemRelations", out var rels) && rels.ValueKind == JsonValueKind.Array)
+                    foreach (var rel in rels.EnumerateArray())
+                        if (rel.TryGetProperty("target", out var tgt) && tgt.TryGetProperty("id", out var tid))
+                            ids.Add(tid.GetInt32());
+            }
+            // Colunas escolhidas na tela vencem as do SELECT: e o "Column options" do DevOps,
+            // so que sem precisar reescrever o WIQL para ver outro campo.
+            var shownColumns = chosenColumns is { Count: > 0 }
+                ? chosenColumns.ToList()
+                : (columns.Count > 0 ? columns : new System.Collections.Generic.List<DevOpsQueryColumn>
+                    { new("System.Id", "ID") });
+            var uniqueIds = ids.Distinct().ToList();
+            var rows = await LoadQueryRowsAsync(ctx, shownColumns, uniqueIds, ct);
+            return new DevOpsQueryRunResult("flat", shownColumns, rows, uniqueIds);
+        }
+
+        /// <summary>
+        /// Grava o WIQL editado na query salva do DevOps. Afeta TODO MUNDO que usa a query
+        /// compartilhada — por isso a tela confirma antes, e só chega aqui com confirmação.
+        /// </summary>
+        public static async Task<(bool Ok, string Message)> SaveQueryWiqlAsync(
+            TfsConnectionOptions options, string queryId, string wiql,
+            System.Collections.Generic.IReadOnlyList<DevOpsQueryColumn>? columns = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                var ctx = CreateTfsAuthContext(options, "gravar query");
+                var proj = Uri.EscapeDataString(ctx.TeamProject);
+                var url = $"{ctx.OrgBase}/{proj}/_apis/wit/queries/{queryId}?{QueryApiVersion}";
+                // Colunas entram no mesmo PATCH quando a tela mandou: no DevOps elas fazem
+                // parte da definicao da query, nao da execucao.
+                var body = columns is { Count: > 0 }
+                    ? JsonSerializer.Serialize(new
+                      {
+                          wiql,
+                          columns = columns.Select(c => new { referenceName = c.ReferenceName }).ToArray()
+                      })
+                    : JsonSerializer.Serialize(new { wiql });
+                using var req = new HttpRequestMessage(HttpMethod.Patch, url)
+                { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+                req.Headers.Authorization = ctx.Authorization;
+                using var resp = await Http.SendAsync(req, ct);
+                var text = await resp.Content.ReadAsStringAsync(ct);
+                if (resp.IsSuccessStatusCode) return (true, "");
+                try
+                {
+                    using var err = JsonDocument.Parse(text);
+                    return (false, err.RootElement.TryGetProperty("message", out var m)
+                        ? m.GetString() ?? text : text);
+                }
+                catch { return (false, $"HTTP {(int)resp.StatusCode}: {text}"); }
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
         /// <summary>Executa uma query salva (por id) e devolve colunas + linhas (flat).
         /// Para query de árvore/one-hop, achata pelos itens-alvo.</summary>
         public static async Task<DevOpsQueryRunResult> RunSavedQueryAsync(
@@ -220,7 +373,21 @@ namespace NXProject.Services
                 }
             }
 
-            // 3) Lê os campos com $expand=all (em lotes de 200) e monta as linhas.
+            // 3) Lê os campos e monta as linhas (mesmo caminho do WIQL avulso do editor).
+            var rowsOnly = await LoadQueryRowsAsync(ctx, columns, ids, ct);
+            return new DevOpsQueryRunResult(queryType, columns, rowsOnly, ids);
+        }
+
+        /// <summary>
+        /// Lê os campos das colunas pedidas para a lista de ids (em lotes de 200, com
+        /// $expand=all) e devolve uma linha por id, na ordem recebida. Serve tanto à query salva
+        /// quanto ao WIQL editado na tela — o que muda entre os dois é só como os ids chegaram.
+        /// </summary>
+        private static async Task<System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, string>>>
+            LoadQueryRowsAsync(TfsAuthContext ctx,
+                System.Collections.Generic.IReadOnlyList<DevOpsQueryColumn> columns,
+                System.Collections.Generic.List<int> ids, CancellationToken ct)
+        {
             var byId = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<string, string>>();
             for (int i = 0; i < ids.Count; i += 200)
             {
@@ -251,8 +418,7 @@ namespace NXProject.Services
             var rows = new System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, string>>();
             foreach (var id in ids)
                 if (byId.TryGetValue(id, out var d)) rows.Add(d);
-
-            return new DevOpsQueryRunResult(queryType, columns, rows, ids);
+            return rows;
         }
 
         // Formata o valor de um campo do work item para exibir na grade (texto genérico):

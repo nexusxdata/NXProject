@@ -104,6 +104,36 @@ namespace NXProject.Views
                 await RunSelectedAsync(node);
         }
 
+        /// <summary>
+        /// Abre o editor da query selecionada: WIQL + colunas exibidas, como no DevOps. O que for
+        /// executado lá volta para esta grade; o que for salvo altera a query no servidor.
+        ///
+        /// Criar e excluir query continuam fora do NXProject de propósito — isso se faz no DevOps,
+        /// onde existe pasta, permissão e histórico.
+        /// </summary>
+        private async void OnEditQueryClick(object sender, RoutedEventArgs e)
+        {
+            var node = SelectedNode(QueriesTree);
+            if (node is not { IsFolder: false })
+            {
+                StatusText.Text = AppStrings.Get("Query_PickOne");
+                return;
+            }
+            var dlg = new TfsQueryEditWindow(_options, node.Id, node.Name) { Owner = this };
+            dlg.ShowDialog();
+            // Executou no editor? A grade mostra o resultado, sem precisar rodar de novo.
+            if (dlg.LastRun is { } result)
+            {
+                var table = BuildTable(result);
+                _view = table.DefaultView;
+                _lastTotal = result.Rows.Count;
+                _lastInSchedule = table.Rows.Cast<DataRow>().Count(r => r["InSchedule"] is bool b && b);
+                ApplyScheduleFilter();
+                ResultsGrid.ItemsSource = _view;
+            }
+            await Task.CompletedTask;
+        }
+
         private async void OnRunClick(object sender, RoutedEventArgs e)
         {
             var node = SelectedNode(QueriesTree);

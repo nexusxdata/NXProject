@@ -41,6 +41,26 @@ namespace NXProject.Services
         public string CostCenter       { get; set; } = string.Empty;
         // "CAPEX", "OPEX" ou "EPIC". Vazio = derivado de IsOpex.
         public string CostCenterSource { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Contra o que este projeto trabalha: Default (o padrão do NXProject), AzureDevOps,
+        /// GitProject ou Local. É aqui que a escolha mora — não na tela —, porque é do PROJETO, e
+        /// é daqui que o TaskBoard, o Importar e o Sincronizar nascem com o destino certo.
+        /// </summary>
+        public NxBackendKind BackendKind { get; set; } = NxBackendKind.Default;
+
+        /// <summary>
+        /// Pasta do projeto no modo Local: artefatos por atividade e o log de BLOCK. Vazio = a
+        /// pasta de mesmo nome ao lado do arquivo .nxproject.
+        /// </summary>
+        public string LocalFolderPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Projeto que veio do DevOps mas é trabalhado localmente: permite, depois, levar para o
+        /// servidor o que foi feito no board local. Desligado por padrão — local é local até
+        /// alguém pedir o contrário.
+        /// </summary>
+        public bool SyncLocalBoardToDevOps { get; set; }
     }
 
     /// <summary>Campo fixo extra enviado na criação de work items.</summary>

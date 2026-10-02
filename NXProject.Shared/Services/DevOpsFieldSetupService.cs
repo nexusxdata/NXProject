@@ -95,6 +95,15 @@ namespace NXProject.Services
             /// Vazio quando bateu o nome exato.
             /// </summary>
             public string MatchedByAlias { get; set; } = "";
+            /// <summary>
+            /// Work item -> campo PADRÃO do DevOps que poderia ser usado no lugar deste campo
+            /// personalizado, quando ele não existe. É a sugestão "não precisa criar: o DevOps já
+            /// tem um". Sai daqui, e não da tela, para o instalador e a configuração do NXProject
+            /// sugerirem a mesma coisa.
+            /// </summary>
+            public Dictionary<string, string> SuggestedStandard { get; } =
+                new(StringComparer.CurrentCultureIgnoreCase);
+
             /// <summary>Mensagem pronta, quando algo impediu a checagem.</summary>
             public string Note { get; set; } = "";
         }
@@ -294,6 +303,15 @@ namespace NXProject.Services
                 {
                     if (!specByKey.TryGetValue(check.Key, out var spec)) continue;
                     if (string.IsNullOrWhiteSpace(check.Name)) { check.Status = FieldStatus.Missing; continue; }
+                    // Campo inexistente com equivalente de fabrica: antes de propor criar algo
+                    // novo na organizacao, a deteccao diz o que ja existe e onde.
+                    foreach (var wit in spec.Scope)
+                    {
+                        if (standardChosen.Contains(spec.Key + "|" + wit)) continue;
+                        var alt = spec.OptionalStandardFor(wit);
+                        if (!string.IsNullOrEmpty(alt)) check.SuggestedStandard[wit] = alt;
+                    }
+
                     if (!byName.TryGetValue(check.Name, out var found))
                     {
                         // O nome digitado nao existe — mas o campo pode estar la com OUTRO nome
@@ -502,6 +520,9 @@ namespace NXProject.Services
         }
 
         /// <summary>"Microsoft.VSTS.Scheduling.OriginalEstimate" -> "Original Estimate".</summary>
+        public static string ShortFieldName(string referenceName) => ShortName(referenceName);
+
+        /// <summary>"Microsoft.VSTS.Scheduling.OriginalEstimate" -> "Original Estimate".</summary>
         private static string ShortName(string referenceName)
         {
             var last = (referenceName ?? "").Split('.').LastOrDefault() ?? "";
@@ -516,12 +537,116 @@ namespace NXProject.Services
         /// </summary>
         private static string Explain(int status, string body)
         {
-            if (status is 401 or 403)
+            if (IsAuthProblem(status, body))
                 return $"HTTP {status}: sem permissão para alterar o processo "
                      + "(precisa de PAT com Work Items read/write/manage e conta Project Collection Administrator)";
             var msg = ServerMessage(body);
             return string.IsNullOrEmpty(msg) ? $"HTTP {status}" : $"HTTP {status}: {msg}";
         }
+
+        /// <summary>
+        /// A recusa é de permissão/token? Além de 401/403, entra aqui o caso silencioso: quando o
+        /// PAT não tem escopo, o Azure DevOps responde a PÁGINA DE LOGIN em HTML, com status 200 ou
+        /// 203. Sem esta checagem, a tela mostrava a URL do _signin como se fosse a mensagem do
+        /// servidor — ilegível e sem dizer o que fazer.
+        /// </summary>
+        public static bool IsAuthProblem(int status, string? body)
+        {
+            if (status is 401 or 403 or 302 or 203) return true;
+            var b = body ?? "";
+            return b.TrimStart().StartsWith("<", StringComparison.Ordinal)
+                && (b.Contains("_signin", StringComparison.OrdinalIgnoreCase)
+                    || b.Contains("login.microsoftonline", StringComparison.OrdinalIgnoreCase)
+                    || b.Contains("Azure DevOps Services | Sign In", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Resposta da pré-checagem de permissão para criar campos.</summary>
+        public enum PermissionProbe
+        {
+            /// <summary>O DevOps respondeu que esta identidade pode editar o processo.</summary>
+            Allowed,
+            /// <summary>O DevOps respondeu que NÃO pode: faltam direitos de administrador.</summary>
+            Denied,
+            /// <summary>O token foi recusado — escopo insuficiente ou expirado.</summary>
+            TokenRefused,
+            /// <summary>Não deu para saber (rede, servidor antigo, resposta inesperada).</summary>
+            Unknown
+        }
+
+        /// <summary>
+        /// Pergunta ao DevOps, ANTES de tentar criar, se esta identidade pode editar o processo —
+        /// evita descobrir a falta de permissão só depois do erro no meio da criação.
+        ///
+        /// O caminho é todo de leitura: lista os namespaces de segurança, acha o "Process", soma
+        /// os bits de ação de escrita e pergunta ao endpoint de permissões se a identidade do
+        /// token os tem.
+        ///
+        /// Limite honesto: isto mede a PERMISSÃO DA CONTA. O ESCOPO DO PAT não é legível por API —
+        /// um token com escopo curto costuma aparecer aqui como <see cref="PermissionProbe.TokenRefused"/>,
+        /// porque o DevOps devolve a página de login, mas não há garantia. Por isso o resultado é
+        /// aviso, nunca bloqueio: um falso negativo não pode impedir quem de fato pode criar.
+        /// </summary>
+        public static async Task<(PermissionProbe Result, string Detail)> CanEditProcessAsync(
+            string org, string pat, CancellationToken ct = default)
+        {
+            try
+            {
+                using var http = NewClient(pat);
+                var baseUrl = OrgBase(org);
+
+                var nsUrl = $"{baseUrl}/_apis/securitynamespaces?{ApiVersion}";
+                string nsId = ""; var bits = 0;
+                using (var resp = await http.GetAsync(nsUrl, ct))
+                {
+                    var body = await resp.Content.ReadAsStringAsync(ct);
+                    if (IsAuthProblem((int)resp.StatusCode, body))
+                        return (PermissionProbe.TokenRefused, "");
+                    if (!resp.IsSuccessStatusCode)
+                        return (PermissionProbe.Unknown, $"HTTP {(int)resp.StatusCode}");
+
+                    using var doc = JsonDocument.Parse(body);
+                    foreach (var ns in doc.RootElement.GetProperty("value").EnumerateArray())
+                    {
+                        var name = ns.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        if (!string.Equals(name, "Process", StringComparison.OrdinalIgnoreCase)) continue;
+                        nsId = ns.TryGetProperty("namespaceId", out var idv) ? idv.GetString() ?? "" : "";
+                        // Soma dos bits de escrita: no namespace Process as acoes de alteracao
+                        // chamam-se Edit/Delete/Create — basta uma delas para criar campo.
+                        if (ns.TryGetProperty("actions", out var acts))
+                            foreach (var a in acts.EnumerateArray())
+                            {
+                                var an = a.TryGetProperty("name", out var av) ? av.GetString() ?? "" : "";
+                                if (an.Contains("Edit", StringComparison.OrdinalIgnoreCase)
+                                    && a.TryGetProperty("bit", out var bv) && bv.TryGetInt32(out var bit))
+                                    bits |= bit;
+                            }
+                        break;
+                    }
+                }
+                if (string.IsNullOrEmpty(nsId) || bits == 0)
+                    return (PermissionProbe.Unknown, "namespace Process não encontrado");
+
+                var permUrl = $"{baseUrl}/_apis/permissions/{nsId}/{bits}?{ApiVersion}";
+                using (var resp = await http.GetAsync(permUrl, ct))
+                {
+                    var body = await resp.Content.ReadAsStringAsync(ct);
+                    if (IsAuthProblem((int)resp.StatusCode, body))
+                        return (PermissionProbe.TokenRefused, "");
+                    if (!resp.IsSuccessStatusCode)
+                        return (PermissionProbe.Unknown, $"HTTP {(int)resp.StatusCode}");
+                    using var doc = JsonDocument.Parse(body);
+                    var ok = doc.RootElement.TryGetProperty("value", out var v)
+                             && v.ValueKind == JsonValueKind.Array
+                             && v.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.True);
+                    return (ok ? PermissionProbe.Allowed : PermissionProbe.Denied, "");
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { return (PermissionProbe.Unknown, ex.Message); }
+        }
+
+        /// <summary>Página onde a pessoa cria o PAT desta organização.</summary>
+        public static string TokenPageUrl(string org) => OrgBase(org) + "/_usersSettings/tokens";
 
         /// <summary>O campo "message" da resposta de erro do DevOps, que é o texto útil.</summary>
         private static string ServerMessage(string body)

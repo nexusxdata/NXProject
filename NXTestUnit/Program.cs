@@ -40,6 +40,10 @@ internal static class Program
         ("Cronograma: DevOps nao aceita duracao zero como marco local", ScheduleDevOpsZeroDurationIsIgnored),
         ("Cronograma: resumo soma HH rateado (OriginalEstimated), nao span do calendario", SummaryHoursUseRatedOriginalEstimateNotCalendarSpan),
         ("Recursos: Strings.*.xaml nao tem x:Key duplicada (evita crash no load)", StringsHaveNoDuplicateResourceKeys),
+        ("Board local: cronograma vira board com Story, Task e niveis", LocalBoardProjectsScheduleIntoBoard),
+        ("Capacidades: cada destino diz o que sabe fazer (sem if por nome)", BackendCapabilitiesPerKind),
+        ("WIQL: clausulas do editor voltam para o mesmo WIQL", WiqlModelRoundTripsClauses),
+        ("WIQL: WHERE com parenteses nao vira editor visual", WiqlModelRefusesParentheses),
         ("Prioridade: faixa central (config/descoberta) clampa e cicla corretamente", TaskPriorityRangeResolvesAndClamps),
         ("TaskBoard: colunas de estado na ordem canonica (desconhecido ao fim)", TaskboardStatesAreOrderedCanonically),
         ("TaskBoard: tag Doing/Done troca preservando as demais (andamento)", DoingTagMergePreservesOtherTags),
@@ -1140,6 +1144,143 @@ internal static class Program
         // Maximo descoberto no template manda sobre o da config.
         var disc = TaskPriorityRange.FromOptions(opts, discoveredMax: 9);
         AssertEqual(9, disc.Max, "Maximo descoberto (validateOnly) sobrepoe o da config.");
+    }
+
+    /// <summary>
+    /// O editor visual de query so pode existir se ler e reescrever o WIQL sem alterar o que a
+    /// pessoa tinha: campo, operador, valor, conector, e o SELECT/ORDER BY intactos.
+    /// </summary>
+    /// <summary>
+    /// O TaskBoard no modo Projeto Local le o cronograma ABERTO, sem servidor: a hierarquia do
+    /// arquivo (Projeto -> EPIC -> Feature -> Story -> Task) tem de virar board com os niveis nas
+    /// colunas de cima, a Story como linha e a Task como card — com estado, responsavel e HH que
+    /// o proprio .nxproject ja guarda.
+    /// </summary>
+    private static void LocalBoardProjectsScheduleIntoBoard()
+    {
+        var ana = new NXProject.Models.Resource { Id = 1, Name = "Ana" };
+        var bruno = new NXProject.Models.Resource { Id = 2, Name = "Bruno" };
+
+        var task = new NXProject.Models.ProjectTask
+        {
+            Id = 40, Name = "Ajustar view", TfsType = "Task", TfsState = "Active",
+            EstimatedHours = 5, CurrentHours = 2, TfsIterationPath = "Sprint 1",
+            Resources = { new NXProject.Models.TaskResource { ResourceId = 2, Resource = bruno } }
+        };
+        var story = new NXProject.Models.ProjectTask
+        {
+            Id = 30, Name = "Carga de dados", TfsType = "User Story", TfsState = "Active",
+            TfsIterationPath = "Sprint 1",
+            Resources = { new NXProject.Models.TaskResource { ResourceId = 1, Resource = ana } },
+            Children = { task }
+        };
+        var feature = new NXProject.Models.ProjectTask
+        { Id = 20, Name = "Integracao", TfsType = "Feature", Children = { story } };
+        var epic = new NXProject.Models.ProjectTask
+        { Id = 10, Name = "Suprimentos", TfsType = "Epic", Children = { feature } };
+        var project = new NXProject.Models.Project();
+        project.Tasks.Add(epic);
+
+        var board = NXProject.Services.LocalBoardService.Build(project);
+
+        if (board.Stories.Count != 1)
+            throw new Exception($"Esperava 1 Story no board local, veio {board.Stories.Count}.");
+        var row = board.Stories[0];
+        if (row.Id != 30 || row.Title != "Carga de dados")
+            throw new Exception("A Story do cronograma nao virou linha do board.");
+        if (row.AssignedTo != "Ana")
+            throw new Exception($"Responsavel da Story deveria vir do recurso: veio '{row.AssignedTo}'.");
+        if (row.FeatureId != 20 || row.FeatureTitle != "Integracao")
+            throw new Exception("A Feature do cronograma nao foi para a coluna da Feature.");
+        if (row.FeatureEpicId != 10)
+            throw new Exception("O EPIC do cronograma nao foi para a coluna do EPIC.");
+        if (row.Tasks.Count != 1 || row.Tasks[0].Id != 40)
+            throw new Exception("A Task filha nao virou card.");
+        if (row.Tasks[0].AssignedTo != "Bruno" || row.Tasks[0].EstimateHours != 5
+            || row.Tasks[0].CompletedHours != 2)
+            throw new Exception("O card da Task perdeu responsavel ou horas do cronograma.");
+        if (!board.People.Contains("Ana") || !board.People.Contains("Bruno"))
+            throw new Exception("As pessoas do board local saem dos recursos do cronograma.");
+        if (!board.LevelItems.Any(i => i.Id == 20 && i.Kind == "Feature"))
+            throw new Exception("A Feature deveria entrar como item de nivel.");
+
+        // Sem TfsState, o estado vem do percentual — o cronograma sempre teve esse dado.
+        var semEstado = new NXProject.Models.ProjectTask { Id = 50, Name = "X", PercentComplete = 100 };
+        if (NXProject.Services.LocalBoardService.StateOf(semEstado) != "Closed")
+            throw new Exception("Atividade 100% sem TfsState deveria ser Closed no board local.");
+    }
+
+    /// <summary>
+    /// A tela pergunta pela CAPACIDADE, nunca pelo nome do destino. Este teste trava o contrato:
+    /// anexo no servidor so no DevOps, em pasta no Local, inexistente no GitProject; e o Local
+    /// exigindo cronograma aberto e pasta do projeto.
+    /// </summary>
+    private static void BackendCapabilitiesPerKind()
+    {
+        var devops = NXProject.Services.NxBackendCapabilities.For(NXProject.Services.NxBackendKind.AzureDevOps);
+        var git = NXProject.Services.NxBackendCapabilities.For(NXProject.Services.NxBackendKind.GitProject);
+        var local = NXProject.Services.NxBackendCapabilities.For(NXProject.Services.NxBackendKind.Local);
+
+        if (devops.Attachments != NXProject.Services.NxAttachmentStore.Server)
+            throw new Exception("No DevOps o anexo e do servidor.");
+        if (git.Attachments != NXProject.Services.NxAttachmentStore.None)
+            throw new Exception("No GitProject nao ha anexo no item.");
+        if (local.Attachments != NXProject.Services.NxAttachmentStore.LocalFolder)
+            throw new Exception("No modo Local o anexo vai para a pasta do projeto.");
+        if (!local.BlockAudit)
+            throw new Exception("No modo Local a auditoria de BLOCK vem do log da pasta.");
+        if (local.OpenInBrowser || local.Comments || local.ConcurrencyControl)
+            throw new Exception("Modo Local nao tem navegador, comentario nem controle de concorrencia.");
+        if (!local.RequiresOpenSchedule || !local.RequiresProjectFolder)
+            throw new Exception("Modo Local exige cronograma aberto E pasta do projeto.");
+        // Default segue o padrao de hoje: igual ao DevOps.
+        var padrao = NXProject.Services.NxBackendCapabilities.For(NXProject.Services.NxBackendKind.Default);
+        if (padrao != devops)
+            throw new Exception("Default deveria ter as mesmas capacidades do Azure DevOps.");
+    }
+
+    private static void WiqlModelRoundTripsClauses()
+    {
+        const string wiql =
+            "SELECT [System.Id], [System.Title] FROM WorkItems " +
+            "WHERE [System.WorkItemType] = 'Feature' AND [Custom.Type] = 'Hotfix' " +
+            "AND [System.IterationPath] Under 'Solucoes - Suprimentos' AND [System.State] = 'Closed' " +
+            "ORDER BY [System.Id]";
+
+        var model = NXProject.Services.WiqlQueryModel.Parse(wiql);
+        if (!(model.Editable)) throw new Exception("WIQL simples deveria ser editavel em clausulas");
+        if (!(model.Clauses.Count == 4)) throw new Exception($"esperava 4 clausulas, veio {model.Clauses.Count}");
+        if (!(model.Clauses[0].Field == "System.WorkItemType")) throw new Exception("campo da 1a clausula");
+        if (!(model.Clauses[0].Value == "Feature")) throw new Exception("valor da 1a clausula");
+        if (!(model.Clauses[2].Operator == "Under")) throw new Exception("operador Under preservado");
+        if (!(model.Clauses[2].Value == "Solucoes - Suprimentos")) throw new Exception("valor com espacos preservado");
+        if (!(model.Clauses[3].Connector == "And")) throw new Exception("conector da 4a clausula");
+        if (!(model.OrderByPart.StartsWith("ORDER BY", StringComparison.OrdinalIgnoreCase))) throw new Exception("ORDER BY preservado");
+
+        // Reescrever e ler de novo tem de dar o MESMO conjunto de clausulas.
+        var again = NXProject.Services.WiqlQueryModel.Parse(model.Build());
+        if (!(again.Editable)) throw new Exception("WIQL gerado deveria continuar editavel");
+        if (!(again.Clauses.Count == 4)) throw new Exception("round-trip mudou a quantidade de clausulas");
+        for (var i = 0; i < 4; i++)
+        {
+            if (!(again.Clauses[i].Field == model.Clauses[i].Field)) throw new Exception($"campo mudou na clausula {i}");
+            if (!(again.Clauses[i].Operator == model.Clauses[i].Operator)) throw new Exception($"operador mudou na clausula {i}");
+            if (!(again.Clauses[i].Value == model.Clauses[i].Value)) throw new Exception($"valor mudou na clausula {i}");
+        }
+    }
+
+    /// <summary>
+    /// Com parenteses o editor visual nao garante reescrever igual: tem de recusar e deixar a
+    /// query no modo texto, em vez de devolver uma consulta diferente da original.
+    /// </summary>
+    private static void WiqlModelRefusesParentheses()
+    {
+        const string wiql =
+            "SELECT [System.Id] FROM WorkItems " +
+            "WHERE [System.State] = 'Active' AND ([System.AssignedTo] = @Me OR [System.State] = 'New')";
+        var model = NXProject.Services.WiqlQueryModel.Parse(wiql);
+        if (!(!model.Editable)) throw new Exception("WHERE com parenteses NAO pode virar editor visual");
+        if (!(model.NotEditableReason.Length > 0)) throw new Exception("deveria dizer por que nao e editavel");
     }
 
     private static void StringsHaveNoDuplicateResourceKeys()

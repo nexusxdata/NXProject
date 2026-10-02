@@ -15,6 +15,9 @@
             <Button x:Name="RunBtn" DockPanel.Dock="Left" Padding="10,4" Margin="0,0,6,0"
                     Click="OnRunClick" Content="{DynamicResource Query_Run}"
                     Background="#1B5E20" Foreground="White" FontWeight="SemiBold"/>
+            <Button x:Name="EditBtn" DockPanel.Dock="Left" Padding="10,4" Margin="0,0,6,0"
+                    Click="OnEditQueryClick" Content="{DynamicResource Query_Edit}"
+                    ToolTip="{DynamicResource Query_EditTip}"/>
             <Button x:Name="OpenBtn" DockPanel.Dock="Left" Padding="10,4"
                     Click="OnOpenInDevOpsClick" Content="{DynamicResource Query_OpenInDevOps}"/>
             <CheckBox x:Name="OnlyScheduleCheck" DockPanel.Dock="Left" VerticalAlignment="Center"

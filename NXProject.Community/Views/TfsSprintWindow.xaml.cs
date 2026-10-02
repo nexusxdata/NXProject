@@ -512,9 +512,42 @@ namespace NXProject.Views
             || s.Equals("Done", StringComparison.OrdinalIgnoreCase)
             || s.Equals("Completed", StringComparison.OrdinalIgnoreCase);
 
-        public TfsSprintWindow(IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null,
-            string? preferredSprint = null, IReadOnlyList<int>? scheduleOrder = null, int openRootId = 0)
+        /// <summary>
+        /// Cronograma aberto no NXProject. É a fonte do board no modo "Projeto Local" — sem ele,
+        /// essa opção nem fica disponível (ver <see cref="NxBackendCapabilities.RequiresOpenSchedule"/>).
+        /// </summary>
+        private readonly NXProject.Models.Project? _localProject;
+
+        /// <summary>Contra o que este board trabalha. Troca pelo combo, no topo da tela.</summary>
+        private NxBackendKind _backend = NxBackendKind.AzureDevOps;
+
+        /// <summary>O que o destino atual sabe fazer. Imutável: troca junto com o destino.</summary>
+        private NxBackendCapabilities _caps = NxBackendCapabilities.For(NxBackendKind.AzureDevOps);
+
+        /// <summary>Grava o cronograma aberto — vem da tela principal, que é a dona do arquivo.</summary>
+        private readonly Action? _saveLocalProject;
+
+        /// <summary>
+        /// Pasta do projeto no modo local: artefatos por atividade e o log de BLOCK. Sai do
+        /// Portfólio quando configurada; senão, a pasta de mesmo nome ao lado do .nxproject.
+        /// Vazia quando não há cronograma salvo — e aí anexo e auditoria não têm onde morar.
+        /// </summary>
+        private string LocalFolder()
         {
+            if (_localProject == null) return "";
+            var cfg = _options.PortfolioProjectConfigs.FirstOrDefault(c =>
+                (!string.IsNullOrWhiteSpace(c.FilePath)
+                 && string.Equals(c.FilePath, _localProject.FilePath, StringComparison.OrdinalIgnoreCase))
+                || string.Equals(c.ProjectName, _localProject.Name, StringComparison.CurrentCultureIgnoreCase));
+            return LocalProjectFolder.Resolve(_localProject.FilePath, cfg?.LocalFolderPath);
+        }
+
+        public TfsSprintWindow(IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null,
+            string? preferredSprint = null, IReadOnlyList<int>? scheduleOrder = null, int openRootId = 0,
+            NXProject.Models.Project? localProject = null, Action? saveLocalProject = null)
+        {
+            _localProject = localProject;
+            _saveLocalProject = saveLocalProject;
             _openRootId = openRootId;
             InitializeComponent();
             _options = TfsConnectionStore.Load("NXProject.Community");
@@ -587,7 +620,9 @@ namespace NXProject.Views
                 _currentUser = await TfsImportService.GetCurrentUserDisplayNameAsync(_options);
                 TfsImportService.LoadTrace.Mark("connectionData", userWatch.ElapsedMilliseconds);
                 var sprintWatch = Stopwatch.StartNew();
-                _sprints = await TfsImportService.ListSprintsAsync(_options);
+                _sprints = _backend == NxBackendKind.Local && _localProject != null
+                    ? LocalBoardService.Sprints(_localProject)
+                    : await TfsImportService.ListSprintsAsync(_options);
                 TfsImportService.LoadTrace.Mark("iterations", sprintWatch.ElapsedMilliseconds);
                 // Lista multi-seleção (estilo do filtro de pessoa): cada sprint com data início–fim.
                 PopulateSprintList();
@@ -720,6 +755,19 @@ namespace NXProject.Views
         }
 
         // Recarrega do TFS. Se houver mudanças pendentes, pede confirmação (o reload as descarta).
+        /// <summary>
+        /// F5 recarrega o board, como o 🔄. PreviewKeyDown no proprio Window para funcionar de
+        /// qualquer lugar da tela; a tecla e consumida (Handled) para nao seguir para o controle
+        /// em foco. Enquanto ja esta carregando, ignora — apertar F5 duas vezes nao dispara duas
+        /// consultas ao DevOps.
+        /// </summary>
+        private void OnBoardPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.F5) return;
+            e.Handled = true;
+            if (ReloadButton.IsEnabled) OnReloadClick(ReloadButton, new RoutedEventArgs());
+        }
+
         private async void OnReloadClick(object sender, RoutedEventArgs e)
         {
             if (PendingCount() > 0 &&
@@ -816,7 +864,10 @@ namespace NXProject.Views
                 _sprintPaths = paths;
                 UpdateSprintToggleText();
                 var loadWatch = Stopwatch.StartNew();
-                _board = await TfsImportService.BuildSprintBoardAsync(_options, paths);
+                // Modo local: o board sai do cronograma aberto, sem tocar na rede.
+                _board = _backend == NxBackendKind.Local && _localProject != null
+                    ? LocalBoardService.Build(_localProject, paths)
+                    : await TfsImportService.BuildSprintBoardAsync(_options, paths);
                 AppendLoadPerf(
                     $"TaskBoard.Load: {loadWatch.ElapsedMilliseconds} ms ({_board.Stories.Count} stories, "
                     + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine
@@ -2123,6 +2174,14 @@ namespace NXProject.Views
             var n = PendingCount();
             UpdateTfsButton.IsEnabled = n > 0;
             RevertButton.IsEnabled = n > 0;
+            // Com edicao na fila, o destino fica travado: a fila foi montada contra UM servidor
+            // (ids, estados e campos sao de la). Trocar de destino no meio levaria as pendencias
+            // para um lugar onde elas nao fazem sentido. Grave ou descarte, e o combo volta.
+            if (TargetCombo != null)
+            {
+                TargetCombo.IsEnabled = n == 0;
+                TargetCombo.ToolTip = AppStrings.Get(n == 0 ? "Sprint_TargetTip" : "Sprint_TargetLocked");
+            }
             UpdateTfsButton.Content = n > 0
                 ? AppStrings.Get("Sprint_UpdateTfsN", n.ToString())
                 : AppStrings.Get("Sprint_UpdateTfs");
@@ -2178,7 +2237,133 @@ namespace NXProject.Views
 
         // Grava no TFS os estados pendentes (arrastados). O DevOps aplica a permissão: 403 =
         // sem escrita (não é responsável, não está no grupo, ou o token não permite).
-        private async void OnUpdateTfsClick(object sender, RoutedEventArgs e) => await UpdateTfsAsync();
+        private async void OnUpdateTfsClick(object sender, RoutedEventArgs e)
+        {
+            // Modo local: grava no cronograma, não no servidor. É a mesma fila de pendências —
+            // muda só para onde ela vai.
+            if (_backend == NxBackendKind.Local) { SaveLocalBoard(); return; }
+            await UpdateTfsAsync();
+        }
+
+        /// <summary>
+        /// Aplica a fila do board no cronograma aberto e manda salvar o arquivo.
+        ///
+        /// Tudo o que o board já sabia fazer continua igual — estado, responsável, HH, datas,
+        /// tags, prioridade, ordem, mover de Story e excluir —, só que escrevendo no
+        /// <c>ProjectTask</c>. O que não existe no cronograma (comentário, anexo de servidor)
+        /// nem chega aqui: o destino não oferece.
+        /// </summary>
+        private void SaveLocalBoard()
+        {
+            if (_localProject == null) return;
+
+            var pend = new LocalBoardWriter.Pending();
+            foreach (var kv in _pending) pend.States[kv.Key] = kv.Value;
+            foreach (var kv in _storyStatePending) pend.States[kv.Key] = kv.Value;
+            foreach (var kv in _ownerPending) pend.Owners[kv.Key] = kv.Value;
+            foreach (var kv in _titlePending) pend.Titles[kv.Key] = kv.Value;
+            foreach (var kv in _estPending) pend.EstimateHours[kv.Key] = kv.Value;
+            foreach (var kv in _donePending) pend.CompletedHours[kv.Key] = kv.Value;
+            foreach (var kv in _startPending) pend.StartDates[kv.Key] = kv.Value;
+            foreach (var kv in _finishPending) pend.FinishDates[kv.Key] = kv.Value;
+            foreach (var kv in _descPending) pend.Descriptions[kv.Key] = kv.Value;
+            foreach (var kv in _acPending) pend.AcceptanceCriteria[kv.Key] = kv.Value;
+            foreach (var kv in _prioPending) pend.Priorities[kv.Key] = kv.Value;
+            foreach (var kv in _iterPending) pend.IterationPaths[kv.Key] = kv.Value;
+            foreach (var kv in _taskParentPending) if (kv.Value > 0) pend.NewParents[kv.Key] = kv.Value;
+            foreach (var id in _deletePending) pend.Deletes.Add(id);
+            // Tags e ordem saem do estado EFETIVO do board, que já juntou BLOCK, Doing/Done e rank.
+            foreach (var id in _blockPending.Keys.Concat(_unplannedPending.Keys)
+                         .Concat(_doing).Concat(_done).Distinct())
+                if (_cardById.TryGetValue(id, out var c)) pend.Tags[id] = EffTags(id, c.Tags);
+            foreach (var id in _storyRankPending) pend.Ranks[id] = StoryRankOf(id);
+            foreach (var id in _taskRankPending)
+                if (_cardById.TryGetValue(id, out var c)) pend.Ranks[id] = EffTaskRank(c);
+
+            var recursos = _localProject.Resources?.ToArray();
+            var res = LocalBoardWriter.Apply(_localProject, pend, recursos);
+
+            // BLOCK vira linha no log da pasta: é o histórico que, no DevOps, vem das revisões do
+            // work item. Sem ele, a auditoria local não teria de onde contar as horas.
+            var pastaLog = LocalFolder();
+            if (!string.IsNullOrEmpty(pastaLog))
+            {
+                var quem = Environment.UserName;
+                foreach (var kv in _blockPending)
+                    LocalProjectFolder.AppendBlock(pastaLog, kv.Key, kv.Value, quem);
+            }
+
+            _saveLocalProject?.Invoke();
+
+            // A fila foi para o arquivo: zera tudo, como o caminho do DevOps faz após gravar.
+            OnRevertClick(this, new RoutedEventArgs());
+            _board = LocalBoardService.Build(_localProject, _sprintPaths);
+            UpdatePendingButton();
+            Render();
+
+            StatusText.Text = AppStrings.Get("Sprint_LocalSaved", res.Applied.ToString());
+            if (res.Problems.Count > 0)
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, res.Problems)),
+                    AppStrings.Get("Sprint_TargetLocal"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        /// <summary>
+        /// Destino da gravação do board. Hoje só o Azure DevOps grava de verdade; GitProject e
+        /// Projeto Local são caminhos em estudo — cada um tem um plano escrito em
+        /// <c>Plano_GitProject.md</c> e <c>Plano_Projeto_Local.md</c>, na raiz do repositório.
+        ///
+        /// Escolher um deles avisa que ainda não vale e VOLTA para o DevOps. Deixar a opção
+        /// selecionada sem implementação seria pior: o botão de gravar continuaria verde,
+        /// prometendo algo que não acontece.
+        /// </summary>
+        private async void OnTargetChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TargetCombo == null) return;
+
+            // GitProject ainda não existe: avisa e volta (o desenho está no plano).
+            if (TargetCombo.SelectedIndex == 1)
+            {
+                TargetCombo.SelectedIndex = _backend == NxBackendKind.Local ? 2 : 0;
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_TargetTodo", AppStrings.Get("Sprint_TargetGitProject"),
+                        "Plano_GitProject.md"),
+                    AppStrings.Get("Sprint_TargetTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var novo = TargetCombo.SelectedIndex == 2 ? NxBackendKind.Local : NxBackendKind.AzureDevOps;
+            if (novo == _backend) return;
+
+            // Projeto Local precisa do cronograma aberto: é dele que o board sai.
+            if (novo == NxBackendKind.Local && _localProject == null)
+            {
+                TargetCombo.SelectedIndex = 0;
+                MessageBox.Show(this, AppStrings.Get("Sprint_TargetLocalNeedsSchedule"),
+                    AppStrings.Get("Sprint_TargetLocal"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _backend = novo;
+            _caps = NxBackendCapabilities.For(novo);
+            ApplyCapabilities();
+            // Recarrega do zero: o board inteiro vem de outra fonte agora.
+            _firstBoardLoad = true;
+            await ReloadBoardAsync(new List<string>());
+        }
+
+        /// <summary>
+        /// Liga e desliga o que o destino atual sabe fazer. A tela pergunta pela CAPACIDADE, não
+        /// pelo nome do destino — assim um destino novo não exige revisar cada botão daqui.
+        /// </summary>
+        private void ApplyCapabilities()
+        {
+            UpdateTfsButton.ToolTip = _backend == NxBackendKind.Local
+                ? AppStrings.Get("Sprint_LocalSaveTip") : null;
+            StatusText.Text = _backend == NxBackendKind.Local
+                ? AppStrings.Get("Sprint_LocalMode", _localProject?.Name ?? "")
+                : "";
+        }
 
         private async Task UpdateTfsAsync()
         {
@@ -4445,7 +4630,9 @@ namespace NXProject.Views
             try
             {
                 StatusText.Text = AppStrings.Get("Block_Loading", id.ToString());
-                var audit = await TfsImportService.LoadBlockAuditAsync(_options, id);
+                var audit = _backend == NxBackendKind.Local
+                    ? LocalBlockAudit(id)
+                    : await TfsImportService.LoadBlockAuditAsync(_options, id);
                 StatusText.Text = "";
                 if (audit == null)
                 {
@@ -4454,7 +4641,9 @@ namespace NXProject.Views
                     return;
                 }
                 new TfsBlockAuditWindow(audit, OpenInDevOps,
-                    () => TfsImportService.LoadBlockAuditAsync(_options, id)) { Owner = this }.ShowDialog();
+                    () => _backend == NxBackendKind.Local
+                        ? Task.FromResult<TfsImportService.BlockAudit?>(LocalBlockAudit(id))
+                        : TfsImportService.LoadBlockAuditAsync(_options, id)) { Owner = this }.ShowDialog();
             }
             catch (Exception ex)
             {
@@ -4462,6 +4651,44 @@ namespace NXProject.Views
                 MessageBox.Show(this, AppStrings.Get("Block_Failed", id.ToString(), ex.Message),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        /// <summary>
+        /// Auditoria de BLOCK no modo local: os períodos saem do log da pasta do projeto
+        /// (block.jsonl), em vez do histórico de revisões do servidor.
+        ///
+        /// Limite que a janela precisa deixar claro: o log só conhece o que aconteceu NO NX,
+        /// depois que a pasta existe. Bloqueio feito fora dali não aparece.
+        /// </summary>
+        private TfsImportService.BlockAudit? LocalBlockAudit(int id)
+        {
+            var pasta = LocalFolder();
+            if (string.IsNullOrEmpty(pasta)) return null;
+            var eventos = LocalProjectFolder.ReadBlockEvents(pasta, id);
+            if (eventos.Count == 0) return null;
+
+            var periodos = new List<TfsImportService.BlockPeriod>();
+            DateTime? aberto = null;
+            var quemBloqueou = "";
+            foreach (var ev in eventos)
+            {
+                if (string.Equals(ev.Acao, "block", StringComparison.OrdinalIgnoreCase))
+                {
+                    aberto ??= ev.Quando;
+                    quemBloqueou = ev.Quem;
+                }
+                else if (aberto is { } ini)
+                {
+                    periodos.Add(new TfsImportService.BlockPeriod(ini, ev.Quando, quemBloqueou, ev.Quem));
+                    aberto = null;
+                }
+            }
+            if (aberto is { } emAberto)
+                periodos.Add(new TfsImportService.BlockPeriod(emAberto, null, quemBloqueou, ""));
+
+            var card = _cardById.TryGetValue(id, out var c) ? c : null;
+            return new TfsImportService.BlockAudit(id, card?.Title ?? "", "Task",
+                card == null ? "" : EffState(card), null, null, periodos);
         }
 
         private void AttachTaskMoveMenu(FrameworkElement card, TfsImportService.SprintTaskCard t)
@@ -5510,7 +5737,8 @@ namespace NXProject.Views
             desc.TextChanged += (_, _) => nc.Description = desc.Text;
             sp.Children.Add(desc);
 
-            var rm = new Button { Content = AppStrings.Get("Sprint_RemoveNew"), FontSize = 10, Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            var rm = new Button { Content = AppStrings.Get("Sprint_RemoveNew"), FontSize = 10, Padding = new Thickness(5, 0, 5, 0) };
             rm.Click += (_, _) =>
             {
                 _newCards.Remove(nc);
@@ -5519,10 +5747,133 @@ namespace NXProject.Views
                     _taskParentPending.Remove(kv.Key);
                 UpdatePendingButton(); Render();
             };
-            sp.Children.Add(rm);
+            actions.Children.Add(rm);
+
+            // Atalho para quem quer o item JA no DevOps (ex.: precisa do id para outra coisa).
+            // Sai da fila do "Atualizar TFS" — e, com isso, do descartar: uma vez gravado, so o
+            // DevOps desfaz. O aviso na confirmacao diz isso com todas as letras.
+            var saveNow = new Button
+            {
+                Content = AppStrings.Get("Sprint_SaveNewNow"), FontSize = 10,
+                Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(6, 0, 0, 0),
+                ToolTip = AppStrings.Get("Sprint_SaveNewNowTip"),
+                // Pai que ainda nao existe no DevOps (outro card novo) nao tem onde pendurar:
+                // esse caso continua saindo pela gravacao em lote, que cria na ordem certa.
+                IsEnabled = nc.ParentId > 0
+            };
+            if (nc.ParentId <= 0) saveNow.ToolTip = AppStrings.Get("Sprint_SaveNewNowNoParent");
+            saveNow.Click += async (_, _) => await SaveNewCardNowAsync(nc);
+            actions.Children.Add(saveNow);
+            sp.Children.Add(actions);
 
             border.Child = sp;
             return border;
+        }
+
+        /// <summary>
+        /// Grava UM card novo direto no DevOps, sem passar pela fila do "Atualizar TFS".
+        ///
+        /// As validações são as mesmas da gravação em lote — título, responsável, HH e sprint —,
+        /// porque criar pela metade no DevOps é pior do que não criar. A diferença é o que
+        /// acontece depois: o item nasce com id real e sai da fila, então o "descartar" do card
+        /// não o alcança mais. Por isso a confirmação é explícita.
+        /// </summary>
+        private async Task SaveNewCardNowAsync(NewCard nc)
+        {
+            var iter = !string.IsNullOrWhiteSpace(nc.IterationPath) ? nc.IterationPath : _sprintPath;
+            var problem = ValidateNewCard(nc, iter);
+            if (problem != null)
+            {
+                MessageBox.Show(this, problem, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var kind = nc.Type switch { "Story" => "User Story", "Epic" => "Epic", "Feature" => "Feature", _ => "Task" };
+            var ask = MessageBox.Show(this,
+                AppStrings.Get("Sprint_SaveNewNowConfirm", nc.Title.Trim(), "#" + nc.ParentId),
+                AppStrings.Get("Sprint_SaveNewNow"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            if (ask != MessageBoxResult.OK) return;
+
+            BeginLoading();
+            try
+            {
+                var (id, msg) = await TfsImportService.CreateChildWorkItemAsync(_options, kind,
+                    nc.Title.Trim(), nc.ParentId,
+                    string.IsNullOrWhiteSpace(iter) ? null : iter,
+                    string.IsNullOrWhiteSpace(nc.Description) ? null : TfsImportService.PlainTextToSimpleHtml(nc.Description),
+                    string.IsNullOrWhiteSpace(nc.AssignedTo) ? null : nc.AssignedTo,
+                    nc.Type is "Story" or "Task" ? nc.Effort : null,
+                    nc.Type == "Story" ? nc.StartDate : null);
+                if (id <= 0)
+                {
+                    MessageBox.Show(this, msg, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Nasce no topo do grupo, como na gravacao em lote.
+                if (nc.Type == "Story")
+                {
+                    _storyRank[id] = await RankNewOnTopAsync(id,
+                        (_board?.Stories.Where(x => x.FeatureId == nc.FeatureId && x.Id > 0)
+                                        .Select(x => StoryRankOf(x.Id)) ?? Enumerable.Empty<double>()));
+                    // O filtro de Projeto guarda ids de Story: sem isto a recem-criada sumiria.
+                    if (_selectedStoryIds.Count > 0) _selectedStoryIds.Add(id);
+                }
+                else if (nc.Type == "Task")
+                {
+                    _taskRank[id] = await RankNewOnTopAsync(id,
+                        (_board?.Stories.FirstOrDefault(x => x.Id == nc.ParentId)?.Tasks
+                                .Where(t => t.Id > 0).Select(EffTaskRank) ?? Enumerable.Empty<double>()));
+                }
+
+                // Tasks que esperavam ESTE card (criar Story aqui) ja apontam para o id real.
+                foreach (var kv in _taskParentPending.Where(k => k.Value == nc.TempId).ToList())
+                    _taskParentPending[kv.Key] = id;
+
+                _newCards.Remove(nc);
+                _scrollToNewCard = 0;
+                StatusText.Text = AppStrings.Get("Sprint_SaveNewNowDone", "#" + id);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally { EndLoading(); }
+
+            // SO este card saiu da fila. O resto — outros cards novos, mudancas de estado, HH,
+            // responsavel — continua pendente e sera gravado no "Atualizar TFS", como sempre.
+            //
+            // Por isso o recarregamento so acontece com a fila VAZIA: o ReloadBoardAsync comeca
+            // do zero e limpa todas as pendencias, e recarregar aqui jogaria fora o trabalho que
+            // a pessoa ainda nao gravou. Com fila pendente, o board fica como esta e o item novo
+            // aparece na proxima recarga — o texto de status ja dá o id dele.
+            UpdatePendingButton();
+            if (PendingCount() == 0) await ReloadBoardAsync(_sprintPaths);
+            else { Render(); StatusText.Text += "  " + AppStrings.Get("Sprint_SaveNewNowKeptQueue"); }
+        }
+
+        /// <summary>O card novo tem tudo que o DevOps exige? Devolve a mensagem, ou null se ok.</summary>
+        private string? ValidateNewCard(NewCard nc, string iter)
+        {
+            if (string.IsNullOrWhiteSpace(nc.Title)) return AppStrings.Get("Sprint_NewIncomplete");
+            if (nc.ParentId <= 0) return AppStrings.Get("Sprint_NewNoParent");
+            if (nc.Type is "Story" or "Task")
+            {
+                if (!(nc.Effort is > 0) || string.IsNullOrWhiteSpace(nc.AssignedTo))
+                    return AppStrings.Get("Sprint_NewIncomplete");
+                if (string.IsNullOrWhiteSpace(iter)) return AppStrings.Get("Sprint_NewNeedsSprint");
+            }
+            // Mesmo nome sob o mesmo pai: o DevOps aceita, o NX nao — a sincronizacao passa a
+            // nao saber qual e qual (ha teste cobrindo isso no sync).
+            var dup = nc.Type switch
+            {
+                "Story" => _board?.Stories.Any(x => x.FeatureId == nc.FeatureId
+                            && x.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false,
+                "Task" => _board?.Stories.FirstOrDefault(x => x.Id == nc.ParentId)?.Tasks
+                            .Any(t => t.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false,
+                _ => false
+            };
+            return dup ? AppStrings.Get("Sprint_DupName") : null;
         }
 
         /// <summary>
@@ -6002,6 +6353,29 @@ namespace NXProject.Views
             if (dlg.ShowDialog(this) != true)
                 return;
 
+            // Modo local: copiar para a pasta do projeto, sem rede. Mesmo laço, outro destino.
+            if (_backend == NxBackendKind.Local)
+            {
+                var pasta = LocalFolder();
+                if (string.IsNullOrEmpty(pasta))
+                {
+                    MessageBox.Show(this, AppStrings.Get("Sprint_LocalNoFolder"),
+                        AppStrings.Get("Sprint_TargetLocal"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                var titulo = _cardById.TryGetValue(taskId, out var cardLocal) ? cardLocal.Title : "";
+                var copiados = new List<string>();
+                foreach (var file in dlg.FileNames)
+                {
+                    var destino = LocalProjectFolder.Attach(pasta, taskId, titulo, file);
+                    if (!string.IsNullOrEmpty(destino)) copiados.Add(System.IO.Path.GetFileName(destino));
+                }
+                StatusText.Text = copiados.Count == 0 ? ""
+                    : AppStrings.Get("Sprint_LocalAttached", copiados.Count.ToString());
+                Render();
+                return;
+            }
+
             // Um arquivo por vez: se um falhar, os outros seguem, e no fim a mensagem diz
             // exatamente quais entraram e quais nao.
             var sentNames = new List<string>();
@@ -6046,6 +6420,19 @@ namespace NXProject.Views
         /// <summary>Anexos da Task: os da carga do DevOps + o enviado agora pelo 📎 (sem repetir).</summary>
         private List<TfsAttachmentService.TfsAttachmentInfo> AttachmentsOf(TfsImportService.SprintTaskCard t)
         {
+            // Modo local: o anexo é arquivo na pasta do projeto, não relação do work item. A
+            // pasta é a fonte da verdade — o que alguém largar lá pelo Explorador aparece aqui.
+            if (_backend == NxBackendKind.Local)
+            {
+                var pasta = LocalFolder();
+                if (string.IsNullOrEmpty(pasta)) return new List<TfsAttachmentService.TfsAttachmentInfo>();
+                return LocalProjectFolder.Attachments(pasta, t.Id)
+                    // Id = o próprio caminho (é o que identifica o arquivo aqui); Url = caminho,
+                    // para o "abrir" do card não precisar de caso especial.
+                    .Select(f => new TfsAttachmentService.TfsAttachmentInfo(
+                        f, System.IO.Path.GetFileName(f), new System.IO.FileInfo(f).Length, f))
+                    .ToList();
+            }
             // Imagem colada na descricao/tramite tambem vira anexo no DevOps, mas nao e "arquivo
             // anexado": fica fora da lista do card para nao poluir (e para ninguem excluir sem
             // querer a imagem que o texto usa).
@@ -6136,6 +6523,17 @@ namespace NXProject.Views
 
         private async Task OpenAttachmentAsync(TfsAttachmentService.TfsAttachmentInfo attachment)
         {
+            // No modo local a "URL" é o caminho do arquivo: abre direto, sem baixar nada.
+            if (_backend == NxBackendKind.Local && System.IO.File.Exists(attachment.Url))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(attachment.Url)
+                    { UseShellExecute = true });
+                }
+                catch (Exception ex) { StatusText.Text = ex.Message; }
+                return;
+            }
             var ext = System.IO.Path.GetExtension(attachment.Name);
             var openDirect = SafeOpenExtensions.Contains(ext);
             string destination;

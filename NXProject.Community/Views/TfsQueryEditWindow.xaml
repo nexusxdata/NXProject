@@ -1,0 +1,109 @@
+﻿<Window x:Class="NXProject.Views.TfsQueryEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource QueryEd_Title}"
+        Height="700" Width="1100"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+    <DockPanel Margin="14">
+        <TextBlock DockPanel.Dock="Top" x:Name="QueryNameText" FontSize="14" FontWeight="SemiBold"
+                   Foreground="#2B579A" Margin="0,0,0,2"/>
+        <TextBlock DockPanel.Dock="Top" Text="{DynamicResource QueryEd_Intro}" FontSize="11"
+                   Foreground="#777" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <!-- Botões embaixo: executar é seguro (não grava), salvar altera a query no DevOps. -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" LastChildFill="False">
+            <TextBlock x:Name="StatusText" DockPanel.Dock="Left" VerticalAlignment="Center"
+                       Foreground="#555" TextWrapping="Wrap"/>
+            <Button DockPanel.Dock="Right" Content="{DynamicResource QueryEd_Close}" Width="110" Height="30"
+                    Margin="8,0,0,0" IsCancel="True"/>
+            <Button x:Name="SaveBtn" DockPanel.Dock="Right" Content="{DynamicResource QueryEd_Save}"
+                    Width="190" Height="30" Margin="8,0,0,0" Click="OnSaveClick"
+                    ToolTip="{DynamicResource QueryEd_SaveTip}"/>
+            <Button x:Name="RunBtn" DockPanel.Dock="Right" Content="{DynamicResource QueryEd_Run}"
+                    Width="150" Height="30" Click="OnRunClick"
+                    Background="#1B5E20" Foreground="White" FontWeight="SemiBold"
+                    ToolTip="{DynamicResource QueryEd_RunTip}"/>
+        </DockPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Esquerda: filtros em cláusulas (como o DevOps) e, embaixo, o WIQL gerado. -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="170"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0">
+                    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource QueryEd_Filters}" FontSize="11"
+                               Foreground="#666" Margin="0,0,0,3"/>
+                    <!-- Cabeçalho das colunas do filtro -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="26"/>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="130"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="1" Text="{DynamicResource QueryEd_ColAndOr}" FontSize="10.5" Foreground="#888"/>
+                        <TextBlock Grid.Column="2" Text="{DynamicResource QueryEd_ColField}" FontSize="10.5" Foreground="#888"/>
+                        <TextBlock Grid.Column="3" Text="{DynamicResource QueryEd_ColOperator}" FontSize="10.5" Foreground="#888"/>
+                        <TextBlock Grid.Column="4" Text="{DynamicResource QueryEd_ColValue}" FontSize="10.5" Foreground="#888"/>
+                    </Grid>
+                    <Button DockPanel.Dock="Bottom" x:Name="AddClauseBtn" HorizontalAlignment="Left"
+                            Margin="0,4,0,0" Padding="8,2" FontSize="11" Click="OnAddClauseClick"
+                            Content="{DynamicResource QueryEd_AddClause}"/>
+                    <!-- Aviso quando o WHERE não pode ser editado em cláusulas -->
+                    <Border DockPanel.Dock="Bottom" x:Name="TextOnlyPanel" Visibility="Collapsed"
+                            Background="#FFF8E1" BorderBrush="#FFD54F" BorderThickness="1"
+                            CornerRadius="4" Padding="8" Margin="0,4,0,0">
+                        <TextBlock x:Name="TextOnlyText" FontSize="11" Foreground="#555" TextWrapping="Wrap"/>
+                    </Border>
+                    <Border BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="3">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="ClauseList" Margin="4"/>
+                        </ScrollViewer>
+                    </Border>
+                </DockPanel>
+
+                <DockPanel Grid.Row="1" Margin="0,8,0,3">
+                    <TextBlock Text="{DynamicResource QueryEd_Wiql}" FontSize="11" Foreground="#666"
+                               VerticalAlignment="Center"/>
+                    <CheckBox x:Name="EditWiqlCheck" Margin="10,0,0,0" FontSize="11"
+                              VerticalAlignment="Center" Click="OnEditWiqlToggled"
+                              Content="{DynamicResource QueryEd_EditWiql}"
+                              ToolTip="{DynamicResource QueryEd_EditWiqlTip}"/>
+                </DockPanel>
+
+                <TextBox Grid.Row="2" x:Name="WiqlBox" AcceptsReturn="True" AcceptsTab="True"
+                         IsReadOnly="True" Background="#F7F8FA"
+                         TextWrapping="NoWrap" FontFamily="Consolas" FontSize="12"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+            </Grid>
+
+            <!-- Direita: colunas exibidas (o "Column options" do DevOps). -->
+            <DockPanel Grid.Column="2">
+                <TextBlock DockPanel.Dock="Top" Text="{DynamicResource QueryEd_Columns}" FontSize="11"
+                           Foreground="#666" Margin="0,0,0,3"/>
+                <TextBox DockPanel.Dock="Top" x:Name="ColumnSearchBox" Height="22" Margin="0,0,0,4"
+                         TextChanged="OnColumnSearchChanged"
+                         ToolTip="{DynamicResource QueryEd_ColumnSearchTip}"/>
+                <TextBlock DockPanel.Dock="Bottom" Text="{DynamicResource QueryEd_ColumnsHint}"
+                           FontSize="10.5" Foreground="#888" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <Border BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="3">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="ColumnList" Margin="6"/>
+                    </ScrollViewer>
+                </Border>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>
