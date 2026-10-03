@@ -908,6 +908,11 @@
     <sys:String x:Key="Query_Run">▶ Run</sys:String>
     <sys:String x:Key="Query_OpenInDevOps">Open in DevOps</sys:String>
     <sys:String x:Key="Query_Edit">Editor</sys:String>
+    <sys:String x:Key="PortEdit_Backend">Project source</sys:String>
+    <sys:String x:Key="PortEdit_BackendTip">What NXProject works against for this project. The TaskBoard, Import and Sync start on this target.</sys:String>
+    <sys:String x:Key="PortEdit_BackendHint">"Default" follows the overall NXProject target (today, Azure DevOps). Stored in this machine's configuration, not in the project list.</sys:String>
+    <sys:String x:Key="PortEdit_LocalFolder">Project folder (artifacts and BLOCK log)</sys:String>
+    <sys:String x:Key="PortEdit_LocalFolderHint">Required for Local project: it holds per-activity attachments and the block history, which on DevOps would live on the server. The folder is created on save.</sys:String>
     <sys:String x:Key="Query_EditTip">Opens the WIQL and columns of the selected query, like the DevOps Editor and Column options. Running changes nothing; saving changes the query on the server.</sys:String>
     <sys:String x:Key="QueryEd_Title">Query editor (DevOps)</sys:String>
     <sys:String x:Key="QueryEd_Intro">On the left, the WIQL — the same text the DevOps clause editor generates behind the scenes. On the right, the displayed columns. "Run" executes without saving anything and shows the result in the queries window; "Save to DevOps" changes the query for everyone using it.</sys:String>

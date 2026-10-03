@@ -1039,6 +1039,11 @@
     <sys:String x:Key="PMap_Source">▼ Fonte de dados</sys:String>
     <sys:String x:Key="PMap_SelectProjectsTip">Escolhe os projetos do portfólio DevOps e importa (roda a importação ao confirmar).</sys:String>
     <sys:String x:Key="PMap_Targets">Destino dos projetos…</sys:String>
+    <sys:String x:Key="PortEdit_Backend">Origem do projeto</sys:String>
+    <sys:String x:Key="PortEdit_BackendTip">Contra o que o NXProject trabalha neste projeto. O TaskBoard, o Importar e o Sincronizar nascem neste destino.</sys:String>
+    <sys:String x:Key="PortEdit_BackendHint">"Padrão" segue o destino geral do NXProject (hoje, Azure DevOps). Guardado na configuração desta máquina, não na lista de projetos.</sys:String>
+    <sys:String x:Key="PortEdit_LocalFolder">Pasta do projeto (artefatos e log de BLOCK)</sys:String>
+    <sys:String x:Key="PortEdit_LocalFolderHint">Obrigatória no Projeto Local: é onde ficam os anexos por atividade e o histórico de bloqueios, que no DevOps viveriam no servidor. A pasta é criada ao salvar.</sys:String>
     <sys:String x:Key="PMap_TargetsTip">Define, por projeto, se o NXProject trabalha contra o Azure DevOps, o GitProject ou só o arquivo local.</sys:String>
     <sys:String x:Key="PTgt_Title">Destino dos projetos do Portfólio</sys:String>
     <sys:String x:Key="PTgt_Intro">Escolha, para cada projeto, contra o que o NXProject trabalha. O TaskBoard, o Importar e o Sincronizar passam a nascer nesse destino. "Padrão" segue o destino geral do NXProject (hoje, Azure DevOps).</sys:String>
