@@ -1024,6 +1024,12 @@
     <sys:String x:Key="Sprint_LastSprintPerPersonTip">Shows only what is in the sprint CURRENTLY RUNNING (start &lt;= today &lt;= end). Anyone with nothing in the running sprint shows with their own latest sprint that has already started — the cut is per person. A future sprint never comes in, even when its parent Story does. The Story decides: its Tasks come along. Ticking it reloads the board with every sprint — the only way to know each person's latest. The Project and Person filters still apply on top; "Clear filters" turns it off.</sys:String>
     <sys:String x:Key="Sprint_ShowStoryNoTask">Show Story without Task</sys:String>
     <sys:String x:Key="Sprint_ShowStoryNoTaskTip">A Story with no Task yet shows on the board, in its owner row. Unchecked, only Stories that have Tasks appear. "Clear filters" restores it.</sys:String>
+    <sys:String x:Key="Sprint_OnlyStoryNew">New Stories only</sys:String>
+    <sys:String x:Key="Sprint_OnlyStoryNewTip">Among Stories WITHOUT Task, shows those not started yet (New state). It applies only to those — a Story that has Tasks follows the card state filter. Checking all three (or none) shows them all.</sys:String>
+    <sys:String x:Key="Sprint_OnlyStoryClosed">Closed Stories only</sys:String>
+    <sys:String x:Key="Sprint_OnlyStoryActive">Active Stories only</sys:String>
+    <sys:String x:Key="Sprint_OnlyStoryClosedTip">Among Stories WITHOUT Task, shows the closed ones. It applies only to those — a Story that has Tasks follows the card state filter. Checking both (or neither) shows them all.</sys:String>
+    <sys:String x:Key="Sprint_OnlyStoryActiveTip">Among Stories WITHOUT Task, shows those in progress — neither New nor closed. It applies only to those — a Story that has Tasks follows the card state filter. Checking both (or neither) shows them all.</sys:String>
     <sys:String x:Key="Sprint_ShowFeatureNoStory">Show Feature/EPIC without Story</sys:String>
     <sys:String x:Key="Sprint_ShowFeatureNoStoryTip">A Feature or EPIC with no Story yet shows as its own row in its level column. Unchecked, they disappear from the board. "Clear filters" restores it.</sys:String>
     <sys:String x:Key="Sprint_OnlyScheduleStory">Schedule stories only</sys:String>
@@ -1039,6 +1045,8 @@
     <sys:String x:Key="Sprint_Search">Search:</sys:String>
     <sys:String x:Key="Sprint_New">🆕 new (save to TFS)</sys:String>
     <sys:String x:Key="Sprint_NewFeature">New Feature</sys:String>
+    <sys:String x:Key="Sprint_CopyIdTip">Click to copy the ID (the number only, without the #).</sys:String>
+    <sys:String x:Key="Sprint_IdCopied">ID {0} copied.</sys:String>
     <sys:String x:Key="Sprint_NewEpic">New EPIC</sys:String>
     <sys:String x:Key="Sprint_NewStory">New Story (name)</sys:String>
     <sys:String x:Key="Sprint_NewTask">New Task (name)</sys:String>
@@ -1103,13 +1111,14 @@
     <sys:String x:Key="Colors_Feature">Feature</sys:String>
     <sys:String x:Key="Sprint_CloseConfirm">There are unsaved pending changes. Close anyway?</sys:String>
     <sys:String x:Key="Sprint_CloseSaveQuestion">There are {0} change(s) not saved to TFS yet.&#10;&#10;Yes — save to TFS and close&#10;No — discard (revert) and close&#10;Cancel — back to the TaskBoard</sys:String>
-    <sys:String x:Key="Sprint_ScopeBoth">Story+Task</sys:String>
+    <sys:String x:Key="Sprint_ScopeBoth">All</sys:String>
     <sys:String x:Key="Sprint_ScopeTask">Task only</sys:String>
     <sys:String x:Key="Sprint_ScopeStory">Story only</sys:String>
     <sys:String x:Key="Sprint_ScopeLevels">Feature/EPIC/Proj</sys:String>
     <sys:String x:Key="Sprint_ScopePerson">Person only</sys:String>
     <sys:String x:Key="Sprint_PersonSearchTip">Search for a person in the list. Already selected people stay visible.</sys:String>
     <sys:String x:Key="Sprint_SearchScopeTip">Where search looks: Story, Task, the levels above (Feature, EPIC, Work Item Project), the person or everything.</sys:String>
+    <sys:String x:Key="Sprint_SearchTip">Searches by name, assignee and ID. Typing digits only (with or without the #) finds the item with that ID — Task, Story, Feature, EPIC or Project. The search starts at 3 characters.</sys:String>
     <sys:String x:Key="Sprint_SearchMinChars">Type at least {0} characters to search.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Open on NX startup</sys:String>
     <sys:String x:Key="Sprint_AutoOpenTip">Automatically opens the TaskBoard when NX starts (ideal for the developer profile).</sys:String>
@@ -1177,7 +1186,7 @@
     <sys:String x:Key="Sprint_StoryAll">All</sys:String>
     <sys:String x:Key="Sprint_StoryNone">Clear all</sys:String>
     <sys:String x:Key="Sprint_ResetFilters">Clear filters</sys:String>
-    <sys:String x:Key="Sprint_ResetFiltersTip">Clears person, project, search and states - back to defaults. Does not change the sprint.</sys:String>
+    <sys:String x:Key="Sprint_ResetFiltersTip">Clears person, project, search and states - back to defaults. It changes neither the sprint nor the Closed state: if Closed is checked in the filter, it stays checked.</sys:String>
     <sys:String x:Key="Sprint_StoryApply">Apply</sys:String>
     <sys:String x:Key="Sprint_StateFilter">States ▾</sys:String>
     <sys:String x:Key="Sprint_ShowSummary">Show summary</sys:String>
@@ -2255,6 +2264,8 @@
     <sys:String x:Key="Desc_Title">Description</sys:String>
     <sys:String x:Key="Desc_TitleFormat">Description — {0}</sys:String>
     <sys:String x:Key="Desc_Subtitle">The description will be saved to DevOps on the next sync.</sys:String>
+    <sys:String x:Key="Desc_CopyIdTip">Click to copy the ID (the number only, without the #).</sys:String>
+    <sys:String x:Key="Desc_IdCopied">#{0} copied</sys:String>
     <sys:String x:Key="Desc_Owner">Assignee:</sys:String>
     <sys:String x:Key="Desc_Name">Name:</sys:String>
     <sys:String x:Key="Desc_State">State:</sys:String>

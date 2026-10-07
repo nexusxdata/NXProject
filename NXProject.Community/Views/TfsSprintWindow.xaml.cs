@@ -428,6 +428,9 @@ namespace NXProject.Views
             public bool? CardDocsOnly { get; set; } // no card, listar so PDF/Word/Excel (null = ligado)
             public bool? LastSprintPerPerson { get; set; } // so a ultima sprint (ja iniciada) de cada pessoa
             public bool? ShowStoryNoTask { get; set; }     // Story sem Task no board (null = mostra)
+            public bool? NewStoryNoTask { get; set; }      // dessas, as New (null = sim)
+            public bool? ActiveStoryNoTask { get; set; }   // dessas, as Active (null = sim)
+            public bool? ClosedStoryNoTask { get; set; }   // dessas, as encerradas (null = nao)
             public bool? ShowFeatureNoStory { get; set; }  // Feature/EPIC sem Story (null = mostra)
             public string? CardDocExtensions { get; set; } // extensoes de "documento", separadas por virgula
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
@@ -485,6 +488,9 @@ namespace NXProject.Views
             to.LastSprintPerPerson = from.LastSprintPerPerson;
             to.HiddenStates = from.HiddenStates;
             to.ShowStoryNoTask = from.ShowStoryNoTask;
+            to.NewStoryNoTask = from.NewStoryNoTask;
+            to.ActiveStoryNoTask = from.ActiveStoryNoTask;
+            to.ClosedStoryNoTask = from.ClosedStoryNoTask;
             to.ShowFeatureNoStory = from.ShowFeatureNoStory;
             to.ShowEpic = from.ShowEpic;
             to.ShowProjPerson = from.ShowProjPerson;
@@ -656,6 +662,9 @@ namespace NXProject.Views
             CardDocsOnlyCheck.IsChecked = _prefs.CardDocsOnly ?? true;
             LastSprintPerPersonCheck.IsChecked = _prefs.LastSprintPerPerson ?? false;
             ShowStoryNoTaskCheck.IsChecked = _prefs.ShowStoryNoTask ?? true;
+            NewStoryNoTaskCheck.IsChecked = _prefs.NewStoryNoTask ?? true;
+            ActiveStoryNoTaskCheck.IsChecked = _prefs.ActiveStoryNoTask ?? true;
+            ClosedStoryNoTaskCheck.IsChecked = _prefs.ClosedStoryNoTask ?? false;
             ShowFeatureNoStoryCheck.IsChecked = _prefs.ShowFeatureNoStory ?? true;
             ApplyCardDocExtensions(_prefs.CardDocExtensions);
             CardDocExtsBox.Text = FormatExtensions(_cardDocExtensions);
@@ -814,16 +823,25 @@ namespace NXProject.Views
             OnlyDoneActiveCheck.IsChecked = false;
             OnlyDoingCheck.IsChecked = false;
             OnlyTaskActiveCheck.IsChecked = false;
-            // Padrao: os "vazios" aparecem. O limpar sempre volta a mostrar Story sem Task e
-            // Feature/EPIC sem Story — esconde-los e uma escolha momentanea, nao o estado normal.
+            // Padrao: os "vazios" aparecem. Esconde-los e uma escolha momentanea, nao o estado
+            // normal. Nos subfiltros, a Story sem Task volta so com as EM ABERTO: a encerrada sem
+            // Task e historia, nao trabalho, e entraria no board pelo corte de "Closed dos
+            // ultimos N dias". E o unico recorte que o limpar repoe ligado.
             ShowStoryNoTaskCheck.IsChecked = true;
+            NewStoryNoTaskCheck.IsChecked = true;
+            ActiveStoryNoTaskCheck.IsChecked = true;
+            ClosedStoryNoTaskCheck.IsChecked = false;
             ShowFeatureNoStoryCheck.IsChecked = true;
             LastSprintPerPersonCheck.IsChecked = false;   // recorte forte: o limpar sempre desliga
 
-            // Padrao de tela nova: Closed escondido e o corte de dias de volta ao default.
+            // Estados: o limpar devolve TODOS os que o usuario escondeu a mao — menos os de
+            // encerramento, que ficam como estao. Esconder o Closed e o padrao de tela nova, mas
+            // re-esconder a cada limpada era o incomodo: quem esta justamente olhando o que
+            // fechou perdia a coluna toda vez que limpava o resto dos filtros. Entao: Closed
+            // marcado continua marcado; Closed ja escondido segue escondido, sem novidade.
+            var closedEscondidos = _hiddenStates.Where(IsClosedState).ToList();
             _hiddenStates.Clear();
-            if (_board != null)
-                foreach (var st in _board.States.Where(IsClosedState)) _hiddenStates.Add(st);
+            foreach (var st in closedEscondidos) _hiddenStates.Add(st);
             PopulateStateFilter();
             _closedDays = DefaultClosedDays;
             ClosedDaysBox.Text = DefaultClosedDays.ToString();
@@ -1609,6 +1627,9 @@ namespace NXProject.Views
         {
             // Os dois recortes de "itens vazios" ficam salvos como as demais preferencias de tela.
             if (ShowStoryNoTaskCheck != null) _prefs.ShowStoryNoTask = ShowStoryNoTaskCheck.IsChecked == true;
+            if (NewStoryNoTaskCheck != null) _prefs.NewStoryNoTask = NewStoryNoTaskCheck.IsChecked == true;
+            if (ActiveStoryNoTaskCheck != null) _prefs.ActiveStoryNoTask = ActiveStoryNoTaskCheck.IsChecked == true;
+            if (ClosedStoryNoTaskCheck != null) _prefs.ClosedStoryNoTask = ClosedStoryNoTaskCheck.IsChecked == true;
             if (ShowFeatureNoStoryCheck != null) _prefs.ShowFeatureNoStory = ShowFeatureNoStoryCheck.IsChecked == true;
             // Ao entrar em "Pessoa & Task" sem ninguém marcado, já traz o usuário do NX.
             if (ViewIndex == 1 && _selectedPeople.Count == 0
@@ -3003,8 +3024,9 @@ namespace NXProject.Views
                 var scope = SearchScope();
                 var storyRow = _storyById.TryGetValue(EffTaskParent(t), out var st) ? st : null;
                 bool Has(string? s) => !string.IsNullOrEmpty(s) && s.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0;
-                bool taskMatch = Has(t.Title) || Has(t.AssignedTo) || t.Id.ToString().Contains(q);
-                bool storyMatch = Has(storyRow?.Title);
+                bool taskMatch = Has(t.Title) || Has(t.AssignedTo) || IdMatches(t.Id, q);
+                // Id da Story tambem casa: colar um id achava o card, mas nao achava a Story.
+                bool storyMatch = Has(storyRow?.Title) || (storyRow != null && IdMatches(storyRow.Id, q));
                 // A Task herda o casamento pelos niveis acima da Story dela.
                 bool levelMatch = storyRow != null && LevelMatches(storyRow, q);
                 bool personMatch = Has(t.AssignedTo) || Has(storyRow?.AssignedTo);
@@ -3032,7 +3054,7 @@ namespace NXProject.Views
         {
             bool Has(string? v) => !string.IsNullOrEmpty(v)
                 && v.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0;
-            bool IsId(int id) => id > 0 && id.ToString().Contains(q);
+            bool IsId(int id) => id > 0 && IdMatches(id, q);
             return Has(s.FeatureTitle) || IsId(s.FeatureId)
                 || Has(s.FeatureEpicTitle) || IsId(s.FeatureEpicId)
                 || Has(s.FeatureProjectTitle) || IsId(s.FeatureProjectId);
@@ -3082,6 +3104,20 @@ namespace NXProject.Views
                 SummaryBox.Visibility = Visibility.Collapsed;
             else if (off <= 0 && SummaryBox.Visibility != Visibility.Visible)
                 SummaryBox.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// A busca casa pelo id quando o que foi digitado e so numero — o caso de quem copiou o
+        /// id do card ou colou de uma conversa. Id INTEIRO, nao pedaco: procurar "1042" trazendo
+        /// tambem "21042" e "104200" enche a tela de coisa que ninguem pediu. Com texto junto
+        /// ("1042 carga") nao ha id para comparar, e vale a busca por nome, como antes.
+        ///
+        /// O "#" na frente e aceito porque e assim que o id aparece no card e no DevOps.
+        /// </summary>
+        private static bool IdMatches(int id, string q)
+        {
+            var limpo = q.TrimStart('#').Trim();
+            return limpo.Length > 0 && int.TryParse(limpo, out var n) && n == id;
         }
 
         /// <summary>Minimo de caracteres para a busca valer. Com 1 ou 2 letras quase tudo casa
@@ -4077,7 +4113,7 @@ namespace NXProject.Views
             if (id > 0 || extra != null)
             {
                 var actions = new StackPanel { Orientation = Orientation.Horizontal };
-                if (id > 0) actions.Children.Add(OpenDevOpsButton(id));
+                if (id > 0) { actions.Children.Add(OpenDevOpsButton(id)); actions.Children.Add(CopyIdText(id)); }
                 if (extra != null) actions.Children.Add(extra);
                 sp.Children.Add(actions);
             }
@@ -4104,7 +4140,7 @@ namespace NXProject.Views
                 if (id > 0 || extra != null)
                 {
                     var actions = new StackPanel { Orientation = Orientation.Horizontal };
-                    if (id > 0) actions.Children.Add(OpenDevOpsButton(id));
+                    if (id > 0) { actions.Children.Add(OpenDevOpsButton(id)); actions.Children.Add(CopyIdText(id, 9)); }
                     if (extra != null) actions.Children.Add(extra);
                     plain.Children.Add(actions);
                 }
@@ -4178,6 +4214,7 @@ namespace NXProject.Views
                     ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
                 featOpen.Click += (_, _) => OpenInDevOps(fid);
                 featBtns.Children.Add(Light(featOpen));
+                featBtns.Children.Add(CopyIdText(fid));
                 if (extra != null) featBtns.Children.Add(extra);
                 featSp.Children.Add(featBtns);
             }
@@ -4291,12 +4328,25 @@ namespace NXProject.Views
             // Stories SEM Task visivel: o dono acompanha a entrega sem detalhar em Task. Elas nao
             // entram no agrupamento por Task (que continua como esta) — sao acrescentadas no FIM
             // da faixa da pessoa, pelo responsavel da STORY.
+            // Recortes encadeados: o primeiro diz SE a Story sem Task aparece; os subfiltros
+            // dizem QUAIS, pelo estado dela. Encerrada sem Task entra no board pelo corte de
+            // "Closed dos ultimos N dias" (a data de encerramento da propria Story) e vira ruido
+            // para quem acompanha o andamento — dali em diante quem conta a historia e a Task.
+            //
+            // Todos marcados, ou nenhum, significam o mesmo: sem recorte. Um filtro que nao
+            // escolhe nada escolhe tudo, como ja acontece no filtro de pessoas — assim ninguem
+            // esvazia o board sem querer ao desmarcar o ultimo.
+            var querNew = NewStoryNoTaskCheck?.IsChecked == true;
+            var querAtiva = ActiveStoryNoTaskCheck?.IsChecked == true;
+            var querClosed = ClosedStoryNoTaskCheck?.IsChecked == true;
+            var semRecorte = querNew == querAtiva && querAtiva == querClosed;
             var storiesNoTask = ShowStoryNoTaskCheck?.IsChecked != true
                 ? new List<TfsImportService.SprintStoryRow>()
                 : EffectiveStories()
                 .Where(x => !x.Story.IsLevelPlaceholder && x.Story.Id != 0
                             && !x.Tasks.Any(PassesFilters) && StoryPasses(x.Story)
-                            && StoryStatePasses(x.Story))
+                            && StoryStatePasses(x.Story)
+                            && (semRecorte || StoryBucketOk(EffStoryState(x.Story), querNew, querAtiva, querClosed)))
                 .Select(x => x.Story)
                 .ToList();
             // De quem e a faixa da Story sem Task visivel. Normalmente do responsavel dela. Mas
@@ -4472,10 +4522,13 @@ namespace NXProject.Views
                             ToolTip = AppStrings.Get("Sprint_OpenParentDevOps", orphanFeat.ToString())
                         };
                         openOrphan.Click += (_, _) => OpenInDevOps(orphanFeat);
+                        var orphanId = CopyIdText(orphanFeat);
+                        orphanId.Margin = new Thickness(0, 4, 4, 0);
                         // Excluir a Feature: so quando ela NAO tem Story e nenhuma Task solta
                         // sobrando. Com filho vivo, excluir deixaria trabalho orfao no DevOps —
                         // ai o botao fica desabilitado e sobra o 🔗 para abrir e resolver la.
                         var orphanRow = new StackPanel { Orientation = Orientation.Horizontal };
+                        orphanRow.Children.Add(orphanId);
                         orphanRow.Children.Add(openOrphan);
                         // Mesmo botao (e mesma regra) do card da Feature: so aparece se der para excluir.
                         if (BuildDeleteFeatureButton(orphanFeat) is { } delFeat) orphanRow.Children.Add(delFeat);
@@ -4515,6 +4568,7 @@ namespace NXProject.Views
                         var openStId = storyId;
                         openSt.Click += (_, _) => OpenInDevOps(openStId);
                         stActions.Children.Add(openSt);
+                        stActions.Children.Add(CopyIdText(openStId));
                         stActions.Children.Add(BuildStoryTasksButton(openStId, EffTitle(openStId, sgTitle)));
                         var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
                             Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
@@ -5193,6 +5247,7 @@ namespace NXProject.Views
                 Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
             open.Click += (_, _) => OpenInDevOps(st.Id);
             actions.Children.Add(open);
+            actions.Children.Add(CopyIdText(st.Id));
             actions.Children.Add(BuildStoryTasksButton(st.Id, EffTitle(st.Id, st.Title)));
             var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
                 Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
@@ -5721,8 +5776,9 @@ namespace NXProject.Views
             if (!string.IsNullOrEmpty(q))
             {
                 var scope = SearchScope();
-                bool storyMatch = s.Title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || s.Id.ToString().Contains(q);
+                bool storyMatch = s.Title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0 || IdMatches(s.Id, q);
                 bool taskMatch = s.Tasks.Any(t => t.Title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0
+                    || IdMatches(t.Id, q)
                     || (!string.IsNullOrEmpty(t.AssignedTo) && t.AssignedTo.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0));
                 bool levelMatch = LevelMatches(s, q);
                 bool personMatch =
@@ -6086,6 +6142,53 @@ namespace NXProject.Views
             return new Viewbox { Width = size, Height = size * 15 / 14, Child = canvas };
         }
 
+        /// <summary>
+        /// Copia o id do work item. A area de transferencia pode estar presa por outro programa —
+        /// e falha de copia nao pode derrubar o board, so avisar.
+        /// </summary>
+        private void CopyId(int id)
+        {
+            try
+            {
+                Clipboard.SetText(id.ToString());
+                StatusText.Text = AppStrings.Get("Sprint_IdCopied", id.ToString());
+            }
+            catch (Exception ex) { StatusText.Text = ex.Message; }
+        }
+
+        /// <summary>
+        /// Em qual dos tres baldes o estado da Story cai: New, encerrada, ou "ativa" — este
+        /// ultimo e tudo o que sobra (Active, Resolved, e qualquer estado proprio do processo).
+        /// Os baldes sao exclusivos e cobrem TODOS os estados de proposito: um estado que nao
+        /// coubesse em nenhum faria a Story sumir sem ninguem ter pedido.
+        /// </summary>
+        private static bool StoryBucketOk(string estado, bool querNew, bool querAtiva, bool querClosed)
+        {
+            if (IsClosedState(estado)) return querClosed;
+            if (string.Equals(estado, "New", StringComparison.OrdinalIgnoreCase)) return querNew;
+            return querAtiva;
+        }
+
+        /// <summary>
+        /// O "#id" clicavel que copia. Nasceu no card da Task e vale para TODO nivel: Story,
+        /// Feature, EPIC e Work Item Project tem id de servidor e sao citados por ele do mesmo
+        /// jeito — numa conversa, numa query, num commit.
+        ///
+        /// Fica ao lado do 🔗 porque os dois falam do mesmo item: um leva ate ele, o outro leva
+        /// o numero dele embora.
+        /// </summary>
+        private TextBlock CopyIdText(int id, double fontSize = 10)
+        {
+            var tb = new TextBlock
+            {
+                Text = $"#{id}", FontSize = fontSize, Foreground = Brushes.Gray,
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 4, 0),
+                Cursor = System.Windows.Input.Cursors.Hand, ToolTip = AppStrings.Get("Sprint_CopyIdTip")
+            };
+            tb.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; CopyId(id); };
+            return tb;
+        }
+
         private Button BuildBlockButton(int id, string tags, bool isStory)
         {
             var blocked = EffBlocked(id, tags);
@@ -6276,6 +6379,7 @@ namespace NXProject.Views
                     Margin = new Thickness(0, 0, 4, 0), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
                 openStory.Click += (_, _) => OpenInDevOps(story.Id);
                 actions.Children.Add(openStory);
+                actions.Children.Add(CopyIdText(story.Id));
                 actions.Children.Add(BuildStoryTasksButton(story.Id, EffTitle(story.Id, story.Title)));
                 // Excluir Story: só quando está em New e SEM Tasks (ou todas as Tasks em New).
                 var tasksAllNew = story.Tasks.Count == 0 || story.Tasks.All(t => SameState(EffState(t), "New"));
@@ -6868,6 +6972,14 @@ namespace NXProject.Views
             // Projeto & Story ele cabe no hint — o card fica mais curto e o board mais legivel.
             var line = new TextBlock { FontSize = 10, Foreground = Brushes.Gray };
             line.Text = isNew ? AppStrings.Get("Sprint_New") : $"#{t.Id}";
+            // O id e o que se leva para fora do NX — colar numa conversa, numa query, num commit.
+            // Clicar copia SO o numero (sem o #), que e a forma que o DevOps e o git esperam.
+            if (!isNew)
+            {
+                line.Cursor = System.Windows.Input.Cursors.Hand;
+                line.ToolTip = AppStrings.Get("Sprint_CopyIdTip");
+                line.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; CopyId(t.Id); };
+            }
             sp.Children.Add(line);
 
             // Anexos da Task: os que vieram do DevOps na carga + o enviado agora pelo 📎 (que so

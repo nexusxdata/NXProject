@@ -17,6 +17,25 @@ namespace NXProject.Views
     public partial class TaskDescriptionEditWindow : Window
     {
         private readonly ProjectTask _task;
+
+        /// <summary>Id do DevOps mostrado no cabeçalho; 0 = atividade ainda sem id.</summary>
+        private int _copyId;
+
+        /// <summary>
+        /// Copia só o número, que é a forma que o DevOps e o git esperam. A área de transferência
+        /// pode estar presa por outro programa, e falhar em copiar não pode fechar a edição.
+        /// </summary>
+        private void OnCopyIdClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (_copyId <= 0) return;
+            e.Handled = true;
+            try
+            {
+                Clipboard.SetText(_copyId.ToString());
+                IdText.Text = AppStrings.Get("Desc_IdCopied", _copyId.ToString());
+            }
+            catch { /* sem area de transferencia: o id continua visivel para copiar a mao */ }
+        }
         private bool _webViewReady;
         private bool _pendingPreview;
         private string _html = string.Empty;
@@ -151,6 +170,13 @@ namespace NXProject.Views
             TitleText.Text = string.IsNullOrEmpty(kindLabel)
                 ? AppStrings.Get("Desc_TitleFormat", task.Name)
                 : AppStrings.Get("Desc_TitleKindFormat", kindLabel, task.Name);
+            // Id do DevOps. Atividade ainda sem id (criada aqui, nao gravada) nao tem o que copiar.
+            _copyId = task.TfsId ?? 0;
+            if (_copyId > 0)
+            {
+                IdText.Text = $"#{_copyId}";
+                IdText.Visibility = Visibility.Visible;
+            }
             _html = task.Description ?? string.Empty;
 
             // Ancestralidade (Feature): EPIC pai e Work Item "Project", só leitura.

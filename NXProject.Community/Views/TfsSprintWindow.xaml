@@ -218,7 +218,7 @@
             </StackPanel>
             <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Sprint_Search}" VerticalAlignment="Center" Margin="14,0,4,0"/>
             <TextBox x:Name="SearchBox" DockPanel.Dock="Left" Width="150" VerticalAlignment="Center"
-                     TextChanged="OnSearchChanged"/>
+                     TextChanged="OnSearchChanged" ToolTip="{DynamicResource Sprint_SearchTip}"/>
             <ComboBox x:Name="SearchScopeCombo" DockPanel.Dock="Left" Width="90" VerticalAlignment="Center"
                       Margin="4,0,0,0" SelectionChanged="OnFilterChanged" ToolTip="{DynamicResource Sprint_SearchScopeTip}"/>
             <ToggleButton x:Name="StateFilterToggle" DockPanel.Dock="Left" VerticalAlignment="Center"
@@ -277,6 +277,22 @@
                         <CheckBox x:Name="ShowStoryNoTaskCheck" IsChecked="True" Click="OnFilterChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_ShowStoryNoTask}"
                                   ToolTip="{DynamicResource Sprint_ShowStoryNoTaskTip}"/>
+                        <!-- Subfiltros do de cima, por estado da Story. Valem SO para a Story sem
+                             Task: a que tem Task segue o filtro de estado dos cards. Os dois
+                             marcados (ou os dois desmarcados) = sem recorte. Ficam desabilitados
+                             quando nenhuma Story sem Task aparece. -->
+                        <CheckBox x:Name="NewStoryNoTaskCheck" IsChecked="True" Click="OnFilterChanged" Margin="22,2,0,2"
+                                  Content="{DynamicResource Sprint_OnlyStoryNew}"
+                                  ToolTip="{DynamicResource Sprint_OnlyStoryNewTip}"
+                                  IsEnabled="{Binding IsChecked, ElementName=ShowStoryNoTaskCheck}"/>
+                        <CheckBox x:Name="ActiveStoryNoTaskCheck" IsChecked="True" Click="OnFilterChanged" Margin="22,2,0,2"
+                                  Content="{DynamicResource Sprint_OnlyStoryActive}"
+                                  ToolTip="{DynamicResource Sprint_OnlyStoryActiveTip}"
+                                  IsEnabled="{Binding IsChecked, ElementName=ShowStoryNoTaskCheck}"/>
+                        <CheckBox x:Name="ClosedStoryNoTaskCheck" Click="OnFilterChanged" Margin="22,2,0,2"
+                                  Content="{DynamicResource Sprint_OnlyStoryClosed}"
+                                  ToolTip="{DynamicResource Sprint_OnlyStoryClosedTip}"
+                                  IsEnabled="{Binding IsChecked, ElementName=ShowStoryNoTaskCheck}"/>
                         <CheckBox x:Name="ShowFeatureNoStoryCheck" IsChecked="True" Click="OnFilterChanged" Margin="8,2,0,2"
                                   Content="{DynamicResource Sprint_ShowFeatureNoStory}"
                                   ToolTip="{DynamicResource Sprint_ShowFeatureNoStoryTip}"/>
