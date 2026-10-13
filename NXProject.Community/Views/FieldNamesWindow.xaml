@@ -7,8 +7,16 @@
         Background="White">
     <Border Padding="18">
         <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Fld_Intro}" FontSize="11.5"
-                       Foreground="#666" TextWrapping="Wrap" Margin="0,0,0,10"/>
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="{DynamicResource Cfg_ImportFields}"
+                        Height="26" Padding="10,0" Margin="6,0,0,0" Click="OnImportFieldsClick"
+                        ToolTip="{DynamicResource Cfg_ImportFieldsTip}"/>
+                <Button DockPanel.Dock="Right" Content="{DynamicResource Cfg_ExportFields}"
+                        Height="26" Padding="10,0" Margin="10,0,0,0" Click="OnExportFieldsClick"
+                        ToolTip="{DynamicResource Cfg_ExportFieldsTip}"/>
+                <TextBlock Text="{DynamicResource Fld_Intro}" FontSize="11.5" VerticalAlignment="Center"
+                           Foreground="#666" TextWrapping="Wrap"/>
+            </DockPanel>
 
             <TabControl x:Name="TabsControl" DockPanel.Dock="Top" Margin="0,0,0,10" SelectionChanged="OnTabChanged">
                 <!-- Uma aba por destino: o que existe num nao existe no outro, e empilhar tudo
@@ -180,14 +188,64 @@
                                 <Button Content="{DynamicResource Cfg_AddField}" HorizontalAlignment="Left" Padding="8,4"
                                         Margin="0,4,0,0" Click="OnAddExtraField"/>
                             </StackPanel>
-                            <!-- Detectar no DevOps quais campos existem em cada tipo de work item -->
+                            <!-- Detectar: le o servidor com o token do dia a dia (so leitura). -->
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button x:Name="DetectFieldsButton" Content="{DynamicResource Cfg_DetectFields}"
                                         Height="28" Padding="12,0" Click="OnDetectFieldsClick"
                                         ToolTip="{DynamicResource Cfg_DetectFieldsTip}"/>
-                                <TextBlock x:Name="DetectFieldsStatus" VerticalAlignment="Center" Margin="10,0,0,0"
-                                           FontSize="11" Foreground="#666" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="DetectFieldsStatus" VerticalAlignment="Center"
+                                           Margin="12,0,0,0" FontSize="11" Foreground="#555" TextWrapping="Wrap"/>
                             </StackPanel>
+
+                            <!-- CRIAR exige outro token: a Process API pede "Work Items — Read,
+                                 write & manage" (Project Collection Administrator), escopo que o
+                                 token do dia a dia nao tem — e nao deve ter. Por isso ele e pedido
+                                 aqui, em campo de SENHA, usado so nesta operacao e nao gravado.
+                                 Os tres campos ficam ACIMA do botao, cada rotulo sobre o seu: numa
+                                 linha so eles passavam da largura da janela e sumiam da vista. -->
+                            <Border Background="#FFFDF5" BorderBrush="#E8D9A0" BorderThickness="1"
+                                    CornerRadius="4" Padding="12,10" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Cfg_CreateSection}" FontSize="11.5"
+                                               FontWeight="SemiBold" Foreground="#7A5D00" Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{DynamicResource Cfg_CreateOrg}" FontSize="10.5"
+                                                       Foreground="#666" Margin="0,0,0,3"/>
+                                            <TextBox x:Name="CreateOrgBox" Height="26" Padding="6,3"
+                                                     VerticalContentAlignment="Center"
+                                                     ToolTip="{DynamicResource Cfg_CreateOrgTip}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="{DynamicResource Cfg_CreateProj}" FontSize="10.5"
+                                                       Foreground="#666" Margin="0,0,0,3"/>
+                                            <TextBox x:Name="CreateProjBox" Height="26" Padding="6,3"
+                                                     VerticalContentAlignment="Center"
+                                                     ToolTip="{DynamicResource Cfg_CreateProjTip}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock Text="{DynamicResource Cfg_CreatePat}" FontSize="10.5"
+                                                       Foreground="#666" Margin="0,0,0,3"/>
+                                            <PasswordBox x:Name="CreatePatBox" Height="26" Padding="6,3"
+                                                         VerticalContentAlignment="Center"
+                                                         ToolTip="{DynamicResource Cfg_CreatePatTip}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Cfg_CreatePatHint}" FontSize="10.5"
+                                               Foreground="#888" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                    <Button x:Name="CreateFieldsButton" Content="{DynamicResource Cfg_CreateFields}"
+                                            HorizontalAlignment="Left" Height="30" Padding="14,0" Margin="0,10,0,0"
+                                            Click="OnCreateFieldsClick"
+                                            ToolTip="{DynamicResource Cfg_CreateFieldsTip}"/>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Campos de classificação por tipo DevOps -->
                             <StackPanel Margin="0,14,0,0">
@@ -392,14 +450,37 @@
                                 <Button x:Name="GitDetectButton" Content="{DynamicResource Fld_GitDetect}"
                                         Padding="8,4" Margin="10,0,0,0" Click="OnGitDetectClick"
                                         ToolTip="{DynamicResource Fld_GitDetectTip}"/>
-                                <!-- Equivalente do "Criar campos" do NXProject-Setup: no GitHub
-                                     campo e do board, e sem ele o import chega sem HH e sem data. -->
-                                <Button x:Name="GitCreateButton" Content="{DynamicResource Fld_GitCreate}"
-                                        Padding="8,4" Margin="10,0,0,0" Click="OnGitCreateClick"
-                                        ToolTip="{DynamicResource Fld_GitCreateTip}"/>
                                 <TextBlock x:Name="GitDetectStatus" VerticalAlignment="Center" Margin="10,0,0,0"
                                            FontSize="11" Foreground="#555" TextWrapping="Wrap"/>
                             </StackPanel>
+
+                            <!-- Criar campo no board, no mesmo formato da aba do Azure DevOps.
+                                 A diferenca esta no token, e ela e real: no GitHub o campo e do
+                                 PROJETO, e cria-lo exige apenas acesso ao projeto — nao ha
+                                 administrador de organizacao no caminho, como no DevOps. Por isso
+                                 o token aqui e OPCIONAL: em branco, usa o ja configurado. -->
+                            <Border Background="#FFFDF5" BorderBrush="#E8D9A0" BorderThickness="1"
+                                    CornerRadius="4" Padding="12,10" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Fld_GitCreateSection}" FontSize="11.5"
+                                               FontWeight="SemiBold" Foreground="#7A5D00" Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Width="300">
+                                            <TextBlock Text="{DynamicResource Fld_GitCreateToken}" FontSize="10.5"
+                                                       Foreground="#666" Margin="0,0,0,3"/>
+                                            <PasswordBox x:Name="GitCreateTokenBox" Height="26" Padding="6,3"
+                                                         VerticalContentAlignment="Center"
+                                                         ToolTip="{DynamicResource Fld_GitCreateTokenTip}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Text="{DynamicResource Fld_GitCreateHint}" FontSize="10.5"
+                                               Foreground="#888" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                    <Button x:Name="GitCreateButton" Content="{DynamicResource Fld_GitCreate}"
+                                            HorizontalAlignment="Left" Height="30" Padding="14,0" Margin="0,10,0,0"
+                                            Click="OnGitCreateClick"
+                                            ToolTip="{DynamicResource Fld_GitCreateTip}"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </DockPanel>
                     </ScrollViewer>

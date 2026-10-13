@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -82,14 +82,57 @@ namespace NXProject
             catch { /* log nunca pode virar o proximo erro */ }
         }
 
+        /// <summary>
+        /// A tela de campos deve abrir na aba do GitProject? Vem do parâmetro `--setup=gitproject`,
+        /// usado pelo NXProject-Setup. Estático porque quem cria a janela é o WPF, pelo
+        /// StartupUri — não há onde passar o argumento.
+        /// </summary>
+        public static bool AbrirCamposNoGitProject { get; private set; }
+
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
             base.OnStartup(e);
 
+            var abrirCampos = false;
+            var abaGit = false;
             if (e.Args != null)
-                foreach (var a in e.Args)
-                    if (string.Equals(a?.Trim(), "--install-llama", StringComparison.OrdinalIgnoreCase))
+                foreach (var bruto in e.Args)
+                {
+                    var a = bruto?.Trim() ?? "";
+                    if (string.Equals(a, "--install-llama", StringComparison.OrdinalIgnoreCase))
                         InstallLlamaOnStart = true;
+                    // Chamado pelo NXProject-Setup: ele não tem (nem deve ter) uma cópia da
+                    // tela de campos — abre ESTA, que é a única.
+                    //
+                    //   --setup            → a tela, com as duas abas (Azure DevOps e GitProject)
+                    //   --setup=devops     → já na aba do Azure DevOps
+                    //   --setup=gitproject → já na aba do GitProject
+                    //
+                    // Sem sufixo abre nas duas de propósito: quem chama sem dizer o destino
+                    // normalmente quer ver o que existe, não ir a um lugar específico.
+                    else if (a.StartsWith("--setup", StringComparison.OrdinalIgnoreCase)
+                             || a.StartsWith("--configurar-campos", StringComparison.OrdinalIgnoreCase)
+                             || a.StartsWith("--config-fields", StringComparison.OrdinalIgnoreCase))
+                    {
+                        abrirCampos = true;
+                        // "=git" segue aceito como apelido: o nome documentado é o
+                        // por extenso, mas abreviação digitada à mão não deve dar em nada.
+                        abaGit = a.EndsWith("=gitproject", StringComparison.OrdinalIgnoreCase)
+                              || a.EndsWith("=git", StringComparison.OrdinalIgnoreCase);
+                    }
+                }
+
+            // Troca a janela de arranque: em vez do cronograma, a tela de campos.
+            //
+            // É StartupUri, e não abrir a janela à mão, porque `StartupUri = null` LANÇA
+            // (ArgumentNullException) — o processo morria calado, sem janela nenhuma. Apontando
+            // para outra janela, o WPF segue o caminho normal e encerra quando ela fecha.
+            if (abrirCampos)
+            {
+                AbrirCamposNoGitProject = abaGit;
+                StartupUri = new Uri("Views/FieldNamesWindow.xaml", UriKind.Relative);
+            }
+
 
             // Captura exceções não tratadas para exibir mensagem em vez de fechar silenciosamente.
             //
@@ -126,6 +169,7 @@ namespace NXProject
                 : saved.Language;
 
             LanguageService.Apply(lang);
+
         }
     }
 }

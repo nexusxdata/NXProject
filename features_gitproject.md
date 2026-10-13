@@ -76,7 +76,7 @@ dotnet run --project NXTestUnit -c Release -- gitpoc     # BLOCK, anexos e respo
 
 | | Motivo |
 |---|---|
-| **Aba GitProject no NXProject-Setup** | Duplicaria conexão e campos num segundo lugar. O Setup existe para a dor que o GitHub não tem (Process API, *Project Collection Administrator*), e o NXProject já cria os campos do board |
+| **Aba GitProject no NXProject-Setup** | Duplicaria conexão e campos num segundo lugar. O Setup existe para a dor que o GitHub não tem (Process API, *Project Collection Administrator*), e o NXProject já cria os campos do board. Em vez de uma segunda tela, o instalador **chama** esta: `NXProject.Community.exe --setup=gitproject` (botão *Abrir no NXProject*, no Passo 4) |
 | **Excluir issue pelo board** | Apagar é irreversível e exige administrador. O Salvar avisa e sugere fechar o item |
 | **Prioridade no board do GitHub** | Não é campo de item lá. Quem precisar cria um campo de número no board |
 

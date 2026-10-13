@@ -128,6 +128,20 @@ O **NXProject-Setup** passou a dizer, junto com os campos, se os cinco níveis e
 quais tipos do processo ficaram sem nível — a diferença entre "detectei campos" e "este servidor
 está pronto para o NXProject".
 
+## O instalador encaminha, não duplica
+
+A tela "Configurar Campos e Tags" existe **uma vez**, no NXProject. O NXProject-Setup a abre por
+linha de comando em vez de ter uma cópia:
+
+```
+NXProject.Community.exe --setup            # as duas abas
+NXProject.Community.exe --setup=devops      # aba Azure DevOps
+NXProject.Community.exe --setup=gitproject  # aba GitProject
+```
+
+O aplicativo abre só essa janela e encerra quando ela fecha. Duas telas para a mesma configuração
+foi exatamente o que fez o catálogo de campos divergir entre os dois aplicativos — três vezes.
+
 ## Permissões: duas, e elas se confundem
 
 | Para quê | O que exige |

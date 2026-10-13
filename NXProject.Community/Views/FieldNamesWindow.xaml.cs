@@ -47,7 +47,12 @@ namespace NXProject.Views
         public FieldNamesWindow()
         {
             InitializeComponent();
-            Loaded += (_, _) => { CarregaDevOps(); CarregaGit(); BuildRows(); CarregaNiveis(); };
+            Loaded += (_, _) =>
+            {
+                CarregaDevOps(); CarregaGit(); BuildRows(); CarregaNiveis();
+                // Aberta pelo NXProject-Setup com destino GitProject: nasce na aba dele.
+                if (NXProject.CommunityApp.AbrirCamposNoGitProject && TabsControl != null) TabsControl.SelectedIndex = 1;
+            };
         }
 
 
@@ -318,6 +323,288 @@ namespace NXProject.Views
             return mapa;
         }
 
+        // ── Criar no Azure DevOps, exportar e importar ───────────────────────────────────
+        //
+        // Isto morava na tela do NXProject-Setup, que listava os MESMOS campos desta aqui. Duas
+        // telas para a mesma configuracao foi o que ja fez o catalogo divergir entre os dois
+        // aplicativos — agora o Setup chama esta, e a lista existe uma vez so.
+
+        /// <summary>O processo do DevOps lido na ultima deteccao: a criacao precisa dele.</summary>
+        private DevOpsFieldSetupService.ProcessInfo? _processo;
+
+        /// <summary>
+        /// Cria no Azure DevOps os campos que a deteccao apontou como ausentes.
+        ///
+        /// O PAT vem da propria tela e NAO e gravado: criar campo mexe no processo da organizacao
+        /// e exige "Work Items — Read, write & manage" (Project Collection Administrator), escopo
+        /// que o token do dia a dia nao tem — e nao deve ter.
+        /// </summary>
+        private async void OnCreateFieldsClick(object sender, RoutedEventArgs e)
+        {
+            var org = CreateOrgBox.Text?.Trim() ?? "";
+            var proj = CreateProjBox.Text?.Trim() ?? "";
+            var pat = CreatePatBox.Password;
+
+            if (string.IsNullOrWhiteSpace(org) || string.IsNullOrWhiteSpace(proj))
+            {
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_DetectNeedsConnection");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(pat))
+            {
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_CreateNeedsPat");
+                return;
+            }
+
+            CreateFieldsButton.IsEnabled = false;
+            try
+            {
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_Detecting");
+                _processo = await DevOpsFieldSetupService.LoadProcessAsync(org, proj, pat);
+
+                // O que falta sai da CHECAGEM, nao de caixas marcadas a mao: a tela ja sabe o que
+                // nao existe, e pedir para a pessoa remarcar isso era so uma chance de erro.
+                var querer = _devRows
+                    .Where(r => !string.IsNullOrWhiteSpace(r.Box.Text))
+                    .Select(r => (r.Spec.Key, Name: r.Box.Text.Trim())).ToList();
+                var checagem = await DevOpsFieldSetupService.CheckAsync(org, proj, pat, querer,
+                    default, EscolhasPadrao());
+
+                var faltando = checagem
+                    .Where(c => c.Status is DevOpsFieldSetupService.FieldStatus.Missing
+                                        or DevOpsFieldSetupService.FieldStatus.NeedsWorkItemTypes)
+                    .Select(c => c.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var criar = _devRows
+                    .Where(r => faltando.Contains(r.Spec.Key) && Habilitado(r))
+                    .Select(r => (r.Spec.Key, Name: r.Box.Text.Trim()))
+                    .ToList();
+
+                if (criar.Count == 0)
+                {
+                    DetectFieldsStatus.Text = AppStrings.Get("Cfg_CreateNothing");
+                    return;
+                }
+
+                // Confirmacao explicita: o campo passa a existir para TODOS os projetos do
+                // processo, nao so para este.
+                var lista = string.Join(Environment.NewLine, criar.Select(f => "  • " + f.Name));
+                if (MessageBox.Show(this,
+                        AppStrings.Get("Cfg_CreateConfirm", _processo.Name, lista),
+                        AppStrings.Get("Cfg_CreateFields"), MessageBoxButton.OKCancel,
+                        MessageBoxImage.Question) != MessageBoxResult.OK)
+                {
+                    DetectFieldsStatus.Text = "";
+                    return;
+                }
+
+                var progresso = new Progress<string>(n => DetectFieldsStatus.Text =
+                    AppStrings.Get("Cfg_Creating", n));
+                var resultados = await DevOpsFieldSetupService.CreateAsync(
+                    org, proj, pat, _processo, criar, progresso, default, EscolhasPadrao());
+
+                var ok = resultados.Count(r => r.Ok);
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_CreateDone",
+                    ok.ToString(), (resultados.Count - ok).ToString());
+
+                var problemas = resultados.Where(r => !r.Ok).Select(r => r.Message).ToList();
+                if (problemas.Count > 0)
+                    MessageBox.Show(this, string.Join(Environment.NewLine, problemas),
+                        AppStrings.Get("Cfg_CreateFields"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                DetectFieldsStatus.Text = ex.Message;
+            }
+            finally { CreateFieldsButton.IsEnabled = true; }
+        }
+
+        /// <summary>Campo opcional desligado nao e criado: campo que ninguem preenche e sujeira.</summary>
+        private static bool Habilitado(DevRow r) => r.Enabled == null || r.Enabled.IsChecked == true;
+
+        /// <summary>
+        /// Arquivo de configuracao de campos: o GP configura uma vez e distribui. Mesmo formato
+        /// que o NXProject-Setup gravava, para os arquivos ja exportados continuarem valendo.
+        /// </summary>
+        private sealed class FieldConfigFile
+        {
+            // O nome do formato mudou de "nxproject-devops-fields" para "nxproject-fields"
+            // quando o arquivo passou a levar tambem o GitProject e os niveis. A leitura aceita
+            // os dois: arquivo que alguem ja exportou nao pode deixar de funcionar.
+            public string Format { get; set; } = "nxproject-fields";
+            public int Version { get; set; } = 2;
+            public string ExportedAt { get; set; } = "";
+            public string Organization { get; set; } = "";
+            public string Project { get; set; } = "";
+
+            // Azure DevOps
+            public Dictionary<string, string> Fields { get; set; } = new();
+            public List<string> TaskStandard { get; set; } = new();
+            public Dictionary<string, bool> OptionalEnabled { get; set; } = new();
+
+            // GitProject — nomes de campo, tags e classificacao. A CONEXAO (dono, board, token)
+            // fica de fora de proposito: ela e de cada pessoa, e token nao viaja em arquivo.
+            public Dictionary<string, string> GitFields { get; set; } = new();
+            public Dictionary<string, string> GitTags { get; set; } = new();
+            public List<GitProjectClassification> GitClassifications { get; set; } = new();
+
+            // Mapa de niveis (vale para os dois destinos)
+            public Dictionary<string, string> LevelNames { get; set; } = new();
+            public List<string> LevelsDisabled { get; set; } = new();
+        }
+
+        /// <summary>Formatos aceitos na leitura — o antigo continua valendo.</summary>
+        private static bool FormatoConhecido(string? f) =>
+            string.Equals(f, "nxproject-fields", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(f, "nxproject-devops-fields", StringComparison.OrdinalIgnoreCase);
+
+        private static readonly System.Text.Json.JsonSerializerOptions ConfigJson =
+            new() { WriteIndented = true };
+
+        private void OnExportFieldsClick(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = AppStrings.Get("Cfg_ExportFields"),
+                FileName = "nxproject-devops-fields.json",
+                DefaultExt = ".json",
+                Filter = "JSON (*.json)|*.json"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                var mapaNiveis = _levelRows.Count > 0 ? MapaDaTela(out _) : (_options.Levels ?? new NxLevelMap());
+                var dados = new FieldConfigFile
+                {
+                    ExportedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+                    Organization = CreateOrgBox.Text?.Trim() ?? "",
+                    Project = CreateProjBox.Text?.Trim() ?? "",
+                    Fields = _devRows.ToDictionary(r => r.Spec.Key, r => r.Box.Text?.Trim() ?? ""),
+                    TaskStandard = EscolhasPadrao().Select(c => c.Key + "|" + c.WorkItemType).ToList(),
+                    OptionalEnabled = _devRows.Where(r => r.Enabled != null)
+                        .ToDictionary(r => r.Spec.Key, r => r.Enabled!.IsChecked == true,
+                                      StringComparer.OrdinalIgnoreCase),
+
+                    GitFields = _rows.ToDictionary(r => r.Spec.Key, r => r.Box.Text?.Trim() ?? ""),
+                    GitTags = new Dictionary<string, string>
+                    {
+                        ["fixedStart"] = GitFixedStartTagBox.Text?.Trim() ?? "",
+                        ["unplanned"] = GitUnplannedTagBox.Text?.Trim() ?? "",
+                        ["wip"] = GitWipTagBox.Text?.Trim() ?? "",
+                        ["blocked"] = GitBlockedTagBox.Text?.Trim() ?? "",
+                    },
+                    GitClassifications = _gitClass
+                        .Where(c => !string.IsNullOrWhiteSpace(c.Field)).ToList(),
+
+                    LevelNames = mapaNiveis.Names.ToDictionary(kv => kv.Key.ToString(),
+                                                              kv => string.Join(", ", kv.Value)),
+                    LevelsDisabled = mapaNiveis.Disabled.Select(d => d.ToString()).ToList(),
+                };
+                var json = System.Text.Json.JsonSerializer.Serialize(dados, ConfigJson);
+
+                // Trava: o arquivo é feito para ser DISTRIBUÍDO, e token não viaja em arquivo. A
+                // conferência é no texto final, não na lista de campos — assim ela continua
+                // valendo se alguém acrescentar uma propriedade nova amanhã e não perceber que
+                // ela carrega segredo.
+                if (ContemSegredo(json))
+                {
+                    DetectFieldsStatus.Text = AppStrings.Get("Cfg_ExportHasSecret");
+                    return;
+                }
+
+                System.IO.File.WriteAllText(dlg.FileName, json);
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_Exported", dlg.FileName);
+            }
+            catch (Exception ex) { DetectFieldsStatus.Text = ex.Message; }
+        }
+
+        /// <summary>
+        /// O texto a exportar contém algum token desta máquina? Compara com os tokens que a
+        /// configuração guarda (PAT do DevOps e token do GitProject). Nenhum deles deveria estar
+        /// lá — esta é a rede para o dia em que estiver.
+        /// </summary>
+        private bool ContemSegredo(string json)
+        {
+            foreach (var segredo in new[] { _options.PersonalAccessToken, _options.GitProject?.Token })
+                if (!string.IsNullOrWhiteSpace(segredo) && segredo!.Length >= 8
+                    && json.Contains(segredo, StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
+
+        private void OnImportFieldsClick(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = AppStrings.Get("Cfg_ImportFields"),
+                DefaultExt = ".json",
+                Filter = "JSON (*.json)|*.json"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                var dados = System.Text.Json.JsonSerializer.Deserialize<FieldConfigFile>(
+                    System.IO.File.ReadAllText(dlg.FileName), ConfigJson);
+
+                // Arquivo de outro formato nao e importado "pelo que der certo": meio importado
+                // deixaria a configuracao num estado que ninguem sabe qual e.
+                if (dados == null || !FormatoConhecido(dados.Format))
+                {
+                    DetectFieldsStatus.Text = AppStrings.Get("Cfg_ImportBadFile");
+                    return;
+                }
+
+                foreach (var r in _devRows)
+                {
+                    if (dados.Fields.TryGetValue(r.Spec.Key, out var nome) && !string.IsNullOrWhiteSpace(nome))
+                        r.Box.Text = nome.Trim();
+                    if (r.Enabled != null && dados.OptionalEnabled.TryGetValue(r.Spec.Key, out var ligado))
+                        r.Enabled.IsChecked = ligado;
+                }
+
+                var padrao = dados.TaskStandard
+                    .Select(x => x.Split('|')).Where(p => p.Length == 2)
+                    .Select(p => (Chave: p[0], Tipo: p[1])).ToList();
+                foreach (var r in _devRows)
+                    foreach (var (wit, caixa) in r.UseStandard)
+                        caixa.IsChecked = padrao.Any(p =>
+                            string.Equals(p.Chave, r.Spec.Key, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(p.Tipo, wit, StringComparison.OrdinalIgnoreCase));
+
+                // GitProject: nomes, tags e classificacao.
+                foreach (var r in _rows)
+                    if (dados.GitFields.TryGetValue(r.Spec.Key, out var nomeGit)
+                        && !string.IsNullOrWhiteSpace(nomeGit))
+                        r.Box.Text = nomeGit.Trim();
+
+                if (dados.GitTags.TryGetValue("fixedStart", out var t1) && t1.Length > 0) GitFixedStartTagBox.Text = t1;
+                if (dados.GitTags.TryGetValue("unplanned", out var t2) && t2.Length > 0) GitUnplannedTagBox.Text = t2;
+                if (dados.GitTags.TryGetValue("wip", out var t3) && t3.Length > 0) GitWipTagBox.Text = t3;
+                if (dados.GitTags.TryGetValue("blocked", out var t4) && t4.Length > 0) GitBlockedTagBox.Text = t4;
+
+                if (dados.GitClassifications.Count > 0)
+                {
+                    _gitClass.Clear();
+                    foreach (var c in dados.GitClassifications) _gitClass.Add(c);
+                }
+
+                // Niveis: so quando o arquivo traz, para nao zerar o mapa de quem importa um
+                // arquivo antigo (formato 1, que nao tinha esta parte).
+                if (dados.LevelNames.Count > 0 && _levelRows.Count > 0)
+                    foreach (var r in _levelRows)
+                    {
+                        if (dados.LevelNames.TryGetValue(r.Level.ToString(), out var nomes)
+                            && !string.IsNullOrWhiteSpace(nomes))
+                            r.Names.Text = nomes;
+                        r.InUse.IsChecked = !dados.LevelsDisabled.Contains(r.Level.ToString(),
+                            StringComparer.OrdinalIgnoreCase);
+                    }
+
+                DetectFieldsStatus.Text = AppStrings.Get("Cfg_Imported", dlg.FileName);
+            }
+            catch (Exception ex) { DetectFieldsStatus.Text = ex.Message; }
+        }
+
         /// <summary>
         /// Cria no board os campos que faltam — os do NXProject e os de classificação.
         ///
@@ -339,6 +626,15 @@ namespace NXProject.Views
             GitDetectStatus.Text = AppStrings.Get("Git_Testing");
             try
             {
+                // Token digitado manda, e não é gravado: serve a quem configurou um token de
+                // leitura no dia a dia e tem outro, com escrita, só para preparar o board.
+                var digitado = GitCreateTokenBox.Password;
+                if (!string.IsNullOrWhiteSpace(digitado))
+                {
+                    git = git.Clone();
+                    git.Token = digitado.Trim();
+                }
+
                 var cliente = new GitProjectClient(git);
                 var snap = await cliente.LoadAsync();
 
@@ -506,6 +802,11 @@ namespace NXProject.Views
 
             DevRowsList.Items.Clear();
             DevRowsList.Items.Add(host);
+
+            // A criacao usa estes campos; comecam com o que ja estiver configurado e podem ser
+            // trocados na hora (o Setup manda para ca quem ainda nao configurou nada).
+            CreateOrgBox.Text = saved.OrganizationUrl ?? "";
+            CreateProjBox.Text = saved.TeamProject ?? "";
 
             TaskPriorityRangeEnabledBox.IsChecked = saved.TaskPriorityRangeEnabled;
             TaskPriorityMinBox.Text = saved.TaskPriorityMin.ToString();

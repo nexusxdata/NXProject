@@ -372,6 +372,23 @@ mão em nenhum dos dois lados:**
 Os dois lados compartilham um catálogo de campos e um mapa de níveis, então campo ou tipo
 renomeado na sua organização é configuração, não alteração de código.
 
+### Abrir direto a tela de campos (linha de comando)
+
+O NXProject aceita um parâmetro que abre **só** a tela "Configurar Campos e Tags", sem carregar o
+cronograma. É por aqui que o NXProject-Setup encaminha quem vai configurar o GitProject — o
+instalador não tem uma segunda tela para isso, e configuração de campo fica num lugar só.
+
+```
+NXProject.Community.exe --setup            # a tela, com as duas abas
+NXProject.Community.exe --setup=devops      # já na aba Azure DevOps
+NXProject.Community.exe --setup=gitproject  # já na aba GitProject
+```
+
+O aplicativo abre apenas essa janela e encerra quando ela fecha. No instalador, o botão
+**"Abrir no NXProject"** (Passo 4, ao lado da escolha do servidor) faz exatamente essa chamada,
+já no destino selecionado.
+
+
 ### Token do GitHub
 
 Um token **classic** com os escopos `repo` e `project`. A tela de configuração explica a árvore de

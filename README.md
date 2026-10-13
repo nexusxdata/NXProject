@@ -376,6 +376,23 @@ either side:**
 Both sides share one field catalogue and one level map, so a field or type renamed in your
 organization is a configuration change, not a code change.
 
+### Open the fields screen directly (command line)
+
+NXProject takes a parameter that opens **only** the "Configure Fields and Tags" screen, without
+loading a schedule. This is how NXProject-Setup forwards anyone configuring GitProject — the
+installer has no second screen for it, and field configuration lives in one place.
+
+```
+NXProject.Community.exe --setup            # the screen, with both tabs
+NXProject.Community.exe --setup=devops      # straight to the Azure DevOps tab
+NXProject.Community.exe --setup=gitproject  # straight to the GitProject tab
+```
+
+The application opens just that window and exits when it closes. In the installer, the
+**"Open in NXProject"** button (Step 4, beside the server choice) makes exactly this call, already
+on the selected target.
+
+
 ### Token for GitHub
 
 A **classic** token with the `repo` and `project` scopes. The configuration screen explains the
