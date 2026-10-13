@@ -40,6 +40,53 @@ public partial class DevOpsFieldsWindow : Window
     }
 
     private readonly List<FieldRow> _fieldRows = new();
+
+    /// <summary>
+    /// Padrão de nomes escolhido na combo. É a MESMA regra que o NXProject usa — mora no
+    /// <see cref="NxDevOpsFieldCatalog"/>, não aqui: já tivemos três cópias divergentes da
+    /// regra de campos entre o NX e o Setup, e cada cópia virou um defeito.
+    /// </summary>
+    private NxDevOpsFieldCatalog.NxFieldNaming Naming =>
+        NamingCombo?.SelectedIndex == 1
+            ? NxDevOpsFieldCatalog.NxFieldNaming.English
+            : NxDevOpsFieldCatalog.NxFieldNaming.Portuguese;
+
+    /// <summary>
+    /// Aplica o padrão escolhido nas linhas já montadas.
+    ///
+    /// Duas coisas diferentes acontecem, e misturá-las seria o erro: o campo que TEM equivalente
+    /// nativo não muda de nome — ele passa a usar o campo do processo, marcando "usar o padrão"
+    /// em cada tipo. Só o campo que é invenção do NXProject troca de nome (Perc_Conclusao ->
+    /// nx_percent_complete), porque ali não há nativo para usar.
+    ///
+    /// Nada é renomeado no servidor: isto muda a SUGESTÃO da tela. O que já existe na
+    /// organização continua onde está, e segue reconhecido pelos apelidos do catálogo.
+    /// </summary>
+    private void ApplyNaming()
+    {
+        var naming = Naming;
+        foreach (var row in _fieldRows)
+        {
+            foreach (var (wit, box) in row.UseStandardByType)
+                box.IsChecked = naming == NxDevOpsFieldCatalog.NxFieldNaming.English
+                    || row.Spec.StandardDefaultOn(wit);
+
+            // Nome só muda quando NÃO há nativo em nenhum tipo do escopo — senão o nome
+            // personalizado continua valendo para o tipo que ficar sem o padrão.
+            var temNativo = row.Spec.Scope.Any(w => !string.IsNullOrEmpty(row.Spec.OptionalStandardFor(w)));
+            if (temNativo) continue;
+            row.Name.Text = naming == NxDevOpsFieldCatalog.NxFieldNaming.English
+                            && !string.IsNullOrWhiteSpace(row.Spec.EnglishName)
+                ? row.Spec.EnglishName : row.Spec.DefaultName;
+        }
+        Step4StatusText.Text = App.Str(naming == NxDevOpsFieldCatalog.NxFieldNaming.English
+            ? "Setup_Step4NamingAppliedEn" : "Setup_Step4NamingAppliedPt");
+    }
+
+    private void OnNamingChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_fieldRows.Count > 0) ApplyNaming();
+    }
     private DevOpsFieldSetupService.ProcessInfo? _process;
 
     /// <summary>
@@ -172,7 +219,7 @@ public partial class DevOpsFieldsWindow : Window
     /// <summary>
     /// Servidor onde os campos serão configurados. Só o Azure DevOps está implementado; o
     /// GitProject (GitHub Projects) avisa e volta — o que muda em cada botão desta janela está
-    /// desenhado em <c>Plano_GitProject_Import_Sync.md</c>, na raiz do repositório.
+    /// desenhado em <c>features_gitproject.md</c>, na raiz do repositório.
     /// </summary>
     private void OnServerChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -638,6 +685,25 @@ public partial class DevOpsFieldsWindow : Window
                 default:
                     parts.Add(App.Str("Setup_Step4PermUnknown", permDetail)); break;
             }
+            // NIVEIS: o Passo 4 cuidava so de campos, mas o NXProject monta a hierarquia pelo
+            // NOME do tipo de work item — e um tipo batizado de "Iniciativa" ou "Produto" deixa o
+            // cronograma torto sem ninguem perceber. Detectar aqui e barato (os tipos ja vieram
+            // do processo) e responde a pergunta que importa: "este servidor esta pronto para o
+            // NXProject?", nao so "quantos campos faltam".
+            var mapa = NXProject.Services.NxLevelMap.Current;
+            var tiposDoProcesso = _process.WorkItemTypeRefs.Keys.ToList();
+            var semNivel = tiposDoProcesso.Where(t => mapa.LevelOf(t) == null).ToList();
+            var niveisVazios = NXProject.Services.NxLevelMap.AllLevels
+                .Where(n => !mapa.Disabled.Contains(n) && !tiposDoProcesso.Any(t => mapa.Is(t, n)))
+                .ToList();
+
+            if (niveisVazios.Count > 0)
+                parts.Add(App.Str("Setup_Step4LevelsMissing", string.Join(", ", niveisVazios)));
+            else
+                parts.Add(App.Str("Setup_Step4LevelsOk"));
+            if (semNivel.Count > 0)
+                parts.Add(App.Str("Setup_Step4LevelsExtra", string.Join(", ", semNivel.Take(6))));
+
             parts.Add(missing == 0 ? App.Str("Setup_Step4AllOk")
                                    : App.Str("Setup_Step4MissingCount", missing.ToString()));
             Step4StatusText.Text = string.Join(" · ", parts);

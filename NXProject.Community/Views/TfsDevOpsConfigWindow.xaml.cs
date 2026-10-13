@@ -17,6 +17,13 @@ namespace NXProject.Views
     public partial class TfsDevOpsConfigWindow : Window
     {
         private readonly string _storageKey;
+
+        /// <summary>
+        /// Configuração como está gravada. Nomes de campo, tags, campos obrigatórios e
+        /// classificação agora são editados em "Configurar Campos": esta tela os REPASSA sem
+        /// tocar, senão salvar a conexão apagaria o que a outra tela acabou de gravar.
+        /// </summary>
+        private readonly TfsConnectionOptions _savedFields;
         private string _devOpsProjectListPath = string.Empty;
         private readonly System.Collections.ObjectModel.ObservableCollection<ExtraWorkItemField> _extraFields = new();
         private readonly System.Collections.ObjectModel.ObservableCollection<ClassificationMapping> _classificationMappings = new();
@@ -32,6 +39,8 @@ namespace NXProject.Views
             public string FieldType  { get; set; } = "Picklist";
             /// <summary>Valores separados por vírgula; viram o combo ao editar classificação deste tipo.</summary>
             public string Values     { get; set; } = string.Empty;
+            /// <summary>Valor gravado ao criar o item quando ele não tem classificação.</summary>
+            public string DefaultValue { get; set; } = string.Empty;
         }
 
         // Projeto (cronograma) aberto — habilita o campo do path da planilha de Task Plan.
@@ -41,73 +50,19 @@ namespace NXProject.Views
         {
             InitializeComponent();
             _storageKey = string.IsNullOrWhiteSpace(storageKey) ? "NXProject.Community" : storageKey.Trim();
+            _savedFields = TfsConnectionStore.Load(_storageKey);
             _currentProjectName = string.IsNullOrWhiteSpace(currentProjectName) ? null : currentProjectName.Trim();
 
             // Planilha de Task Plan associada ao projeto aberto (configuração local).
             if (_currentProjectName != null)
             {
                 var tp = Community.Services.TaskPlanSettingsStore.Load();
-                TaskPlanFileBox.Text = tp.GetProjectFile(_currentProjectName) ?? "";
-            }
-            else
-            {
-                TaskPlanFileBox.IsEnabled = false;
-                TaskPlanFileBrowse.IsEnabled = false;
             }
 
             var saved = TfsConnectionStore.Load(_storageKey);
             OrgUrlBox.Text = saved.OrganizationUrl;
             ProjectBox.Text = saved.TeamProject;
-            EffortFieldBox.Text = saved.EffortFieldName;
-            StartFieldBox.Text = saved.StartFieldName;
-            FinishFieldBox.Text = saved.FinishFieldName;
-            PercAlocFieldBox.Text = saved.PercAlocFieldName;
-            PercConclusaoFieldBox.Text = saved.PercConclusaoFieldName;
-            EpicTypeFieldEnabledBox.IsChecked = saved.EpicTypeFieldEnabled;
-            EpicTypeFieldBox.Text = string.IsNullOrWhiteSpace(saved.EpicTypeFieldName) ? "EPIC_TYPE" : saved.EpicTypeFieldName;
-            EpicTypeFieldBox.IsEnabled = saved.EpicTypeFieldEnabled;
-            ApprovedFieldEnabledBox.IsChecked = saved.ApprovedFieldEnabled;
-            ApprovedFieldBox.Text = string.IsNullOrWhiteSpace(saved.ApprovedFieldName) ? "Approved" : saved.ApprovedFieldName;
-            ApprovedFieldBox.IsEnabled = saved.ApprovedFieldEnabled;
-            BlockDurationFieldEnabledBox.IsChecked = saved.BlockDurationFieldEnabled;
-            BlockDurationFieldBox.Text = string.IsNullOrWhiteSpace(saved.BlockDurationFieldName)
-                ? "block_duration_hours" : saved.BlockDurationFieldName;
-            BlockDurationFieldBox.IsEnabled = saved.BlockDurationFieldEnabled;
-            AdmGroupFieldEnabledBox.IsChecked = saved.AdmGroupFieldEnabled;
-            AdmGroupFieldBox.Text = string.IsNullOrWhiteSpace(saved.AdmGroupFieldName) ? "Adm_NX" : saved.AdmGroupFieldName;
-            AdmGroupFieldBox.IsEnabled = saved.AdmGroupFieldEnabled;
-            TaskPriorityRangeEnabledBox.IsChecked = saved.TaskPriorityRangeEnabled;
-            TaskPriorityMinBox.Text = saved.TaskPriorityMin.ToString(CultureInfo.InvariantCulture);
-            TaskPriorityMaxBox.Text = saved.TaskPriorityMax.ToString(CultureInfo.InvariantCulture);
-            TaskPriorityMinBox.IsEnabled = saved.TaskPriorityRangeEnabled;
-            TaskPriorityMaxBox.IsEnabled = saved.TaskPriorityRangeEnabled;
-            SyncVersionFieldBox.Text = saved.SyncVersionFieldName;
-            SyncNameFieldBox.Text = saved.SyncNameFieldName;
-            FixedStartTagBox.Text = saved.FixedStartTagName;
-            UnplannedTagBox.Text = saved.UnplannedTagName;
-            WipTagBox.Text = saved.WipTagName;
-            BlockedTagBox.Text = saved.BlockedTagName;
-            SyncPredecessorLinksCheck.IsChecked = saved.SyncPredecessorLinks;
-            EnforceStoryCompletionWithTasksCheck.IsChecked = saved.EnforceStoryCompletionWithTasks;
             EnableOrgDiscoveryCheck.IsChecked = saved.EnableOrgPeopleDiscovery;
-            FutureSprintDaysBox.Text = saved.FutureSprintDays.ToString(CultureInfo.InvariantCulture);
-
-            foreach (var f in saved.ExtraCreateFields)
-                _extraFields.Add(new ExtraWorkItemField { Ref = f.Ref, Value = f.Value });
-            ExtraFieldsList.ItemsSource = _extraFields;
-
-            // Excecao por tipo da TASK: marcado quando o mapeamento aponta para o campo padrao.
-            if (saved.TypeFieldMappings.TryGetValue("Task", out var taskCfg))
-            {
-                EffortTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.EffortField);
-                StartTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.StartField);
-                FinishTaskStdBox.IsChecked = !string.IsNullOrWhiteSpace(taskCfg.FinishField);
-            }
-            if (saved.TypeFieldMappings.TryGetValue("User Story", out var storyCfg))
-            {
-                StartStoryStdBox.IsChecked = !string.IsNullOrWhiteSpace(storyCfg.StartField);
-                FinishStoryStdBox.IsChecked = !string.IsNullOrWhiteSpace(storyCfg.FinishField);
-            }
 
             // Carrega mapeamentos de classificação por tipo
             foreach (var kv in saved.TypeFieldMappings)
@@ -128,7 +83,6 @@ namespace NXProject.Views
                     DevOpsType = "Feature", FieldRef = "Custom.Type", FieldType = "Picklist",
                     Values = "Architecture,Burocracy,Docs,Feature,Hotfix,Refactor",
                 });
-            ClassificationMappingsList.ItemsSource = _classificationMappings;
 
             if (!string.IsNullOrEmpty(saved.PersonalAccessToken))
             {
@@ -166,24 +120,8 @@ namespace NXProject.Views
             }
         }
 
-        // Os nomes dos campos opcionais só são editáveis com a leitura habilitada.
-        private void OnEpicTypeFieldEnabledChanged(object sender, RoutedEventArgs e)
-        {
-            if (EpicTypeFieldBox == null) return;
-            EpicTypeFieldBox.IsEnabled = EpicTypeFieldEnabledBox.IsChecked == true;
-        }
 
-        private void OnApprovedFieldEnabledChanged(object sender, RoutedEventArgs e)
-        {
-            if (ApprovedFieldBox == null) return;
-            ApprovedFieldBox.IsEnabled = ApprovedFieldEnabledBox.IsChecked == true;
-        }
 
-        private void OnBlockDurationFieldEnabledChanged(object sender, RoutedEventArgs e)
-        {
-            if (BlockDurationFieldBox == null) return;
-            BlockDurationFieldBox.IsEnabled = BlockDurationFieldEnabledBox.IsChecked == true;
-        }
 
         /// <summary>
         /// Pergunta ao DevOps quais dos campos digitados existem e em quais tipos de work item.
@@ -194,225 +132,9 @@ namespace NXProject.Views
         /// Excecoes da Task marcadas nesta tela, no formato que o detector entende. Sao a mesma
         /// coisa que o instalador manda: campo padrao do DevOps no lugar do personalizado.
         /// </summary>
-        private List<DevOpsFieldSetupService.StandardChoice> TaskStandardChoices()
-        {
-            var list = new List<DevOpsFieldSetupService.StandardChoice>();
-            if (EffortTaskStdBox?.IsChecked == true) list.Add(new("effort", "Task"));
-            if (StartTaskStdBox?.IsChecked == true) list.Add(new("start", "Task"));
-            if (FinishTaskStdBox?.IsChecked == true) list.Add(new("finish", "Task"));
-            if (StartStoryStdBox?.IsChecked == true) list.Add(new("start", "User Story"));
-            if (FinishStoryStdBox?.IsChecked == true) list.Add(new("finish", "User Story"));
-            return list;
-        }
 
-        private async void OnDetectFieldsClick(object sender, RoutedEventArgs e)
-        {
-            var opts = BuildOptions();
-            if (string.IsNullOrWhiteSpace(opts.OrganizationUrl) || string.IsNullOrWhiteSpace(opts.TeamProject)
-                || string.IsNullOrWhiteSpace(opts.PersonalAccessToken))
-            {
-                DetectFieldsStatus.Text = AppStrings.Get("Cfg_DetectNeedsConnection");
-                return;
-            }
 
-            // Cada campo vai com os nomes ALTERNATIVOS que a importacao aceita — senao "HH
-            // Estimado", que na API e "Esforco Estimado", apareceria como inexistente.
-            var wanted = new List<(string Label, string Name, string Kind)>
-            {
-                (AppStrings.Get("Cfg_EffortField"), EffortFieldBox.Text, "effort"),
-                (AppStrings.Get("Cfg_StartField"), StartFieldBox.Text, "start"),
-                (AppStrings.Get("Cfg_FinishField"), FinishFieldBox.Text, "finish"),
-                (AppStrings.Get("Cfg_PercAlocField"), PercAlocFieldBox.Text, "percAloc"),
-                (AppStrings.Get("Cfg_PercConclusaoField"), PercConclusaoFieldBox.Text, "percConclusao"),
-                (AppStrings.Get("Cfg_EpicTypeField"), EpicTypeFieldBox.Text, "epicType"),
-                (AppStrings.Get("Cfg_ApprovedField"), ApprovedFieldBox.Text, "approved"),
-                (AppStrings.Get("Cfg_AdmGroupField"), AdmGroupFieldBox.Text, "admGroup"),
-                (AppStrings.Get("Cfg_BlockDurationField"), BlockDurationFieldBox.Text, "blockDuration"),
-                (AppStrings.Get("Cfg_SyncVersionField"), SyncVersionFieldBox.Text, "syncVersion"),
-                (AppStrings.Get("Cfg_SyncNameField"), SyncNameFieldBox.Text, "syncName"),
-            };
 
-            // Onde cada campo DEVE existir para o recurso funcionar. E o que transforma
-            // "existe/nao existe" em "da para habilitar ou nao".
-            //
-            // Vem do catalogo — a mesma lista que o instalador usa para criar, porque a tela nao
-            // pode cobrar um campo num work item que o Setup nem cria. Saem da conta os tipos
-            // cobertos por campo PADRAO do DevOps: os que o NX sempre usou assim (HH na Task) e os
-            // que esta instalacao escolheu, via TypeFieldMappings. Sem esse desconto, quem optou
-            // pelo Start Date de fabrica na Task continuaria vendo "falta em: Task" para sempre.
-            bool CoveredByStandard(string kind, string workItemType)
-            {
-                var spec = NxDevOpsFieldCatalog.Find(kind);
-                if (spec == null) return false;
-                if (spec.StandardFor(workItemType).Length > 0) return true;
-                if (!opts.TypeFieldMappings.TryGetValue(workItemType, out var cfg)) return false;
-                var configured = kind switch
-                {
-                    "effort" => cfg.EffortField,
-                    "start" => cfg.StartField,
-                    "finish" => cfg.FinishField,
-                    "percAloc" => cfg.PercAlocField,
-                    "percConclusao" => cfg.PercConclusaoField,
-                    _ => null
-                };
-                return !string.IsNullOrWhiteSpace(configured);
-            }
-
-            string[] Scope(string kind) => NxDevOpsFieldCatalog.Scope(kind)
-                .Where(t => !CoveredByStandard(kind, t)).ToArray();
-
-            try
-            {
-                DetectFieldsButton.IsEnabled = false;
-                DetectFieldsStatus.Text = AppStrings.Get("Cfg_DetectRunning");
-                // MESMO detector do NXProject-Setup: a diferenca entre as duas telas e so o
-                // botao de CRIAR, que fica no instalador. Antes eram duas implementacoes, e elas
-                // divergiam (apelidos, conflito de tipo, cobertura por campo padrao).
-                var checks = await DevOpsFieldSetupService.CheckAsync(
-                    opts.OrganizationUrl, opts.TeamProject, opts.PersonalAccessToken,
-                    wanted.Where(w => !string.IsNullOrWhiteSpace(w.Name))
-                          .Select(w => (w.Kind, w.Name.Trim())),
-                    default, TaskStandardChoices());
-                var byKind = checks.ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
-
-                var lines = new List<string>();
-                var missing = 0;
-                foreach (var (label, name, kind) in wanted)
-                {
-                    if (string.IsNullOrWhiteSpace(name)) continue;
-                    if (!byKind.TryGetValue(kind, out var pr)) continue;
-                    var scope = Scope(kind);
-                    if (pr.Status == DevOpsFieldSetupService.FieldStatus.Missing)
-                    {
-                        missing++;
-                        // Dizer ONDE o campo deveria estar e o que torna o aviso acionavel.
-                        var need = scope.Length > 0
-                            ? " — " + AppStrings.Get("Cfg_DetectExpectedIn", string.Join(", ", scope))
-                            : "";
-                        // Sugestao vinda da deteccao (a mesma do NXProject-Setup): nao precisa
-                        // criar campo onde o DevOps ja tem um de fabrica.
-                        var alt = pr.SuggestedStandard.FirstOrDefault();
-                        var suggest = string.IsNullOrEmpty(alt.Value) ? ""
-                            : "  💡 " + AppStrings.Get("Cfg_DetectSuggestStd", alt.Key,
-                                DevOpsFieldSetupService.ShortFieldName(alt.Value));
-                        lines.Add($"❌ {label}: '{name.Trim()}' "
-                                  + AppStrings.Get("Cfg_DetectNotFound") + need + suggest);
-                        continue;
-                    }
-                    if (pr.Status == DevOpsFieldSetupService.FieldStatus.Unknown)
-                    {
-                        lines.Add($"… {label}: {pr.Note}");
-                        continue;
-                    }
-                    var tp = string.IsNullOrEmpty(pr.FoundType) ? "" : $" [{pr.FoundType}]";
-                    // So avisa falta onde o campo FAZ FALTA: cobrar "Esforco Estimado" na Task
-                    // ou na Project so gerava ruido, porque o NX nunca usa o campo ali.
-                    var gap = pr.MissingIn.Count > 0
-                        ? "  ⚠ " + AppStrings.Get("Cfg_DetectMissingIn", string.Join(", ", pr.MissingIn))
-                        : "";
-                    // Achado por nome ALTERNATIVO: o que voce digitou nao existe no DevOps. O NX
-                    // funciona assim mesmo (a importacao usa a mesma lista), mas quem configurou
-                    // precisa saber — senao um nome errado passa por validado.
-                    var via = string.IsNullOrEmpty(pr.MatchedByAlias)
-                        ? ""
-                        : "  ⚠ " + AppStrings.Get("Cfg_DetectViaAlias", pr.MatchedByAlias);
-                    // Tipo do campo diferente do que o NX grava: incompativel bloqueia, numerico
-                    // mais estreito (inteiro onde vai decimal) e so aviso.
-                    var typeNote = pr.Status switch
-                    {
-                        DevOpsFieldSetupService.FieldStatus.TypeConflict =>
-                            "  ⛔ " + AppStrings.Get("Cfg_DetectTypeConflict", pr.FoundType,
-                                NxDevOpsFieldCatalog.Find(kind)?.Type ?? ""),
-                        DevOpsFieldSetupService.FieldStatus.TypeNarrower =>
-                            "  ⚠ " + AppStrings.Get("Cfg_DetectTypeNarrower", pr.FoundType,
-                                NxDevOpsFieldCatalog.Find(kind)?.Type ?? ""),
-                        _ => ""
-                    };
-                    // Tipo coberto por campo de fabrica (sempre, ou por escolha desta instalacao).
-                    var std = pr.CoveredByStandard.Count > 0
-                        ? "  · " + AppStrings.Get("Cfg_DetectStandard", string.Join(" | ", pr.CoveredByStandard))
-                        : "";
-                    if (pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict) missing++;
-                    var mark = pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict ? "⛔" : "✅";
-                    lines.Add($"{mark} {label}: {pr.ReferenceName}{tp}{via}{typeNote}{gap}{std}");
-                }
-
-                // Campos com checkbox: a deteccao MARCA o que existe no tipo em que o NX usa e
-                // DESMARCA o que nao existe. Nada e gravado aqui — so vale se voce Salvar, e o
-                // Cancelar desfaz tudo.
-                var toggled = new List<string>();
-                void ApplyCheck(string kind, CheckBox box, TextBox nameBox, string label)
-                {
-                    var name = nameBox.Text?.Trim() ?? "";
-                    if (string.IsNullOrWhiteSpace(name)) return;
-                    if (!byKind.TryGetValue(kind, out var pr)) return;
-                    // Existir na organizacao nao basta: tem que existir NO TIPO em que o NX usa —
-                    // faltar em TODOS os tipos do escopo e o mesmo que nao existir.
-                    var scope = Scope(kind);
-                    var usable = pr.Status is DevOpsFieldSetupService.FieldStatus.Ready
-                                           or DevOpsFieldSetupService.FieldStatus.TypeNarrower
-                                           or DevOpsFieldSetupService.FieldStatus.NeedsWorkItemTypes
-                        && (scope.Length == 0 || pr.MissingIn.Count < scope.Length);
-                    if ((box.IsChecked == true) == usable) return;
-                    box.IsChecked = usable;
-                    nameBox.IsEnabled = usable;
-                    toggled.Add((usable ? "✔ " : "✖ ") + label);
-                }
-                ApplyCheck("epicType", EpicTypeFieldEnabledBox, EpicTypeFieldBox, AppStrings.Get("Cfg_EpicTypeField"));
-                ApplyCheck("approved", ApprovedFieldEnabledBox, ApprovedFieldBox, AppStrings.Get("Cfg_ApprovedField"));
-                ApplyCheck("admGroup", AdmGroupFieldEnabledBox, AdmGroupFieldBox, AppStrings.Get("Cfg_AdmGroupField"));
-                ApplyCheck("blockDuration", BlockDurationFieldEnabledBox, BlockDurationFieldBox,
-                           AppStrings.Get("Cfg_BlockDurationField"));
-                // Duas opcoes desta tela nao dependem de CAMPO:
-                //  • predecessoras: depende do TIPO DE LINK do processo — isso da para detectar;
-                //  • fechar Story so com Task: e regra do proprio NX, sem contraparte no DevOps —
-                //    o detector apenas devolve o valor recomendado, e diz que foi por isso.
-                var hasDep = await TfsImportService.HasPredecessorLinkTypeAsync(opts);
-                if (hasDep is bool dep && (SyncPredecessorLinksCheck.IsChecked == true) != dep)
-                {
-                    SyncPredecessorLinksCheck.IsChecked = dep;
-                    toggled.Add((dep ? "✔ " : "✖ ") + AppStrings.Get("Cfg_SyncPredecessorLinks"));
-                }
-                if (EnforceStoryCompletionWithTasksCheck.IsChecked != true)
-                {
-                    EnforceStoryCompletionWithTasksCheck.IsChecked = true;
-                    toggled.Add("✔ " + AppStrings.Get("Cfg_EnforceStoryCompletionWithTasks")
-                                + " (" + AppStrings.Get("Cfg_DetectNxRule") + ")");
-                }
-
-                if (toggled.Count > 0)
-                    lines.Add(Environment.NewLine + AppStrings.Get("Cfg_DetectToggled")
-                              + Environment.NewLine + string.Join(Environment.NewLine, toggled));
-
-                DetectFieldsStatus.Text = missing == 0
-                    ? AppStrings.Get("Cfg_DetectAllOk")
-                    : AppStrings.Get("Cfg_DetectMissing", missing.ToString());
-                MessageBox.Show(this,
-                    string.Join(Environment.NewLine, lines) + Environment.NewLine + Environment.NewLine
-                    + AppStrings.Get("Cfg_DetectFooter"),
-                    AppStrings.Get("Cfg_DetectFields"), MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                DetectFieldsStatus.Text = "";
-                MessageBox.Show(this, ex.Message, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-            finally { DetectFieldsButton.IsEnabled = true; }
-        }
-
-        private void OnAdmGroupFieldEnabledChanged(object sender, RoutedEventArgs e)
-        {
-            if (AdmGroupFieldBox == null) return;
-            AdmGroupFieldBox.IsEnabled = AdmGroupFieldEnabledBox.IsChecked == true;
-        }
-
-        private void OnTaskPriorityRangeEnabledChanged(object sender, RoutedEventArgs e)
-        {
-            if (TaskPriorityMinBox == null || TaskPriorityMaxBox == null) return;
-            var enabled = TaskPriorityRangeEnabledBox.IsChecked == true;
-            TaskPriorityMinBox.IsEnabled = enabled;
-            TaskPriorityMaxBox.IsEnabled = enabled;
-        }
 
         private void OnManageListClick(object sender, RoutedEventArgs e)
         {
@@ -442,28 +164,20 @@ namespace NXProject.Views
             window.ShowDialog();
         }
 
-        private void OnAddClassificationMapping(object sender, RoutedEventArgs e)
-            => _classificationMappings.Add(new ClassificationMapping { DevOpsType = "Feature", FieldRef = string.Empty });
 
-        private void OnRemoveClassificationMapping(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is ClassificationMapping m)
-                _classificationMappings.Remove(m);
-        }
 
-        private void OnAddExtraField(object sender, RoutedEventArgs e)
-            => _extraFields.Add(new ExtraWorkItemField());
-
-        private void OnRemoveExtraField(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is ExtraWorkItemField field)
-                _extraFields.Remove(field);
-        }
 
         private void ShowStatus(string message)
         {
             StatusText.Text = message;
             StatusText.Visibility = Visibility.Visible;
+        }
+
+
+        /// <summary>Nomes dos campos, tags e classificação — agora numa tela só, para os dois destinos.</summary>
+        private void OnOpenFieldsClick(object sender, RoutedEventArgs e)
+        {
+            new FieldNamesWindow { Owner = this }.ShowDialog();
         }
 
         private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -486,27 +200,16 @@ namespace NXProject.Views
         private void SaveTaskPlanFileAssociation()
         {
             if (_currentProjectName == null) return;
-            var path = TaskPlanFileBox.Text?.Trim() ?? "";
             var tp = Community.Services.TaskPlanSettingsStore.Load();
+            // O caminho da planilha e editado em "Configurar Campos"; aqui so se reaplica o
+            // que esta salvo, para salvar a conexao nao desfazer a associacao.
+            var path = Community.Services.TaskPlanSettingsStore.Load().GetProjectFile(_currentProjectName) ?? "";
             if (string.Equals(tp.GetProjectFile(_currentProjectName) ?? "", path, StringComparison.OrdinalIgnoreCase))
                 return;
             tp.SetProjectFile(_currentProjectName, path);
             Community.Services.TaskPlanSettingsStore.Save(tp);
         }
 
-        private void OnBrowseTaskPlanFileClick(object sender, RoutedEventArgs e)
-        {
-            var dlg = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = AppStrings.Get("Cfg_TaskPlanFile"),
-                Filter = "Planilha do Excel (*.xlsx)|*.xlsx|Todos os arquivos (*.*)|*.*",
-                CheckFileExists = true
-            };
-            if (!string.IsNullOrWhiteSpace(TaskPlanFileBox.Text))
-                try { dlg.InitialDirectory = System.IO.Path.GetDirectoryName(TaskPlanFileBox.Text.Trim()); } catch { }
-            if (dlg.ShowDialog(this) == true)
-                TaskPlanFileBox.Text = dlg.FileName;
-        }
 
         private TfsConnectionOptions BuildOptions() => new()
         {
@@ -515,88 +218,45 @@ namespace NXProject.Views
             PersonalAccessToken = PatBox.Password,
             RootWorkItemId      = TfsConnectionStore.Load(_storageKey).RootWorkItemId,
             HoursPerDay         = ProjectCalendarService.WorkingHoursPerDay,
-            EffortFieldName     = string.IsNullOrWhiteSpace(EffortFieldBox.Text)    ? "HH Estimado"   : EffortFieldBox.Text.Trim(),
-            StartFieldName      = string.IsNullOrWhiteSpace(StartFieldBox.Text)     ? "Data_Inicio"   : StartFieldBox.Text.Trim(),
-            FinishFieldName     = string.IsNullOrWhiteSpace(FinishFieldBox.Text)    ? "Data_Fim"      : FinishFieldBox.Text.Trim(),
-            PercAlocFieldName   = string.IsNullOrWhiteSpace(PercAlocFieldBox.Text)  ? "Perc_Alocacao" : PercAlocFieldBox.Text.Trim(),
-            PercConclusaoFieldName = string.IsNullOrWhiteSpace(PercConclusaoFieldBox.Text) ? "Perc_Conclusao" : PercConclusaoFieldBox.Text.Trim(),
-            EpicTypeFieldEnabled = EpicTypeFieldEnabledBox.IsChecked == true,
-            EpicTypeFieldName = string.IsNullOrWhiteSpace(EpicTypeFieldBox.Text) ? "EPIC_TYPE" : EpicTypeFieldBox.Text.Trim(),
-            BlockDurationFieldEnabled = BlockDurationFieldEnabledBox.IsChecked == true,
-            BlockDurationFieldName = string.IsNullOrWhiteSpace(BlockDurationFieldBox.Text)
-                ? "block_duration_hours" : BlockDurationFieldBox.Text.Trim(),
-            ApprovedFieldEnabled = ApprovedFieldEnabledBox.IsChecked == true,
-            ApprovedFieldName = string.IsNullOrWhiteSpace(ApprovedFieldBox.Text) ? "Approved" : ApprovedFieldBox.Text.Trim(),
-            AdmGroupFieldEnabled = AdmGroupFieldEnabledBox.IsChecked == true,
-            AdmGroupFieldName = string.IsNullOrWhiteSpace(AdmGroupFieldBox.Text) ? "Adm_NX" : AdmGroupFieldBox.Text.Trim(),
-            TaskPriorityRangeEnabled = TaskPriorityRangeEnabledBox.IsChecked == true,
-            TaskPriorityMin = int.TryParse(TaskPriorityMinBox.Text?.Trim(), out var prioMin) && prioMin >= 1 ? prioMin : 1,
-            TaskPriorityMax = int.TryParse(TaskPriorityMaxBox.Text?.Trim(), out var prioMax) && prioMax >= 1 ? prioMax : 4,
-            SyncVersionFieldName = string.IsNullOrWhiteSpace(SyncVersionFieldBox.Text) ? "Sync_version" : SyncVersionFieldBox.Text.Trim(),
-            SyncNameFieldName   = string.IsNullOrWhiteSpace(SyncNameFieldBox.Text)   ? "Sync_Name"    : SyncNameFieldBox.Text.Trim(),
-            FixedStartTagName   = string.IsNullOrWhiteSpace(FixedStartTagBox.Text)  ? "DT-INI-NEG"   : FixedStartTagBox.Text.Trim(),
-            UnplannedTagName    = string.IsNullOrWhiteSpace(UnplannedTagBox.Text)   ? "NP"           : UnplannedTagBox.Text.Trim(),
-            WipTagName          = string.IsNullOrWhiteSpace(WipTagBox.Text)         ? "WIP"          : WipTagBox.Text.Trim(),
-            BlockedTagName      = string.IsNullOrWhiteSpace(BlockedTagBox.Text)     ? "BLOCK"        : BlockedTagBox.Text.Trim(),
-            SyncPredecessorLinks = SyncPredecessorLinksCheck.IsChecked == true,
-            EnforceStoryCompletionWithTasks = EnforceStoryCompletionWithTasksCheck.IsChecked == true,
+            EffortFieldName = _savedFields.EffortFieldName,
+            StartFieldName = _savedFields.StartFieldName,
+            FinishFieldName = _savedFields.FinishFieldName,
+            PercAlocFieldName = _savedFields.PercAlocFieldName,
+            PercConclusaoFieldName = _savedFields.PercConclusaoFieldName,
+            EpicTypeFieldEnabled = _savedFields.EpicTypeFieldEnabled,
+            EpicTypeFieldName = _savedFields.EpicTypeFieldName,
+            BlockDurationFieldEnabled = _savedFields.BlockDurationFieldEnabled,
+            BlockDurationFieldName = _savedFields.BlockDurationFieldName,
+            ApprovedFieldEnabled = _savedFields.ApprovedFieldEnabled,
+            ApprovedFieldName = _savedFields.ApprovedFieldName,
+            AdmGroupFieldEnabled = _savedFields.AdmGroupFieldEnabled,
+            AdmGroupFieldName = _savedFields.AdmGroupFieldName,
+            TaskPriorityRangeEnabled = _savedFields.TaskPriorityRangeEnabled,
+            TaskPriorityMin = _savedFields.TaskPriorityMin,
+            TaskPriorityMax = _savedFields.TaskPriorityMax,
+            SyncVersionFieldName = _savedFields.SyncVersionFieldName,
+            SyncNameFieldName = _savedFields.SyncNameFieldName,
+            FixedStartTagName = _savedFields.FixedStartTagName,
+            UnplannedTagName = _savedFields.UnplannedTagName,
+            WipTagName = _savedFields.WipTagName,
+            BlockedTagName = _savedFields.BlockedTagName,
+            SyncPredecessorLinks = _savedFields.SyncPredecessorLinks,
+            EnforceStoryCompletionWithTasks = _savedFields.EnforceStoryCompletionWithTasks,
             EnableOrgPeopleDiscovery = EnableOrgDiscoveryCheck.IsChecked == true,
-            FutureSprintDays    = int.TryParse(FutureSprintDaysBox.Text?.Trim(), out var fsd) && fsd >= 0 ? fsd : 90,
+            FutureSprintDays = _savedFields.FutureSprintDays,
             DevOpsProjectListPath = _devOpsProjectListPath,
             ExtraCreateFields   = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))],
             ClassificationPicklistValues = TfsConnectionStore.Load(_storageKey).ClassificationPicklistValues,
             TypeFieldMappings = BuildTypeFieldMappings()
         };
 
-        private Dictionary<string, TypeFieldConfig> BuildTypeFieldMappings()
-        {
-            var saved = TfsConnectionStore.Load(_storageKey);
-            var mappings = new Dictionary<string, TypeFieldConfig>(saved.TypeFieldMappings, StringComparer.OrdinalIgnoreCase);
+        /// <summary>
+        /// Mapeamento por tipo (usar o campo padrão do DevOps, classificação) é editado em
+        /// "Configurar Campos". Aqui ele é apenas REPASSADO: salvar a conexão não pode desfazer
+        /// o que a outra tela gravou.
+        /// </summary>
+        private Dictionary<string, TypeFieldConfig> BuildTypeFieldMappings() =>
+            new(_savedFields.TypeFieldMappings, StringComparer.OrdinalIgnoreCase);
 
-            // Limpa CustomDevopsFields de todos os tipos antes de reaplicar
-            foreach (var cfg in mappings.Values)
-                cfg.CustomDevopsFields = [];
-
-            // Excecao da Task: marcada, o NX le e grava o campo PADRAO do DevOps na Task; sem
-            // marca, a exceção sai do mapeamento e vale o campo personalizado como em todo lugar.
-            if (!mappings.TryGetValue("Task", out var taskMap))
-                mappings["Task"] = taskMap = new TypeFieldConfig();
-            taskMap.EffortField = EffortTaskStdBox.IsChecked == true
-                ? NxDevOpsFieldCatalog.Find("effort")?.OptionalStandardFor("Task") : null;
-            taskMap.StartField = StartTaskStdBox.IsChecked == true
-                ? NxDevOpsFieldCatalog.Find("start")?.OptionalStandardFor("Task") : null;
-            taskMap.FinishField = FinishTaskStdBox.IsChecked == true
-                ? NxDevOpsFieldCatalog.Find("finish")?.OptionalStandardFor("Task") : null;
-
-            // Mesma excecao para a Story: quem nao tem Data_Inicio/Data_Fim personalizados usa o
-            // Start Date / Finish Date de fabrica do DevOps.
-            if (!mappings.TryGetValue("User Story", out var storyMap))
-                mappings["User Story"] = storyMap = new TypeFieldConfig();
-            storyMap.StartField = StartStoryStdBox.IsChecked == true
-                ? NxDevOpsFieldCatalog.Find("start")?.OptionalStandardFor("User Story") : null;
-            storyMap.FinishField = FinishStoryStdBox.IsChecked == true
-                ? NxDevOpsFieldCatalog.Find("finish")?.OptionalStandardFor("User Story") : null;
-
-            // Agrupa por tipo DevOps e salva lista de campos
-            var grouped = _classificationMappings
-                .Where(m => !string.IsNullOrWhiteSpace(m.FieldRef))
-                .GroupBy(m => string.Equals(m.DevOpsType, "Todos", StringComparison.OrdinalIgnoreCase) ? "*" : m.DevOpsType,
-                         StringComparer.OrdinalIgnoreCase);
-
-            foreach (var g in grouped)
-            {
-                if (!mappings.TryGetValue(g.Key, out var cfg))
-                    cfg = new TypeFieldConfig();
-                cfg.CustomDevopsFields = g.Select(m => new ClassificationFieldDef
-                {
-                    Field     = m.FieldRef.Trim(),
-                    FieldType = string.IsNullOrWhiteSpace(m.FieldType) ? "Picklist" : m.FieldType.Trim(),
-                    Values    = string.IsNullOrWhiteSpace(m.Values)    ? null       : m.Values.Trim(),
-                }).ToList();
-                mappings[g.Key] = cfg;
-            }
-
-            return mappings;
-        }
     }
 }

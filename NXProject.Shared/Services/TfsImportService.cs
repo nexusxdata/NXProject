@@ -693,6 +693,12 @@ namespace NXProject.Services
             public string FeatureEpicTitle { get; set; } = "";
             /// <summary>Id do EPIC pai (para abrir no DevOps).</summary>
             public int FeatureEpicId { get; set; }
+            /// <summary>
+            /// EPIC_GROUP acima do EPIC — o agrupador de EPICs (as Melhorias por sprint, por
+            /// exemplo). Vazio quando o EPIC está direto sob o Work Item Project.
+            /// </summary>
+            public string FeatureEpicGroupTitle { get; set; } = "";
+            public int FeatureEpicGroupId { get; set; }
             /// <summary>Título do Work Item "Project" (portfólio) acima do EPIC — exibido no card da Feature.</summary>
             public string FeatureProjectTitle { get; set; } = "";
             /// <summary>Estado (System.State) dos ancestrais, para o board mostrar o status do
@@ -1112,11 +1118,16 @@ namespace NXProject.Services
             // "pai = Feature, avô = EPIC" e escorregava tudo uma coluna.
             (string Feat, int FeatId, string FeatOwner, string FeatState,
              string Epic, int EpicId, string EpicState,
-             string Project, int ProjId, string ProjState)
+             string Project, int ProjId, string ProjState,
+             string EpicGroup, int EpicGroupId)
                 ResolveAncestry(int storyId)
             {
                 string feat = "", featOwner = "", featState = "", epic = "", epicState = "", proj = "", projState = "";
                 int featId = 0, epicId = 0, projId = 0;
+                // O SEGUNDO EPIC da subida é o EPIC_GROUP: na hierarquia do NXProject, Epic sob
+                // Epic só existe quando o de cima agrupa. Guardar os dois é o que permite o board
+                // mostrar o grupo acima do nome do EPIC sem inventar uma coluna nova.
+                string epicGroup = ""; int epicGroupId = 0;
                 var cur = storyId; var guard = 0;
                 while (nodeParent.TryGetValue(cur, out var par) && par > 0 && guard++ < 8)
                 {
@@ -1131,19 +1142,23 @@ namespace NXProject.Services
                                   : featureOwner.TryGetValue(par, out var ow2) ? ow2 : "";
                     }
                     else if (IsBoardEpicType(t) && epicId == 0) { epic = title; epicId = par; epicState = state; }
+                    else if (IsBoardEpicType(t) && epicGroupId == 0) { epicGroup = title; epicGroupId = par; }
                     else if (IsBoardProjectType(t) && projId == 0) { proj = title; projId = par; projState = state; }
                     cur = par;
                 }
-                return (feat, featId, featOwner, featState, epic, epicId, epicState, proj, projId, projState);
+                return (feat, featId, featOwner, featState, epic, epicId, epicState, proj, projId, projState,
+                        epicGroup, epicGroupId);
             }
 
             foreach (var kv in storyParent)
                 if (storyById.TryGetValue(kv.Key, out var st))
                 {
-                    var (featT, featI, featO, featS, epicT, epicI, epicS, projT, projI, projS) = ResolveAncestry(kv.Key);
+                    var (featT, featI, featO, featS, epicT, epicI, epicS, projT, projI, projS, grpT, grpI)
+                        = ResolveAncestry(kv.Key);
                     st.FeatureId = featI; st.FeatureTitle = featT; st.FeatureAssignedTo = featO; st.FeatureState = featS;
                     st.FeatureEpicTitle = epicT; st.FeatureEpicId = epicI; st.FeatureEpicState = epicS;
                     st.FeatureProjectTitle = projT; st.FeatureProjectId = projI; st.FeatureProjectState = projS;
+                    st.FeatureEpicGroupTitle = grpT; st.FeatureEpicGroupId = grpI;
                     st.FeatureIterationPath = nodeIter.TryGetValue(featI, out var fit) ? fit : "";
                     st.FeatureOutOfSprint = featI > 0 && !InSprintScope(st.FeatureIterationPath);
                     st.FeatureRank = nodeRank.TryGetValue(featI, out var frk) ? frk : double.NaN;
@@ -1177,12 +1192,13 @@ namespace NXProject.Services
                     IterationPath = nodeIter.TryGetValue(pid, out var pii) ? pii : "",
                     OutOfSprint = true
                 };
-                var (pFeatT, pFeatI, pFeatO, pFeatS, pEpicT, pEpicI, pEpicS, pProjT, pProjI, pProjS)
+                var (pFeatT, pFeatI, pFeatO, pFeatS, pEpicT, pEpicI, pEpicS, pProjT, pProjI, pProjS, pGrpT, pGrpI)
                     = ResolveAncestry(pid);
                 promoted.FeatureId = pFeatI; promoted.FeatureTitle = pFeatT;
                 promoted.FeatureAssignedTo = pFeatO; promoted.FeatureState = pFeatS;
                 promoted.FeatureEpicId = pEpicI; promoted.FeatureEpicTitle = pEpicT; promoted.FeatureEpicState = pEpicS;
                 promoted.FeatureProjectId = pProjI; promoted.FeatureProjectTitle = pProjT; promoted.FeatureProjectState = pProjS;
+                promoted.FeatureEpicGroupTitle = pGrpT; promoted.FeatureEpicGroupId = pGrpI;
                 promoted.FeatureRank = nodeRank.TryGetValue(pFeatI, out var pfr) ? pfr : double.NaN;
                 promoted.FeatureEpicRank = nodeRank.TryGetValue(pEpicI, out var per) ? per : double.NaN;
                 promoted.FeatureProjectRank = nodeRank.TryGetValue(pProjI, out var ppr) ? ppr : double.NaN;
@@ -1212,7 +1228,7 @@ namespace NXProject.Services
                     row.FeatureState = nodeState.TryGetValue(pid, out var pst) ? pst : "";
                     row.FeatureRank = nodeRank.TryGetValue(pid, out var prk2) ? prk2 : double.NaN;
                 }
-                var (_, _, _, _, oEpic, oEpicId, oEpicS, oProj, oProjId, oProjS) = ResolveAncestry(pid);
+                var (_, _, _, _, oEpic, oEpicId, oEpicS, oProj, oProjId, oProjS, _, _) = ResolveAncestry(pid);
                 row.FeatureEpicId = oEpicId; row.FeatureEpicTitle = oEpic; row.FeatureEpicState = oEpicS;
                 row.FeatureProjectId = oProjId; row.FeatureProjectTitle = oProj; row.FeatureProjectState = oProjS;
                 row.FeatureEpicRank = nodeRank.TryGetValue(oEpicId, out var oerk) ? oerk : double.NaN;
@@ -1223,7 +1239,7 @@ namespace NXProject.Services
             var levelItems = new System.Collections.Generic.List<SprintLevelItem>();
             foreach (var li in levelRaw)
             {
-                var (_, _, _, _, lEpic, lEpicId, lEpicS, lProj, lProjId, lProjS) = ResolveAncestry(li.Id);
+                var (_, _, _, _, lEpic, lEpicId, lEpicS, lProj, lProjId, lProjS, _, _) = ResolveAncestry(li.Id);
                 levelItems.Add(new SprintLevelItem(li.Id, li.Title, li.Kind, li.State, li.Who)
                 {
                     IterationPath = li.Iter, Tags = li.Tags,
@@ -2041,12 +2057,16 @@ namespace NXProject.Services
                         var createType = task.TfsType;
                         if (string.IsNullOrWhiteSpace(createType))
                         {
-                            createType = task.Parent?.TfsType switch
-                            {
-                                "Epic"    => "Feature",
-                                "Feature" => "User Story",
-                                _         => "User Story"
-                            };
+                            // Filho de um EPIC_GROUP e outro EPIC, nao uma Feature: o grupo
+                            // agrupa EPICs (Melhorias por sprint, por exemplo) e pular esse nivel
+                            // criaria entrega sem o EPIC que a explica.
+                            createType = EpicTypes.IsGroup(task.Parent?.EpicType) ? "Epic"
+                                : task.Parent?.TfsType switch
+                                {
+                                    "Epic"    => "Feature",
+                                    "Feature" => "User Story",
+                                    _         => "User Story"
+                                };
                             task.TfsType = createType;
                         }
 
@@ -2850,14 +2870,10 @@ namespace NXProject.Services
                             { next = s.TfsStackRank.Value; break; }
                         }
 
-                        if (prev.HasValue && next.HasValue && next.Value - prev.Value > 0.0)
-                            desired = prev.Value + (next.Value - prev.Value) / 2.0; // encaixa no meio
-                        else if (prev.HasValue)
-                            desired = prev.Value + 1000.0;                          // encadeia após o anterior
-                        else if (next.HasValue)
-                            desired = next.Value - 1000.0;                          // antes do primeiro com rank
-                        else
-                            desired = 1000000000.0;                                 // grupo sem nenhum rank
+                        // Encaixa entre os vizinhos: meio quando há os dois, senão encadeia.
+                        // A regra mora no BacklogOrderService porque é a MESMA ideia que o
+                        // GitProject aplica movendo item na view — só muda a aritmética.
+                        desired = BacklogOrderService.NextRank(prev, next);
                     }
 
                     child.TfsStackRank = desired;
@@ -3272,9 +3288,10 @@ namespace NXProject.Services
             return string.Equals(normalized, "MarcoDevops", StringComparison.OrdinalIgnoreCase);
         }
 
+        // O marco do NXProject e um tipo proprio e continua entrando aqui: ele e Task para todos
+        // os efeitos de cronograma, so com duracao zero.
         private static bool IsTaskType(string? type) =>
-            string.Equals(type, "Task", StringComparison.OrdinalIgnoreCase) ||
-            IsDevOpsMilestoneType(type);
+            NxLevelMap.Current.Is(type, NxLevel.Task) || IsDevOpsMilestoneType(type);
 
         private static bool IsEpicOrFeatureType(string? type) =>
             string.Equals(type, "Epic", StringComparison.OrdinalIgnoreCase) ||
@@ -3475,12 +3492,18 @@ namespace NXProject.Services
                 bool first = true;
                 foreach (var fd in classificationFields.Where(f => !string.IsNullOrWhiteSpace(f.Field)))
                 {
-                    // Valor: dict por campo → TfsClassification (só para o primeiro campo, compat) → TfsType
+                    // Valor, do mais especifico ao mais generico: o que esta no item → a
+                    // classificacao dele (so o primeiro campo, compat) → o PADRAO configurado →
+                    // o tipo do work item. O tipo e o ultimo recurso de proposito: a picklist
+                    // raramente aceita "User Story" como valor, e a criacao falhava por um
+                    // valor que ninguem escolheu.
                     string classValue;
                     if (task.CustomDevopsFieldValues.TryGetValue(fd.Field, out var dictVal) && !string.IsNullOrWhiteSpace(dictVal))
                         classValue = dictVal;
                     else if (first && !string.IsNullOrWhiteSpace(task.TfsClassification))
                         classValue = task.TfsClassification;
+                    else if (!string.IsNullOrWhiteSpace(fd.DefaultValue))
+                        classValue = fd.DefaultValue!.Trim();
                     else
                         classValue = task.TfsType ?? "";
                     ops.Add(PatchAdd($"/fields/{fd.Field}", classValue));
@@ -5090,17 +5113,22 @@ namespace NXProject.Services
             return sb.ToString();
         }
 
+        // Os tres reconhecimentos de nivel abaixo liam nome fixo no codigo. Agora perguntam ao
+        // <see cref="NxLevelMap"/>, que e configuravel: quem batizou o tipo de "Iniciativa" ou
+        // "Produto" deixa de precisar de recompilacao. Os nomes de fabrica do mapa sao os mesmos
+        // que estavam aqui, entao quem nao configurar nada nao ve diferenca.
+
         /// <summary>Tipo de nível Feature para a coluna Feature do board.</summary>
         public static bool IsBoardFeatureType(string? type) =>
-            NormalizeTypeName(type) is "feature" or "funcionalidade";
+            NxLevelMap.Current.Is(type, NxLevel.Feature);
 
         /// <summary>Tipo de nível EPIC para a coluna EPIC do board.</summary>
         public static bool IsBoardEpicType(string? type) =>
-            NormalizeTypeName(type) is "epic" or "epico";
+            NxLevelMap.Current.Is(type, NxLevel.Epic);
 
         /// <summary>Tipo do work item "Project" (container do portfólio) para a coluna Projeto.</summary>
         public static bool IsBoardProjectType(string? type) =>
-            NormalizeTypeName(type) is "project" or "projeto";
+            NxLevelMap.Current.Is(type, NxLevel.Project);
 
         /// <summary>Tipo EPIC (o campo EPIC_TYPE só existe nesse nível).</summary>
         public static bool IsEpicType(string? type)
@@ -8614,13 +8642,10 @@ namespace NXProject.Services
                 (technical.Length == 0 ? string.Empty : $"\n\n{technical.ToString().TrimEnd()}");
         }
 
+        // Mesma mudanca dos tipos de board: o nivel Story sai do mapa configuravel. Os nomes de
+        // fabrica cobrem os processos Agile, Scrum e CMMI, como a lista fixa cobria.
         private static bool IsStoryType(string? type) =>
-            string.Equals(type, "Story", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "User Story", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "Product Backlog Item", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "Requirement", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "Historia de Usuario", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "História de Usuário", StringComparison.OrdinalIgnoreCase);
+            NxLevelMap.Current.Is(type, NxLevel.Story);
 
         /// <summary>
         /// Ordena as sprints por inicio, atribui numeros sequenciais (1..N) e,
@@ -9061,11 +9086,25 @@ namespace NXProject.Services
                 string.Equals(state, "Done",      StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(state, "Completed", StringComparison.OrdinalIgnoreCase));
 
+        /// <summary>
+        /// Os estados de aberto/encerrado, expostos para teste: eles são a tradução do
+        /// vocabulário dos TRÊS processos do DevOps (Agile, Scrum e CMMI) para a única pergunta
+        /// que o NXProject faz — "ainda tem trabalho aqui?".
+        /// </summary>
+        public static bool IsOpenStatePublic(string? state) => IsOpenState(state);
+        public static bool IsCompletedStatePublic(string? state) => IsCompletedState(state);
+
+        // Os estados de ABERTO cobrem os tres processos do DevOps, e nao so o Agile: "Approved"
+        // e do Scrum, "Proposed" do CMMI. Sem eles, uma Task nesses estados nao contaria como
+        // aberta — e a Story encerrada com trabalho pendente passaria batida.
         private static bool IsOpenState(string? state) =>
             state != null && (
                 string.Equals(state, "Active",      StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(state, "New",         StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(state, "In Progress", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "To Do",       StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "Approved",    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, "Proposed",    StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(state, "Committed",   StringComparison.OrdinalIgnoreCase));
 
         /// <summary>

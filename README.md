@@ -4,11 +4,18 @@
 
 # NXProject Community
 
-**Management visibility over Azure DevOps — without changing anything in the technical team's workflow.**
+**Management visibility over Azure DevOps and GitHub Projects — without changing anything in the technical team's workflow.**
+
+> **New in 1.2:** besides Azure DevOps, NXProject now imports, boards and syncs against
+> **GitHub Projects**. See [GitHub Projects integration](#github-projects-integration-new-in-12).
 
 NXProject lets Tech Leads, Scrum Masters, Project Managers, and Business Stakeholders see the real project picture straight from Azure DevOps: schedule, dependencies, resource allocation, and Gantt chart — in a free Windows desktop application.
 
 The development team keeps working in Azure DevOps exactly as before: code traceability, pull requests, pipelines, and delivery quality remain untouched. NXProject reads that data and turns the backlog into a planning view that managers and leads can actually use to make decisions.
+
+
+> Feature documentation, with state and the decisions behind each one:
+> [Azure DevOps](features_devops.md) · [GitHub Projects](features_gitproject.md).
 
 ---
 
@@ -329,6 +336,57 @@ After adjusting dates, dependencies, and estimates in the schedule, NXProject sy
 On any linked task, the **"Open in DevOps ↗"** button opens the work item in the browser. The link window also shows the list of child Tasks with ID, name, and state — for quick reference without leaving NXProject.
 
 ---
+
+---
+
+## GitHub Projects integration (new in 1.2)
+
+From **version 1.2** NXProject also works against **GitHub Projects (Projects v2)**, not only Azure
+DevOps. Teams that live on GitHub — and have neither a DevOps licence nor the appetite for one —
+get the same thing: schedule with calculated dates, resource allocation and a board that respects
+the backlog hierarchy. GitHub Projects is free on public and private repositories, personal or
+organization, so the cost of adopting NXProject drops to zero for them.
+
+### What works against GitHub
+
+| | |
+|---|---|
+| **Import** | Whole board or a sub-tree from a root issue; hierarchy from sub-issues, dates and hours from project fields, sprint from the iteration field |
+| **TaskBoard** | Columns come from the project's own `Status`, not from a fixed set |
+| **Sync back** | Dates, hours, percentage, issue state (100% closes, resuming reopens), assignee, labels, new items and **backlog order** |
+| **Hierarchy** | GitHub validates nothing, so NXProject does: an item outside Project → Epic → Feature → Story → Task is refused **before** anything is written |
+| **Concurrency** | `Sync_version` mirrors the server's own revision (`updatedAt`), so an edit made **in GitHub's own UI** is detected too — and the warning names who did it |
+| **Blocked-time audit** | Rebuilt from the issue timeline (label in/out, with time and author) |
+| **Attachments** | GitHub has no item-attachment API: the file is versioned in the issue's repository, under a folder tree that mirrors the backlog, with the link posted on the item |
+
+### Fields: NXProject creates them for you
+
+NXProject needs a few fields to store planning data. **You do not have to create them by hand on
+either side:**
+
+- **GitHub Projects** — in NXProject, open **Import → Configure Fields and Tags → GitProject tab**
+  and press **Create board fields**. It creates what is missing with the correct type (number for
+  hours, date for dates, single-select for `card_type`), plus your classification fields. Creating
+  a field on GitHub does **not** require organization-admin rights — only access to the project.
+- **Azure DevOps** — the **NXProject-Setup** installer detects what is missing in the process and
+  creates it (this one does require *Project Collection Administrator*, because it touches the
+  process). The same screen inside NXProject lets you rename any field to match what your
+  organization already uses.
+
+Both sides share one field catalogue and one level map, so a field or type renamed in your
+organization is a configuration change, not a code change.
+
+### Token for GitHub
+
+A **classic** token with the `repo` and `project` scopes. The configuration screen explains the
+scope tree, the two common mistakes (`repo:invite` is not enough; fine-grained tokens do not expose
+the Projects permission for personal-account boards) and the organization alternative that avoids
+granting code access. The token is encrypted by Windows (DPAPI), never stored in plain text.
+
+> **Azure DevOps processes:** tested in production with **Agile**. Scrum and CMMI are handled in
+> the code (order via `BacklogPriority`, the `Product Backlog Item` and `Requirement` types, the
+> `Approved`/`Committed`/`Proposed` states), but have not yet been exercised against a real
+> server. Details in [features_devops.md](features_devops.md#processos-agile-é-o-que-foi-testado).
 
 ## Usability
 

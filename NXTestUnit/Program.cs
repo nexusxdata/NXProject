@@ -42,11 +42,46 @@ internal static class Program
         ("Recursos: Strings.*.xaml nao tem x:Key duplicada (evita crash no load)", StringsHaveNoDuplicateResourceKeys),
         ("Board local: cronograma vira board com Story, Task e niveis", LocalBoardProjectsScheduleIntoBoard),
         ("Board local: sprint e identificada pelo IterationPath, nao pelo nome", LocalBoardSprintUsesIterationPath),
+        ("GitProject: projeto vira board com hierarquia, sprint e HH", GitProjectBoardProjectsIntoBoard),
+        ("GitProject: nivel sai do tipo, do campo ou da posicao na arvore", GitProjectLevelFallsBackToTreePosition),
+        ("GitProject: sprint vem da iteracao com fim inclusivo", GitProjectIterationEndIsInclusive),
+        ("GitProject: nome do campo casa por apelido (nx_, ingles e portugues)", GitProjectFieldNamesMatchByAlias),
+        ("GitProject: colunas saem do Status do projeto, nao de um conjunto fixo", GitProjectColumnsComeFromProjectStatus),
+        ("Sync GitProject: hierarquia invalida e recusada ANTES de gravar", GitSyncRefusesInvalidHierarchy),
+        ("Sync GitProject: item alterado no GitHub vira conflito e nao e gravado", GitSyncConflictSkipsItem),
+        ("Sync GitProject: so grava o que mudou, com fim inclusivo", GitSyncWritesOnlyChangedWithInclusiveFinish),
+        ("Sync GitProject: 100% fecha a issue; voltar a andar reabre", GitSyncClosesAndReopensIssue),
+        ("Sync GitProject: ordem do backlog e board sem controle de versao viram aviso", GitSyncWarnsAboutOrderAndVersioning),
+        ("Sync GitProject: item novo sem repositorio nao e criado (erro claro)", GitSyncNeedsRepositoryToCreate),
+        ("Niveis: tipo customizado ('Iniciativa') passa a ser reconhecido sem recompilar", LevelMapRecognizesCustomTypeName),
+        ("Niveis: nivel desligado e pulado na validacao de hierarquia", LevelMapSkipsDisabledLevel),
+        ("Niveis: mesmo nome em dois niveis e apontado como ambiguidade", LevelMapDetectsAmbiguity),
+        ("EPIC_GROUP: agrupa EPICs e so entra sob o Work Item Project", EpicGroupIsTheOnlyEpicUnderEpic),
+        ("EPIC_GROUP: sob o grupo so vem EPIC, e grupo nao aninha em grupo", EpicGroupRefusesFeatureAndNesting),
+        ("EPIC_GROUP: arrasto move EPIC para dentro e para fora do grupo", DragDropMovesEpicIntoGroup),
+        ("Ordem: a ordem desejada e a da arvore do cronograma", OrderDesiredFollowsScheduleTree),
+        ("Ordem: move so o que esta fora de lugar (e nao a fila inteira)", OrderMovesOnlyWhatIsOutOfPlace),
+        ("Ordem: item do servidor fora do cronograma fica onde esta", OrderLeavesForeignItemsAlone),
+        ("Ordem: rank do DevOps encaixa ENTRE os vizinhos (mesma regra do move)", OrderRankFitsBetweenNeighbours),
+        ("BLOCK GitProject: timeline de label vira periodos de bloqueio", GitBlockRebuildsPeriodsFromTimeline),
+        ("BLOCK GitProject: bloqueio em aberto NAO e fechado em 'agora'", GitBlockOpenPeriodStaysOpen),
+        ("BLOCK GitProject: saida orfa e label de outro assunto sao ignoradas", GitBlockIgnoresOrphanAndOtherLabels),
+        ("Responsavel GitProject: login gravado no recurso manda sobre o nome", GitAssigneeUsesStoredLogin),
+        ("Responsavel GitProject: nome ambiguo ou sem conta vira aviso, nunca palpite", GitAssigneeRefusesToGuess),
+        ("Versao GitProject: edicao pela tela do GitHub (updatedAt) vira conflito", GitRevisionDetectsServerEdit),
+        ("Versao GitProject: revisao cabe no campo int e preserva a ordem no tempo", GitRevisionFitsAndKeepsOrder),
+        ("Adm_NX GitProject: lista de logins autoriza so quem esta nela", GitAdminListAuthorizes),
+        ("Adm_NX GitProject: time da organizacao usa os membros; falha tecnica NAO bloqueia", GitAdminTeamAndFailOpen),
+        ("Anexo GitProject: caminho e tipo_numero por nivel, sem titulo", GitAttachmentPathMirrorsHierarchy),
+        ("Anexo GitProject: renomear o item NAO muda o caminho do anexo", GitAttachmentReusesFolderAfterRename),
+        ("Campos DevOps: padrao PT usa campo proprio, EN usa o nativo quando existe", FieldNamingDefaultsPerLanguage),
         ("Capacidades: cada destino diz o que sabe fazer (sem if por nome)", BackendCapabilitiesPerKind),
         ("WIQL: clausulas do editor voltam para o mesmo WIQL", WiqlModelRoundTripsClauses),
         ("WIQL: WHERE com parenteses nao vira editor visual", WiqlModelRefusesParentheses),
         ("Prioridade: faixa central (config/descoberta) clampa e cicla corretamente", TaskPriorityRangeResolvesAndClamps),
         ("TaskBoard: colunas de estado na ordem canonica (desconhecido ao fim)", TaskboardStatesAreOrderedCanonically),
+        ("Processos DevOps: estados de Agile, Scrum e CMMI sao reconhecidos", DevOpsProcessStatesAreRecognized),
+        ("Idioma: mensagem de servico sai em PT ou EN conforme o idioma do app", ServiceMessagesFollowLanguage),
         ("TaskBoard: tag Doing/Done troca preservando as demais (andamento)", DoingTagMergePreservesOtherTags),
         ("TaskBoard: estado da Story incoerente com as Tasks vira alerta", StoryStateAlertCatchesMismatchWithTasks),
         ("Import TFS: task fechada nao dobra HH Original dentro do HH Atual", ClosedTaskDoesNotDoubleOriginalIntoCurrent),
@@ -140,6 +175,369 @@ internal static class Program
         ("IA Chat: historico por cronograma respeita limite e 0=infinito", AiChatHistoryPersistsPerProjectWithLimit)
     ];
 
+    /// <summary>
+    /// Mede, no board de verdade, se a ordem do backlog volta: move um item para o topo, rele a
+    /// ordem, confere, e DEVOLVE o item para onde estava.
+    ///
+    /// Tres perguntas, nesta ordem, porque uma so importa se a anterior passar:
+    ///   1. a mutation de posicao existe e e aceita pelo token?
+    ///   2. a leitura seguinte reflete a posicao nova?
+    ///   3. o efeito persiste (nao e so a resposta da mutation dizendo que sim)?
+    /// </summary>
+    private static async System.Threading.Tasks.Task<int> ProbeGitProjectOrder()
+    {
+        Console.WriteLine("NXTestUnit - sonda da ordem no GitHub Projects");
+        Console.WriteLine();
+
+        var git = NXProject.Services.TfsConnectionStore.Load("NXProject.Community").GitProject;
+        if (git?.IsConfigured != true)
+        {
+            Console.WriteLine("[SKIP] Conexao do GitProject nao configurada nesta maquina.");
+            return 0;
+        }
+
+        var cliente = new NXProject.Services.GitProjectClient(git);
+        var antes = await cliente.LoadAsync();
+        Console.WriteLine($"Board '{antes.Title}': {antes.Items.Count} item(ns) legivel(is), "
+            + $"{antes.InaccessibleItems} inacessivel(is) ao token, {antes.Fields.Count} campo(s).");
+
+        // A ordem e dos ITENS DO BOARD: os ids vem mesmo quando o token nao abre as issues.
+        // Medir por id e o que permite sondar sem depender do escopo 'repo'.
+        var ids = await cliente.ListItemIdsAsync(antes.ProjectId);
+        Console.WriteLine($"{ids.Count} item(ns) na fila do board.");
+        if (ids.Count < 3)
+        {
+            Console.WriteLine("[SKIP] Menos de 3 itens: nao da para medir reordenacao.");
+            return 0;
+        }
+
+        static string Curto(string id) => id.Length <= 8 ? id : id[^8..];
+        string Ordem(IReadOnlyList<string> lista) => string.Join(" ", lista.Take(6).Select(Curto));
+
+        Console.WriteLine("Ordem ANTES:   " + Ordem(ids));
+
+        var alvo = ids[2];          // o terceiro vai para o topo
+        var posicaoOriginal = ids[1];
+        Console.WriteLine($"Movendo ...{Curto(alvo)} para o topo (afterId = null)...");
+        try
+        {
+            await cliente.MoveItemAsync(antes.ProjectId, alvo, null);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[FALHA] A mutation de posicao foi recusada: " + ex.Message);
+            Console.WriteLine();
+            Console.WriteLine("Conclusao: a ordem NAO pode ser gravada com este token/board.");
+            return 1;
+        }
+
+        var depois = await cliente.ListItemIdsAsync(antes.ProjectId);
+        Console.WriteLine("Ordem DEPOIS:  " + Ordem(depois));
+
+        var noTopo = depois.Count > 0 && depois[0] == alvo;
+        var mudou = !depois.SequenceEqual(ids);
+
+        Console.WriteLine();
+        Console.WriteLine("1) mutation aceita ................ SIM");
+        Console.WriteLine("2) item aparece no topo na releitura " + (noTopo ? "SIM" : "NAO"));
+        Console.WriteLine("3) a ordem lida mudou ............. " + (mudou ? "SIM" : "NAO"));
+
+        // Segunda rodada: mover para o MEIO, que e o caso real do sync (cada item depois do
+        // irmao anterior). Topo funcionar e meio nao seria a fragilidade que o plano temia.
+        var segundoAlvo = depois.Count > 4 ? depois[4] : depois[^1];
+        var ancora = depois[1];
+        Console.WriteLine($"Movendo ...{Curto(segundoAlvo)} para depois de ...{Curto(ancora)}...");
+        var meioOk = false;
+        try
+        {
+            await cliente.MoveItemAsync(antes.ProjectId, segundoAlvo, ancora);
+            var terceira = await cliente.ListItemIdsAsync(antes.ProjectId);
+            Console.WriteLine("Ordem DEPOIS2: " + Ordem(terceira));
+            var i = terceira.IndexOf(ancora);
+            meioOk = i >= 0 && i + 1 < terceira.Count && terceira[i + 1] == segundoAlvo;
+            Console.WriteLine("4) posicionou logo apos a ancora .. " + (meioOk ? "SIM" : "NAO"));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("4) posicionou logo apos a ancora .. ERRO: " + ex.Message);
+        }
+
+        // A sonda grava num board de verdade e nao pode deixa-lo diferente de como o encontrou.
+        // Restaurar so os itens movidos nao basta: mover um empurra os outros. Reafirma-se a fila
+        // INTEIRA, cada item depois do anterior — e isso tambem mede o custo real de gravar ordem.
+        try
+        {
+            var relogio = System.Diagnostics.Stopwatch.StartNew();
+            for (var i = 1; i < ids.Count; i++)
+                await cliente.MoveItemAsync(antes.ProjectId, ids[i], ids[i - 1]);
+            relogio.Stop();
+            var final = await cliente.ListItemIdsAsync(antes.ProjectId);
+            Console.WriteLine("Ordem RESTAURADA: " + Ordem(final));
+            Console.WriteLine($"Fila inteira reescrita: {ids.Count - 1} mutation(s) em "
+                + $"{relogio.Elapsed.TotalSeconds:0.0}s ({relogio.ElapsedMilliseconds / Math.Max(1, ids.Count - 1)} ms por item).");
+            Console.WriteLine(final.SequenceEqual(ids)
+                ? "Board devolvido exatamente como estava."
+                : "[AVISO] A ordem final difere da original.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[AVISO] Nao consegui restaurar a ordem original: " + ex.Message);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(noTopo && meioOk
+            ? "Conclusao: a ordem E gravavel, no topo e no meio, e a leitura a reflete."
+            : noTopo
+                ? "Conclusao: topo funciona; posicionar no MEIO nao se confirmou."
+                : mudou
+                    ? "Conclusao: a mutation faz efeito, mas a leitura nao devolve a ordem esperada."
+                    : "Conclusao: mutation aceita e nada muda na leitura — ordem nao observavel por aqui.");
+        return 0;
+    }
+
+    /// <summary>
+    /// POC dos tres buracos do conector do GitHub, medidos e nao supostos:
+    ///
+    ///   1. **Auditoria de BLOCK** — no DevOps ela vem de `/updates`. Aqui a pergunta e se a
+    ///      timeline da issue devolve quando a label de bloqueio ENTROU e SAIU, com hora e autor.
+    ///   2. **Anexos** — o GitHub nao tem API de anexo de item. A pergunta e qual o melhor
+    ///      substituto: arquivo versionado no repositorio + link no comentario.
+    ///   3. **Responsavel** — a pergunta nao e a mutation, e se da para casar a pessoa do
+    ///      cronograma com uma conta do GitHub sem adivinhar.
+    ///
+    /// Tudo o que escreve e desfeito no fim.
+    /// </summary>
+    private static async System.Threading.Tasks.Task<int> ProbeGitProjectGaps(string tokenOverride)
+    {
+        Console.WriteLine("NXTestUnit - POC: BLOCK, anexos e responsavel no GitHub");
+        Console.WriteLine();
+
+        var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        var git = cfg.GitProject;
+        if (git?.IsConfigured != true)
+        {
+            Console.WriteLine("[SKIP] Conexao do GitProject nao configurada nesta maquina.");
+            return 0;
+        }
+
+        if (!string.IsNullOrWhiteSpace(tokenOverride))
+        {
+            git = git.Clone();
+            git.Token = tokenOverride.Trim();
+            Console.WriteLine("(usando o token passado por argumento; nada foi gravado na configuracao)");
+        }
+
+        var cliente = new NXProject.Services.GitProjectClient(git);
+
+        // Quem e o token e o que ele pode — ANTES de concluir qualquer coisa sobre o board.
+        // Board vazio e token sem escopo parecem a mesma coisa de longe, e so esta linha separa.
+        var (quem, escopos) = await cliente.WhoAmIAsync();
+        Console.WriteLine($"Token: {quem} | escopos: {escopos}");
+
+        var snap = await cliente.LoadAsync();
+        Console.WriteLine($"Board '{snap.Title}': {snap.Items.Count} item(ns) legivel(is), "
+            + $"{snap.InaccessibleItems} inacessivel(is) ao token.");
+        if (snap.Items.Count == 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("[BLOQUEADO] O token nao abre as issues deste board (escopo 'repo').");
+            Console.WriteLine("As tres perguntas desta POC sao sobre a ISSUE (timeline, comentario,");
+            Console.WriteLine("responsavel), entao nenhuma pode ser respondida com este token.");
+            Console.WriteLine($"Escopos deste token: {escopos}.");
+            // 'repo:invite' e a armadilha: o nome parece dar acesso ao repositorio, mas trata so
+            // de convites de colaboracao. Quem marca as subcaixas em vez da caixa do topo acaba
+            // com um token que le o board e nao le nenhuma issue.
+            if (escopos.Contains("repo:invite") && !escopos.Split(',').Any(x => x.Trim() == "repo"))
+                Console.WriteLine("ATENCAO: 'repo:invite' NAO da acesso as issues — e so convite de "
+                    + "colaboracao. Marque a caixa 'repo' do TOPO (Full control of private repositories).");
+            Console.WriteLine("Gere um token classico com 'project' + 'repo' e rode de novo:");
+            Console.WriteLine("   dotnet run --project NXTestUnit -c Release -- gitpoc");
+            Console.WriteLine();
+            Console.WriteLine("Enquanto isso, mede-se o que NAO depende do repositorio privado: a");
+            Console.WriteLine("FORMA da API, em dado publico. Isso separa 'o GitHub nao sabe fazer'");
+            Console.WriteLine("de 'este token nao pode' — que sao problemas bem diferentes.");
+            Console.WriteLine();
+            await MedeEmDadoPublico(cliente);
+            return 2;
+        }
+
+        var issue = snap.Items[0];
+        // O repositorio sai da propria issue quando nao esta configurado: o board e uma visao
+        // sobre issues de varios repos, e o dado ja diz onde cada uma vive.
+        var nomeRepo = git.Repository;
+        if (string.IsNullOrWhiteSpace(nomeRepo))
+        {
+            nomeRepo = await cliente.IssueRepositoryAsync(issue.IssueId);
+            if (!string.IsNullOrWhiteSpace(nomeRepo))
+                Console.WriteLine($"(repositorio deduzido da issue: {nomeRepo})");
+        }
+        var repo = (nomeRepo ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
+        Console.WriteLine($"Issue de teste: #{issue.Number} '{issue.Title}'.");
+        Console.WriteLine();
+        Console.WriteLine("0) QUEM ALTEROU POR ULTIMO (o Sync_Name vindo do servidor)");
+        foreach (var i in snap.Items.Take(5))
+            Console.WriteLine($"   #{i.Number} {i.UpdatedAt:dd/MM/yyyy HH:mm} por "
+                + (string.IsNullOrWhiteSpace(i.LastChangedBy) ? "(nao informado)" : i.LastChangedBy));
+        Console.WriteLine();
+
+        // ── 1. BLOCK ────────────────────────────────────────────────────────────────────
+        Console.WriteLine("1) AUDITORIA DE BLOCK");
+        try
+        {
+            // Nao basta ler timeline de issue alheia: o que interessa e o CICLO que o NXProject
+            // faria — bloquear, desbloquear e depois reconstruir o periodo. Entao a POC provoca
+            // os eventos e os apaga no fim.
+            var tag = "BLOCK-POC";
+            var antes = (await cliente.LabelHistoryAsync(issue.IssueId)).Count;
+            if (repo.Length == 2)
+            {
+                var (ok, erro) = await cliente.AddLabelAsync(repo[0], repo[1], issue.Number, tag);
+                if (!ok) Console.WriteLine("   [FALHA] nao consegui aplicar a label: " + erro);
+                else
+                {
+                    await cliente.RemoveLabelAsync(repo[0], repo[1], issue.Number, tag);
+                    Console.WriteLine($"   ciclo exercitado em #{issue.Number}: label aplicada e removida.");
+                }
+            }
+
+            var eventos = await cliente.LabelHistoryAsync(issue.IssueId);
+            Console.WriteLine($"   timeline lida: {eventos.Count} evento(s) de label ({antes} antes do teste).");
+            foreach (var e in eventos.TakeLast(6))
+                Console.WriteLine($"   {e.CreatedAt:dd/MM/yyyy HH:mm:ss}  {(e.Added ? "+" : "-")}{e.Label}  ({e.Actor})");
+
+            var entrada = eventos.LastOrDefault(e => e.Added && e.Label == tag);
+            var saida = eventos.LastOrDefault(e => !e.Added && e.Label == tag);
+            if (entrada != null && saida != null)
+            {
+                var duracao = saida.CreatedAt - entrada.CreatedAt;
+                Console.WriteLine($"   periodo de bloqueio reconstruido: {duracao.TotalSeconds:0.0}s "
+                    + $"({entrada.CreatedAt:HH:mm:ss} -> {saida.CreatedAt:HH:mm:ss}, por {entrada.Actor}).");
+                Console.WriteLine("   => DA para auditar BLOCK como no DevOps: entrada, saida, hora e autor.");
+            }
+            else
+                Console.WriteLine(eventos.Count > antes
+                    ? "   => a timeline registrou, mas nao devolveu o par entrada/saida da label de teste."
+                    : "   => a timeline nao registrou o ciclo.");
+
+            if (repo.Length == 2) await cliente.DeleteLabelAsync(repo[0], repo[1], tag);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("   [FALHA] " + ex.Message);
+        }
+
+        // ── 2. Anexos ───────────────────────────────────────────────────────────────────
+        Console.WriteLine();
+        Console.WriteLine("2) ANEXOS");
+        if (repo.Length != 2)
+            Console.WriteLine("   [SKIP] Repositorio nao configurado (dono/repo) na conexao do GitProject.");
+        else
+        {
+            try
+            {
+                var caminho = $"nxproject-anexos/poc-{DateTime.Now:yyyyMMddHHmmss}.txt";
+                var (ok, url, sha, erro) = await cliente.PutFileAsync(repo[0], repo[1], caminho,
+                    "POC do NXProject: anexo versionado no repositorio.", "NXProject POC (anexo)");
+                if (!ok)
+                {
+                    Console.WriteLine("   [FALHA] nao consegui versionar o arquivo: " + erro);
+                    Console.WriteLine("   => sem permissao de escrita no repositorio, anexo nao tem onde morar.");
+                }
+                else
+                {
+                    Console.WriteLine("   arquivo versionado: " + url);
+                    await cliente.DeleteFileAsync(repo[0], repo[1], caminho, sha, "NXProject POC (limpeza)");
+                    Console.WriteLine("   arquivo removido (a POC nao deixa sujeira).");
+                    Console.WriteLine("   => MELHOR CASO: anexo = arquivo no repositorio + link no item.");
+                    Console.WriteLine("      Versionado e com historico — mais do que o anexo do DevOps tem.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("   [FALHA] " + ex.Message);
+            }
+        }
+
+        // ── 3. Responsavel ──────────────────────────────────────────────────────────────
+        Console.WriteLine();
+        Console.WriteLine("3) RESPONSAVEL");
+        if (repo.Length != 2)
+            Console.WriteLine("   [SKIP] Repositorio nao configurado (dono/repo).");
+        else
+        {
+            try
+            {
+                var pessoas = await cliente.AssignableUsersAsync(repo[0], repo[1]);
+                Console.WriteLine($"   {pessoas.Count} conta(s) atribuivel(is) no repositorio:");
+                foreach (var (login, nome) in pessoas.Take(10))
+                    Console.WriteLine($"   {login}  ({(string.IsNullOrWhiteSpace(nome) ? "sem nome" : nome)})");
+
+                // A pergunta real: o nome do recurso do cronograma casa com alguma conta?
+                var comNome = pessoas.Count(p => !string.IsNullOrWhiteSpace(p.Name));
+                Console.WriteLine($"   contas com nome de exibicao preenchido: {comNome} de {pessoas.Count}.");
+                Console.WriteLine(comNome == pessoas.Count
+                    ? "   => DA para casar por nome; mesmo assim o mapa pessoa->conta tem de ser confirmado."
+                    : "   => parte das contas nao tem nome: casar so por nome erraria em silencio.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("   [FALHA] " + ex.Message);
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("POC concluida.");
+        return 0;
+    }
+
+    /// <summary>
+    /// Mede a forma da API em dado PUBLICO: responde "o GitHub sabe fazer isto?" sem depender de
+    /// permissao no repositorio do usuario. O que sobra para o token e so "voce pode?".
+    /// </summary>
+    private static async System.Threading.Tasks.Task MedeEmDadoPublico(NXProject.Services.GitProjectClient cliente)
+    {
+        Console.WriteLine("1) AUDITORIA DE BLOCK (forma da API, em issue publica)");
+        try
+        {
+            var (id, onde) = await cliente.AnyPublicLabeledIssueAsync("is:issue label:bug is:public sort:updated-desc");
+            if (string.IsNullOrEmpty(id)) { Console.WriteLine("   [SKIP] nenhuma issue publica encontrada."); }
+            else
+            {
+                var eventos = await cliente.LabelHistoryAsync(id);
+                Console.WriteLine($"   issue {onde}: {eventos.Count} evento(s) de label.");
+                foreach (var e in eventos.Take(4))
+                    Console.WriteLine($"   {e.CreatedAt:dd/MM/yyyy HH:mm}  {(e.Added ? "+" : "-")}{e.Label}  ({e.Actor})");
+                Console.WriteLine(eventos.Count > 0
+                    ? "   => A API DEVOLVE entrada/saida de label com hora e autor: a auditoria de"
+                      + " BLOCK e possivel, do mesmo jeito que o /updates do DevOps permite."
+                    : "   => a issue sorteada nao teve troca de label; forma confirmada, sem dado.");
+            }
+        }
+        catch (Exception ex) { Console.WriteLine("   [FALHA] " + ex.Message); }
+
+        Console.WriteLine();
+        Console.WriteLine("2) ANEXOS (forma da API)");
+        Console.WriteLine("   O GitHub NAO tem API de anexo de item: na tela o arquivo vai para um");
+        Console.WriteLine("   CDN pelo corpo do comentario, e esse caminho nao e automatizavel.");
+        Console.WriteLine("   O substituto e a API de conteudo do repositorio (PUT /contents), que");
+        Console.WriteLine("   versiona o arquivo e devolve link — ela exige escrita no repositorio,");
+        Console.WriteLine("   entao so da para confirmar com o token com escopo 'repo'.");
+
+        Console.WriteLine();
+        Console.WriteLine("3) RESPONSAVEL (forma da API, em repositorio publico)");
+        try
+        {
+            var pessoas = await cliente.AssignableUsersAsync("github", "docs");
+            Console.WriteLine($"   assignableUsers devolveu {pessoas.Count} conta(s) num repo publico.");
+            var comNome = pessoas.Count(p => !string.IsNullOrWhiteSpace(p.Name));
+            Console.WriteLine($"   com nome de exibicao preenchido: {comNome} de {pessoas.Count}.");
+            Console.WriteLine("   => A lista de candidatos EXISTE. O que falta nao e API: e o mapa");
+            Console.WriteLine("      pessoa do cronograma -> conta, que precisa ser confirmado por");
+            Console.WriteLine("      alguem. Casar so por nome erraria em silencio.");
+        }
+        catch (Exception ex) { Console.WriteLine("   [FALHA] " + ex.Message); }
+    }
+
     private static int Main(string[] args)
     {
         var category = args.Length > 0 ? args[0] : "schedule";
@@ -153,6 +551,19 @@ internal static class Program
                 args.Length > 1 ? args[1] : "",
                 args.Length > 2 ? args[2] : "",
                 args.Length > 3 ? args[3] : "").GetAwaiter().GetResult();
+        // Sonda da ordem no GitHub Projects. Fica FORA da suite normal porque GRAVA num board
+        // real: o plano pedia um prototipo que reordenasse e relesse, e supor fragilidade sem
+        // medir seria o oposto do que o resto deste arquivo faz.
+        if (string.Equals(category, "gitorder", StringComparison.OrdinalIgnoreCase))
+            return ProbeGitProjectOrder().GetAwaiter().GetResult();
+        // POC dos tres itens que o plano dava como "nao fazer": auditoria de BLOCK, anexos e
+        // responsavel. Mesma receita da sonda de ordem — medir no servidor de verdade, porque foi
+        // assim que a suposicao sobre a ordem caiu.
+        if (string.Equals(category, "gitpoc", StringComparison.OrdinalIgnoreCase))
+            // Token opcional por argumento: permite medir com um token de escopo maior SEM
+            // grava-lo na configuracao da maquina. O que e so para medir nao deve virar
+            // credencial persistida.
+            return ProbeGitProjectGaps(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))
             return DiagnoseXml(args.Length > 1 ? args[1] : "");
         _solutionRoot = args.Length > 1 ? args[1] : Directory.GetCurrentDirectory();
@@ -1060,6 +1471,65 @@ internal static class Program
     // sugerindo qualificar com a tela/fonte (ver ResourceKeyRegistry).
     // Crítico: as colunas do taskboard precisam sair na ordem de fluxo (New→Active→Resolved→
     // Closed…), com estados desconhecidos ao fim — senão o board fica ilegível.
+    /// <summary>
+    /// O NXProject foi exercitado em producao com o processo AGILE. Scrum e CMMI sao tratados no
+    /// codigo, e este teste guarda a parte que mais silenciosamente erraria: o vocabulario de
+    /// estados. "Approved" (Scrum) e "Proposed" (CMMI) ja passaram despercebidos uma vez.
+    /// </summary>
+    private static void DevOpsProcessStatesAreRecognized()
+    {
+        foreach (var aberto in new[] { "New", "Active", "In Progress",      // Agile
+                                       "Approved", "Committed", "To Do",     // Scrum
+                                       "Proposed" })                          // CMMI
+            if (!TfsImportService.IsOpenStatePublic(aberto))
+                throw new Exception($"'{aberto}' e estado de item ABERTO em algum dos processos do DevOps.");
+
+        foreach (var fechado in new[] { "Closed", "Resolved", "Done", "Completed" })
+            if (!TfsImportService.IsCompletedStatePublic(fechado))
+                throw new Exception($"'{fechado}' e estado de item ENCERRADO.");
+
+        // Nenhum estado pode ser as duas coisas, senao a Story encerrada com Task aberta nao
+        // seria detectada — ou toda Story viraria alerta.
+        foreach (var e in new[] { "New", "Active", "Approved", "Committed", "Proposed" })
+            if (TfsImportService.IsCompletedStatePublic(e))
+                throw new Exception($"'{e}' nao pode contar como encerrado.");
+
+        // As colunas do board aceitam o vocabulario do Scrum na ordem certa.
+        var colunas = TfsImportService.OrderTaskboardStates(new[] { "Done", "Committed", "Approved", "New" });
+        if (colunas[0] != "New" || colunas[1] != "Approved" || colunas[2] != "Committed" || colunas[3] != "Done")
+            throw new Exception("Colunas do Scrum fora de ordem: " + string.Join(" | ", colunas));
+    }
+
+    /// <summary>
+    /// As telas usam Strings.*.xaml; os SERVICOS (NXProject.Shared) nao enxergam esses arquivos, e
+    /// por isso todo aviso de import e de sync nascia fixo em portugues — inclusive para quem usa
+    /// o app em ingles. O NxText fecha essa fronteira.
+    /// </summary>
+    private static void ServiceMessagesFollowLanguage()
+    {
+        var anterior = NXProject.Services.NxText.Language;
+        try
+        {
+            NXProject.Services.NxText.Language = "pt-BR";
+            if (NXProject.Services.NxText.T("ola", "hello") != "ola")
+                throw new Exception("Em portugues, vale o texto PT.");
+            if (NXProject.Services.NxText.T("item {0} de {1}", "item {0} of {1}", 2, 5) != "item 2 de 5")
+                throw new Exception("Os parametros tem de ser formatados depois de escolher o idioma.");
+
+            NXProject.Services.NxText.Language = "en-US";
+            if (NXProject.Services.NxText.T("ola", "hello") != "hello")
+                throw new Exception("Em ingles, vale o texto EN.");
+            if (NXProject.Services.NxText.T("item {0} de {1}", "item {0} of {1}", 2, 5) != "item 2 of 5")
+                throw new Exception("A versao EN tambem tem de ser formatada.");
+
+            // Texto com chave desbalanceada nao pode derrubar a operacao: a mensagem e o menos
+            // importante quando algo ja deu errado.
+            if (NXProject.Services.NxText.T("{0 quebrado", "{0 broken", 1) != "{0 broken")
+                throw new Exception("Erro de formatacao deve devolver o modelo, nao lancar.");
+        }
+        finally { NXProject.Services.NxText.Language = anterior; }
+    }
+
     private static void TaskboardStatesAreOrderedCanonically()
     {
         var ordered = TfsImportService.OrderTaskboardStates(
@@ -1216,6 +1686,983 @@ internal static class Program
     /// atividade guarda a sua sprint. Com o nome, filtrar por sprint no modo local nao achava
     /// nada — e a sprint salva nao se reconhecia ao voltar para o DevOps.
     /// </summary>
+    /// <summary>
+    /// O projeto do GitHub vira board: Story como linha, sub-issue como card, os niveis acima nas
+    /// colunas e os campos do board (HH, datas) nos lugares certos. Sem rede: a projecao recebe
+    /// dados ja carregados, e e so isso que este teste exercita.
+    /// </summary>
+    /// <summary>
+    /// O nome do campo do board casa por APELIDO. E a falha mais silenciosa do conector: nome que
+    /// nao casa nao da erro nenhum, so devolve HH e datas em branco — e a suspeita cai no
+    /// mapeamento, nao no nome.
+    ///
+    /// Trava as tres formas que convivem: o prefixo nx_ (padrao novo), o nome padrao do DevOps
+    /// (Start Date, Finish Date, Original Estimate — o que a Task ja usa) e o nome em portugues
+    /// de quem montou o board copiando o vocabulario do DevOps.
+    /// </summary>
+    /// <summary>
+    /// O padrao de campos (PT x EN) nao e traducao: e escolher entre o campo PROPRIO do
+    /// NXProject e o campo NATIVO do processo do DevOps.
+    ///
+    /// A regra que este teste trava e a que evita o pior estrago: no padrao ingles so vira
+    /// nativo o que TEM nativo naquele tipo. Start Date e Finish Date existem na Task e na
+    /// Story; horas so na Task. Se o HH da Story virasse "nativo" sem existir, o NXProject
+    /// gravaria num campo inexistente; e se o inverso acontecesse na Task, a atividade acabaria
+    /// com duas datas de inicio — a nativa e a do NX — sem ninguem saber qual vale.
+    /// </summary>
+    private static void FieldNamingDefaultsPerLanguage()
+    {
+        var pt = NXProject.Services.NxDevOpsFieldCatalog.NxFieldNaming.Portuguese;
+        var en = NXProject.Services.NxDevOpsFieldCatalog.NxFieldNaming.English;
+        string Campo(string chave, string tipo, NXProject.Services.NxDevOpsFieldCatalog.NxFieldNaming n)
+            => NXProject.Services.NxDevOpsFieldCatalog.DefaultFieldFor(chave, tipo, n);
+
+        // Portugues: campo proprio do NX nos dois tipos.
+        if (Campo("start", "Task", pt) != "Data_Inicio" || Campo("start", "User Story", pt) != "Data_Inicio")
+            throw new Exception("No padrao PT a data de inicio deveria ser o campo proprio Data_Inicio.");
+        if (Campo("finish", "User Story", pt) != "Data_Fim")
+            throw new Exception("No padrao PT a data de fim deveria ser o campo proprio Data_Fim.");
+
+        // Ingles: nativo onde existe — inclusive na Story, que tem Start/Finish Date de fabrica.
+        if (Campo("start", "Task", en) != "Microsoft.VSTS.Scheduling.StartDate")
+            throw new Exception("No padrao EN a Task deveria usar o Start Date nativo.");
+        if (Campo("start", "User Story", en) != "Microsoft.VSTS.Scheduling.StartDate")
+            throw new Exception("No padrao EN a Story tambem deveria usar o Start Date nativo.");
+        if (Campo("finish", "User Story", en) != "Microsoft.VSTS.Scheduling.FinishDate")
+            throw new Exception("No padrao EN a Story deveria usar o Finish Date nativo.");
+        if (Campo("effort", "Task", en) != "Microsoft.VSTS.Scheduling.OriginalEstimate")
+            throw new Exception("No padrao EN o HH da Task deveria usar o Original Estimate nativo.");
+
+        // No DevOps o campo e do processo e so depois associado ao tipo: no padrao ingles a
+        // Story usa o MESMO Original Estimate da Task, em vez de um campo proprio para a mesma
+        // coisa. O Setup associa o nativo a Story quando ele ainda nao estiver la.
+        if (Campo("effort", "User Story", en) != "Microsoft.VSTS.Scheduling.OriginalEstimate")
+            throw new Exception("No padrao EN a Story deveria usar o mesmo Original Estimate da Task.");
+        if (Campo("effort", "User Story", pt) != "HH Estimado")
+            throw new Exception("No padrao PT a Story segue com o campo proprio de horas.");
+        if (!NXProject.Services.NxDevOpsFieldCatalog.HasStandardAlternative("effort", "User Story"))
+            throw new Exception("A Story deveria anunciar a alternativa nativa de horas.");
+        if (!NXProject.Services.NxDevOpsFieldCatalog.HasStandardAlternative("start", "User Story"))
+            throw new Exception("A Story tem Start Date nativo e deveria anunciar a alternativa.");
+
+        // O que e invencao do NX nao tem nativo em tipo nenhum: a combo nao decide nada ali.
+        foreach (var chave in new[] { "percAloc", "percConclusao", "syncVersion", "admGroup" })
+            foreach (var tipo in new[] { "Task", "User Story", "Feature", "Epic" })
+                if (NXProject.Services.NxDevOpsFieldCatalog.HasStandardAlternative(chave, tipo))
+                    throw new Exception($"'{chave}' nao tem equivalente nativo em {tipo}.");
+    }
+
+    /// <summary>
+    /// As colunas do board sao as opcoes do campo Status DO PROJETO, na ordem dele. Um projeto
+    /// com "Todo / In Progress / Done" nao pode abrir com as colunas New/Active/Closed do
+    /// NXProject — e foi assim que o conector se comportou no primeiro teste contra um projeto
+    /// real, misturando os dois conjuntos.
+    ///
+    /// Estado que aparece num item mas nao esta na lista entra no fim: card sem coluna some.
+    /// </summary>
+    // -- Sync do GitProject --------------------------------------------------------------
+    //
+    // Montam um board de mentira e conferem o PLANO: o que seria gravado e o que seria recusado.
+    // A decisao e separada da gravacao justamente para caber em teste sem rede.
+
+    private static (NXProject.Models.Project, NXProject.Models.ProjectTask) ProjetoComStory()
+    {
+        var story = new NXProject.Models.ProjectTask
+        {
+            Id = 2, Name = "Story A", TfsId = 20, TfsType = "User Story",
+            Start = new DateTime(2026, 3, 2), Finish = new DateTime(2026, 3, 6),
+            EstimatedHours = 16, PercentComplete = 50
+        };
+        var feature = new NXProject.Models.ProjectTask
+        { Id = 1, Name = "Feature A", TfsId = 10, TfsType = "Feature" };
+        feature.Children.Add(story);
+        var p = new NXProject.Models.Project { Name = "P" };
+        p.Tasks.Add(feature);
+        return (p, story);
+    }
+
+    private static Dictionary<int, NXProject.Services.GitProjectItem> Board(
+        params NXProject.Services.GitProjectItem[] itens) => itens.ToDictionary(i => i.Number);
+
+    private static void GitSyncRefusesInvalidHierarchy()
+    {
+        var (p, story) = ProjetoComStory();
+        // Task pendurada direto na Feature: o GitHub aceita, o NXProject nao.
+        var task = new NXProject.Models.ProjectTask
+        { Id = 3, Name = "Task solta", TfsId = 30, TfsType = "Task" };
+        p.Tasks[0].Children.Add(task);
+
+        var board = Board(
+            new NXProject.Services.GitProjectItem { Number = 10, IssueState = "OPEN" },
+            new NXProject.Services.GitProjectItem { Number = 20, IssueState = "OPEN" },
+            new NXProject.Services.GitProjectItem { Number = 30, IssueState = "OPEN" });
+
+        var plano = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+
+        if (plano.Updates.Any(o => o.Number == 30))
+            throw new Exception("Item em hierarquia invalida NAO pode receber gravacao.");
+        if (!plano.Errors.Any(e => e.Contains("Task solta")))
+            throw new Exception("A recusa tem de aparecer no relatorio, com o nome do item.");
+        if (!plano.Updates.Any(o => o.Number == 20))
+            throw new Exception("O item valido deve continuar sendo sincronizado.");
+        if (!NXProject.Services.GitProjectSyncService.HierarchyOk("Feature", "User Story")
+            || NXProject.Services.GitProjectSyncService.HierarchyOk("Feature", "Task"))
+            throw new Exception("A hierarquia aceita e pai imediatamente acima, nada mais.");
+        _ = story;
+    }
+
+    private static void GitSyncConflictSkipsItem()
+    {
+        var (p, story) = ProjetoComStory();
+        story.SyncVersion = 3;
+        var board = Board(
+            new NXProject.Services.GitProjectItem { Number = 10, IssueState = "OPEN" },
+            new NXProject.Services.GitProjectItem { Number = 20, IssueState = "OPEN", SyncVersion = 5 });
+
+        var plano = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+
+        if (!plano.Conflicts.Contains(story))
+            throw new Exception("Versao do board a frente da local tem de virar conflito.");
+        if (plano.Updates.Any(o => o.Number == 20))
+            throw new Exception("Item em conflito nao pode ter NENHUM campo gravado.");
+
+        // Mesma versao: ninguem mexeu depois, o sync segue.
+        board[20].SyncVersion = 3;
+        var plano2 = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+        if (plano2.Conflicts.Count > 0)
+            throw new Exception("Versao igual nao e conflito.");
+    }
+
+    private static void GitSyncWritesOnlyChangedWithInclusiveFinish()
+    {
+        var (p, story) = ProjetoComStory();
+        var item = new NXProject.Services.GitProjectItem
+        {
+            Number = 20, IssueState = "OPEN",
+            StartDate = new DateTime(2026, 3, 2),   // ja igual: nao deve ser regravado
+            FinishDate = new DateTime(2026, 3, 1),
+            Effort = 16,                            // ja igual
+            Percent = 10                            // diferente
+        };
+        var plano = NXProject.Services.GitProjectSyncService.Build(
+            p, Board(new NXProject.Services.GitProjectItem { Number = 10 }, item),
+            new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+
+        var doItem = plano.Updates.Where(o => o.Number == 20).ToList();
+        if (doItem.Any(o => o.Key == "start")) throw new Exception("Data igual nao deve ser regravada.");
+        if (doItem.Any(o => o.Key == "effort")) throw new Exception("HH igual nao deve ser regravado.");
+        if (!doItem.Any(o => o.Key == "percConclusao")) throw new Exception("Percentual diferente tem de ser gravado.");
+
+        var fim = doItem.FirstOrDefault(o => o.Key == "finish");
+        if (fim == null) throw new Exception("Fim diferente tem de ser gravado.");
+        // O motor guarda fim EXCLUSIVO (06/03); o board recebe o inclusivo (05/03).
+        if ((DateTime)fim.Value != new DateTime(2026, 3, 5))
+            throw new Exception("O fim gravado tem de ser o INCLUSIVO: " + fim.Value);
+        _ = story;
+    }
+
+    private static void GitSyncClosesAndReopensIssue()
+    {
+        var (p, story) = ProjetoComStory();
+        story.PercentComplete = 100;
+        var aberta = new NXProject.Services.GitProjectItem { Number = 20, IssueState = "OPEN", Percent = 100 };
+        var plano = NXProject.Services.GitProjectSyncService.Build(
+            p, Board(new NXProject.Services.GitProjectItem { Number = 10 }, aberta),
+            new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+        var fechar = plano.Updates.FirstOrDefault(o => o.Number == 20 && o.Key == "state");
+        if (fechar == null || (bool)fechar.Value != true)
+            throw new Exception("Atividade 100% tem de fechar a issue.");
+
+        // Voltou a andar: a issue fechada no GitHub nao pode ficar desmentindo o cronograma.
+        story.PercentComplete = 40;
+        var fechada = new NXProject.Services.GitProjectItem { Number = 20, IssueState = "CLOSED", Percent = 40 };
+        var plano2 = NXProject.Services.GitProjectSyncService.Build(
+            p, Board(new NXProject.Services.GitProjectItem { Number = 10 }, fechada),
+            new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+        var reabrir = plano2.Updates.FirstOrDefault(o => o.Number == 20 && o.Key == "state");
+        if (reabrir == null || (bool)reabrir.Value != false)
+            throw new Exception("Atividade abaixo de 100% com issue fechada tem de reabrir.");
+    }
+
+    private static void GitSyncWarnsAboutOrderAndVersioning()
+    {
+        var (p, _) = ProjetoComStory();
+        var board = Board(new NXProject.Services.GitProjectItem { Number = 10 },
+                          new NXProject.Services.GitProjectItem { Number = 20 });
+
+        var semControle = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions(), temControleDeVersao: false);
+        if (!semControle.Warnings.Any(w => w.Contains("concorr")))
+            throw new Exception("Board sem os campos de versao tem de avisar que nao ha controle.");
+        // Durante um tempo este teste exigia um aviso de "a ordem nao vai para o GitHub". A sonda
+        // `NXTestUnit gitorder` mediu o contrario: a mutation de posicao funciona no topo e no
+        // meio, e a releitura a reflete. O aviso saiu, e o que fica e a exigencia oposta — nao
+        // avisar algo que deixou de ser verdade.
+        if (semControle.Warnings.Any(w => w.Contains("ordem do backlog")))
+            throw new Exception("A ordem passou a ser gravada: nao deve mais haver aviso dizendo que nao vai.");
+
+        var comControle = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+        if (comControle.Warnings.Any(w => w.Contains("concorr")))
+            throw new Exception("Com os campos presentes, o aviso de concorrencia nao deve aparecer.");
+    }
+
+    private static void GitSyncNeedsRepositoryToCreate()
+    {
+        var (p, story) = ProjetoComStory();
+        var nova = new NXProject.Models.ProjectTask
+        { Id = 4, Name = "Task nova", TfsType = "Task" };     // sem TfsId: nasce no sync
+        story.Children.Add(nova);
+        var board = Board(new NXProject.Services.GitProjectItem { Number = 10 },
+                          new NXProject.Services.GitProjectItem { Number = 20 });
+
+        var sem = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions(), temControleDeVersao: true);
+        if (sem.Creates.Count != 0) throw new Exception("Sem repositorio nao da para criar issue.");
+        if (!sem.Errors.Any(e => e.Contains("reposit")))
+            throw new Exception("A falta do repositorio tem de ser dita, nao um item que some calado.");
+
+        var com = NXProject.Services.GitProjectSyncService.Build(
+            p, board, new NXProject.Services.GitProjectOptions { Repository = "dono/repo" },
+            temControleDeVersao: true);
+        if (!com.Creates.Contains(nova)) throw new Exception("Com repositorio, o item novo entra para criacao.");
+    }
+
+    // -- Mapa de niveis -------------------------------------------------------------------
+    //
+    // O mapa e estatico (NxLevelMap.Current) porque e consultado de metodos estaticos espalhados.
+    // Os testes o restauram no finally: deixar um mapa de teste publicado quebraria os seguintes.
+
+    private static void ComMapa(NXProject.Services.NxLevelMap mapa, Action corpo)
+    {
+        var anterior = NXProject.Services.NxLevelMap.Current;
+        NXProject.Services.NxLevelMap.Current = mapa;
+        try { corpo(); } finally { NXProject.Services.NxLevelMap.Current = anterior; }
+    }
+
+    private static void LevelMapRecognizesCustomTypeName()
+    {
+        var padrao = new NXProject.Services.NxLevelMap();
+        // De fabrica: os mesmos nomes que estavam presos no codigo, com acento e caixa livres.
+        if (padrao.LevelOf("epico") != NXProject.Services.NxLevel.Epic
+            || padrao.LevelOf("Épico") != NXProject.Services.NxLevel.Epic
+            || padrao.LevelOf("User Story") != NXProject.Services.NxLevel.Story)
+            throw new Exception("Os nomes de fabrica tem de continuar valendo (sem acento, sem caixa).");
+        if (padrao.LevelOf("Iniciativa") != null)
+            throw new Exception("'Iniciativa' nao e nome de fabrica de nenhum nivel.");
+
+        var mapa = new NXProject.Services.NxLevelMap();
+        mapa.Names[NXProject.Services.NxLevel.Project] = new List<string> { "Iniciativa", "Project" };
+        ComMapa(mapa, () =>
+        {
+            if (!NXProject.Services.TfsImportService.IsBoardProjectType("Iniciativa"))
+                throw new Exception("Tipo configurado tem de ser reconhecido pelo conector do DevOps.");
+            if (!NXProject.Services.GitProjectSyncService.HierarchyOk("Iniciativa", "Epic"))
+                throw new Exception("O mesmo mapa tem de valer para a hierarquia do GitProject.");
+        });
+    }
+
+    private static void LevelMapSkipsDisabledLevel()
+    {
+        var mapa = new NXProject.Services.NxLevelMap();
+        mapa.Disabled.Add(NXProject.Services.NxLevel.Feature);
+        ComMapa(mapa, () =>
+        {
+            if (!mapa.ParentChildOk("Epic", "User Story"))
+                throw new Exception("Com Feature desligada, o Epic passa a aceitar Story direto.");
+            if (mapa.ParentChildOk("Epic", "Feature"))
+                throw new Exception("Nivel desligado nao pode ser reconhecido como tipo.");
+            if (mapa.ParentChildOk("User Story", "Task") != true)
+                throw new Exception("O resto da hierarquia continua valendo.");
+        });
+
+        var semTask = new NXProject.Services.NxLevelMap();
+        semTask.Disabled.Add(NXProject.Services.NxLevel.Task);
+        if (!semTask.IsLeaf(NXProject.Services.NxLevel.Story))
+            throw new Exception("Sem o nivel Task, a folha passa a ser a Story.");
+        if (semTask.ParentChildOk("User Story", "Task"))
+            throw new Exception("Com Task desligada, nada pode ficar sob a Story.");
+    }
+
+    private static void LevelMapDetectsAmbiguity()
+    {
+        var mapa = new NXProject.Services.NxLevelMap();
+        mapa.Names[NXProject.Services.NxLevel.Feature] = new List<string> { "Feature", "Entrega" };
+        mapa.Names[NXProject.Services.NxLevel.Epic] = new List<string> { "Epic", "entrega" };
+        var ambiguas = mapa.Ambiguities();
+        if (ambiguas.Count == 0)
+            throw new Exception("O mesmo nome em dois niveis tem de ser apontado antes de salvar.");
+        if (new NXProject.Services.NxLevelMap().Ambiguities().Count != 0)
+            throw new Exception("O mapa de fabrica nao pode ter ambiguidade.");
+    }
+
+    // -- Ordem do backlog -----------------------------------------------------------------
+    //
+    // A ordem e a MESMA nos dois destinos; so muda como cada servidor a guarda (numero no Azure
+    // DevOps, posicao na view no GitHub). Por isso a regra e testada uma vez so, aqui.
+
+    private static NXProject.Models.ProjectTask Tar(int tfsId, string nome) =>
+        new() { Id = tfsId, Name = nome, TfsId = tfsId, TfsType = "User Story" };
+
+    private static void OrderDesiredFollowsScheduleTree()
+    {
+        var p = new NXProject.Models.Project { Name = "P" };
+        var f = new NXProject.Models.ProjectTask
+        { Id = 1, Name = "Feature", TfsId = 1, TfsType = "Feature" };
+        f.Children.Add(Tar(2, "A"));
+        f.Children.Add(Tar(3, "B"));
+        p.Tasks.Add(f);
+        p.Tasks.Add(Tar(4, "C"));
+        // Sem vinculo no servidor: nao tem posicao para ocupar.
+        p.Tasks.Add(new NXProject.Models.ProjectTask { Id = 9, Name = "Nova" });
+
+        var ordem = NXProject.Services.BacklogOrderService.DesiredOrder(p);
+        if (!ordem.SequenceEqual(new[] { 1, 2, 3, 4 }))
+            throw new Exception("A ordem desejada e a arvore achatada, pai antes dos filhos: "
+                + string.Join(",", ordem));
+    }
+
+    private static void OrderMovesOnlyWhatIsOutOfPlace()
+    {
+        var desejada = new[] { 1, 2, 3, 4, 5 };
+
+        // Ja na ordem: nenhum movimento. E o caso que mais acontece, e o que custa ~2s por item
+        // se alguem resolver reescrever a fila inteira.
+        if (NXProject.Services.BacklogOrderService.PlanMoves(desejada, new[] { 1, 2, 3, 4, 5 }).Count != 0)
+            throw new Exception("Fila ja correta nao pode gerar movimento nenhum.");
+
+        // Um item fora de lugar: um movimento so.
+        var movs = NXProject.Services.BacklogOrderService.PlanMoves(desejada, new[] { 1, 2, 4, 3, 5 });
+        if (movs.Count != 1 || movs[0].Id != 3 || movs[0].AfterId != 2)
+            throw new Exception("Deveria mover so o #3 para depois do #2: "
+                + string.Join(" | ", movs.Select(m => $"{m.Id} apos {m.AfterId}")));
+
+        // O plano, aplicado, tem de produzir a ordem desejada — senao ele estaria certo "por
+        // engano" num caso simples e errado nos outros.
+        var fila = new List<int> { 5, 4, 3, 2, 1 };
+        foreach (var m in NXProject.Services.BacklogOrderService.PlanMoves(desejada, fila))
+        {
+            fila.Remove(m.Id);
+            var destino = m.AfterId == 0 ? 0 : fila.IndexOf(m.AfterId) + 1;
+            fila.Insert(destino, m.Id);
+        }
+        if (!fila.SequenceEqual(desejada))
+            throw new Exception("Aplicar o plano tem de resultar na ordem desejada: " + string.Join(",", fila));
+    }
+
+    private static void OrderLeavesForeignItemsAlone()
+    {
+        // 90 e 91 sao de outra equipe no mesmo board: nao estao no cronograma.
+        var desejada = new[] { 1, 2, 3 };
+        var atual = new[] { 90, 2, 1, 91, 3 };
+        var movs = NXProject.Services.BacklogOrderService.PlanMoves(desejada, atual);
+        if (movs.Any(m => m.Id is 90 or 91 || m.AfterId is 90 or 91))
+            throw new Exception("Item que o cronograma nao conhece nao e nosso para reposicionar.");
+
+        var fila = atual.ToList();
+        foreach (var m in movs)
+        {
+            fila.Remove(m.Id);
+            var destino = m.AfterId == 0 ? 0 : fila.IndexOf(m.AfterId) + 1;
+            fila.Insert(destino, m.Id);
+        }
+        var nossos = fila.Where(n => n < 90).ToList();
+        if (!nossos.SequenceEqual(desejada))
+            throw new Exception("Os itens do cronograma tem de ficar na ordem dele: " + string.Join(",", fila));
+    }
+
+    private static void OrderRankFitsBetweenNeighbours()
+    {
+        var meio = NXProject.Services.BacklogOrderService.NextRank(1000, 2000);
+        if (meio <= 1000 || meio >= 2000)
+            throw new Exception("Com os dois vizinhos, o rank encaixa no MEIO — e so o item movido muda.");
+        if (NXProject.Services.BacklogOrderService.NextRank(1000, null) <= 1000)
+            throw new Exception("Sem proximo, encadeia depois do anterior.");
+        if (NXProject.Services.BacklogOrderService.NextRank(null, 2000) >= 2000)
+            throw new Exception("Sem anterior, entra antes do proximo.");
+        if (NXProject.Services.BacklogOrderService.NextRank(null, null) <= 0)
+            throw new Exception("Grupo sem rank nenhum precisa de um ponto de partida valido.");
+    }
+
+    // -- Auditoria de BLOCK no GitProject ---------------------------------------------------
+    //
+    // O plano dava isto como "talvez nunca fique igual". A POC mediu o contrario: a timeline
+    // devolve label, hora e autor. O que se testa aqui e a traducao disso em periodos — e os dois
+    // casos em que e facil produzir numero errado com cara de certo.
+
+    private static NXProject.Services.GitProjectClient.LabelEvent Ev(string dia, string label, bool entrou, string quem = "ana")
+        => new(DateTime.Parse("2026-03-" + dia), label, entrou, quem);
+
+    private static void GitBlockRebuildsPeriodsFromTimeline()
+    {
+        var item = new NXProject.Services.GitProjectItem { Number = 7, Title = "Story", IssueState = "OPEN" };
+        var eventos = new List<NXProject.Services.GitProjectClient.LabelEvent>
+        {
+            Ev("02 09:00", "BLOCK", true),
+            Ev("04 17:00", "BLOCK", false, "bruno"),
+            Ev("09 08:00", "BLOCK", true),
+            Ev("10 12:00", "BLOCK", false),
+        };
+
+        var audit = NXProject.Services.GitProjectBlockAuditService.Build(item, eventos, "BLOCK");
+        if (audit.Periods.Count != 2)
+            throw new Exception("Duas idas e voltas da label sao DOIS periodos: " + audit.Periods.Count);
+        if (audit.Periods[0].Start != DateTime.Parse("2026-03-02 09:00")
+            || audit.Periods[0].End != DateTime.Parse("2026-03-04 17:00"))
+            throw new Exception("O periodo tem de ser entrada -> saida da label.");
+        if (audit.Periods[0].BlockedBy != "ana" || audit.Periods[0].UnblockedBy != "bruno")
+            throw new Exception("Quem bloqueou e quem desbloqueou vem da timeline, e nao pode se perder.");
+        if (audit.StillBlocked)
+            throw new Exception("Ultima saida fecha o bloqueio: o item nao esta mais bloqueado.");
+    }
+
+    private static void GitBlockOpenPeriodStaysOpen()
+    {
+        var item = new NXProject.Services.GitProjectItem { Number = 8, Title = "Task", IssueState = "OPEN" };
+        var eventos = new List<NXProject.Services.GitProjectClient.LabelEvent>
+        {
+            Ev("02 09:00", "BLOCK", true),
+            // Reaplicar a label nao recomeca o bloqueio: ele nunca parou.
+            Ev("03 10:00", "BLOCK", true),
+        };
+
+        var audit = NXProject.Services.GitProjectBlockAuditService.Build(item, eventos, "BLOCK");
+        if (audit.Periods.Count != 1)
+            throw new Exception("Duas entradas seguidas sao UM bloqueio so: " + audit.Periods.Count);
+        if (audit.Periods[0].Start != DateTime.Parse("2026-03-02 09:00"))
+            throw new Exception("Vale a PRIMEIRA entrada; a segunda nao reinicia a contagem.");
+        if (!audit.Periods[0].Open || !audit.StillBlocked)
+            throw new Exception("Sem saida, o periodo fica ABERTO — fecha-lo em 'agora' faria o "
+                + "bloqueio parecer resolvido.");
+    }
+
+    private static void GitBlockIgnoresOrphanAndOtherLabels()
+    {
+        var item = new NXProject.Services.GitProjectItem { Number = 9, Title = "Story", IssueState = "OPEN" };
+        var eventos = new List<NXProject.Services.GitProjectClient.LabelEvent>
+        {
+            // Saida sem entrada: a entrada ficou fora da pagina da timeline. Inventar um inicio
+            // aqui produziria um periodo gigante e falso.
+            Ev("01 08:00", "BLOCK", false),
+            Ev("02 09:00", "bug", true),
+            Ev("03 09:00", "bug", false),
+            Ev("05 09:00", "BLOCK", true),
+            Ev("06 09:00", "BLOCK", false),
+        };
+
+        var audit = NXProject.Services.GitProjectBlockAuditService.Build(item, eventos, "BLOCK");
+        if (audit.Periods.Count != 1)
+            throw new Exception("So o par completo da label de bloqueio vira periodo: " + audit.Periods.Count);
+        if (audit.Periods[0].Start != DateTime.Parse("2026-03-05 09:00"))
+            throw new Exception("Label de outro assunto nao pode entrar na conta do bloqueio.");
+
+        // A tag e configuravel: quem batizou de "Impedimento" tem de ser atendido igual.
+        var outra = NXProject.Services.GitProjectBlockAuditService.Build(item, eventos, "Impedimento");
+        if (outra.Periods.Count != 0)
+            throw new Exception("Com outra tag configurada, os eventos de BLOCK nao contam.");
+    }
+
+    // -- Responsavel no GitProject ----------------------------------------------------------
+    //
+    // Ler responsavel e facil; GRAVAR exige o ID da conta. Como nome pode estar vazio, pode
+    // repetir e e digitado a mao, a identidade vem do LOGIN gravado no recurso durante o import.
+    // Responsavel errado muda a fila de trabalho de duas pessoas de uma vez — entao o que nao
+    // casar com seguranca tem de virar aviso.
+
+    private static readonly List<NXProject.Services.GitProjectPeopleService.Account> Contas =
+    [
+        new("U1", "asilva", "Ana Silva"),
+        new("U2", "asilva2", "Ana Silva"),
+        new("U3", "bcosta", "Bruno Costa"),
+        new("U4", "semnome", ""),
+    ];
+
+    private static void GitAssigneeUsesStoredLogin()
+    {
+        // Duas "Ana Silva": so o login desempata — e ele veio do proprio import.
+        var r = NXProject.Services.GitProjectPeopleService.Resolve("Ana Silva", Contas, "asilva2");
+        if (!r.Ok || r.Account!.Id != "U2")
+            throw new Exception("O login gravado no recurso tem de mandar sobre o nome.");
+
+        // Conta com @ na frente (como se escreve no GitHub) continua casando.
+        if (NXProject.Services.GitProjectPeopleService.Resolve("qualquer", Contas, "@bcosta").Account?.Id != "U3")
+            throw new Exception("O @ na frente do login nao pode atrapalhar.");
+
+        // Pessoa sem nome de exibicao: so o login a identifica — e isso tem de bastar.
+        if (NXProject.Services.GitProjectPeopleService.Resolve("", Contas, "semnome").Account?.Id != "U4")
+            throw new Exception("Conta sem nome de exibicao ainda e identificavel pelo login.");
+
+        // Login que perdeu acesso ao repositorio nao vira outra pessoa: vira aviso.
+        var saiu = NXProject.Services.GitProjectPeopleService.Resolve("Ana Silva", Contas, "antiga");
+        if (saiu.Ok || !saiu.Problem.Contains("acesso"))
+            throw new Exception("Login sem acesso tem de avisar, nao cair no nome parecido.");
+    }
+
+    private static void GitAssigneeRefusesToGuess()
+    {
+        // Sem login gravado, "Ana Silva" e ambiguo: duas contas atendem.
+        var ambiguo = NXProject.Services.GitProjectPeopleService.Resolve("Ana Silva", Contas);
+        if (ambiguo.Ok) throw new Exception("Nome ambiguo NAO pode virar palpite.");
+        if (!ambiguo.Problem.Contains("asilva") || !ambiguo.Problem.Contains("asilva2"))
+            throw new Exception("O aviso tem de dizer QUAIS contas colidiram, senao nao da para resolver.");
+
+        // Nome unico resolve sozinho.
+        if (NXProject.Services.GitProjectPeopleService.Resolve("Bruno Costa", Contas).Account?.Id != "U3")
+            throw new Exception("Nome completo unico pode casar.");
+
+        // Quem nao e colaborador do repositorio simplesmente nao pode ser responsavel la.
+        var fora = NXProject.Services.GitProjectPeopleService.Resolve("Carla Dias", Contas);
+        if (fora.Ok || !fora.Problem.Contains("colaborador"))
+            throw new Exception("Pessoa sem conta no repositorio tem de virar aviso explicito.");
+
+        // Recurso vazio nao e problema: e so uma atividade sem responsavel.
+        var vazio = NXProject.Services.GitProjectPeopleService.Resolve("", Contas);
+        if (vazio.Ok || vazio.Problem.Length != 0)
+            throw new Exception("Atividade sem responsavel nao deve gerar aviso nenhum.");
+    }
+
+    // -- Controle de versao no GitProject ---------------------------------------------------
+    //
+    // O Sync_version do GitProject ESPELHA a revisao do servidor (updatedAt), em vez de ser um
+    // contador do NXProject. A diferenca e exatamente o caso que mais acontece: alguem editar
+    // pela tela do GitHub. Um contador nosso nao veria isso; o relogio do GitHub ve.
+
+    private static void GitRevisionDetectsServerEdit()
+    {
+        var (p, story) = ProjetoComStory();
+        // A atividade foi importada quando a issue estava na revisao de 01/03.
+        story.SyncVersion = NXProject.Services.GitProjectSyncService.Revision(
+            new DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc));
+
+        // Alguem mexeu na issue pela tela do GitHub depois disso.
+        var item = new NXProject.Services.GitProjectItem
+        {
+            Number = 20, IssueState = "OPEN",
+            UpdatedAt = new DateTime(2026, 3, 5, 9, 0, 0, DateTimeKind.Utc)
+        };
+
+        var plano = NXProject.Services.GitProjectSyncService.Build(
+            p, Board(new NXProject.Services.GitProjectItem { Number = 10 }, item),
+            new NXProject.Services.GitProjectOptions(), temControleDeVersao: false);
+
+        if (!plano.Conflicts.Contains(story))
+            throw new Exception("Edicao feita no GitHub depois do import tem de virar conflito, "
+                + "mesmo sem os campos Sync_version/Sync_Name no board.");
+        if (plano.Updates.Any(o => o.Number == 20))
+            throw new Exception("Item em conflito nao pode receber gravacao nenhuma.");
+
+        // Ninguem mexeu desde o import: o sync segue normalmente.
+        item.UpdatedAt = new DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc);
+        var ok = NXProject.Services.GitProjectSyncService.Build(
+            p, Board(new NXProject.Services.GitProjectItem { Number = 10 }, item),
+            new NXProject.Services.GitProjectOptions(), temControleDeVersao: false);
+        if (ok.Conflicts.Count != 0)
+            throw new Exception("Mesma revisao nao e conflito.");
+    }
+
+    private static void GitRevisionFitsAndKeepsOrder()
+    {
+        var antes = NXProject.Services.GitProjectSyncService.Revision(new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+        var depois = NXProject.Services.GitProjectSyncService.Revision(new DateTime(2026, 3, 1, 0, 0, 1, DateTimeKind.Utc));
+        if (depois <= antes)
+            throw new Exception("Um segundo a mais tem de dar numero maior: e assim que 'mexeu depois' e detectado.");
+
+        // O campo do cronograma e int: a contagem tem de caber nele por decadas. O tempo Unix
+        // estoura em 2038 — foi por isso que a contagem comeca em 2000.
+        var longe = NXProject.Services.GitProjectSyncService.Revision(new DateTime(2060, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        if (longe <= 0) throw new Exception("Data distante nao pode estourar o int e virar negativo.");
+
+        if (NXProject.Services.GitProjectSyncService.Revision(null) != 0)
+            throw new Exception("Sem revisao lida, o valor e 0 — e 0 significa 'nao sei', nao 'antigo'.");
+    }
+
+    // -- Quem pode sincronizar (Adm_NX) no GitProject ---------------------------------------
+    //
+    // No DevOps o campo guarda um GRUPO e o servidor resolve. No GitHub, time so existe em
+    // organizacao — board de conta pessoal nao tem nenhum. Entao o campo aceita as duas formas, e
+    // autorizacao e a regra que mais machuca quando erra nos dois sentidos: travar quem pode e
+    // liberar quem nao pode.
+
+    private static void GitAdminListAuthorizes()
+    {
+        var regra = "ana, @bruno , carla";
+        if (!NXProject.Services.GitProjectAdminService.IsAllowed(regra, "bruno"))
+            throw new Exception("Login na lista autoriza — inclusive escrito com @ e espacos.");
+        if (!NXProject.Services.GitProjectAdminService.IsAllowed(regra, "ANA"))
+            throw new Exception("Login nao diferencia maiusculas.");
+        if (NXProject.Services.GitProjectAdminService.IsAllowed(regra, "daniel"))
+            throw new Exception("Quem nao esta na lista NAO pode sincronizar.");
+
+        // Campo vazio libera, como no DevOps: board sem a regra configurada nao trava ninguem.
+        if (!NXProject.Services.GitProjectAdminService.IsAllowed("", "daniel"))
+            throw new Exception("Sem regra configurada, todo mundo pode.");
+        if (!NXProject.Services.GitProjectAdminService.IsAllowed(null, "daniel"))
+            throw new Exception("Campo ausente e o mesmo que vazio.");
+    }
+
+    private static void GitAdminTeamAndFailOpen()
+    {
+        var time = "@nexus-xdata/projetos";
+        if (!NXProject.Services.GitProjectAdminService.IsTeam(time))
+            throw new Exception("'@org/time' tem de ser reconhecido como time, nao como lista.");
+        var (org, slug) = NXProject.Services.GitProjectAdminService.ParseTeam(time);
+        if (org != "nexus-xdata" || slug != "projetos")
+            throw new Exception("Organizacao e time saem do proprio valor: " + org + "/" + slug);
+        if (NXProject.Services.GitProjectAdminService.IsTeam("ana, bruno"))
+            throw new Exception("Lista de logins NAO e time.");
+
+        var membros = new[] { "ana", "bruno" };
+        if (!NXProject.Services.GitProjectAdminService.IsAllowed(time, "ana", membros))
+            throw new Exception("Membro do time pode sincronizar.");
+        if (NXProject.Services.GitProjectAdminService.IsAllowed(time, "daniel", membros))
+            throw new Exception("Quem nao e membro NAO pode.");
+
+        // Membros nao lidos (token sem read:org, rede fora) e falha TECNICA: libera, como ja vale
+        // no DevOps. Transformar falha de leitura em bloqueio de trabalho seria pior.
+        if (!NXProject.Services.GitProjectAdminService.IsAllowed(time, "daniel", null))
+            throw new Exception("Sem conseguir ler os membros, nao se bloqueia ninguem.");
+    }
+
+    // -- Anexo no GitProject ----------------------------------------------------------------
+    //
+    // O GitHub nao tem API de anexo de item (medido). O substituto e versionar no repositorio — e
+    // o caminho espelha o backlog, para o anexo ser achado navegando, nao procurando por id.
+
+    private static void GitAttachmentPathMirrorsHierarchy()
+    {
+        var hierarquia = new List<NXProject.Services.GitProjectAttachmentService.Step>
+        {
+            new("Project", 45, "Portal de Vendas"),
+            new("Epic", 46, "Integração com ERP"),
+            new("Story", 60, "Login"),
+        };
+
+        var caminho = NXProject.Services.GitProjectAttachmentService.PathFor(hierarquia, "proposta.pdf");
+        if (caminho != "nxproject/anexos/project_45/epic_46/story_60/proposta.pdf")
+            throw new Exception("Caminho inesperado: " + caminho);
+
+        // Nome de arquivo com barra iria parar noutra pasta: tem de ser neutralizado.
+        var perigoso = NXProject.Services.GitProjectAttachmentService.PathFor(
+            hierarquia.Take(1).ToList(), "../../etc/senha.txt");
+        if (perigoso.Contains("..") || perigoso.Split('/').Length != 4)
+            throw new Exception("Nome de arquivo nao pode escapar da pasta do item: " + perigoso);
+
+        // Nivel com espaco ("User Story") nao pode quebrar o caminho.
+        var comEspaco = NXProject.Services.GitProjectAttachmentService.PathFor(
+            [new("User Story", 7, "")], "a.txt");
+        if (comEspaco != "nxproject/anexos/user-story_7/a.txt")
+            throw new Exception("Nivel com espaco deveria virar hifen: " + comEspaco);
+    }
+
+    private static void GitAttachmentReusesFolderAfterRename()
+    {
+        // O titulo NAO entra no caminho: renomear o item no GitHub nao pode fazer o anexo sumir
+        // do lugar onde o NXProject vai procura-lo. Tipo e numero nao mudam; titulo muda sempre.
+        var antes = NXProject.Services.GitProjectAttachmentService.PathFor(
+            [new("Project", 45, "Portal de Vendas")], "b.pdf");
+        var depois = NXProject.Services.GitProjectAttachmentService.PathFor(
+            [new("Project", 45, "Portal de Vendas RENOMEADO")], "b.pdf");
+        if (antes != depois)
+            throw new Exception("Renomear o item mudou o caminho do anexo: " + antes + " -> " + depois);
+
+        // Numero diferente e item diferente — 45 nao pode cair na pasta do 450.
+        var outro = NXProject.Services.GitProjectAttachmentService.PathFor(
+            [new("Project", 450, "")], "b.pdf");
+        if (outro == antes) throw new Exception("Itens diferentes nao podem compartilhar pasta.");
+    }
+
+    // -- EPIC_GROUP ------------------------------------------------------------------------
+    //
+    // E a UNICA excecao a regra "o pai e o nivel imediatamente acima": um EPIC que agrupa EPICs
+    // (as Melhorias abertas por sprint, por exemplo). A regra vale para os dois destinos porque
+    // mora no NxLevelMap — import e sync, DevOps e GitProject, perguntam a ele.
+
+    private static void EpicGroupIsTheOnlyEpicUnderEpic()
+    {
+        var mapa = new NXProject.Services.NxLevelMap();
+        const string G = NXProject.Models.EpicTypes.Group;
+
+        // Epic sob Epic so quando o de cima e grupo.
+        if (!mapa.ParentChildOk("Epic", "Epic", G, NXProject.Models.EpicTypes.Delivery))
+            throw new Exception("EPIC_GROUP tem de aceitar EPIC embaixo.");
+        if (mapa.ParentChildOk("Epic", "Epic", NXProject.Models.EpicTypes.Delivery, null))
+            throw new Exception("Epic comum NAO pode ter Epic embaixo — senao a hierarquia vira arvore livre.");
+
+        // O grupo entra sob o Work Item Project, como qualquer EPIC.
+        if (!mapa.ParentChildOk("Project", "Epic", null, G))
+            throw new Exception("O grupo tem de entrar sob o Work Item Project.");
+
+        // E a hierarquia normal continua valendo igual.
+        if (!mapa.ParentChildOk("Feature", "User Story") || !mapa.ParentChildOk("User Story", "Task"))
+            throw new Exception("O resto da hierarquia nao pode ter mudado.");
+
+        // A mesma regra responde pelo GitProject (import e sync passam por aqui).
+        if (!NXProject.Services.GitProjectSyncService.HierarchyOk("Epic", "Epic", G, null))
+            throw new Exception("O GitProject tem de enxergar o EPIC_GROUP do mesmo jeito.");
+    }
+
+    private static void EpicGroupRefusesFeatureAndNesting()
+    {
+        var mapa = new NXProject.Services.NxLevelMap();
+        const string G = NXProject.Models.EpicTypes.Group;
+
+        // Feature direto no grupo pularia o EPIC: o cronograma mostraria entrega sem o EPIC que
+        // a explica.
+        if (mapa.ParentChildOk("Epic", "Feature", G, null))
+            throw new Exception("Sob o EPIC_GROUP so vem EPIC.");
+
+        // Um nivel de agrupamento, nao uma escada.
+        if (mapa.ParentChildOk("Epic", "Epic", G, G))
+            throw new Exception("Grupo dentro de grupo NAO.");
+
+        // E o grupo nao pode ficar pendurado num EPIC comum.
+        if (mapa.ParentChildOk("Epic", "Epic", NXProject.Models.EpicTypes.Delivery, G))
+            throw new Exception("O grupo so entra sob o Work Item Project.");
+
+        // O valor e reconhecido sem depender de caixa.
+        if (!NXProject.Models.EpicTypes.IsGroup("epic_group"))
+            throw new Exception("EPIC_GROUP nao pode diferenciar maiusculas.");
+        if (NXProject.Models.EpicTypes.IsGroup(NXProject.Models.EpicTypes.Backlog))
+            throw new Exception("BACKLOG nao e grupo.");
+    }
+
+    private static void DragDropMovesEpicIntoGroup()
+    {
+        var proj = new ProjectTask
+        { Id = 800, Name = "Work Item Project", TfsType = "Project", Level = 0, IsSummary = true };
+        var grupo = new ProjectTask
+        {
+            Id = 801, Name = "Melhorias", TfsType = "Epic", EpicType = NXProject.Models.EpicTypes.Group,
+            Parent = proj, Level = 1, IsSummary = true
+        };
+        var epicSolto = new ProjectTask
+        { Id = 802, Name = "Melhorias Sprint 12", TfsType = "Epic", Parent = proj, Level = 1, IsSummary = true };
+        var epicNoGrupo = new ProjectTask
+        { Id = 803, Name = "Melhorias Sprint 11", TfsType = "Epic", Parent = grupo, Level = 2, IsSummary = true };
+        var feature = new ProjectTask
+        { Id = 804, Name = "Entrega", TfsType = "Feature", Parent = proj, Level = 1 };
+
+        grupo.Children.Add(epicNoGrupo);
+        proj.Children.Add(grupo);
+        proj.Children.Add(epicSolto);
+        proj.Children.Add(feature);
+
+        var project = new Project { Name = "EPIC_GROUP", StartDate = new DateTime(2026, 7, 6) };
+        project.Tasks.Add(proj);
+
+        var vm = new MainViewModel("NXTestUnit") { Project = project };
+        vm.RebuildFlatTasks();
+
+        // Solta o EPIC sobre o grupo: entra nele.
+        AssertDrop(vm, epicSolto.Id, grupo.Id, "EPIC deveria entrar no EPIC_GROUP.");
+        AssertEqual(grupo.Id, epicSolto.Parent?.Id ?? -1, "O pai novo tem de ser o grupo.");
+
+        // Solta sobre um EPIC que esta direto no Project: sai do grupo e vira irmao dele.
+        AssertDrop(vm, epicNoGrupo.Id, feature.Id, "Soltar EPIC sobre Feature nao e movimento valido.",
+                   esperado: false);
+        AssertEqual(grupo.Id, epicNoGrupo.Parent?.Id ?? -1, "EPIC bloqueado continua no grupo.");
+
+        // O proprio grupo nao entra em outro grupo.
+        var outroGrupo = new ProjectTask
+        {
+            Id = 805, Name = "Outro grupo", TfsType = "Epic", EpicType = NXProject.Models.EpicTypes.Group,
+            Parent = proj, Level = 1, IsSummary = true
+        };
+        proj.Children.Add(outroGrupo);
+        vm.RebuildFlatTasks();
+        // Soltar um grupo sobre OUTRO GRUPO irmao e reordenacao — isso e valido e continua
+        // valendo. O que nao pode e o grupo virar FILHO do outro: um nivel de agrupamento, nao
+        // uma escada.
+        AssertDrop(vm, grupo.Id, outroGrupo.Id, "Reordenar dois grupos irmaos deveria ser aceito.");
+        AssertEqual(proj.Id, grupo.Parent?.Id ?? -1,
+            "Grupo dentro de grupo NAO: ele continua sob o Work Item Project.");
+    }
+
+    /// <summary>Solta um item sobre outro e confere se o movimento foi aceito (ou recusado).</summary>
+    private static void AssertDrop(MainViewModel vm, int sourceId, int targetId, string msg, bool esperado = true)
+    {
+        var source = vm.FlatTasks.First(t => t.Id == sourceId);
+        var target = vm.FlatTasks.First(t => t.Id == targetId);
+        if (vm.MoveTaskByDrop(source, target, insertAfter: true) != esperado) throw new Exception(msg);
+        vm.RebuildFlatTasks();
+    }
+
+    private static void GitProjectColumnsComeFromProjectStatus()
+    {
+        var o = new NXProject.Services.GitProjectOptions();
+        var itens = new List<NXProject.Services.GitProjectItem>
+        {
+            new() { Number = 1, Title = "H1", IssueType = "Story", Status = "In Progress" },
+            new() { Number = 2, Title = "H2", IssueType = "Story", Status = "Revisao" }
+        };
+        var comStatus = new NXProject.Services.GitProjectClient.ProjectSnapshot(
+            "P", "B", new List<NXProject.Services.GitIteration>(), itens, new List<string>())
+        { StatusOptions = new[] { "Todo", "In Progress", "Done" } };
+
+        var board = NXProject.Services.GitProjectBoardService.Build(comStatus, o);
+        var cols = board.States.ToList();
+        if (cols.Count < 3 || cols[0] != "Todo" || cols[1] != "In Progress" || cols[2] != "Done")
+            throw new Exception("As tres primeiras colunas deveriam ser as do projeto, na ordem: " + string.Join(" | ", cols));
+        if (cols.Contains("New") || cols.Contains("Active"))
+            throw new Exception("Projeto com Status proprio nao deve ganhar as colunas fixas do NXProject.");
+        if (!cols.Contains("Revisao"))
+            throw new Exception("Estado presente num card tem de virar coluna, senao o card some.");
+
+        // Sem campo Status, vale o conjunto fixo — projeto simples ainda abre.
+        var semStatus = new NXProject.Services.GitProjectClient.ProjectSnapshot(
+            "P", "B", new List<NXProject.Services.GitIteration>(),
+            new List<NXProject.Services.GitProjectItem>
+            { new() { Number = 3, Title = "H3", IssueType = "Story", IssueState = "OPEN" } },
+            new List<string>());
+        var board2 = NXProject.Services.GitProjectBoardService.Build(semStatus, o);
+        if (!board2.States.Contains("New") || !board2.States.Contains("Closed"))
+            throw new Exception("Projeto sem Status deveria cair no conjunto fixo do NXProject.");
+    }
+
+    private static void GitProjectFieldNamesMatchByAlias()
+    {
+        var o = new NXProject.Services.GitProjectOptions();
+
+        foreach (var nome in new[] { "Start Date", "Data_Inicio", "data_inicio", "  Start Date  " })
+            if (!NXProject.Services.GitProjectOptions.Matches(nome, o.StartDateFields))
+                throw new Exception($"'{nome}' deveria casar com a data de inicio.");
+        foreach (var nome in new[] { "Finish Date", "Data_Fim", "Target Date" })
+            if (!NXProject.Services.GitProjectOptions.Matches(nome, o.FinishDateFields))
+                throw new Exception($"'{nome}' deveria casar com a data de fim.");
+        foreach (var nome in new[] { "Original Estimate", "HH Estimado", "Esforço Estimado" })
+            if (!NXProject.Services.GitProjectOptions.Matches(nome, o.EffortFields))
+                throw new Exception($"'{nome}' deveria casar com o HH estimado.");
+        foreach (var nome in new[] { "card_type", "nx_card_type", "nx_level", "Level", "Nível" })
+            if (!NXProject.Services.GitProjectOptions.Matches(nome, o.LevelFields))
+                throw new Exception($"'{nome}' deveria casar com o campo de nivel.");
+
+        // O sugerido ao CRIAR e sempre o primeiro, e o padrao novo e em ingles.
+        if (NXProject.Services.GitProjectOptions.Suggested(o.StartDateFields) != "Start Date")
+            throw new Exception("O nome sugerido para a data de inicio deveria ser Start Date.");
+        if (NXProject.Services.GitProjectOptions.Suggested(o.LevelFields) != "card_type")
+            throw new Exception("O nivel do item no GitProject deveria sugerir card_type.");
+        // E o card_type nao pode vazar para o DevOps: la o tipo do work item e nativo.
+        if (NXProject.Services.NxDevOpsFieldCatalog.DevOpsFields.Any(f => f.Key == "cardType"))
+            throw new Exception("card_type e so do GitProject: criar no DevOps duplicaria o tipo nativo.");
+        if (!NXProject.Services.NxDevOpsFieldCatalog.GitProjectFields.Any(f => f.Key == "cardType"))
+            throw new Exception("card_type deveria estar no catalogo do GitProject.");
+
+        // E o que nao e de ninguem nao pode casar por engano.
+        if (NXProject.Services.GitProjectOptions.Matches("Status", o.StartDateFields)
+            || NXProject.Services.GitProjectOptions.Matches("", o.StartDateFields)
+            || NXProject.Services.GitProjectOptions.Matches("Start", o.StartDateFields))
+            throw new Exception("Nome diferente (ou vazio) nao pode casar com a data de inicio.");
+    }
+
+    private static void GitProjectBoardProjectsIntoBoard()
+    {
+        var opcoes = new NXProject.Services.GitProjectOptions { Owner = "nexus", ProjectNumber = 1, Token = "x" };
+        var itens = new List<NXProject.Services.GitProjectItem>
+        {
+            new() { Number = 10, Title = "Suprimentos", IssueType = "Epic", IssueState = "OPEN" },
+            new() { Number = 20, Title = "Integracao", IssueType = "Feature", ParentNumber = 10, IssueState = "OPEN" },
+            new() { Number = 30, Title = "Carga de dados", IssueType = "Story", ParentNumber = 20,
+                    IssueState = "OPEN", Assignee = "Ana", IterationTitle = "Sprint 5", Status = "Active" },
+            new() { Number = 40, Title = "Ajustar view", IssueType = "Task", ParentNumber = 30,
+                    IssueState = "OPEN", Assignee = "Bruno", Effort = 5, CurrentHours = 2, Status = "Active" }
+        };
+        var snap = new NXProject.Services.GitProjectClient.ProjectSnapshot(
+            "PVT_1", "Board", new List<NXProject.Services.GitIteration>(), itens, new List<string>());
+
+        var board = NXProject.Services.GitProjectBoardService.Build(snap, opcoes);
+
+        if (board.Stories.Count != 1) throw new Exception($"Esperava 1 Story, veio {board.Stories.Count}.");
+        var row = board.Stories[0];
+        if (row.Id != 30 || row.AssignedTo != "Ana")
+            throw new Exception("A Story do GitHub nao virou linha do board com o responsavel certo.");
+        if (row.State != "Active")
+            throw new Exception($"O estado deve vir da coluna do board (Status), veio '{row.State}'.");
+        if (row.FeatureId != 20 || row.FeatureEpicId != 10)
+            throw new Exception("A hierarquia de sub-issues nao preencheu Feature e EPIC.");
+        if (row.IterationPath != "Sprint 5")
+            throw new Exception("A sprint do item deveria virar o IterationPath da linha.");
+        if (row.Tasks.Count != 1 || row.Tasks[0].Id != 40 || row.Tasks[0].EstimateHours != 5
+            || row.Tasks[0].CompletedHours != 2)
+            throw new Exception("A sub-issue nao virou card com os campos de HH do board.");
+        if (!board.People.Contains("Ana") || !board.People.Contains("Bruno"))
+            throw new Exception("As pessoas do board saem dos responsaveis das issues.");
+        if (!board.LevelItems.Any(i => i.Id == 20 && i.Kind == "Feature"))
+            throw new Exception("A Feature deveria entrar como item de nivel.");
+
+        // Recorte por sprint: o titulo da iteracao e a identidade.
+        var so5 = NXProject.Services.GitProjectBoardService.Build(snap, opcoes, new[] { "Sprint 5" });
+        if (so5.Stories.Count != 1) throw new Exception("O recorte pela sprint do item nao casou.");
+        var outra = NXProject.Services.GitProjectBoardService.Build(snap, opcoes, new[] { "Sprint 6" });
+        if (outra.Stories.Count != 0) throw new Exception("Sprint diferente nao deveria trazer a Story.");
+    }
+
+    /// <summary>
+    /// O GitHub nao valida hierarquia: o nivel vem do Issue Type (so em organizacao), do campo do
+    /// board, ou — sem nenhum dos dois — da POSICAO na arvore de sub-issues. Sem esse ultimo
+    /// recurso, um projeto de conta pessoal sem campo nenhum abriria o board vazio.
+    /// </summary>
+    private static void GitProjectLevelFallsBackToTreePosition()
+    {
+        var opcoes = new NXProject.Services.GitProjectOptions { Owner = "nexus", ProjectNumber = 1, Token = "x" };
+        var itens = new List<NXProject.Services.GitProjectItem>
+        {
+            new() { Number = 1, Title = "Projeto", IssueState = "OPEN" },
+            new() { Number = 2, Title = "Epico", ParentNumber = 1, IssueState = "OPEN" },
+            new() { Number = 3, Title = "Entrega", ParentNumber = 2, IssueState = "OPEN" },
+            new() { Number = 4, Title = "Historia", ParentNumber = 3, IssueState = "OPEN" },
+            new() { Number = 5, Title = "Tarefa", ParentNumber = 4, IssueState = "CLOSED" }
+        };
+        var porNumero = itens.ToDictionary(i => i.Number);
+        string Nivel(int n) => NXProject.Services.GitProjectBoardService.LevelKindOf(porNumero[n], porNumero, opcoes);
+
+        if (Nivel(1) != "Project" || Nivel(2) != "Epic" || Nivel(3) != "Feature"
+            || Nivel(4) != "Story" || Nivel(5) != "Task")
+            throw new Exception("A posicao na arvore de sub-issues deveria definir o nivel.");
+
+        // O campo do board vence a posicao: e mais explicito que deduzir.
+        var comCampo = new NXProject.Services.GitProjectItem
+        { Number = 9, Title = "X", ParentNumber = 4, LevelValue = "Historia" };
+        porNumero[9] = comCampo;
+        if (NXProject.Services.GitProjectBoardService.LevelKindOf(comCampo, porNumero, opcoes) != "Story")
+            throw new Exception("O campo de nivel do board deveria vencer a posicao na arvore.");
+
+        // Pai FORA do projeto (um EPIC de ideias, outro Work Item Project): a profundidade
+        // daria zero e o item viraria "Project", uma coluna de topo tirada de um buraco. Sem
+        // como deduzir, vale Story — a folha do cronograma, onde o trabalho aparece como linha.
+        var paiDeFora = new NXProject.Services.GitProjectItem
+        { Number = 50, Title = "Orfa", ParentNumber = 999999 };
+        porNumero[50] = paiDeFora;
+        if (NXProject.Services.GitProjectBoardService.LevelKindOf(paiDeFora, porNumero, opcoes) != "Story")
+            throw new Exception("Item com pai fora do projeto deveria valer como Story, nunca como Project.");
+
+        // Sem coluna no board, o estado cai no OPEN/CLOSED da propria issue.
+        if (NXProject.Services.GitProjectBoardService.StateOf(porNumero[5]) != "Closed")
+            throw new Exception("Issue CLOSED sem campo Status deveria virar Closed no board.");
+        if (NXProject.Services.GitProjectBoardService.StateOf(porNumero[1]) != "New")
+            throw new Exception("Issue OPEN sem campo Status deveria virar New no board.");
+    }
+
+    /// <summary>
+    /// O GitHub guarda a iteracao como inicio + duracao em dias; o NXProject mostra sprint com
+    /// fim INCLUSIVO em toda a interface. Uma sprint de 14 dias que comeca dia 5 termina dia 18,
+    /// nao dia 19 — errar isso desloca o recorte "sprint atual" em um dia.
+    /// </summary>
+    private static void GitProjectIterationEndIsInclusive()
+    {
+        var it = new NXProject.Services.GitIteration("I_1", "Sprint 5", new DateTime(2026, 1, 5), 14);
+        if (it.End != new DateTime(2026, 1, 18))
+            throw new Exception($"Fim inclusivo deveria ser 18/01, veio {it.End:dd/MM}.");
+
+        var snap = new NXProject.Services.GitProjectClient.ProjectSnapshot(
+            "PVT_1", "Board", new[] { it }, new List<NXProject.Services.GitProjectItem>(), new List<string>());
+        var sprints = NXProject.Services.GitProjectBoardService.Sprints(snap);
+        if (sprints.Count != 1 || sprints[0].Path != "Sprint 5" || sprints[0].End != new DateTime(2026, 1, 18))
+            throw new Exception("A sprint do board deveria vir da iteracao, com fim inclusivo.");
+    }
+
     private static void LocalBoardSprintUsesIterationPath()
     {
         var project = new NXProject.Models.Project();
@@ -1262,7 +2709,8 @@ internal static class Program
 
     /// <summary>
     /// A tela pergunta pela CAPACIDADE, nunca pelo nome do destino. Este teste trava o contrato:
-    /// anexo no servidor so no DevOps, em pasta no Local, inexistente no GitProject; e o Local
+    /// anexo no servidor no DevOps e no GitProject (la, arquivo no repositorio), em pasta no
+    /// Local; e o Local
     /// exigindo cronograma aberto e pasta do projeto.
     /// </summary>
     private static void BackendCapabilitiesPerKind()
@@ -1273,8 +2721,11 @@ internal static class Program
 
         if (devops.Attachments != NXProject.Services.NxAttachmentStore.Server)
             throw new Exception("No DevOps o anexo e do servidor.");
-        if (git.Attachments != NXProject.Services.NxAttachmentStore.None)
-            throw new Exception("No GitProject nao ha anexo no item.");
+        // O GitHub nao tem API de ANEXO DE ITEM (medido na POC), mas tem onde guardar o arquivo:
+        // o repositorio da issue, versionado, com o link comentado no item. Entao o anexo existe
+        // e e do servidor — so nao e um anexo "do work item" como no DevOps.
+        if (git.Attachments != NXProject.Services.NxAttachmentStore.Server)
+            throw new Exception("No GitProject o anexo vai para o repositorio da issue.");
         if (local.Attachments != NXProject.Services.NxAttachmentStore.LocalFolder)
             throw new Exception("No modo Local o anexo vai para a pasta do projeto.");
         if (!local.BlockAudit)

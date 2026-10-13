@@ -44,6 +44,24 @@ namespace NXProject.Services
             public string DefaultName { get; init; } = "";
 
             /// <summary>
+            /// Nome no padrão inglês, para o campo que NÃO tem equivalente nativo no processo.
+            /// Leva o prefixo nx_ porque é invenção do NXProject: na lista de campos da
+            /// organização, que é compartilhada por todo mundo, o prefixo diz de quem ele é.
+            /// Vazio = não há alternativa em inglês, e o nome padrão vale nos dois.
+            /// </summary>
+            public string EnglishName { get; init; } = "";
+
+            /// <summary>
+            /// Campo que só existe no GitHub Projects. No Azure DevOps o tipo do item é nativo
+            /// (Epic, Feature, User Story, Task), então não há o que criar; no GitHub a hierarquia
+            /// não é validada e o nível precisa estar escrito em algum lugar.
+            ///
+            /// Fica NESTE catálogo, e não solto no conector, porque é a mesma pergunta — "que
+            /// campo guarda este conceito" — que o NXProject e o Setup já respondem aqui.
+            /// </summary>
+            public bool GitProjectOnly { get; init; }
+
+            /// <summary>
             /// Todos os nomes aceitos, NA ORDEM em que o import tenta resolver. A ordem importa:
             /// numa organização com dois deles cadastrados, ganha o primeiro da lista.
             /// </summary>
@@ -127,8 +145,13 @@ namespace NXProject.Services
                 Scope = new[] { "User Story", "Task" },
                 // Na Task o NX lê Original Estimate / Completed Work de fábrica. Vem marcado, mas
                 // é caixa: quem preferir manter o HH personalizado também na Task pode desmarcar.
+                // No DevOps o campo e criado no PROCESSO e depois associado aos tipos: o
+                // Original Estimate nativo nao vem de fabrica na Story, mas pode ser associado a
+                // ela. Entao no padrao ingles a Story usa o MESMO campo da Task, em vez de um
+                // campo proprio com outro nome para a mesma coisa.
                 OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
-                { ["Task"] = "Microsoft.VSTS.Scheduling.OriginalEstimate" },
+                { ["Task"] = "Microsoft.VSTS.Scheduling.OriginalEstimate",
+                  ["User Story"] = "Microsoft.VSTS.Scheduling.OriginalEstimate" },
                 StandardOnByDefault = new[] { "Task" },
                 Purpose = "NXProject: horas estimadas da atividade"
             },
@@ -166,8 +189,9 @@ namespace NXProject.Services
             new()
             {
                 Key = "percAloc", DefaultName = "Perc_Alocacao", Type = "double", Optional = true,
+                EnglishName = "nx_allocation_percent",
                 Names = new[] { "Perc_Alocacao", "Perc_Alocação", "Perc_Aloc", "PercAloc",
-                                "Perc Aloc", "Percentual Alocacao", "Percentual_Alocacao" },
+                                "Perc Aloc", "Percentual Alocacao", "Percentual_Alocacao" , "nx_allocation_percent"},
                 Scope = new[] { "User Story", "Task" },
                 Purpose = "NXProject: percentual de alocação do recurso"
             },
@@ -175,8 +199,9 @@ namespace NXProject.Services
             {
                 // Gravado como (int)Math.Round(0..100) — inteiro, nao double.
                 Key = "percConclusao", DefaultName = "Perc_Conclusao", Type = "integer", Optional = true,
+                EnglishName = "nx_percent_complete",
                 Names = new[] { "Perc_Conclusao", "Perc_Conclusão", "PercConclusao",
-                                "Percentual Conclusao", "Percentual_Conclusao" },
+                                "Percentual Conclusao", "Percentual_Conclusao" , "nx_percent_complete"},
                 // So na Story: a Task nao tem esse campo. Sem ele, o percentual vem do ESTADO
                 // (StateToPercent) e item encerrado e 100% — por isso o campo e opcional.
                 Scope = new[] { "User Story" },
@@ -185,46 +210,74 @@ namespace NXProject.Services
             new()
             {
                 Key = "syncVersion", DefaultName = "Sync_version", Type = "integer", Optional = true,
-                Names = new[] { "Sync_version", "SyncVersion", "Sync Version" },
+                EnglishName = "nx_sync_version",
+                Names = new[] { "Sync_version", "SyncVersion", "Sync Version" , "nx_sync_version"},
                 Scope = new[] { "User Story", "Feature", "Epic" },
                 Purpose = "NXProject: versão da última sincronização (controle de conflito)"
             },
             new()
             {
                 Key = "syncName", DefaultName = "Sync_Name", Type = "string", Optional = true,
-                Names = new[] { "Sync_Name", "SyncName", "Sync Name" },
+                EnglishName = "nx_sync_name",
+                Names = new[] { "Sync_Name", "SyncName", "Sync Name" , "nx_sync_name"},
                 Scope = new[] { "User Story", "Feature", "Epic" },
                 Purpose = "NXProject: quem sincronizou por último"
             },
             new()
             {
                 Key = "approved", DefaultName = "Approved", Type = "boolean", Optional = true,
-                Names = new[] { "Approved", "Aprovado" },
+                EnglishName = "nx_approved",
+                Names = new[] { "Approved", "Aprovado" , "nx_approved"},
                 Scope = new[] { "Task" },
                 Purpose = "NXProject: atividade aprovada"
             },
             new()
             {
                 Key = "epicType", DefaultName = "EPIC_TYPE", Type = "string", Optional = true,
-                Names = new[] { "EPIC_TYPE", "Tipo_Epic" },
+                Names = new[] { "EPIC_TYPE", "Tipo_Epic" , "nx_epic_type"},
                 Scope = new[] { "Epic" },
                 Purpose = "NXProject: tipo do EPIC"
             },
             new()
             {
                 Key = "admGroup", DefaultName = "Adm_NX", Type = "string", Optional = true,
-                Names = new[] { "Adm_NX", "AdmNX", "Adm NX" },
+                EnglishName = "nx_adm_group",
+                Names = new[] { "Adm_NX", "AdmNX", "Adm NX" , "nx_adm_group"},
                 Scope = new[] { "Project" },
                 Purpose = "NXProject: grupo administrador do projeto"
             },
             new()
             {
                 Key = "blockDuration", DefaultName = "block_duration_hours", Type = "double", Optional = true,
-                Names = new[] { "block_duration_hours", "Block_Duration_Hours", "Block Duration Hours" },
+                EnglishName = "nx_block_hours",
+                Names = new[] { "block_duration_hours", "Block_Duration_Hours", "Block Duration Hours" , "nx_block_hours"},
                 Scope = new[] { "Task" },
                 Purpose = "NXProject: horas acumuladas em BLOCK"
             },
+            new NxFieldSpec
+            {
+                Key = "cardType", DefaultName = "card_type", Type = "string", Optional = true,
+                GitProjectOnly = true,
+                EnglishName = "card_type",
+                // O GitHub aceita sub-issue de qualquer coisa embaixo de qualquer coisa: sem este
+                // campo (ou os Issue Types, que só existem em organização) o nível do item só
+                // pode ser deduzido pela posição na árvore, e qualquer bagunça feita pela tela do
+                // GitHub vira hierarquia errada no cronograma.
+                Names = new[] { "card_type", "nx_card_type", "nx_level", "Level", "Nível", "Nivel", "Tipo", "Type" },
+                Scope = new[] { "Project", "Epic", "Feature", "User Story", "Task" },
+                Purpose = "NXProject/GitProject: nível do item (Project, EPIC, Feature, Story, Task)"
+            },
         };
+
+        /// <summary>
+        /// Campos que valem para o Azure DevOps — o que o detector e o Setup enxergam. O
+        /// card_type fica de fora: criá-lo no DevOps seria duplicar o tipo nativo do work item.
+        /// </summary>
+        public static IReadOnlyList<NxFieldSpec> DevOpsFields { get; } =
+            All.Where(f => !f.GitProjectOnly).ToList();
+
+        /// <summary>Campos que valem para o GitHub Projects.</summary>
+        public static IReadOnlyList<NxFieldSpec> GitProjectFields { get; } = All;
 
         private static readonly Dictionary<string, NxFieldSpec> ByKey =
             All.ToDictionary(f => f.Key, StringComparer.OrdinalIgnoreCase);
@@ -238,5 +291,76 @@ namespace NXProject.Services
 
         /// <summary>Work items em que o campo faz falta. Vazio para chave desconhecida.</summary>
         public static string[] Scope(string key) => Find(key)?.Scope ?? Array.Empty<string>();
+
+        /// <summary>
+        /// Qual conjunto de nomes o NXProject usa POR PADRÃO nesta organização.
+        ///
+        /// Não é tradução: é a escolha entre gravar no campo NATIVO do processo (Start Date,
+        /// Finish Date, Original Estimate…) ou num campo PRÓPRIO do NXProject (Data_Inicio,
+        /// Data_Fim, Esforço Estimado). O nome de cada campo continua editável — isto define só
+        /// de onde parte a sugestão.
+        /// </summary>
+        public enum NxFieldNaming
+        {
+            /// <summary>Campos próprios do NXProject, com nomes em português. O que existe hoje.</summary>
+            Portuguese,
+            /// <summary>Campos nativos do DevOps sempre que o tipo tiver um.</summary>
+            English
+        }
+
+        /// <summary>
+        /// O campo que o NXProject deve usar para esta chave neste tipo de work item, no padrão
+        /// escolhido. Devolve o REFERENCE NAME quando a resposta é um campo nativo (eles são
+        /// citados assim na API) e o nome amigável quando é campo próprio.
+        ///
+        /// Regra que evita o estrago que a Task levaria: no padrão inglês, só vira nativo o que
+        /// TEM nativo naquele tipo. A Story, por exemplo, tem Start Date e Finish Date nativos,
+        /// mas não tem nativo de horas — ali o HH continua campo próprio, nos dois padrões.
+        /// Sem isso, a mesma atividade acabaria com duas datas de início: a nativa e a do NX.
+        /// </summary>
+        public static string DefaultFieldFor(string key, string workItemType, NxFieldNaming naming)
+        {
+            var spec = Find(key);
+            if (spec == null) return "";
+            if (naming == NxFieldNaming.English)
+            {
+                // Nativo do processo quando o tipo tem um…
+                if (spec.OptionalStandardFor(workItemType) is { Length: > 0 } nativo) return nativo;
+                // …senão o nome em inglês do campo próprio, quando existir.
+                if (!string.IsNullOrWhiteSpace(spec.EnglishName)) return spec.EnglishName;
+            }
+            return spec.DefaultName;
+        }
+
+        /// <summary>
+        /// O padrão inglês muda alguma coisa para esta chave/tipo? Serve à tela: campo sem
+        /// nativo não deve aparecer como se a combo fosse decidir algo sobre ele.
+        /// </summary>
+        public static bool HasStandardAlternative(string key, string workItemType) =>
+            Find(key)?.OptionalStandardFor(workItemType) is { Length: > 0 };
+
+        /// <summary>
+        /// Nome do campo em INGLÊS para esta chave, sem olhar tipo de work item.
+        ///
+        /// Serve ao GitProject, onde não existe campo nativo nenhum para se apoiar: o que no
+        /// DevOps resolveria pelo nativo (Start Date, Finish Date, Original Estimate) aqui é só
+        /// um nome, e é o nome que o GitHub mostra nos próprios boards. Deriva do REFERENCE NAME
+        /// do nativo em vez de repetir a lista — a terceira cópia da mesma regra foi exatamente
+        /// o que já virou defeito entre o NX e o Setup.
+        /// </summary>
+        public static string EnglishFieldName(string key)
+        {
+            var spec = Find(key);
+            if (spec == null) return "";
+            if (!string.IsNullOrWhiteSpace(spec.EnglishName)) return spec.EnglishName;
+            foreach (var wit in spec.Scope)
+                if (spec.OptionalStandardFor(wit) is { Length: > 0 } nativo)
+                    return Legivel(nativo.Split('.').Last());
+            return spec.DefaultName;
+        }
+
+        /// <summary>"OriginalEstimate" -> "Original Estimate": o nome como o GitHub o escreveria.</summary>
+        private static string Legivel(string pascal) =>
+            System.Text.RegularExpressions.Regex.Replace(pascal, "(?<=[a-z0-9])(?=[A-Z])", " ");
     }
 }

@@ -13,13 +13,18 @@
     <sys:String x:Key="Menu_File_Import_OpenProj">OpenProj (.pod)...</sys:String>
     <sys:String x:Key="Menu_File_Import_MsProject">MS Project XML...</sys:String>
     <sys:String x:Key="Menu_File_Import_Excel">Excel XML...</sys:String>
-    <sys:String x:Key="Menu_File_Import_Tfs">TFS / Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Import_Tfs">Azure DevOps / GitProject...</sys:String>
     <sys:String x:Key="Menu_File_Export">_Exportar</sys:String>
     <sys:String x:Key="Menu_File_Export_OpenProj">OpenProj (.pod)...</sys:String>
     <sys:String x:Key="Menu_File_Export_MsProject">MS Project XML...</sys:String>
     <sys:String x:Key="Menu_File_Export_Excel">Excel XML...</sys:String>
     <sys:String x:Key="Menu_File_Export_Csv">CSV...</sys:String>
-    <sys:String x:Key="Menu_File_Export_SyncTfs">Sincronizar TFS / Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Export_SyncTfs">Sincronizar Azure DevOps...</sys:String>
+    <sys:String x:Key="Menu_File_Export_SyncGitTip">Devolve o planejamento (datas, HH, % e estado) para o board do GitHub e cria as atividades novas. A ordem do backlog não vai: no GitHub ela é a posição do item na view, não um campo.</sys:String>
+    <sys:String x:Key="Git_SyncNoConn">Configure a conexão do GitProject primeiro (dono, board e token), em Arquivo → Importar → Configurar GitProject.</sys:String>
+    <sys:String x:Key="Git_Attaching">Versionando anexo no repositório: {0}…</sys:String>
+    <sys:String x:Key="Git_SyncConfirm">Sincronizar o cronograma com o board do GitHub?&#10;&#10;Dono: {0}&#10;Board: #{1}&#10;Repositório para itens novos: {2}&#10;&#10;Vão datas, HH, percentual e o estado da issue. A ORDEM do backlog não vai: no GitHub ela é a posição do item na view, não um campo.</sys:String>
+    <sys:String x:Key="Menu_File_Export_SyncGit">Sincronizar GitProject...</sys:String>
     <sys:String x:Key="Menu_File_Exit">Sa_ir</sys:String>
 
     <!-- Menu Editar -->
@@ -301,6 +306,7 @@
     <sys:String x:Key="Menu_View_Resources">_Alocacao de Recursos...</sys:String>
     <sys:String x:Key="Menu_View_DevOpsList">_Portfólio de Projetos...</sys:String>
     <sys:String x:Key="Menu_View_DevOpsConfig">_Configurar DevOps...</sys:String>
+    <sys:String x:Key="Menu_View_GitProjectConfig">Configurar GitHub Projects…</sys:String>
     <sys:String x:Key="Menu_View_HealthCheck">_Progresso do Projeto e Curva S...</sys:String>
     <sys:String x:Key="Menu_View_StoryStatusChart">_Status de Stories e Incidentes...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
@@ -413,6 +419,9 @@
     <!-- FeaturesHelpWindow -->
     <sys:String x:Key="Help_WindowTitle">Guia de Funcionalidades — NXProject Community</sys:String>
     <sys:String x:Key="Help_Subtitle">Guia de Funcionalidades</sys:String>
+    <sys:String x:Key="Help_Group_General">GERAL</sys:String>
+    <sys:String x:Key="Help_Group_DevOps">AZURE DEVOPS</sys:String>
+    <sys:String x:Key="Help_Group_GitProject">GITHUB PROJECTS</sys:String>
     <sys:String x:Key="Help_Topic_Overview">🗂  Visão Geral</sys:String>
     <sys:String x:Key="Help_Topic_DevOpsHierarchy">📐  Epic / Feature / Story / Task</sys:String>
     <sys:String x:Key="Help_Topic_TechLead">👷  Tech Lead</sys:String>
@@ -564,10 +573,12 @@
     <sys:String x:Key="Sync_Title">Sincronizar Azure DevOps</sys:String>
 
     <!-- Discovery -->
-    <sys:String x:Key="Disc_Title">Discovery — Projetos do Azure DevOps</sys:String>
+    <sys:String x:Key="Disc_Title">Discovery — Projetos do servidor</sys:String>
     <sys:String x:Key="Disc_Connecting">Conectando ao Azure DevOps...</sys:String>
+    <sys:String x:Key="Disc_Origin">Origem:</sys:String>
+    <sys:String x:Key="Disc_SubtitleGit">GitHub Projects · {0} · board #{1}</sys:String>
     <sys:String x:Key="Disc_Searching">🔄 Buscando work items raiz no DevOps...</sys:String>
-    <sys:String x:Key="Disc_Subtitle">Organização: {0}  |  Projeto: {1}</sys:String>
+    <sys:String x:Key="Disc_Subtitle">{0} · {1}</sys:String>
     <sys:String x:Key="Disc_NoneFound">Nenhum work item raiz encontrado no projeto.</sys:String>
     <sys:String x:Key="Disc_FetchError">Erro ao buscar dados: {0}</sys:String>
     <sys:String x:Key="Disc_FilterLabel">Filtrar:</sys:String>
@@ -599,8 +610,8 @@
     <sys:String x:Key="Port_Add">+ Adicionar</sys:String>
     <sys:String x:Key="Port_Edit">✏ Editar</sys:String>
     <sys:String x:Key="Port_Delete">🗑 Excluir</sys:String>
-    <sys:String x:Key="Port_Discovery">🔍 Discovery DevOps</sys:String>
-    <sys:String x:Key="Port_DiscoveryTip">Lista todos os work items raiz do DevOps e permite adicionar ao portfólio</sys:String>
+    <sys:String x:Key="Port_Discovery">🔍 Discovery</sys:String>
+    <sys:String x:Key="Port_DiscoveryTip">Procura os projetos no servidor e acrescenta ao Portfólio. A origem — Azure DevOps ou GitProject — é escolhida na própria tela.</sys:String>
     <sys:String x:Key="Port_Ok">OK</sys:String>
     <sys:String x:Key="Port_Cancel">Cancelar</sys:String>
     <sys:String x:Key="Port_OpenDlgTitle">Abrir ou criar Portfólio de Projetos</sys:String>
@@ -680,7 +691,7 @@
     <sys:String x:Key="Banner_Owner">| Owner: {0}</sys:String>
 
     <!-- Importar do Azure DevOps -->
-    <sys:String x:Key="Imp_Title">Importar do Azure DevOps</sys:String>
+    <sys:String x:Key="Imp_Title">Configuração de importação</sys:String>
     <sys:String x:Key="Imp_Subtitle">Escolha o projeto e o ID raiz para montar o cronograma.</sys:String>
     <sys:String x:Key="Imp_TabImport">Importação</sys:String>
     <sys:String x:Key="Imp_TabConfig">Config</sys:String>
@@ -711,6 +722,8 @@
     <sys:String x:Key="Imp_ConfigConnectionTitle">Conexão e calendário</sys:String>
     <sys:String x:Key="Imp_ConfigDevOps">⚙ Configurar DevOps</sys:String>
     <sys:String x:Key="Imp_ConfigDevOpsTip">Abre a configuração da integração com Azure DevOps</sys:String>
+    <sys:String x:Key="Imp_ConfigGitTip">Abre a conexão com o GitHub Projects (dono, token e board)</sys:String>
+    <sys:String x:Key="Imp_ConfigGit">⚙ Configurar GitProject</sys:String>
     <sys:String x:Key="Imp_Import">Importar</sys:String>
     <sys:String x:Key="Imp_Importing">Importando...</sys:String>
     <sys:String x:Key="Imp_Cancel">Cancelar</sys:String>
@@ -719,6 +732,7 @@
     <sys:String x:Key="Imp_NoLogYet">Ainda não há log: nenhuma importação foi feita nesta sessão.</sys:String>
     <sys:String x:Key="Imp_ViewLogOf">Ver o log da importação de "{0}".</sys:String>
     <sys:String x:Key="Imp_NoConnectionStatus">Conexão com o Azure DevOps não configurada. Clique em "Configurar..." acima.</sys:String>
+    <sys:String x:Key="Imp_NoGitConnection">Configure a conexão com o GitHub Projects (Exibir → Configurar GitHub Projects…) antes de importar.</sys:String>
     <sys:String x:Key="Imp_ErrorTitle">Erro na importação do Azure DevOps</sys:String>
     <sys:String x:Key="Sync_ConfirmBody">Sincronizar com o Azure DevOps?&#10;&#10;Projeto (Work Item raiz): {0} ({1})&#10;Team Project (contêiner DevOps): {2}&#10;Organização: {3}&#10;&#10;Isto vai atualizar os work items vinculados (título/descrição, horas e datas conforme as regras).</sys:String>
     <sys:String x:Key="Sync_ConfirmDiffersNote">Atenção: este projeto é diferente do configurado globalmente. A sincronização vai usar o projeto acima (do cronograma aberto).</sys:String>
@@ -1328,6 +1342,120 @@
     <sys:String x:Key="Cfg_StoryStdStart">na Story usar "Start Date"</sys:String>
     <sys:String x:Key="Cfg_StoryStdFinish">na Story usar "Finish Date"</sys:String>
     <sys:String x:Key="Cfg_StoryStdTip">Marque se a Story deve usar o campo de data PADRÃO do DevOps em vez do personalizado. Útil em organização que não tem (nem quer criar) Data_Inicio/Data_Fim: Start Date e Finish Date já vêm de fábrica.</sys:String>
+    <sys:String x:Key="Cfg_Naming">Padrão de nomes dos campos</sys:String>
+    <sys:String x:Key="Fld_Title">Configurar Campos e Tags</sys:String>
+    <sys:String x:Key="Cfg_FieldsMoved">Os nomes dos campos, as tags e a classificação saíram desta tela: agora ficam em "Configurar Campos e Tags", que atende ao Azure DevOps e ao GitProject no mesmo lugar.</sys:String>
+    <sys:String x:Key="Fld_Intro">Nome do campo que guarda cada conceito do NXProject em cada destino. Os nomes antigos continuam sendo reconhecidos: trocar aqui muda o que o NX passa a usar e a sugerir, e não renomeia nada no servidor.</sys:String>
+    <sys:String x:Key="Fld_Target">Destino:</sys:String>
+    <sys:String x:Key="Fld_Naming">Padrão:</sys:String>
+    <sys:String x:Key="Fld_NamingPt">Português — campos do NXProject</sys:String>
+    <sys:String x:Key="Fld_NamingEn">Inglês — campos nativos do DevOps</sys:String>
+    <sys:String x:Key="Fld_NamingTip">Decide se o NXProject usa o campo nativo do processo (Start Date, Finish Date, Original Estimate) ou um campo próprio. Só vale para o Azure DevOps: no GitHub não existe campo nativo.</sys:String>
+    <sys:String x:Key="Fld_ColConcept">Conceito</sys:String>
+    <sys:String x:Key="Fld_ColName">Nome do campo</sys:String>
+    <sys:String x:Key="Fld_ColWhere">Onde vive</sys:String>
+    <sys:String x:Key="Fld_ColOptions">Opções</sys:String>
+    <sys:String x:Key="Fld_UseStdOnType">na {0} usar "{1}"</sys:String>
+    <sys:String x:Key="Fld_WhereBoard">campo do board</sys:String>
+    <sys:String x:Key="Fld_GitClassTitle">Classificação no board (preenchida ao criar o item)</sys:String>
+    <sys:String x:Key="Fld_GitTags">Tags (labels da issue)</sys:String>
+    <sys:String x:Key="Fld_GitTagsHint">No GitHub a tag é a label da issue. Dois limites que vêm de lá: a label é do REPOSITÓRIO, não do board — um projeto que junta issues de vários repositórios precisa da mesma label em cada um; e aplicar uma label que não existe não a cria.</sys:String>
+    <sys:String x:Key="Fld_GitClassHint">Campo single-select do board que o NXProject preenche ao criar a issue. No GitHub nada é obrigatório na criação — a issue só exige título —, então isto é conveniência: o item já nasce classificado.</sys:String>
+    <sys:String x:Key="Fld_GitClassLevel">Nível</sys:String>
+    <sys:String x:Key="Fld_GitClassField">Campo do board</sys:String>
+    <sys:String x:Key="Fld_GitValuesTip">Só vale para single-select: são as opções do campo. Em texto, número ou data o valor é digitado no item.</sys:String>
+    <sys:String x:Key="Fld_GitDefault">Valor padrão</sys:String>
+    <sys:String x:Key="Fld_DevDefaultTip">Valor gravado ao criar o item quando ele não tem classificação. Vazio = o NXProject cai no tipo do work item, que a picklist pode recusar.</sys:String>
+    <sys:String x:Key="Fld_GitDefaultTip">Valor que o NXProject grava ao criar o item. Em single-select, uma das opções; em texto, número ou data, o valor literal. Vazio = vale o padrão do próprio campo no board, quando houver.</sys:String>
+    <sys:String x:Key="Fld_GitDetect">Detectar campos no board</sys:String>
+    <sys:String x:Key="Fld_GitDetectTip">Lê o board no GitHub e mostra quais campos o NXProject encontra e quais faltam.</sys:String>
+    <sys:String x:Key="Fld_GitDetectNoConn">Configure a conexão do GitProject antes de detectar (Exibir → Configurar GitHub Projects…).</sys:String>
+    <sys:String x:Key="Fld_GitDetectResult">{0} campo(s) no board · {1} encontrado(s) · {2} faltando</sys:String>
+    <sys:String x:Key="Fld_GitDetectBody">Board "{0}"&#10;&#10;Encontrados:&#10;   {1}&#10;&#10;Faltando (nome sugerido entre parênteses):&#10;   {2}&#10;&#10;O NXProject ainda não cria campo no GitHub: crie pela tela do board, ou ajuste o nome aqui para o que já existe.</sys:String>
+    <sys:String x:Key="Fld_HintDevOps">No DevOps o campo é do tipo de work item: o NX cria ou associa por tipo.</sys:String>
+    <sys:String x:Key="Fld_HintGit">No GitHub o campo é do PROJETO (board), não da issue: vale para todos os itens, e a issue que sair do board leva o valor embora.</sys:String>
+    <sys:String x:Key="Fld_Defaults">Restaurar padrões</sys:String>
+    <sys:String x:Key="Fld_DefaultsTip">Volta todos os nomes ao padrão do destino e do idioma escolhidos.</sys:String>
+    <sys:String x:Key="Fld_DefaultsDone">Nomes padrão restaurados — ainda não salvos.</sys:String>
+    <sys:String x:Key="Fld_NamingGitTip">No GitHub não existe campo nativo: aqui o padrão decide apenas o NOME de fábrica de cada campo do board. EN é o padrão, por combinar com a tela do GitHub; PT serve a quem montou o board copiando o vocabulário do DevOps.</sys:String>
+    <sys:String x:Key="Fld_PrefixHint">Os nomes acima são o padrão do NXProject e podem ser trocados — mas têm de ser os nomes que existem na organização (os mesmos usados no NXProject-Setup ao criar os campos). Nome diferente não dá erro: o campo simplesmente chega vazio no import.</sys:String>
+    <sys:String x:Key="Fld_TabLevels">Níveis</sys:String>
+    <sys:String x:Key="Fld_LevelsDetect">Detectar níveis</sys:String>
+    <sys:String x:Key="Fld_LevelsDetectTip">Lê os tipos que existem no servidor (tipos de work item no Azure DevOps; opções do campo de nível e Issue Types no GitProject) e confere o mapa contra eles. Nada é alterado sozinho: o que não casa é listado para você decidir.</sys:String>
+    <sys:String x:Key="Fld_LevelsDetectNone">Nenhum tipo encontrado: configure a conexão do Azure DevOps ou do GitProject.</sys:String>
+    <sys:String x:Key="Fld_LevelsDetectResult">{0} tipo(s) encontrado(s); {1} sem nível.</sys:String>
+    <sys:String x:Key="Fld_LevelsNoType">(nenhum tipo casou)</sys:String>
+    <sys:String x:Key="Fld_LevelsDetectBody">Tipos encontrados em {0}:&#10;&#10;   {1}&#10;&#10;Sem nível (não entram na hierarquia do NXProject): {2}</sys:String>
+    <sys:String x:Key="Fld_LevelsHint">Que nome de tipo corresponde a cada nível do NXProject. Vale para os dois destinos: no Azure DevOps é o nome do tipo de work item; no GitProject é o Issue Type ou o valor do campo de nível do board. Antes esses nomes estavam no código, e quem batizou o tipo de "Iniciativa" ou "Produto" ficava de fora.</sys:String>
+    <sys:String x:Key="Fld_ColLevel">Nível</sys:String>
+    <sys:String x:Key="Fld_ColInUse">Em uso</sys:String>
+    <sys:String x:Key="Fld_ColLevelNames">Nomes aceitos (separados por vírgula; o primeiro é o usado ao criar)</sys:String>
+    <sys:String x:Key="Fld_LevelInUseTip">Desligar o nível: time sem Project começa no Epic; sem Task, a folha passa a ser a Story. A Story não desliga — é a folha do cronograma.</sys:String>
+    <sys:String x:Key="Fld_LevelNamesTip">Vários nomes para o mesmo nível, separados por vírgula. Não diferencia maiúsculas nem acentos.</sys:String>
+    <sys:String x:Key="Fld_LevelsOrderHint">A ordem dos níveis é a validação: o pai tem de ser o nível imediatamente acima do filho, pulando os desligados. É o que o Azure DevOps faz por nós e o que o GitHub não faz.</sys:String>
+    <sys:String x:Key="Fld_LevelsAmbiguous">O mesmo nome está em mais de um nível:&#10;&#10;   {0}&#10;&#10;Com nome ambíguo o NXProject monta a hierarquia errada em silêncio. Salvar assim mesmo?</sys:String>
+    <sys:String x:Key="Fld_GitCreate">Criar campos no board</sys:String>
+    <sys:String x:Key="Fld_GitCreateTip">Cria no board do GitHub os campos do NXProject e os de classificação que ainda não existem, com o tipo correto. O tipo de um campo não pode ser trocado depois.</sys:String>
+    <sys:String x:Key="Fld_GitCreateNone">Nada a criar: o board já tem todos os campos.</sys:String>
+    <sys:String x:Key="Fld_GitCreateConfirm">Criar no board "{0}" os campos abaixo?
+
+   {1}
+
+Os campos são criados no projeto, não nas issues, e podem ser removidos pela tela do GitHub. O TIPO não pode ser alterado depois.</sys:String>
+    <sys:String x:Key="Fld_GitCreateDone">Campos criados: {0}. Falhas: {1}.</sys:String>
+    <sys:String x:Key="Fld_Save">Salvar</sys:String>
+    <sys:String x:Key="Fld_Cancel">Cancelar</sys:String>
+    <sys:String x:Key="Menu_View_FieldNames">Configurar Campos e _Tags...</sys:String>
+    <sys:String x:Key="Imp_ConfigFields">⚙ Configurar Campos e Tags</sys:String>
+    <sys:String x:Key="Imp_ConfigFieldsTip">Nomes dos campos, tags e classificação do NXProject no Azure DevOps e no GitProject</sys:String>
+    <sys:String x:Key="Fld_Concept_effort">HH estimado</sys:String>
+    <sys:String x:Key="Fld_Concept_start">Data de início</sys:String>
+    <sys:String x:Key="Fld_Concept_finish">Data de fim</sys:String>
+    <sys:String x:Key="Fld_Concept_percAloc">% de alocação</sys:String>
+    <sys:String x:Key="Fld_Concept_percConclusao">% de conclusão</sys:String>
+    <sys:String x:Key="Fld_Concept_syncVersion">Versão de sincronização</sys:String>
+    <sys:String x:Key="Fld_Concept_syncName">Quem sincronizou</sys:String>
+    <sys:String x:Key="Fld_Concept_approved">Aprovada</sys:String>
+    <sys:String x:Key="Fld_Concept_epicType">Tipo do EPIC</sys:String>
+    <sys:String x:Key="Fld_Concept_admGroup">Grupo administrador</sys:String>
+    <sys:String x:Key="Fld_Concept_blockDuration">Horas de bloqueio</sys:String>
+    <sys:String x:Key="Fld_Concept_cardType">Nível do item</sys:String>
+    <sys:String x:Key="Git_Title">Conexão com o GitHub Projects</sys:String>
+    <sys:String x:Key="Git_Intro">O GitHub identifica o projeto por dono + número (a URL termina em /projects/7). Use "Listar meus boards" para escolher sem decorar o número.</sys:String>
+    <sys:String x:Key="Git_Owner">Dono (login)</sys:String>
+    <sys:String x:Key="Git_IsOrg">é organização</sys:String>
+    <sys:String x:Key="Git_IsOrgTip">Marcado, o NXProject procura o board na organização; desmarcado, na conta pessoal. Muda a consulta à API.</sys:String>
+    <sys:String x:Key="Git_Token">Token</sys:String>
+    <sys:String x:Key="Git_TokenHint">O token precisa ser do tipo classic com os escopos repo (as issues, mesmo em repositório privado) e project (ler e gravar no board). O fine-grained não serve para board de conta pessoal: ele não expõe a permissão de Projects. Fica cifrado pelo Windows nesta máquina, como o PAT do DevOps — nunca em texto plano.</sys:String>
+    <sys:String x:Key="Git_TokenLink">Gerar token em github.com/settings/tokens</sys:String>
+    <sys:String x:Key="Git_PermTitle">O que liberar no token</sys:String>
+    <sys:String x:Key="Git_PermSteps">Em github.com/settings/tokens → Tokens (classic) → Generate new token (classic).&#10;Na lista de escopos, marque SÓ estas duas caixas — as duas são "pais", e marcar o pai já marca os filhos indentados abaixo dele:&#10;&#10;  ☑ repo — Full control of private repositories   (1ª da lista)&#10;      ├ repo:status, repo_deployment, public_repo&#10;      ├ repo:invite, security_events&#10;      └ vêm junto ao marcar o pai; nenhum deles sozinho serve&#10;&#10;  ☑ project — Full control of projects   (bem mais abaixo, perto de admin:gpg_key)&#10;      └ read:project  (só leitura; não basta, porque o Sincronizar grava)&#10;&#10;Todo o resto fica desmarcado. Cole o token aqui e salve: fica cifrado pelo Windows (DPAPI).</sys:String>
+    <sys:String x:Key="Git_PermWhy">Por que o repositório: no GitHub Projects o board guarda só os campos (HH, datas, Status, sprint) e a ordem dos itens. Título, estado, responsável, labels e a relação pai/sub-issue são da ISSUE, e label e anexo são do REPOSITÓRIO. Sem isso, o board é lido com os campos e nenhum conteúdo — os itens aparecem como inacessíveis. O NXProject não lê o seu código: é o token clássico que não separa issues de código.</sys:String>
+    <sys:String x:Key="Git_PermTraps">Os dois enganos mais comuns: marcar repo:invite achando que libera o repositório — ele é FILHO de repo e trata só de convites de colaboração, não dá acesso a issue nenhuma; e usar token fine-grained, que não serve para board de conta pessoal porque não expõe a permissão de Projects. Os escopos de organização (admin:org, write:org, read:org) dizem "read and write org projects" e valem só para board de organização — para board pessoal, project já cobre.</sys:String>
+    <sys:String x:Key="Git_PermAlternatives">Se preferir não dar acesso ao código: mova o board para uma organização e use um token fine-grained com Issues (leitura/escrita) + Projects (leitura/escrita) — ali dá para liberar só isso. Com repositório público, basta o escopo public_repo.</sys:String>
+    <sys:String x:Key="Git_Board">Board</sys:String>
+    <sys:String x:Key="Git_Repo">Repositório</sys:String>
+    <sys:String x:Key="Git_RepoTip">Repositório onde as issues NOVAS são criadas (dono/repo). No GitHub a issue nasce num repositório; o board é só uma visão sobre issues de vários. Sem isto o Sincronizar atualiza o que existe, mas não cria.</sys:String>
+    <sys:String x:Key="Git_List">Listar meus boards</sys:String>
+    <sys:String x:Key="Git_Listing">Consultando o GitHub…</sys:String>
+    <sys:String x:Key="Git_Found">{0} board(s) encontrado(s). Escolha um.</sys:String>
+    <sys:String x:Key="Git_NoBoards">Nenhum board em "{0}". Confira o login e se é organização.</sys:String>
+    <sys:String x:Key="Git_NeedOwnerToken">Informe o dono e o token para listar.</sys:String>
+    <sys:String x:Key="Git_NeedAll">Informe dono, token e escolha um board.</sys:String>
+    <sys:String x:Key="Git_Testing">Lendo o board…</sys:String>
+    <sys:String x:Key="Git_TestOk">Leitura OK: {0} Story, {1} card(s), {2} item(ns) de nível (Feature/EPIC/Projeto), {3} sprint(s).&#10;Colunas: {4}</sys:String>
+    <sys:String x:Key="Git_ScopeError">O token não tem permissão de leitura de Projects. Rode: gh auth refresh -s read:project — ou gere um token clássico com o escopo read:project.&#10;&#10;Detalhe: {0}</sys:String>
+    <sys:String x:Key="Git_FineGrainedError">Este token não enxerga o board. Boards de CONTA PESSOAL (github.com/users/...) só funcionam com token CLÁSSICO: gere em Settings → Developer settings → Tokens (classic) com os escopos project (ou read:project) e repo. O token fine-grained só oferece a permissão Projects quando o board é de uma ORGANIZAÇÃO.&#10;&#10;Detalhe: {0}</sys:String>
+    <sys:String x:Key="Git_Test">Testar leitura</sys:String>
+    <sys:String x:Key="Git_Save">Salvar</sys:String>
+    <sys:String x:Key="Git_Cancel">Cancelar</sys:String>
+    <sys:String x:Key="Port_DiscoveryGit">Discovery GitProject</sys:String>
+    <sys:String x:Key="Port_DiscoveryGitTip">Procura no GitHub Projects os projetos deste board e acrescenta ao Portfólio. Exige a conexão do GitProject configurada.</sys:String>
+    <sys:String x:Key="Port_DiscoveryGitResult">{0} projeto(s) encontrado(s) no GitHub; {1} acrescentado(s) ao Portfólio.</sys:String>
+    <sys:String x:Key="Cfg_NamingPt">Português — campos do NXProject</sys:String>
+    <sys:String x:Key="Cfg_NamingEn">Inglês — campos nativos do DevOps</sys:String>
+    <sys:String x:Key="Cfg_NamingTip">Não é tradução: decide se o NXProject lê e grava no campo NATIVO do processo (Start Date, Finish Date, Original Estimate) ou em campo próprio dele (Data_Inicio, Data_Fim, HH Estimado). O que não tem nativo — % conclusão, sync, horas de bloqueio — muda só de nome (nx_...). Os nomes seguem editáveis abaixo, e nada é renomeado no servidor.</sys:String>
+    <sys:String x:Key="Cfg_StoryStdEffort">Na Story usar o Original Estimate do DevOps</sys:String>
     <sys:String x:Key="Cfg_DetectSuggestStd">o DevOps já tem "{1}" de fábrica na {0} — marque "na {0} usar" para usá-lo em vez de criar o campo</sys:String>
     <sys:String x:Key="Cfg_DetectTypeConflict">o campo é {0} e o NXProject grava {1} — escolha outro nome</sys:String>
     <sys:String x:Key="Cfg_DetectTypeNarrower">o campo é {0} e o NXProject grava {1} — valores quebrados serão arredondados</sys:String>
@@ -1992,6 +2120,8 @@
     <sys:String x:Key="Sprint_EpicCollapsed">recolhido</sys:String>
     <sys:String x:Key="Sprint_ColProject">Projeto</sys:String>
     <sys:String x:Key="Sprint_ShowEpicHint">Marcado: EPIC em coluna própria. Desmarcado: EPIC dentro do card da Feature.</sys:String>
+    <sys:String x:Key="Sprint_ColEpicGroup">Grupo</sys:String>
+    <sys:String x:Key="Sprint_ShowEpicGroupHint">Mostra o EPIC_GROUP (agrupador de EPICs) acima do nome do EPIC. Desmarque para suprimir todos de uma vez.</sys:String>
     <sys:String x:Key="Sprint_ShowProjHint">Marcado: Projeto em coluna própria. Desmarcado: Projeto junto do EPIC.</sys:String>
     <sys:String x:Key="Sprint_GroupScope">O QUE MOSTRAR</sys:String>
     <sys:String x:Key="Sprint_GroupTaskTags">MARCAÇÃO DA TASK</sys:String>
@@ -2092,7 +2222,7 @@
     <sys:String x:Key="Sprint_SaveNewNowNoParent">O item pai ainda não existe no DevOps: grave primeiro pelo "Atualizar TFS", que cria pai e filho na ordem certa.</sys:String>
     <sys:String x:Key="Sprint_SaveNewNowConfirm">"{0}" será criado AGORA no DevOps, sob o item {1}.&#10;&#10;Isto não entra na fila do "Atualizar TFS" e não pode ser desfeito pelo descartar do card: para remover, é preciso excluir no DevOps.&#10;&#10;Confirma?</sys:String>
     <sys:String x:Key="Sprint_SaveNewNowDone">Item criado no DevOps: {0}</sys:String>
-    <sys:String x:Key="Sprint_SaveNewNowKeptQueue">As demais pendências continuam na fila do "Atualizar TFS"; o item novo aparece no board na próxima recarga.</sys:String>
+    <sys:String x:Key="Sprint_SaveNewNowKeptQueue">As demais pendências continuam na fila do "Atualizar TFS".</sys:String>
     <sys:String x:Key="Sprint_NewNoName">Card novo sem nome — informe o nome.</sys:String>
     <sys:String x:Key="Sprint_NewIncomplete">Card novo incompleto — informe Nome, HH Estimado e Responsável.</sys:String>
     <sys:String x:Key="Sprint_PriorityTip">Prioridade da Task — clique para alterar (dentro da faixa configurada); grava no Salvar TFS.</sys:String>
@@ -2146,6 +2276,7 @@
     <sys:String x:Key="Sprint_PersonAll">Todas as pessoas ▾</sys:String>
     <sys:String x:Key="Sprint_PersonN">{0} pessoas ▾</sys:String>
     <sys:String x:Key="Sprint_OpenDevOps">Abrir no DevOps</sys:String>
+    <sys:String x:Key="Sprint_OnlyIn">{0}  (somente {1})</sys:String>
     <sys:String x:Key="Sprint_StoryTasks">Ver todas as atividades da Story (busca no DevOps): inclui as de outras pessoas e as que não estão no cronograma. Não abre nem expande o cronograma.</sys:String>
     <sys:String x:Key="Sprint_Colors">Cores por estado</sys:String>
     <sys:String x:Key="Sprint_DeleteTask">Excluir Task (New)</sys:String>

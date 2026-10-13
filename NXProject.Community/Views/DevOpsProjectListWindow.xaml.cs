@@ -136,6 +136,7 @@ namespace NXProject.Views
             }
         }
 
+
         private void OnDiscoveryClick(object sender, RoutedEventArgs e)
         {
             var options = _connectionOptions ?? TfsConnectionStore.Load("NXProject.Community");

@@ -1,0 +1,109 @@
+﻿<Window x:Class="NXProject.Views.GitProjectConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Git_Title}"
+        Width="700" Height="660"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="White">
+    <Border Padding="18">
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Git_Intro}" FontSize="11.5"
+                       Foreground="#666" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Git_Owner}"
+                           VerticalAlignment="Center" FontSize="11.5" Margin="0,0,8,6"/>
+                <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,6">
+                    <CheckBox x:Name="IsOrgBox" DockPanel.Dock="Right" VerticalAlignment="Center"
+                              Margin="8,0,0,0" FontSize="11"
+                              Content="{DynamicResource Git_IsOrg}"
+                              ToolTip="{DynamicResource Git_IsOrgTip}"/>
+                    <TextBox x:Name="OwnerBox" Height="24" Padding="6,3"/>
+                </DockPanel>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Git_Token}"
+                           VerticalAlignment="Center" FontSize="11.5" Margin="0,0,8,6"/>
+                <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="TokenBox" Height="24" Margin="0,0,0,6"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Git_Board}"
+                           VerticalAlignment="Center" FontSize="11.5" Margin="0,0,8,0"/>
+                <DockPanel Grid.Row="2" Grid.Column="1">
+                    <Button x:Name="ListButton" DockPanel.Dock="Right" Content="{DynamicResource Git_List}"
+                            Width="150" Height="24" Margin="8,0,0,0" Click="OnListClick"/>
+                    <ComboBox x:Name="BoardCombo" Height="24" FontSize="11.5"/>
+                </DockPanel>
+
+                <!-- No GitHub a issue nasce num REPOSITORIO; o board e so uma visao sobre issues
+                     de varios. Sem isto o Sincronizar atualiza o que existe, mas nao cria. -->
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Git_Repo}"
+                           VerticalAlignment="Center" FontSize="11.5" Margin="0,6,8,0"/>
+                <TextBox Grid.Row="3" Grid.Column="1" x:Name="RepoBox" Height="24" Padding="6,3"
+                         Margin="0,6,0,0" ToolTip="{DynamicResource Git_RepoTip}"/>
+            </Grid>
+
+            <!-- Link para gerar o token, como o PAT do DevOps ja tem: a pessoa esta aqui
+                 justamente porque nao tem o token, e procurar a pagina no GitHub e o passo
+                 em que mais se erra (fine-grained nao serve para board pessoal). -->
+            <TextBlock DockPanel.Dock="Top" FontSize="10.5" Foreground="#888"
+                       TextWrapping="Wrap" Margin="0,0,0,10">
+                <Run Text="{DynamicResource Git_TokenHint}"/>
+                <LineBreak/>
+                <Hyperlink NavigateUri="https://github.com/settings/tokens"
+                           RequestNavigate="OnHyperlinkRequestNavigate">
+                    <Run Text="{DynamicResource Git_TokenLink}"/>
+                </Hyperlink>
+            </TextBlock>
+
+            <!-- O que o token precisa liberar, e POR QUE. Fica na tela porque e aqui que a
+                 pessoa erra: 'repo:invite' parece dar acesso ao repositorio e nao da, e o
+                 fine-grained nao serve para board de conta pessoal. Sem o escopo certo o board
+                 abre com os campos e NENHUMA issue — e a suspeita cai no lugar errado. -->
+            <Expander DockPanel.Dock="Top" IsExpanded="True" Margin="0,0,0,10"
+                      Header="{DynamicResource Git_PermTitle}" FontSize="11.5">
+                <Border Background="#F7F9FC" BorderBrush="#D0D7E0" BorderThickness="1"
+                        CornerRadius="4" Padding="10,8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="300">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Git_PermSteps}" FontSize="11"
+                                   FontFamily="Consolas, Courier New" Foreground="#333"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{DynamicResource Git_PermWhy}" FontSize="10.5"
+                                   Foreground="#666" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        <TextBlock Text="{DynamicResource Git_PermTraps}" FontSize="10.5"
+                                   Foreground="#A33" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        <TextBlock Text="{DynamicResource Git_PermAlternatives}" FontSize="10.5"
+                                   Foreground="#666" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Expander>
+
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" LastChildFill="False">
+                <Button DockPanel.Dock="Right" Content="{DynamicResource Git_Cancel}" Width="110" Height="30"
+                        Margin="8,0,0,0" IsCancel="True"/>
+                <Button DockPanel.Dock="Right" Content="{DynamicResource Git_Save}" Width="150" Height="30"
+                        Click="OnSaveClick" Background="#107C10" Foreground="White" FontWeight="SemiBold"/>
+                <Button DockPanel.Dock="Left" Content="{DynamicResource Git_Test}" Width="170" Height="30"
+                        Click="OnTestClick"/>
+            </DockPanel>
+
+            <Border BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="4" Padding="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="StatusText" FontSize="11.5" TextWrapping="Wrap" Foreground="#333"/>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+    </Border>
+</Window>

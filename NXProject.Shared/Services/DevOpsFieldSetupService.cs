@@ -49,7 +49,7 @@ namespace NXProject.Services
         /// a mesma regra serve ao import, à tela de configuração e a este serviço; aqui ele só é
         /// reexposto para quem já chamava por este nome.
         /// </summary>
-        public static IReadOnlyList<NxDevOpsFieldCatalog.NxFieldSpec> Catalog => NxDevOpsFieldCatalog.All;
+        public static IReadOnlyList<NxDevOpsFieldCatalog.NxFieldSpec> Catalog => NxDevOpsFieldCatalog.DevOpsFields;
 
         /// <summary>Como está um campo na organização, do ponto de vista do NXProject.</summary>
         public enum FieldStatus

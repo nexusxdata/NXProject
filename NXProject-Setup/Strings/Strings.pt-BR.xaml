@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -27,8 +27,14 @@
     <sys:String x:Key="Setup_Step4Org">Organização</sys:String>
     <sys:String x:Key="Setup_Step4Server">Servidor</sys:String>
     <sys:String x:Key="Setup_Step4ServerTip">Onde os campos do NXProject serão configurados. Hoje só o Azure DevOps está implementado; GitProject (GitHub Projects) é um caminho em estudo.</sys:String>
+    <sys:String x:Key="Setup_Step4Naming">Padrão de nomes dos campos</sys:String>
+    <sys:String x:Key="Setup_Step4NamingPt">Português — campos do NXProject</sys:String>
+    <sys:String x:Key="Setup_Step4NamingEn">Inglês — campos nativos do DevOps</sys:String>
+    <sys:String x:Key="Setup_Step4NamingTip">Não é tradução: decide se o NXProject grava no campo NATIVO do processo (Start Date, Finish Date, Original Estimate) ou em campo próprio dele (Data_Inicio, Data_Fim, HH Estimado). O que não tem nativo — % conclusão, sync, horas de bloqueio — muda só de nome (nx_...). Cada nome segue editável na linha, e nada é renomeado no servidor.</sys:String>
+    <sys:String x:Key="Setup_Step4NamingAppliedPt">Padrão português: o NXProject usa os campos próprios dele para datas e HH.</sys:String>
+    <sys:String x:Key="Setup_Step4NamingAppliedEn">Padrão inglês: datas e HH passam a usar os campos nativos do DevOps, na Story e na Task. Criar aqui significa ASSOCIAR o campo do processo ao tipo, não criar um novo.</sys:String>
     <sys:String x:Key="Setup_Step4ServerTodoTitle">Ainda não implementado</sys:String>
-    <sys:String x:Key="Setup_Step4ServerTodo">Configurar campos no GitProject (GitHub Projects) ainda não está implementado — o servidor volta para o Azure DevOps.&#10;&#10;No GitHub os campos são do PROJETO (não do processo) e a hierarquia EPIC/Feature/Story/Task não existe de fábrica: seria preciso mapear os níveis. O desenho está em Plano_GitProject_Import_Sync.md, na raiz do repositório.</sys:String>
+    <sys:String x:Key="Setup_Step4ServerTodo">Configurar campos no GitProject (GitHub Projects) ainda não está implementado — o servidor volta para o Azure DevOps.&#10;&#10;No GitHub os campos são do PROJETO (não do processo) e a hierarquia EPIC/Feature/Story/Task não existe de fábrica: seria preciso mapear os níveis. O desenho está em features_gitproject.md, na raiz do repositório.</sys:String>
     <sys:String x:Key="Setup_Step4Project">Projeto</sys:String>
     <sys:String x:Key="Setup_Step4Pat">Token (PAT)</sys:String>
     <sys:String x:Key="Setup_Step4PatNote">Este token é usado SÓ AGORA, nesta janela, para detectar e criar os campos. Ele NÃO é gravado pelo instalador, NÃO altera o token que o NXProject usa no dia a dia e NÃO entra no arquivo de configuração exportado — some ao fechar a janela. Criar campo exige permissão de editar processo (Project Collection Administrator).</sys:String>
@@ -78,6 +84,9 @@
     <sys:String x:Key="Setup_Step4ProcessInherited">processo "{0}" é herdado: aceita campos novos</sys:String>
     <sys:String x:Key="Setup_Step4ProcessSystem">processo "{0}" é de fábrica e NÃO aceita campos novos — herde o processo no DevOps antes</sys:String>
     <sys:String x:Key="Setup_Step4AllOk">todos os campos já existem</sys:String>
+    <sys:String x:Key="Setup_Step4LevelsOk">Níveis: Project → Epic → Feature → Story → Task mapeados</sys:String>
+    <sys:String x:Key="Setup_Step4LevelsMissing">⚠ Sem tipo para o(s) nível(is): {0} — ajuste os nomes em Configurar Campos e Tags → Níveis, no NXProject</sys:String>
+    <sys:String x:Key="Setup_Step4LevelsExtra">Tipos sem nível (ficam fora da hierarquia): {0}</sys:String>
     <sys:String x:Key="Setup_Step4MissingCount">{0} campo(s) a criar</sys:String>
     <sys:String x:Key="Setup_Step4NothingChecked">Nenhum campo marcado para criar.</sys:String>
     <sys:String x:Key="Setup_Step4ConfirmTitle">Criar campos no DevOps</sys:String>

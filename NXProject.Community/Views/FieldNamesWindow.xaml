@@ -1,0 +1,458 @@
+﻿<Window x:Class="NXProject.Views.FieldNamesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Fld_Title}"
+        Width="1060" Height="660" MinWidth="880" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+    <Border Padding="18">
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Fld_Intro}" FontSize="11.5"
+                       Foreground="#666" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+            <TabControl x:Name="TabsControl" DockPanel.Dock="Top" Margin="0,0,0,10" SelectionChanged="OnTabChanged">
+                <!-- Uma aba por destino: o que existe num nao existe no outro, e empilhar tudo
+                     numa lista so obrigaria a pessoa a adivinhar o que vale onde. -->
+                <TabItem Header="Azure DevOps">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="620">
+                        <StackPanel Margin="4">
+                        <Border Background="#FAFAFA" BorderBrush="#DDD" BorderThickness="1"
+                                CornerRadius="6" Padding="12,10" Margin="0,0,0,4">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Cfg_AdvancedFields}" FontWeight="SemiBold" FontSize="13" Foreground="#2B579A" Margin="0,0,0,10"/>
+                            <TextBlock Text="{DynamicResource Cfg_FieldNamesHint}"
+                                       FontSize="11" Foreground="#666" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                            <!-- Padrao de nomes: a MESMA combo do NXProject-Setup, lendo a mesma regra do
+                                 catalogo. Nao e traducao — decide entre o campo nativo do processo e o
+                                 campo proprio do NXProject. Os nomes seguem editaveis abaixo. -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="{DynamicResource Cfg_Naming}" VerticalAlignment="Center"
+                                           FontSize="11" Foreground="#666" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="NamingCombo" Width="280" Height="24" FontSize="11"
+                                          SelectionChanged="OnNamingChanged"
+                                          ToolTip="{DynamicResource Cfg_NamingTip}">
+                                    <ComboBoxItem Content="{DynamicResource Cfg_NamingPt}"/>
+                                    <ComboBoxItem Content="{DynamicResource Cfg_NamingEn}"/>
+                                </ComboBox>
+                                <!-- A combo so reage quando muda; este botao reaplica o padrao
+                                     sobre nomes que a pessoa editou e quer descartar. -->
+                                <Button Content="{DynamicResource Fld_Defaults}" Height="24" Padding="10,0"
+                                        Margin="10,0,0,0" FontSize="11" Click="OnDevDefaultsClick"
+                                        ToolTip="{DynamicResource Fld_DefaultsTip}"/>
+                            </StackPanel>
+                            <!-- Uma linha por conceito, como na aba do GitProject: [usar] nome
+                                 e, a direita, as caixas de "usar o campo padrao do DevOps" em
+                                 cada tipo. Antes isto era um mosaico de grades, e campo opcional
+                                 ficava longe da caixa que o liga. -->
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="210"/>
+                                    <ColumnDefinition Width="230"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Fld_ColConcept}" FontSize="10.5" Foreground="#888"/>
+                                <TextBlock Grid.Column="1" Text="{DynamicResource Fld_ColName}" FontSize="10.5" Foreground="#888"/>
+                                <TextBlock Grid.Column="2" Text="{DynamicResource Fld_ColOptions}" FontSize="10.5" Foreground="#888"/>
+                            </Grid>
+                            <Border BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="4" Margin="0,0,0,4">
+                                <ItemsControl x:Name="DevRowsList" Margin="6"/>
+                            </Border>
+                            <!-- O mesmo aviso do NXProject-Setup, e pelo mesmo motivo: o nome
+                                 aqui tem de ser o nome que existe na organizacao. Nome diferente
+                                 nao da erro — o campo so chega vazio no import. -->
+                            <TextBlock Text="{DynamicResource Fld_PrefixHint}" FontSize="10.5" Foreground="#888"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <!-- Prioridade nao e campo: e faixa de valores aceitos. Fica fora da
+                                 lista, com as duas caixas que so ela usa. -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="TaskPriorityRangeEnabledBox" VerticalAlignment="Center"
+                                          Content="{DynamicResource Cfg_TaskPrioRangeEnable}"
+                                          ToolTip="{DynamicResource Cfg_TaskPrioRangeTip}" FontSize="11"
+                                          Checked="OnTaskPriorityRangeEnabledChanged"
+                                          Unchecked="OnTaskPriorityRangeEnabledChanged"/>
+                                <TextBlock Text="{DynamicResource Cfg_TaskPrioMin}" VerticalAlignment="Center"
+                                           FontSize="10.5" Foreground="#666" Margin="14,0,4,0"/>
+                                <TextBox x:Name="TaskPriorityMinBox" Width="60" Height="24" Padding="6,3" IsEnabled="False"
+                                         ToolTip="{DynamicResource Cfg_TaskPrioRangeTip}"/>
+                                <TextBlock Text="{DynamicResource Cfg_TaskPrioMax}" VerticalAlignment="Center"
+                                           FontSize="10.5" Foreground="#666" Margin="10,0,4,0"/>
+                                <TextBox x:Name="TaskPriorityMaxBox" Width="60" Height="24" Padding="6,3" IsEnabled="False"
+                                         ToolTip="{DynamicResource Cfg_TaskPrioRangeTip}"/>
+                            </StackPanel>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{DynamicResource Cfg_SyncVersionField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="SyncVersionFieldBox" Height="26" Padding="6,3"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="{DynamicResource Cfg_SyncNameField}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="SyncNameFieldBox" Height="26" Padding="6,3"/>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_FixedStartTag}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                <TextBox x:Name="FixedStartTagBox" Height="26" Padding="6,3" Width="220" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_UnplannedTag}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                <TextBox x:Name="UnplannedTagBox" Height="26" Padding="6,3" Width="220" HorizontalAlignment="Left"
+                                         ToolTip="{DynamicResource Cfg_UnplannedTagTip}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_WipTag}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                <TextBox x:Name="WipTagBox" Height="26" Padding="6,3" Width="220" HorizontalAlignment="Left"
+                                         ToolTip="{DynamicResource Cfg_WipTagTip}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_BlockedTag}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                <TextBox x:Name="BlockedTagBox" Height="26" Padding="6,3" Width="220" HorizontalAlignment="Left"
+                                         ToolTip="{DynamicResource Cfg_BlockedTagTip}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_TaskPlanFile}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TaskPlanFileBox" Grid.Column="0" Height="26" Padding="6,3"/>
+                                    <Button x:Name="TaskPlanFileBrowse" Grid.Column="1" Content="..." Width="32" Height="26"
+                                            Margin="6,0,0,0" Click="OnBrowseTaskPlanFileClick"/>
+                                </Grid>
+                            </StackPanel>
+                            <CheckBox x:Name="SyncPredecessorLinksCheck"
+                                      Content="{DynamicResource Cfg_SyncPredLinks}"
+                                      IsChecked="True" Margin="0,10,0,0" FontSize="11"/>
+                            <CheckBox x:Name="EnforceStoryCompletionWithTasksCheck"
+                                      Content="{DynamicResource Cfg_EnforceStoryCompletionWithTasks}"
+                                      IsChecked="True" Margin="0,6,0,0" FontSize="11"/>
+                            <StackPanel Margin="0,10,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_FutureSprints}" FontSize="11" Foreground="#666" Margin="0,0,0,3"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox x:Name="FutureSprintDaysBox" Height="26" Padding="6,3" Width="80" Text="90"/>
+                                    <TextBlock Text="{DynamicResource Cfg_FutureSprintsHint}" FontSize="11"
+                                               Foreground="#888" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Margin="0,12,0,0">
+                                <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,4" TextWrapping="Wrap"
+                                           Text="{DynamicResource Cfg_RequiredFieldsHint}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{DynamicResource Cfg_FieldRefHint}" FontSize="10" Foreground="#888" Margin="0,0,0,2"/>
+                                    <TextBlock Grid.Column="2" Text="{DynamicResource Cfg_DefaultValueHint}" FontSize="10" Foreground="#888" Margin="0,0,0,2"/>
+                                </Grid>
+                                <ItemsControl x:Name="ExtraFieldsList" Margin="0,2,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="8"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="8"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Height="26" Padding="6,3" Text="{Binding Ref, UpdateSourceTrigger=PropertyChanged}"/>
+                                                <TextBox Grid.Column="2" Height="26" Padding="6,3" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
+                                                <TextBox Grid.Column="4" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                     Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="{DynamicResource Fld_GitDefaultTip}"/>
+                                            <Button Grid.Column="5" Content="✕" Width="26" Height="26" Padding="0"
+                                                        Tag="{Binding}" Click="OnRemoveExtraField"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="{DynamicResource Cfg_AddField}" HorizontalAlignment="Left" Padding="8,4"
+                                        Margin="0,4,0,0" Click="OnAddExtraField"/>
+                            </StackPanel>
+                            <!-- Detectar no DevOps quais campos existem em cada tipo de work item -->
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button x:Name="DetectFieldsButton" Content="{DynamicResource Cfg_DetectFields}"
+                                        Height="28" Padding="12,0" Click="OnDetectFieldsClick"
+                                        ToolTip="{DynamicResource Cfg_DetectFieldsTip}"/>
+                                <TextBlock x:Name="DetectFieldsStatus" VerticalAlignment="Center" Margin="10,0,0,0"
+                                           FontSize="11" Foreground="#666" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <!-- Campos de classificação por tipo DevOps -->
+                            <StackPanel Margin="0,14,0,0">
+                                <TextBlock Text="{DynamicResource Cfg_ClassSection}" FontSize="11" FontWeight="SemiBold" Foreground="#444" Margin="0,0,0,4"/>
+                                <TextBlock FontSize="10" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6"
+                                           Text="{DynamicResource Cfg_ClassHint}"/>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="28"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{DynamicResource Cfg_ColDevOpsType}"   FontSize="10" Foreground="#666"/>
+                                    <TextBlock Grid.Column="2" Text="{DynamicResource Cfg_ColFieldRef}"  FontSize="10" Foreground="#666"/>
+                                    <TextBlock Grid.Column="4" Text="{DynamicResource Cfg_ColFieldType}" FontSize="10" Foreground="#666"/>
+                                    <TextBlock Grid.Column="6" Text="{DynamicResource Cfg_ColValues}"  FontSize="10" Foreground="#666"/>
+                                    <TextBlock Grid.Column="8" Text="{DynamicResource Fld_GitDefault}" FontSize="10" Foreground="#666"/>
+                                </Grid>
+                                <ItemsControl x:Name="ClassificationMappingsList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="100"/>
+                                                    <ColumnDefinition Width="6"/>
+                                                    <ColumnDefinition Width="140"/>
+                                                    <ColumnDefinition Width="6"/>
+                                                    <ColumnDefinition Width="90"/>
+                                                    <ColumnDefinition Width="6"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="6"/>
+                                                    <ColumnDefinition Width="130"/>
+                                                    <ColumnDefinition Width="26"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox Grid.Column="0" Height="26" Padding="4,2" FontSize="11"
+                                                          SelectedItem="{Binding DevOpsType, UpdateSourceTrigger=PropertyChanged}"
+                                                          ItemsSource="{Binding AvailableTypes}"/>
+                                                <TextBox Grid.Column="2" Height="26" Padding="6,3" FontSize="11"
+                                                         Text="{Binding FieldRef, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="{DynamicResource Cfg_FieldRefTip}"/>
+                                                <ComboBox Grid.Column="4" Height="26" Padding="4,2" FontSize="11"
+                                                          SelectedItem="{Binding FieldType, UpdateSourceTrigger=PropertyChanged}"
+                                                          ItemsSource="{Binding AvailableFieldTypes}"
+                                                          ToolTip="{DynamicResource Cfg_FieldTypeTip}"/>
+                                                <TextBox Grid.Column="6" Height="26" Padding="6,3" FontSize="11"
+                                                         Text="{Binding Values, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="{DynamicResource Cfg_ValuesTip}"/>
+                                                <TextBox Grid.Column="8" Height="26" Padding="6,3" FontSize="11" Margin="0,0,6,0"
+                                                         Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="{DynamicResource Fld_DevDefaultTip}"/>
+                                                <Button Grid.Column="9" Content="✕" Width="26" Height="26" Padding="0" FontSize="11"
+                                                        Tag="{Binding}" Click="OnRemoveClassificationMapping"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="{DynamicResource Cfg_AddMapping}" HorizontalAlignment="Left" Padding="8,4"
+                                        Margin="0,4,0,0" Click="OnAddClassificationMapping"/>
+                            </StackPanel>
+                        </StackPanel>
+                        </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="GitProject">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                  MaxHeight="520">
+                    <DockPanel Margin="4">
+                        <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Fld_HintGit}" FontSize="11"
+                                   Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        <!-- Padrao de nomes no board. No GitHub nao existe campo nativo para
+                             escolher: aqui PT/EN decide so o NOME de fabrica de cada campo. O
+                             default e EN, que e o vocabulario do proprio GitHub. -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="{DynamicResource Cfg_Naming}" VerticalAlignment="Center"
+                                       FontSize="11" Foreground="#666" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="GitNamingCombo" Width="280" Height="24" FontSize="11"
+                                      SelectedIndex="1" SelectionChanged="OnGitNamingChanged"
+                                      ToolTip="{DynamicResource Fld_NamingGitTip}">
+                                <ComboBoxItem Content="{DynamicResource Cfg_NamingPt}"/>
+                                <ComboBoxItem Content="{DynamicResource Cfg_NamingEn}"/>
+                            </ComboBox>
+                            <Button Content="{DynamicResource Fld_Defaults}" Height="24" Padding="10,0"
+                                    Margin="10,0,0,0" FontSize="11" Click="OnDefaultsClick"
+                                    ToolTip="{DynamicResource Fld_DefaultsTip}"/>
+                        </StackPanel>
+                        <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="210"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Fld_ColConcept}" FontSize="10.5" Foreground="#888"/>
+                            <TextBlock Grid.Column="1" Text="{DynamicResource Fld_ColName}" FontSize="10.5" Foreground="#888"/>
+                        </Grid>
+                        <Border DockPanel.Dock="Top" BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="4">
+                            <ItemsControl x:Name="RowsList" Margin="6"/>
+                        </Border>
+
+                        <!-- Tags = LABELS da issue. O conector ja as le; aqui se diz com que
+                             nome elas aparecem no GitHub. -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,12,0,0">
+                            <TextBlock Text="{DynamicResource Fld_GitTags}" FontSize="11.5"
+                                       FontWeight="SemiBold" Foreground="#444"/>
+                            <TextBlock Text="{DynamicResource Fld_GitTagsHint}" FontSize="10.5"
+                                       Foreground="#888" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{DynamicResource Cfg_FixedStartTag}" FontSize="10.5" Foreground="#666" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="GitFixedStartTagBox" Height="24" Padding="6,3" FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="{DynamicResource Cfg_UnplannedTag}" FontSize="10.5" Foreground="#666" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="GitUnplannedTagBox" Height="24" Padding="6,3" FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="{DynamicResource Cfg_WipTag}" FontSize="10.5" Foreground="#666" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="GitWipTagBox" Height="24" Padding="6,3" FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="6">
+                                    <TextBlock Text="{DynamicResource Cfg_BlockedTag}" FontSize="10.5" Foreground="#666" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="GitBlockedTagBox" Height="24" Padding="6,3" FontSize="11"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Classificacao: campo single-select do board preenchido ao CRIAR o
+                             item. No GitHub nada e obrigatorio na criacao (a issue so exige
+                             titulo), entao isto e conveniencia, nao exigencia do servidor. -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,12,0,0">
+                            <TextBlock Text="{DynamicResource Fld_GitClassTitle}" FontSize="11.5"
+                                       FontWeight="SemiBold" Foreground="#444"/>
+                            <TextBlock Text="{DynamicResource Fld_GitClassHint}" FontSize="10.5"
+                                       Foreground="#888" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="*" MinWidth="150"/>
+                                    <ColumnDefinition Width="130"/>
+                                    <ColumnDefinition Width="34"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Fld_GitClassLevel}" FontSize="10" Foreground="#666"/>
+                                <TextBlock Grid.Column="1" Text="{DynamicResource Fld_GitClassField}" FontSize="10" Foreground="#666"/>
+                                <TextBlock Grid.Column="2" Text="{DynamicResource Cfg_ColFieldType}" FontSize="10" Foreground="#666"/>
+                                <TextBlock Grid.Column="3" Text="{DynamicResource Cfg_ColValues}" FontSize="10" Foreground="#666"/>
+                                <TextBlock Grid.Column="4" Text="{DynamicResource Fld_GitDefault}" FontSize="10" Foreground="#666"/>
+                            </Grid>
+                            <ItemsControl x:Name="GitClassList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="150"/>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="*" MinWidth="150"/>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="34"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                      ItemsSource="{Binding AvailableLevels}"
+                                                      SelectedItem="{Binding Level, Mode=TwoWay}"/>
+                                            <TextBox Grid.Column="1" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                     Text="{Binding Field, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <ComboBox Grid.Column="2" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                      ItemsSource="{Binding AvailableFieldTypes}"
+                                                      SelectedItem="{Binding FieldType, Mode=TwoWay}"/>
+                                            <TextBox Grid.Column="3" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                     Text="{Binding Values, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="{DynamicResource Fld_GitValuesTip}"/>
+                                            <TextBox Grid.Column="4" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                     Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="{DynamicResource Fld_GitDefaultTip}"/>
+                                            <Button Grid.Column="5" Content="✕" Width="26" Height="24" FontSize="10"
+                                                    Click="OnRemoveGitClass" Tag="{Binding}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="{DynamicResource Cfg_AddMapping}"
+                                        Padding="8,4" Click="OnAddGitClass"/>
+                                <!-- Mesmo papel do "Detectar campos DevOps": conferir o que ja
+                                     existe no servidor antes de supor. -->
+                                <Button x:Name="GitDetectButton" Content="{DynamicResource Fld_GitDetect}"
+                                        Padding="8,4" Margin="10,0,0,0" Click="OnGitDetectClick"
+                                        ToolTip="{DynamicResource Fld_GitDetectTip}"/>
+                                <!-- Equivalente do "Criar campos" do NXProject-Setup: no GitHub
+                                     campo e do board, e sem ele o import chega sem HH e sem data. -->
+                                <Button x:Name="GitCreateButton" Content="{DynamicResource Fld_GitCreate}"
+                                        Padding="8,4" Margin="10,0,0,0" Click="OnGitCreateClick"
+                                        ToolTip="{DynamicResource Fld_GitCreateTip}"/>
+                                <TextBlock x:Name="GitDetectStatus" VerticalAlignment="Center" Margin="10,0,0,0"
+                                           FontSize="11" Foreground="#555" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Niveis: vale para os DOIS destinos. No DevOps o nome do tipo estava preso no
+                     codigo; no GitHub nao existe hierarquia nenhuma e quem a sustenta e o NX. -->
+                <TabItem Header="{DynamicResource Fld_TabLevels}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="520">
+                        <StackPanel Margin="4">
+                            <TextBlock Text="{DynamicResource Fld_LevelsHint}" FontSize="11"
+                                       Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{DynamicResource Fld_ColLevel}" FontSize="10.5" Foreground="#888"/>
+                                <TextBlock Grid.Column="1" Text="{DynamicResource Fld_ColInUse}" FontSize="10.5" Foreground="#888"/>
+                                <TextBlock Grid.Column="2" Text="{DynamicResource Fld_ColLevelNames}" FontSize="10.5" Foreground="#888"/>
+                            </Grid>
+                            <Border BorderBrush="#D0D7E0" BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
+                                <ItemsControl x:Name="LevelRowsList" Margin="6"/>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Content="{DynamicResource Fld_Defaults}" Height="24" Padding="10,0"
+                                        FontSize="11" Click="OnLevelDefaultsClick"
+                                        ToolTip="{DynamicResource Fld_DefaultsTip}"/>
+                                <!-- Mesmo papel do detector de campos: descobrir AQUI, e nao no
+                                     meio de um import, que o tipo se chama outra coisa. -->
+                                <Button x:Name="LevelDetectButton" Content="{DynamicResource Fld_LevelsDetect}"
+                                        Height="24" Padding="10,0" Margin="10,0,0,0" FontSize="11"
+                                        Click="OnLevelDetectClick"
+                                        ToolTip="{DynamicResource Fld_LevelsDetectTip}"/>
+                                <TextBlock x:Name="LevelStatus" VerticalAlignment="Center" Margin="10,0,0,0"
+                                           FontSize="11" Foreground="#555" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <TextBlock Text="{DynamicResource Fld_LevelsOrderHint}" FontSize="10.5" Foreground="#888"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" LastChildFill="False">
+                <TextBlock x:Name="StatusText" DockPanel.Dock="Left" VerticalAlignment="Center"
+                           FontSize="11.5" Foreground="#555" TextWrapping="Wrap"/>
+                <Button DockPanel.Dock="Right" Content="{DynamicResource Fld_Cancel}" Width="110" Height="30"
+                        Margin="8,0,0,0" IsCancel="True"/>
+                <Button DockPanel.Dock="Right" Content="{DynamicResource Fld_Save}" Width="150" Height="30"
+                        Click="OnSaveClick" Background="#107C10" Foreground="White" FontWeight="SemiBold"/>
+            </DockPanel>
+        </DockPanel>
+    </Border>
+</Window>

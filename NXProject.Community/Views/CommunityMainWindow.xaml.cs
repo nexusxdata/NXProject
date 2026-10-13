@@ -2113,10 +2113,7 @@ namespace NXProject.Views
             });
             if (escolha == 2)
             {
-                MessageBox.Show(this,
-                    AppStrings.Get("Sprint_TargetTodo", AppStrings.Get("Sprint_TargetGitProject"),
-                        "Plano_GitProject_Import_Sync.md"),
-                    AppStrings.Get("Sprint_TargetTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+                await SincronizaGitProjectAsync(vm);
                 return;
             }
             if (escolha != 1)
@@ -2455,6 +2452,63 @@ namespace NXProject.Views
             ApplyClassificationTypesToGrid();
         }
         private void OnImportTfsToolbarClick(object sender, RoutedEventArgs e) => OpenTfsImport();
+        private async void OnSyncGitProjectClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm) await SincronizaGitProjectAsync(vm);
+        }
+
+        /// <summary>
+        /// Sincroniza o cronograma com o board do GitHub.
+        ///
+        /// Fica separado do Sincronizar do DevOps de propósito: as proteções de lá (Adm_NX, work
+        /// item raiz, organização/Team Project do .nxp) não têm equivalente aqui, e misturá-las
+        /// num método só daria a impressão de que valem nos dois.
+        /// </summary>
+        private async Task SincronizaGitProjectAsync(MainViewModel vm)
+        {
+            var git = Services.TfsConnectionStore.Load("NXProject.Community").GitProject;
+            if (git?.IsConfigured != true)
+            {
+                MessageBox.Show(this, AppStrings.Get("Git_SyncNoConn"),
+                    AppStrings.Get("Menu_File_Export_SyncGit"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (MessageBox.Show(this,
+                    AppStrings.Get("Git_SyncConfirm", git.Owner, git.ProjectNumber.ToString(),
+                        string.IsNullOrWhiteSpace(git.Repository) ? "-" : git.Repository),
+                    AppStrings.Get("Menu_File_Export_SyncGit"),
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
+                return;
+
+            Services.TfsImportService.SyncReport? report = null;
+            var progressWin = new SyncProgressWindow { Owner = this };
+            var reporter = new Progress<string>(m =>
+                progressWin.Report(new Services.TfsImportService.SyncProgress(m, 0, 0, "")));
+            progressWin.Show();
+            IsEnabled = false;
+            try
+            {
+                report = await Services.GitProjectSyncService.SyncAsync(vm.Project, git, reporter);
+            }
+            catch (Exception ex)
+            {
+                TfsErrorDialog.Show(this, AppStrings.Get("Menu_File_Export_SyncGit"), ex);
+                return;
+            }
+            finally
+            {
+                IsEnabled = true;
+                progressWin.Done();
+            }
+
+            vm.Project.IsDirty = true;
+            vm.RefreshTasks();
+            GanttCtrl.ForceRender();
+            TaskGridCtrl.RefreshRows();
+            new SyncResultWindow(report) { Owner = this }.ShowDialog();
+        }
+
         private void OnSyncTfsToolbarClick(object sender, RoutedEventArgs e) => OnSyncTfsClick(sender, e);
 
         private void OpenTfsImport()
@@ -2492,6 +2546,18 @@ namespace NXProject.Views
         private void OnDevOpsConfigClick(object sender, RoutedEventArgs e)
         {
             new TfsDevOpsConfigWindow("NXProject.Community") { Owner = this }.ShowDialog();
+        }
+
+        /// <summary>Nomes dos campos do NXProject, no DevOps e no GitProject.</summary>
+        private void OnFieldNamesClick(object sender, RoutedEventArgs e)
+        {
+            new NXProject.Views.FieldNamesWindow { Owner = this }.ShowDialog();
+        }
+
+        /// <summary>Conexão com o GitHub Projects — o equivalente do "Configurar DevOps".</summary>
+        private void OnGitProjectConfigClick(object sender, RoutedEventArgs e)
+        {
+            new NXProject.Views.GitProjectConfigWindow { Owner = this }.ShowDialog();
         }
 
         // Menu "Exibir Cronograma": delega para os mesmos controles da barra do cronograma,

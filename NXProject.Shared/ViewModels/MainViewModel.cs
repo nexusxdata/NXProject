@@ -2684,9 +2684,21 @@ namespace NXProject.ViewModels
                 return false;
             }
 
+            // Soltar um EPIC SOBRE um EPIC_GROUP significa agrupar, mesmo quando os dois são
+            // irmãos — e eles costumam ser, já que o grupo nasce ao lado dos EPICs no Work Item
+            // Project. Sem esta exceção, o caminho normal trataria o gesto como reordenação e a
+            // regra de agrupamento nunca seria alcançada.
+            if (IsEpicTask(sourceVm.Model) && !EpicTypes.IsGroup(sourceVm.Model.EpicType)
+                && IsEpicTask(targetVm.Model) && EpicTypes.IsGroup(targetVm.Model.EpicType)
+                && MoveEpicToGroupByDrop(sourceVm, targetVm, insertAfter))
+                return true;
+
             var targetTask = FindTaskInCollectionHierarchy(targetVm.Model, sourceCollection);
             if (targetTask == null)
             {
+                if (MoveEpicToGroupByDrop(sourceVm, targetVm, insertAfter))
+                    return true;
+
                 if (MoveFeatureToEpicByDrop(sourceVm, targetVm, insertAfter))
                     return true;
 
@@ -2719,6 +2731,81 @@ namespace NXProject.ViewModels
             if (sourceVm.Model.IsMilestone) sourceVm.Model.PredecessorIds.Clear();
             // Reordenar irmãos também muda datas (fila por recurso) → o pai precisa acompanhar.
             RecalcSummaryChainAndNotify(sourceVm.Model.Parent);
+            StatusMessage = AppStrings.Get("Status_TaskReordered");
+            return true;
+        }
+
+        /// <summary>
+        /// Arrasta um EPIC para dentro de um EPIC_GROUP — ou para fora dele, soltando num EPIC
+        /// que esteja direto no Work Item Project.
+        ///
+        /// É o único caso de Epic dentro de Epic que a hierarquia do NXProject aceita, e quem
+        /// decide é o <see cref="NxLevelMap"/>, o mesmo que o import e os dois conectores
+        /// consultam — assim o arrasto não inventa uma regra própria que o sync depois recusaria.
+        /// </summary>
+        private bool MoveEpicToGroupByDrop(TaskViewModel sourceVm, TaskViewModel targetVm, bool insertAfter)
+        {
+            var source = sourceVm.Model;
+            var target = targetVm.Model;
+            if (!IsEpicTask(source) || EpicTypes.IsGroup(source.EpicType))
+                return false;   // o grupo em si não entra em outro grupo
+
+            ProjectTask? newParent;
+            ProjectTask? targetSibling = null;
+
+            // Soltar SOBRE o grupo: entra nele. Soltar sobre um EPIC que já está num grupo (ou
+            // direto no Project): vira irmão dele, que é como o arrasto se comporta nos demais
+            // níveis.
+            if (IsEpicTask(target) && EpicTypes.IsGroup(target.EpicType))
+            {
+                newParent = target;
+            }
+            else if (IsEpicTask(target))
+            {
+                newParent = target.Parent;
+                targetSibling = target;
+            }
+            else
+            {
+                return false;
+            }
+
+            if (newParent == null || ReferenceEquals(source.Parent, newParent)
+                || IsTaskInSubtree(source, newParent))
+                return false;
+
+            // O pai novo tem de aceitar um EPIC: grupo aceita, Work Item Project aceita, e nada
+            // mais. Perguntar ao mapa evita que o arrasto permita o que o sync recusaria.
+            if (!NxLevelMap.Current.ParentChildOk(newParent.TfsType, source.TfsType,
+                                                  newParent.EpicType, source.EpicType))
+            {
+                StatusMessage = AppStrings.Get("Status_DragSameLevel");
+                return false;
+            }
+
+            var oldParent = source.Parent;
+            var oldCollection = GetTaskCollection(source);
+            if (!oldCollection.Remove(source))
+                return false;
+
+            if (oldParent != null && oldParent.Children.Count == 0)
+                oldParent.IsSummary = false;
+            CollapseIfChildless(oldParent);
+
+            source.Parent = newParent;
+            UpdateTaskLevelRecursive(source, newParent.Level + 1);
+            newParent.IsSummary = true;
+
+            var newCollection = newParent.Children;
+            var insertIndex = targetSibling != null ? newCollection.IndexOf(targetSibling) : newCollection.Count;
+            if (insertIndex < 0) insertIndex = newCollection.Count;
+            else if (targetSibling != null && insertAfter) insertIndex++;
+
+            newCollection.Insert(insertIndex, source);
+            RecalcSummaryChain(oldParent);
+            RecalcSummaryChain(newParent);
+            Project.IsDirty = true;
+            RebuildFlatTasks();
             StatusMessage = AppStrings.Get("Status_TaskReordered");
             return true;
         }

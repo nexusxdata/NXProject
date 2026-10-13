@@ -18,17 +18,76 @@ namespace NXProject.Views
     {
         private readonly List<(string Title, string Subtitle, List<(string Head, string Body)> Sections, string? Tip)> _topics;
 
+        /// <summary>Índice do tópico que cada linha da lista representa; -1 = cabeçalho de grupo.</summary>
+        private readonly List<int> _topicoDaLinha = new();
+
         public FeaturesHelpWindow()
         {
             InitializeComponent();
             _topics = LanguageService.CurrentLanguage == "en-US" ? BuildTopicsEn() : BuildTopics();
-            TopicList.SelectedIndex = 0;
+            MontaLista();
         }
+
+        /// <summary>
+        /// Monta o menu lateral agrupado: Geral, Azure DevOps e GitHub Projects.
+        ///
+        /// São grupos na MESMA lista, e não abas, por causa da busca: ela varre todos os tópicos,
+        /// e abas esconderiam resultados atrás de uma aba que a pessoa não está olhando. O
+        /// cabeçalho some quando nenhum tópico dele sobrevive ao filtro.
+        /// </summary>
+        private void MontaLista()
+        {
+            TopicList.Items.Clear();
+            _topicoDaLinha.Clear();
+
+            string grupoAtual = "";
+            for (var i = 0; i < _topics.Count; i++)
+            {
+                var grupo = GrupoDoTopico(_topics[i].Title);
+                if (grupo != grupoAtual)
+                {
+                    grupoAtual = grupo;
+                    TopicList.Items.Add(new ListBoxItem
+                    {
+                        Content = grupo,
+                        IsEnabled = false,                 // cabeçalho não é clicável
+                        FontSize = 10.5,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x66, 0x77, 0x88)),
+                        Padding = new Thickness(16, 10, 8, 2)
+                    });
+                    _topicoDaLinha.Add(-1);
+                }
+                TopicList.Items.Add(new ListBoxItem { Content = _topics[i].Title });
+                _topicoDaLinha.Add(i);
+            }
+
+            TopicList.SelectedIndex = _topicoDaLinha.IndexOf(0);
+        }
+
+        /// <summary>
+        /// A que grupo o tópico pertence. É por TÍTULO, e não por um campo a mais na tupla, para
+        /// a declaração dos tópicos continuar sendo só conteúdo — o agrupamento é da tela.
+        /// </summary>
+        private static string GrupoDoTopico(string titulo) => titulo switch
+        {
+            "Azure DevOps" or "Lista de Projetos" or "Sincronização" or "Sincronizar com DevOps"
+                or "Project List" or "Sync" or "Sync with DevOps"
+                => AppStrings.Get("Help_Group_DevOps"),
+            "GitHub Projects" => AppStrings.Get("Help_Group_GitProject"),
+            _ => AppStrings.Get("Help_Group_General"),
+        };
+
+        /// <summary>Tópico da linha selecionada, ou -1 quando a linha não é um tópico.</summary>
+        private int TopicoSelecionado =>
+            TopicList.SelectedIndex >= 0 && TopicList.SelectedIndex < _topicoDaLinha.Count
+                ? _topicoDaLinha[TopicList.SelectedIndex] : -1;
 
         private void OnTopicChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (TopicList.SelectedIndex < 0 || TopicList.SelectedIndex >= _topics.Count) return;
-            RenderTopic(_topics[TopicList.SelectedIndex]);
+            var t = TopicoSelecionado;
+            if (t < 0 || t >= _topics.Count) return;
+            RenderTopic(_topics[t]);
         }
 
         // ── Busca por palavra/texto nos tópicos ───────────────────────────
@@ -55,12 +114,26 @@ namespace NXProject.Views
             _searchTerm = SearchBox.Text?.Trim() ?? string.Empty;
 
             int first = -1;
-            for (int i = 0; i < TopicList.Items.Count && i < _topics.Count; i++)
+            for (int linha = 0; linha < TopicList.Items.Count && linha < _topicoDaLinha.Count; linha++)
             {
-                bool match = _searchTerm.Length == 0 || TopicMatches(_topics[i], _searchTerm);
-                if (TopicList.Items[i] is ListBoxItem item)
+                var t = _topicoDaLinha[linha];
+                if (t < 0) continue;                       // cabeçalho: resolvido no laço seguinte
+                bool match = _searchTerm.Length == 0 || TopicMatches(_topics[t], _searchTerm);
+                if (TopicList.Items[linha] is ListBoxItem item)
                     item.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
-                if (match && first < 0) first = i;
+                if (match && first < 0) first = linha;
+            }
+
+            // Cabeçalho de grupo só aparece quando algum tópico dele sobreviveu ao filtro —
+            // senão a busca deixaria títulos soltos sem nada embaixo.
+            for (int linha = 0; linha < TopicList.Items.Count && linha < _topicoDaLinha.Count; linha++)
+            {
+                if (_topicoDaLinha[linha] >= 0 || TopicList.Items[linha] is not ListBoxItem cab) continue;
+                var temFilhoVisivel = false;
+                for (var j = linha + 1; j < TopicList.Items.Count && _topicoDaLinha[j] >= 0; j++)
+                    if (TopicList.Items[j] is ListBoxItem f && f.Visibility == Visibility.Visible)
+                    { temFilhoVisivel = true; break; }
+                cab.Visibility = temFilhoVisivel ? Visibility.Visible : Visibility.Collapsed;
             }
 
             if (first < 0)
@@ -84,8 +157,8 @@ namespace NXProject.Views
                 && TopicList.Items[current] is ListBoxItem cur && cur.Visibility == Visibility.Visible;
             if (!currentVisible)
                 TopicList.SelectedIndex = first;
-            else
-                RenderTopic(_topics[current]); // re-renderiza para atualizar o destaque
+            else if (TopicoSelecionado >= 0)
+                RenderTopic(_topics[TopicoSelecionado]); // re-renderiza para atualizar o destaque
         }
 
         /// <summary>Preenche o TextBlock destacando as ocorrências do termo pesquisado.</summary>
@@ -727,6 +800,44 @@ namespace NXProject.Views
                 "Os nomes de campos (HH Estimado, Data_Inicio, Data_Fim) podem ser personalizados na área Campos (avançado) da tela de importação."
             ),
             (
+                "GitHub Projects",
+                "Desde a versão 1.2 o NXProject também trabalha contra o GitHub Projects (Projects v2): importa o board, mostra no TaskBoard e sincroniza o planejamento de volta — sem Azure DevOps.",
+                new()
+                {
+                    ("Configurar a conexão",
+                     "Arquivo → Importar → Configurar GitProject. Informe:\n" +
+                     "• Dono: o seu usuário ou a organização (dá para colar a URL do board que o resto é preenchido)\n" +
+                     "• Token: classic, com os escopos repo e project (a própria tela explica a árvore de escopos)\n" +
+                     "• Board: use 'Listar meus boards' em vez de decorar o número\n" +
+                     "• Repositório (dono/repo): onde as issues NOVAS nascem e onde os anexos são versionados\n\n" +
+                     "O token fica cifrado pelo Windows (DPAPI), como o PAT do DevOps."),
+                    ("Criar os campos no board",
+                     "O GitHub não tem campo de HH nem de data: eles são campos DO PROJETO (board), e o NXProject os cria para você.\n\n" +
+                     "Importar → Configurar Campos e Tags → aba GitProject → 'Criar campos no board'. Ele cria o que falta já com o tipo certo (número para horas, data para datas, single-select para o card_type), junto com os campos de classificação.\n\n" +
+                     "Diferente do Azure DevOps, criar campo aqui NÃO exige ser administrador da organização — basta acesso ao projeto. Use 'Detectar' antes para ver o que já existe."),
+                    ("Importar",
+                     "Na tela de importação, escolha o destino GitProject. Dá para trazer o board inteiro ou só um ramo, informando a issue raiz.\n\n" +
+                     "• Hierarquia: vem das sub-issues.\n" +
+                     "• Nível (Project/Epic/Feature/Story/Task): do Issue Type (organização), do campo card_type do board ou, em último caso, da posição na árvore.\n" +
+                     "• HH, datas e percentuais: dos campos do board.\n" +
+                     "• Sprint: do campo de iteração.\n" +
+                     "• Responsável: do assignee — e o login fica gravado na pessoa, que é o que permite devolver o responsável depois."),
+                    ("Sincronizar de volta",
+                     "Arquivo → Exportar → Sincronizar GitProject. Vão datas, HH, percentual, estado da issue (100% fecha; voltar a andar reabre), responsável, itens novos e a ORDEM do backlog.\n\n" +
+                     "Antes de gravar, o NXProject valida a hierarquia — o GitHub aceita qualquer item sob qualquer item, então essa checagem é nossa. Item fora de Project → Epic → Feature → Story → Task é recusado, com o motivo no relatório."),
+                    ("Quem mexeu depois de você",
+                     "O campo Sync_version guarda a REVISÃO DO SERVIDOR (o updatedAt da issue), e não um contador do NXProject. Por isso uma alteração feita pela TELA do GitHub também é detectada: o item vira conflito, nada é gravado nele, e o aviso diz quem alterou e quando.\n\n" +
+                     "Quem pode sincronizar sai do campo de administração do board: um time da organização (@org/time) ou uma lista de logins separada por vírgula. Vazio libera."),
+                    ("O que é diferente do Azure DevOps",
+                     "• Campo é do BOARD, não do item: mover a issue para outro projeto leva HH e datas embora.\n" +
+                     "• Ninguém valida hierarquia do lado do GitHub — quem valida é o NXProject.\n" +
+                     "• Tag é LABEL do repositório: a mesma label precisa existir em cada repositório do board (o NXProject cria antes de aplicar).\n" +
+                     "• Anexo não tem API: o arquivo é versionado no repositório da issue, numa árvore que espelha o backlog, com o link comentado no item. Atenção: o que entra no repositório fica no histórico do Git para sempre — não é lugar para dado pessoal.\n" +
+                     "• Ordem do backlog é a posição na view, não um campo: o NXProject move só o que está fora de lugar, porque cada movimento custa cerca de 2 segundos."),
+                },
+                "Dica: o destino de cada projeto (Azure DevOps, GitProject ou Local) fica no cadastro do Portfólio. O TaskBoard, o Importar e o Sincronizar já nascem nele."
+            ),
+            (
                 "Lista de Projetos",
                 "A lista de projetos DevOps é um arquivo compartilhado entre a equipe com os projetos disponíveis para importação.",
                 new()
@@ -786,6 +897,15 @@ namespace NXProject.Views
                      "• Discovery (Portfólio → Discovery DevOps): lista automaticamente os work items do tipo 'Project' sem pai no Team Project. Para o Discovery automático funcionar, o tipo personalizado 'Project' precisa existir.\n\n" +
                      "Resumo: se a sua organização não usa um tipo 'Project', você ainda importa apontando o ID raiz para um Epic (ou outro container) — apenas o Discovery automático depende do tipo 'Project'.\n\n" +
                      "Campos no tipo 'Project': como ele fica no topo da hierarquia, crie nele os MESMOS campos personalizados do Epic (HH Estimado, Data_Inicio, Data_Fim, Sync_version, Sync_Name). Na prática o tipo 'Project' costuma ser uma cópia do Epic. O NXProject lê a data de início do projeto (Data_Inicio) direto do item raiz."),
+                    ("Processos: Agile, Scrum e CMMI",
+                     "O NXProject foi testado em produção com o processo AGILE. Scrum e CMMI são tratados no código, mas não foram exercitados contra um servidor real.\n\n" +
+                     "O que já está previsto para os três:\n" +
+                     "• Ordem do backlog: Scrum usa BacklogPriority; Agile e CMMI usam StackRank.\n" +
+                     "• Tipo da Story: User Story (Agile), Product Backlog Item (Scrum) e Requirement (CMMI).\n" +
+                     "• Estados: além de New/Active/Resolved/Closed, o NXProject reconhece Approved e Committed (Scrum) e Proposed (CMMI).\n" +
+                     "• Colunas do TaskBoard: saem dos estados que existem nos seus itens — estado que o NXProject não conhece vai para o fim, mas aparece.\n\n" +
+                     "Ponto de atenção: no padrão de nomes EN, o NXProject usa os campos nativos Original Estimate e Completed Work. Eles existem na Task do Agile e do CMMI; no Scrum a Task de fábrica tem Remaining Work, e os outros podem não existir. Com o padrão PT (campos próprios do NXProject) isso não acontece — e o 'Detectar campos' avisa antes.\n\n" +
+                     "Como os nomes de tipo e de campo são configuráveis (Configurar Campos e Tags), adaptar a outro processo é configuração, não alteração de código."),
                     ("Campos obrigatórios no Azure DevOps",
                      "O NXProject lê e escreve campos personalizados em Stories, Features e Epics. Os campos precisam existir no processo da organização e ser adicionados a cada tipo de work item que você quer sincronizar.\n\n" +
                      "Campos de planejamento (Story, Feature e Epic):\n" +
@@ -1633,6 +1753,44 @@ namespace NXProject.Views
                 "Field names (Estimated HH, Data_Inicio, Data_Fim) can be customized in the Fields (advanced) section of the import screen."
             ),
             (
+                "GitHub Projects",
+                "Since version 1.2 NXProject also works against GitHub Projects (Projects v2): it imports the board, shows it on the TaskBoard and syncs the plan back — with no Azure DevOps involved.",
+                new()
+                {
+                    ("Set up the connection",
+                     "File → Import → Configure GitProject. Fill in:\n" +
+                     "• Owner: your user or the organization (paste the board URL and the rest is filled in)\n" +
+                     "• Token: classic, with the repo and project scopes (the screen itself explains the scope tree)\n" +
+                     "• Board: use 'List my boards' instead of memorizing the number\n" +
+                     "• Repository (owner/repo): where NEW issues are created and where attachments are versioned\n\n" +
+                     "The token is encrypted by Windows (DPAPI), like the DevOps PAT."),
+                    ("Create the board fields",
+                     "GitHub has no hours or date fields: they are PROJECT (board) fields, and NXProject creates them for you.\n\n" +
+                     "Import → Configure Fields and Tags → GitProject tab → 'Create board fields'. It creates what is missing with the correct type (number for hours, date for dates, single-select for card_type), along with your classification fields.\n\n" +
+                     "Unlike Azure DevOps, creating a field here does NOT require organization-admin rights — access to the project is enough. Use 'Detect' first to see what already exists."),
+                    ("Import",
+                     "On the import screen, pick the GitProject target. You can bring the whole board or a single branch, by giving the root issue.\n\n" +
+                     "• Hierarchy: from sub-issues.\n" +
+                     "• Level (Project/Epic/Feature/Story/Task): from the Issue Type (organization), from the board's card_type field, or, as a last resort, from the position in the tree.\n" +
+                     "• Hours, dates and percentages: from board fields.\n" +
+                     "• Sprint: from the iteration field.\n" +
+                     "• Assignee: stored as a login on the person, which is what makes writing it back possible."),
+                    ("Sync back",
+                     "File → Export → Sync GitProject. Dates, hours, percentage, issue state (100% closes; resuming reopens), assignee, new items and backlog ORDER are pushed.\n\n" +
+                     "Before writing, NXProject validates the hierarchy — GitHub accepts any item under any item, so that check is ours. An item outside Project → Epic → Feature → Story → Task is refused, with the reason in the report."),
+                    ("Who changed it after you",
+                     "The Sync_version field holds the SERVER revision (the issue's updatedAt), not a counter kept by NXProject. That is why an edit made in GitHub's own UI is detected too: the item becomes a conflict, nothing is written to it, and the warning says who changed it and when.\n\n" +
+                     "Who may sync comes from the board's admin field: an organization team (@org/team) or a comma-separated list of logins. Empty allows everyone."),
+                    ("What differs from Azure DevOps",
+                     "• A field belongs to the BOARD, not to the item: moving the issue to another project takes hours and dates away.\n" +
+                     "• Nobody validates hierarchy on GitHub's side — NXProject does.\n" +
+                     "• A tag is a repository LABEL: the same label must exist in each repository on the board (NXProject creates it before applying).\n" +
+                     "• Attachments have no API: the file is versioned in the issue's repository, in a tree mirroring the backlog, with the link posted on the item. Mind that whatever goes into the repository stays in Git history forever — it is no place for personal data.\n" +
+                     "• Backlog order is the item position in the view, not a field: NXProject moves only what is out of place, because each move costs about 2 seconds."),
+                },
+                "Tip: each project's target (Azure DevOps, GitProject or Local) lives in the Portfolio registration. The TaskBoard, Import and Sync all start from it."
+            ),
+            (
                 "Project List",
                 "The DevOps project list is a file shared among the team with the projects available for import.",
                 new()
@@ -1692,6 +1850,15 @@ namespace NXProject.Views
                      "• Discovery (Portfolio → Discovery DevOps): automatically lists work items of type 'Project' with no parent in the Team Project. For automatic Discovery to work, the custom 'Project' type must exist.\n\n" +
                      "Summary: if your organization doesn't use a 'Project' type, you can still import by pointing the root ID at an Epic (or other container) — only automatic Discovery depends on the 'Project' type.\n\n" +
                      "Fields on the 'Project' type: since it sits at the top of the hierarchy, create the SAME custom fields on it as on the Epic (Estimated HH, Data_Inicio, Data_Fim, Sync_version, Sync_Name). In practice the 'Project' type is usually a copy of the Epic. NXProject reads the project start date (Data_Inicio) directly from the root item."),
+                    ("Processes: Agile, Scrum and CMMI",
+                     "NXProject has been tested in production with the AGILE process. Scrum and CMMI are handled in the code, but have not been exercised against a real server.\n\n" +
+                     "What is already covered for all three:\n" +
+                     "• Backlog order: Scrum uses BacklogPriority; Agile and CMMI use StackRank.\n" +
+                     "• Story type: User Story (Agile), Product Backlog Item (Scrum) and Requirement (CMMI).\n" +
+                     "• States: besides New/Active/Resolved/Closed, NXProject recognizes Approved and Committed (Scrum) and Proposed (CMMI).\n" +
+                     "• TaskBoard columns: they come from the states found in your items — a state NXProject does not know goes last, but it still shows.\n\n" +
+                     "Watch out: with the EN naming standard, NXProject uses the native Original Estimate and Completed Work fields. They exist on the Agile and CMMI Task; on Scrum the out-of-the-box Task has Remaining Work, and the others may not exist. With the PT standard (NXProject's own fields) this does not happen — and 'Detect fields' warns beforehand.\n\n" +
+                     "Since type and field names are configurable (Configure Fields and Tags), adapting to another process is configuration, not a code change."),
                     ("Required fields in Azure DevOps",
                      "NXProject reads and writes custom fields on Stories, Features and Epics. The fields must exist in the organization process and be added to each work item type you want to sync.\n\n" +
                      "Planning fields (Story, Feature and Epic):\n" +

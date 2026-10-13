@@ -22,15 +22,74 @@ namespace NXProject.Views
         // deste projeto; lido uma vez e gravado em cada DevOpsProject selecionado.
         private string _process = "";
 
+        private readonly TfsConnectionOptions _options;
+        private readonly HashSet<int> _existingIds;
+
         public DevOpsDiscoveryWindow(TfsConnectionOptions options, IEnumerable<DevOpsProject> existing)
         {
             InitializeComponent();
+            _options = options;
+            _existingIds = existing.Select(p => p.RootWorkItemId).ToHashSet();
             _itemsView = CollectionViewSource.GetDefaultView(_items);
             _itemsView.Filter = FilterItem;
             ItemsGrid.ItemsSource = _itemsView;
             _items.CollectionChanged += (_, _) => RefreshCount();
             SubtitleText.Text = AppStrings.Get("Disc_Subtitle", options.OrganizationUrl, options.TeamProject);
-            LoadAsync(options, existing.Select(p => p.RootWorkItemId).ToHashSet());
+            LoadAsync(options, _existingIds);
+        }
+
+        /// <summary>
+        /// Troca a origem sem fechar a tela: a busca é a mesma pergunta — "que projetos existem
+        /// lá?" —, só muda o servidor que responde. Ter dois botões no Portfólio obrigava a
+        /// pessoa a decidir antes de ver o que havia de cada lado.
+        /// </summary>
+        private async void OnOriginChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (OriginCombo == null || !IsLoaded) return;
+            _items.Clear();
+            AddButton.IsEnabled = false;
+            StatusText.Text = "";
+            LoadingPanel.Visibility = Visibility.Visible;
+
+            if (OriginCombo.SelectedIndex == 0) { LoadAsync(_options, _existingIds); return; }
+
+            // GitProject: sem conexão configurada, abre a tela dela em vez de só recusar.
+            var git = TfsConnectionStore.Load().GitProject;
+            if (git?.IsConfigured != true)
+            {
+                if (new GitProjectConfigWindow { Owner = this }.ShowDialog() == true)
+                    git = TfsConnectionStore.Load().GitProject;
+                if (git?.IsConfigured != true) { OriginCombo.SelectedIndex = 0; return; }
+            }
+
+            try
+            {
+                SubtitleText.Text = AppStrings.Get("Disc_SubtitleGit", git!.Owner, git.ProjectNumber.ToString());
+                var achados = await GitProjectDiscovery.FindInBoardAsync(git);
+                LoadingPanel.Visibility = Visibility.Collapsed;
+                foreach (var a in achados)
+                {
+                    var proj = GitProjectDiscovery.ToPortfolio(a);
+                    var item = new DiscoveryItem
+                    {
+                        Id = proj.RootWorkItemId,
+                        Title = a.Title,
+                        Type = a.RootIssue > 0 ? "Project" : "Board",
+                        Owner = a.Owner,
+                        AdmGroup = ""
+                    };
+                    item.PropertyChanged += (_, _) => RefreshCount();
+                    _items.Add(item);
+                }
+                if (_items.Count == 0) { StatusText.Text = AppStrings.Get("Disc_NoneFound"); return; }
+                AddButton.IsEnabled = true;
+                RefreshCount();
+            }
+            catch (Exception ex)
+            {
+                LoadingPanel.Visibility = Visibility.Collapsed;
+                StatusText.Text = AppStrings.Get("Disc_FetchError", ex.Message);
+            }
         }
 
         private bool FilterItem(object obj)
@@ -117,7 +176,11 @@ namespace NXProject.Views
         {
             SelectedProjects = _items
                 .Where(i => i.IsSelected)
-                .Select(i => new DevOpsProject { Name = i.Title, RootWorkItemId = i.Id, Owner = i.Owner, Process = _process, AdmGroupName = i.AdmGroup })
+                .Select(i => new DevOpsProject { Name = i.Title, RootWorkItemId = i.Id, Owner = i.Owner,
+                    // Processo e grupo administrador so existem no DevOps: vindo do GitHub
+                    // ficam vazios, em vez de carimbar o processo do outro servidor.
+                    Process = OriginCombo?.SelectedIndex == 1 ? "" : _process,
+                    AdmGroupName = i.AdmGroup })
                 .ToList();
 
             if (SelectedProjects.Count == 0)

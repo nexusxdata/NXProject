@@ -26,6 +26,18 @@
                 <TextBlock x:Name="SubtitleText"
                            Text="{DynamicResource Disc_Connecting}"
                            FontSize="12" Foreground="#666" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                <!-- Origem da busca. Fica AQUI, e nao em dois botoes no Portfolio: a pergunta e a
+                     mesma dos dois lados, e trocar sem fechar a tela deixa comparar o que ha em
+                     cada servidor antes de escolher. -->
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBlock Text="{DynamicResource Disc_Origin}" VerticalAlignment="Center"
+                               FontSize="11.5" Foreground="#666" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="OriginCombo" Width="200" Height="24" FontSize="11.5"
+                              SelectedIndex="0" SelectionChanged="OnOriginChanged">
+                        <ComboBoxItem Content="Azure DevOps"/>
+                        <ComboBoxItem Content="GitProject"/>
+                    </ComboBox>
+                </StackPanel>
             </StackPanel>
 
             <!-- Status de carregamento -->

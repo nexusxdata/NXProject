@@ -39,7 +39,10 @@ namespace NXProject.Views
         {
             InitializeComponent();
             NameBox.Text = name;
-            IdBox.Text   = id > 0 ? id.ToString() : "";
+            // Mostra tambem id NEGATIVO: e a marca de "o board inteiro do GitProject", usada
+            // quando o board nao tem item marcado como Project. Escondê-lo fazia o cadastro
+            // aparecer vazio e nao poder ser salvo de volta.
+            IdBox.Text   = id != 0 ? id.ToString() : "";
             _process = process ?? "";
             ProcessBox.Text = string.IsNullOrWhiteSpace(_process)
                 ? AppStrings.Get("PortEdit_ProcessUnknown") : _process;
@@ -178,7 +181,8 @@ namespace NXProject.Views
                 return;
             }
 
-            if (!int.TryParse(IdBox.Text?.Trim(), out var id) || id <= 0)
+            // Negativo e valido: board inteiro do GitProject. Zero, nao — ai nao ha raiz.
+            if (!int.TryParse(IdBox.Text?.Trim(), out var id) || id == 0)
             {
                 MessageBox.Show(AppStrings.Get("PortEdit_IdInvalid"), AppStrings.Get("Common_Validation"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;

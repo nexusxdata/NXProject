@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -38,6 +38,9 @@ namespace NXProject.Community.Services
             var code = languageCode == EnUS ? EnUS : PtBR;
             var culture = CultureInfo.GetCultureInfo(code);
             CurrentLanguage = code;
+            // Os SERVIÇOS (NXProject.Shared) não enxergam este arquivo nem os Strings.*.xaml:
+            // avisá-los aqui é o que faz os avisos de import e de sync saírem no idioma certo.
+            NXProject.Services.NxText.Language = code;
             CultureInfo.CurrentCulture = culture;
             CultureInfo.CurrentUICulture = culture;
             CultureInfo.DefaultThreadCurrentCulture = culture;

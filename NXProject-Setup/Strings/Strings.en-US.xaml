@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -27,8 +27,14 @@
     <sys:String x:Key="Setup_Step4Org">Organization</sys:String>
     <sys:String x:Key="Setup_Step4Server">Server</sys:String>
     <sys:String x:Key="Setup_Step4ServerTip">Where the NXProject fields will be configured. Only Azure DevOps is implemented today; GitProject (GitHub Projects) is a path under study.</sys:String>
+    <sys:String x:Key="Setup_Step4Naming">Field naming standard</sys:String>
+    <sys:String x:Key="Setup_Step4NamingPt">Portuguese — NXProject fields</sys:String>
+    <sys:String x:Key="Setup_Step4NamingEn">English — DevOps native fields</sys:String>
+    <sys:String x:Key="Setup_Step4NamingTip">Not a translation: it decides whether NXProject writes to the process NATIVE field (Start Date, Finish Date, Original Estimate) or to its own field (Data_Inicio, Data_Fim, HH Estimado). What has no native — percent complete, sync, block hours — only changes name (nx_...). Each name stays editable on its row, and nothing is renamed on the server.</sys:String>
+    <sys:String x:Key="Setup_Step4NamingAppliedPt">Portuguese standard: NXProject uses its own fields for dates and effort.</sys:String>
+    <sys:String x:Key="Setup_Step4NamingAppliedEn">English standard: dates and effort now use the DevOps native fields, on Story and Task. Creating here means ASSOCIATING the process field with the type, not creating a new one.</sys:String>
     <sys:String x:Key="Setup_Step4ServerTodoTitle">Not implemented yet</sys:String>
-    <sys:String x:Key="Setup_Step4ServerTodo">Configuring fields on GitProject (GitHub Projects) is not implemented yet — the server goes back to Azure DevOps.&#10;&#10;On GitHub the fields belong to the PROJECT (not to the process) and the EPIC/Feature/Story/Task hierarchy does not exist out of the box: the levels would have to be mapped. The design is in Plano_GitProject_Import_Sync.md, at the repository root.</sys:String>
+    <sys:String x:Key="Setup_Step4ServerTodo">Configuring fields on GitProject (GitHub Projects) is not implemented yet — the server goes back to Azure DevOps.&#10;&#10;On GitHub the fields belong to the PROJECT (not to the process) and the EPIC/Feature/Story/Task hierarchy does not exist out of the box: the levels would have to be mapped. The design is in features_gitproject.md, at the repository root.</sys:String>
     <sys:String x:Key="Setup_Step4Project">Project</sys:String>
     <sys:String x:Key="Setup_Step4Pat">Token (PAT)</sys:String>
     <sys:String x:Key="Setup_Step4PatNote">This token is used ONLY NOW, in this window, to detect and create the fields. The installer does NOT store it, does NOT change the token NXProject uses day to day, and does NOT include it in the exported configuration file — it is gone when you close the window. Creating fields requires process edit permission (Project Collection Administrator).</sys:String>
@@ -78,6 +84,9 @@
     <sys:String x:Key="Setup_Step4ProcessInherited">process "{0}" is inherited: it accepts new fields</sys:String>
     <sys:String x:Key="Setup_Step4ProcessSystem">process "{0}" is a system process and does NOT accept new fields — inherit the process in DevOps first</sys:String>
     <sys:String x:Key="Setup_Step4AllOk">every field already exists</sys:String>
+    <sys:String x:Key="Setup_Step4LevelsOk">Levels: Project → Epic → Feature → Story → Task mapped</sys:String>
+    <sys:String x:Key="Setup_Step4LevelsMissing">⚠ No type for level(s): {0} — adjust the names under Configure Fields and Tags → Levels, in NXProject</sys:String>
+    <sys:String x:Key="Setup_Step4LevelsExtra">Types with no level (they stay out of the hierarchy): {0}</sys:String>
     <sys:String x:Key="Setup_Step4MissingCount">{0} field(s) to create</sys:String>
     <sys:String x:Key="Setup_Step4NothingChecked">No field checked for creation.</sys:String>
     <sys:String x:Key="Setup_Step4ConfirmTitle">Create fields in DevOps</sys:String>

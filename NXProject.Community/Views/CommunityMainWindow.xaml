@@ -37,6 +37,12 @@
                     <MenuItem Header="{DynamicResource Menu_File_Export_Csv}" Command="{Binding ExportCsvCommand}"/>
                     <Separator/>
                     <MenuItem Header="{DynamicResource Menu_File_Export_SyncTfs}" Click="OnSyncTfsClick"/>
+                    <!-- Sincronizar no GitHub Projects: campos e criacao de item. A ORDEM do
+                         backlog nao vai — la ela e a posicao na view, nao um campo — e o
+                         relatorio diz isso a cada sincronizacao. -->
+                    <MenuItem x:Name="SyncGitProjectMenu" Click="OnSyncGitProjectClick"
+                              Header="{DynamicResource Menu_File_Export_SyncGit}"
+                              ToolTip="{DynamicResource Menu_File_Export_SyncGitTip}"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_File_Exit}" Click="OnExitClick"/>
@@ -79,6 +85,8 @@
             <MenuItem Header="{DynamicResource Menu_View}">
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsList}" Click="OnDevOpsProjectListClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsConfig}" Click="OnDevOpsConfigClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_GitProjectConfig}" Click="OnGitProjectConfigClick"/>
+                <MenuItem Header="{DynamicResource Menu_View_FieldNames}" Click="OnFieldNamesClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
                 <MenuItem Header="{DynamicResource Main_CostPeople}" Click="OnPeopleCostClick"/>
                 <Separator/>

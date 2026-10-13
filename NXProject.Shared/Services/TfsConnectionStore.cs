@@ -239,6 +239,20 @@ namespace NXProject.Services
         public List<PortfolioProjectConfig> PortfolioProjectConfigs { get; set; } = [];
 
         /// <summary>
+        /// Conexão com o GitHub Projects. Fica junto da do DevOps porque responde a mesma
+        /// pergunta — "contra o que este NXProject trabalha" —, e o destino de cada projeto é
+        /// escolhido no Portfólio. O token é cifrado como o PAT, nunca em texto plano.
+        /// </summary>
+        public GitProjectOptions GitProject { get; set; } = new();
+
+        /// <summary>
+        /// Que nome de tipo é cada nível (Project → Epic → Feature → Story → Task), nos dois
+        /// destinos. Antes isso era nome fixo no código e deixava de fora quem batizou o tipo de
+        /// "Iniciativa" ou "Produto".
+        /// </summary>
+        public NxLevelMap Levels { get; set; } = new();
+
+        /// <summary>
         /// Campos fixos enviados em toda criação de work item (útil para campos obrigatórios
         /// do processo do cliente que o NXProject não gerencia).
         /// Exemplo: [{ "ref": "Custom.Type", "value": "Atividade" }]
@@ -312,6 +326,13 @@ namespace NXProject.Services
         public string FieldType { get; set; } = "Picklist";
         /// <summary>Valores separados por vírgula; viram combo ao editar classificação.</summary>
         public string? Values { get; set; }
+
+        /// <summary>
+        /// Valor gravado ao CRIAR o item quando ele não tem classificação. Sem isto, o NXProject
+        /// caía no tipo do work item ("User Story", "Task") — que a picklist muitas vezes nem
+        /// aceita, e aí a criação falha por um valor que ninguém escolheu.
+        /// </summary>
+        public string? DefaultValue { get; set; }
     }
 
     /// <summary>
@@ -361,6 +382,29 @@ namespace NXProject.Services
             public int FutureSprintDays { get; set; } = 90;
             public bool RememberToken { get; set; }
             public string EncryptedToken { get; set; } = string.Empty;
+            public string GitOwner { get; set; } = string.Empty;
+            public bool GitOwnerIsOrganization { get; set; }
+            public int GitProjectNumber { get; set; }
+            public string GitEncryptedToken { get; set; } = string.Empty;
+            public List<GitProjectClassification> GitClassifications { get; set; } = [];
+            public string GitFixedStartTag { get; set; } = "DT-INI-NEG";
+            public string GitUnplannedTag { get; set; } = "NP";
+            public string GitWipTag { get; set; } = "WIP";
+            public string GitBlockedTag { get; set; } = "BLOCK";
+            public string GitRepository { get; set; } = string.Empty;
+
+            /// <summary>Nível → nomes aceitos, separados por vírgula. Vazio = os de fábrica.</summary>
+            public Dictionary<string, string> LevelNames { get; set; } = [];
+
+            /// <summary>Níveis desligados (time sem Project começa no Epic; sem Task, a folha é a Story).</summary>
+            public List<string> DisabledLevels { get; set; } = [];
+
+            /// <summary>
+            /// Nome ESCOLHIDO para cada campo do board (chave do catálogo → nome). Guardar só a
+            /// escolha, e não a lista inteira de apelidos, é o que mantém os apelidos novos de
+            /// cada versão valendo para quem já configurou.
+            /// </summary>
+            public Dictionary<string, string> GitFieldNames { get; set; } = [];
             public string DevOpsProjectListPath { get; set; } = string.Empty;
             public string Language { get; set; } = string.Empty;
             public string CompanyName { get; set; } = string.Empty;
@@ -449,6 +493,26 @@ namespace NXProject.Services
                 options.FutureSprintDays = stored.FutureSprintDays >= 0 ? stored.FutureSprintDays : 90;
                 if (stored.RememberToken)
                     options.PersonalAccessToken = WindowsDataProtection.Decrypt(stored.EncryptedToken);
+                options.GitProject = new GitProjectOptions
+                {
+                    Owner = stored.GitOwner ?? string.Empty,
+                    OwnerIsOrganization = stored.GitOwnerIsOrganization,
+                    ProjectNumber = stored.GitProjectNumber,
+                    Token = string.IsNullOrEmpty(stored.GitEncryptedToken)
+                        ? string.Empty : WindowsDataProtection.Decrypt(stored.GitEncryptedToken),
+                    Classifications = stored.GitClassifications ?? [],
+                    FixedStartTag = stored.GitFixedStartTag ?? "DT-INI-NEG",
+                    UnplannedTag = stored.GitUnplannedTag ?? "NP",
+                    WipTag = stored.GitWipTag ?? "WIP",
+                    BlockedTag = stored.GitBlockedTag ?? "BLOCK",
+                    Repository = stored.GitRepository ?? string.Empty
+                };
+                AplicaNomesGit(options.GitProject, stored.GitFieldNames);
+                options.Levels = LeNiveis(stored.LevelNames, stored.DisabledLevels);
+                // O mapa é consultado de métodos estáticos espalhados (board, import, sync);
+                // publicá-lo aqui é o que faz a configuração valer sem passar por centenas de
+                // assinaturas.
+                NxLevelMap.Current = options.Levels;
                 options.DevOpsProjectListPath = stored.DevOpsProjectListPath ?? string.Empty;
                 options.Language = stored.Language ?? string.Empty;
                 options.CompanyName = stored.CompanyName ?? string.Empty;
@@ -512,6 +576,25 @@ namespace NXProject.Services
                 EncryptedToken = rememberToken
                     ? WindowsDataProtection.Encrypt(options.PersonalAccessToken ?? string.Empty, "NXProject.Tfs")
                     : string.Empty,
+                GitOwner = options.GitProject?.Owner ?? string.Empty,
+                GitOwnerIsOrganization = options.GitProject?.OwnerIsOrganization ?? false,
+                GitProjectNumber = options.GitProject?.ProjectNumber ?? 0,
+                GitClassifications = options.GitProject?.Classifications ?? [],
+                GitFixedStartTag = options.GitProject?.FixedStartTag ?? "DT-INI-NEG",
+                GitUnplannedTag = options.GitProject?.UnplannedTag ?? "NP",
+                GitWipTag = options.GitProject?.WipTag ?? "WIP",
+                GitBlockedTag = options.GitProject?.BlockedTag ?? "BLOCK",
+                GitRepository = options.GitProject?.Repository ?? string.Empty,
+                GitFieldNames = NomesGit(options.GitProject),
+                LevelNames = (options.Levels ?? new NxLevelMap()).Names
+                    .ToDictionary(kv => kv.Key.ToString(), kv => string.Join(", ", kv.Value)),
+                DisabledLevels = (options.Levels ?? new NxLevelMap()).Disabled
+                    .Select(d => d.ToString()).ToList(),
+                // Mesmo tratamento do PAT: cifrado pelo Windows e so quando o usuario pediu para
+                // lembrar. Token do GitHub em texto plano seria o mesmo erro com outro nome.
+                GitEncryptedToken = rememberToken && !string.IsNullOrEmpty(options.GitProject?.Token)
+                    ? WindowsDataProtection.Encrypt(options.GitProject!.Token, "NXProject.GitProject")
+                    : string.Empty,
                 DevOpsProjectListPath = options.DevOpsProjectListPath ?? string.Empty,
                 Language = options.Language ?? string.Empty,
                 CompanyName = options.CompanyName ?? string.Empty,
@@ -528,6 +611,89 @@ namespace NXProject.Services
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(GetSettingsFile(storageKey), json);
+        }
+
+        /// <summary>
+        /// Monta o mapa de níveis do que foi salvo. Nome em branco volta ao de fábrica: um nível
+        /// sem nenhum nome não reconheceria tipo nenhum, e o cronograma abriria vazio sem dizer
+        /// por quê.
+        /// </summary>
+        private static NxLevelMap LeNiveis(Dictionary<string, string>? nomes, List<string>? desligados)
+        {
+            var mapa = new NxLevelMap();
+            foreach (var nivel in NxLevelMap.AllLevels)
+            {
+                if (nomes == null || !nomes.TryGetValue(nivel.ToString(), out var lista)) continue;
+                var itens = (lista ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+                if (itens.Count > 0) mapa.Names[nivel] = itens;
+            }
+            foreach (var d in desligados ?? [])
+                if (Enum.TryParse<NxLevel>(d, true, out var nivel)) mapa.Disabled.Add(nivel);
+            return mapa;
+        }
+
+        // ── Nomes dos campos do board ───────────────────────────────────────────────────
+        //
+        // Guarda-se a ESCOLHA (uma por conceito), não a lista de apelidos: os apelidos saem do
+        // catálogo e evoluem com o produto; a escolha é da pessoa. Gravar a lista inteira
+        // congelaria o catálogo da versão em que a configuração foi salva.
+
+        private static readonly (string Chave, Func<GitProjectOptions, string[]> Campo)[] CamposGit =
+        {
+            ("effort", o => o.EffortFields),
+            ("currentHours", o => o.CurrentHoursFields),
+            ("start", o => o.StartDateFields),
+            ("finish", o => o.FinishDateFields),
+            ("percConclusao", o => o.PercentFields),
+            ("percAloc", o => o.AllocationFields),
+            ("blockDuration", o => o.BlockHoursFields),
+            ("cardType", o => o.LevelFields),
+            ("iteration", o => o.IterationFields),
+            ("syncVersion", o => o.SyncVersionFields),
+            ("syncName", o => o.SyncNameFields),
+            ("admGroup", o => o.AdmGroupFields),
+            ("epicType", o => o.EpicTypeFields),
+        };
+
+        private static Dictionary<string, string> NomesGit(GitProjectOptions? git)
+        {
+            var mapa = new Dictionary<string, string>();
+            if (git == null) return mapa;
+            foreach (var (chave, campo) in CamposGit)
+                if (GitProjectOptions.Suggested(campo(git)) is { Length: > 0 } nome)
+                    mapa[chave] = nome;
+            return mapa;
+        }
+
+        private static void AplicaNomesGit(GitProjectOptions git, Dictionary<string, string>? nomes)
+        {
+            if (nomes == null || nomes.Count == 0) return;
+            foreach (var (chave, campo) in CamposGit)
+            {
+                if (!nomes.TryGetValue(chave, out var escolhido) || string.IsNullOrWhiteSpace(escolhido)) continue;
+                // O escolhido vai NA FRENTE e os apelidos continuam: o board que já usa outro
+                // nome segue sendo reconhecido, e o sugerido passa a ser o da pessoa.
+                var lista = new[] { escolhido.Trim() }
+                    .Concat(campo(git))
+                    .Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray();
+                switch (chave)
+                {
+                    case "effort": git.EffortFields = lista; break;
+                    case "currentHours": git.CurrentHoursFields = lista; break;
+                    case "start": git.StartDateFields = lista; break;
+                    case "finish": git.FinishDateFields = lista; break;
+                    case "percConclusao": git.PercentFields = lista; break;
+                    case "percAloc": git.AllocationFields = lista; break;
+                    case "blockDuration": git.BlockHoursFields = lista; break;
+                    case "cardType": git.LevelFields = lista; break;
+                    case "iteration": git.IterationFields = lista; break;
+                    case "syncVersion": git.SyncVersionFields = lista; break;
+                    case "syncName": git.SyncNameFields = lista; break;
+                    case "admGroup": git.AdmGroupFields = lista; break;
+                    case "epicType": git.EpicTypeFields = lista; break;
+                }
+            }
         }
 
         private static string GetSettingsDirectory(string storageKey)

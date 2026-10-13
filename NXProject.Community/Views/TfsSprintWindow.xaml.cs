@@ -434,6 +434,12 @@ namespace NXProject.Views
             public bool? ShowFeatureNoStory { get; set; }  // Feature/EPIC sem Story (null = mostra)
             public string? CardDocExtensions { get; set; } // extensoes de "documento", separadas por virgula
             public bool? ShowEpic { get; set; }  // coluna EPIC na visão Pessoa & Task (null = mostra)
+            /// <summary>
+            /// Mostra o EPIC_GROUP acima do nome do EPIC (null = mostra). Quem não agrupa EPICs
+            /// não vê nada mudar; quem agrupa pode suprimir todos de uma vez, porque numa sprint
+            /// o grupo costuma ser o mesmo em todas as linhas e vira ruído.
+            /// </summary>
+            public bool? ShowEpicGroup { get; set; }
             public bool? ShowProjPerson { get; set; } // coluna Projeto na visão Pessoa & Task (null = oculta)
             public List<int>? CollapsedEpics { get; set; } // legado (so EPICs); lido na abertura
             public List<int>? CollapsedNodes { get; set; } // Project/EPIC/Feature/Story recolhidos
@@ -493,6 +499,7 @@ namespace NXProject.Views
             to.ClosedStoryNoTask = from.ClosedStoryNoTask;
             to.ShowFeatureNoStory = from.ShowFeatureNoStory;
             to.ShowEpic = from.ShowEpic;
+            to.ShowEpicGroup = from.ShowEpicGroup;
             to.ShowProjPerson = from.ShowProjPerson;
             to.ShowProjCol = from.ShowProjCol;
             to.ShowFeatCol = from.ShowFeatCol;
@@ -619,6 +626,44 @@ namespace NXProject.Views
             return LocalProjectFolder.Resolve(_localProject.FilePath, cfg?.LocalFolderPath);
         }
 
+        /// <summary>
+        /// Põe a tela no destino que o Portfólio guarda para este projeto.
+        ///
+        /// "Default" e destino sem conexão configurada caem no Azure DevOps — abrir num destino
+        /// que não dá para consultar seria trocar um incômodo por um erro. O mesmo vale para o
+        /// modo Local sem cronograma aberto: não há board local sem cronograma.
+        /// </summary>
+        private void AplicaDestinoDoPortfolio()
+        {
+            var cfg = _localProject == null ? null : _options.PortfolioProjectConfigs.FirstOrDefault(c =>
+                (!string.IsNullOrWhiteSpace(c.FilePath) && !string.IsNullOrWhiteSpace(_localProject.FilePath)
+                 && string.Equals(c.FilePath, _localProject.FilePath, StringComparison.OrdinalIgnoreCase))
+                || string.Equals(c.ProjectName, _localProject.Name, StringComparison.CurrentCultureIgnoreCase));
+
+            var destino = cfg?.BackendKind ?? NxBackendKind.Default;
+            if (destino == NxBackendKind.GitProject && _options.GitProject?.IsConfigured != true)
+                destino = NxBackendKind.Default;
+            if (destino == NxBackendKind.Local && _localProject == null)
+                destino = NxBackendKind.Default;
+
+            _backend = destino == NxBackendKind.Default ? NxBackendKind.AzureDevOps : destino;
+            _caps = NxBackendCapabilities.For(_backend);
+            // O combo é ajustado SEM disparar a troca: o evento refaria a carga e perguntaria
+            // conexão de novo. Aqui a tela está apenas nascendo no lugar certo.
+            _ajustandoDestino = true;
+            if (TargetCombo != null)
+                TargetCombo.SelectedIndex = _backend switch
+                {
+                    NxBackendKind.GitProject => 1,
+                    NxBackendKind.Local => 2,
+                    _ => 0
+                };
+            _ajustandoDestino = false;
+        }
+
+        /// <summary>A tela está só nascendo no destino do projeto, não trocando de destino.</summary>
+        private bool _ajustandoDestino;
+
         public TfsSprintWindow(IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null,
             string? preferredSprint = null, IReadOnlyList<int>? scheduleOrder = null, int openRootId = 0,
             NXProject.Models.Project? localProject = null, Action? saveLocalProject = null)
@@ -642,6 +687,12 @@ namespace NXProject.Views
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeLevels")); // 3 = Feature/EPIC/Project
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopePerson")); // 4 = responsavel
             SearchScopeCombo.SelectedIndex = 0;
+            // Destino com que a tela NASCE: o do projeto, cadastrado no Portfólio. A escolha é do
+            // projeto, não da tela — abrir sempre no Azure DevOps obrigava quem trabalha no
+            // GitHub ou no modo local a trocar o combo toda vez, e a primeira carga já ia buscar
+            // dados no servidor errado. O combo continua trocando à vontade, para experimentar.
+            AplicaDestinoDoPortfolio();
+
             // Carrega os últimos filtros salvos (aplicados na 1ª carga do board). Os recortes vêm
             // do bloco do destino com que a tela nasce — cada destino tem os seus.
             _prefs = LoadPrefs();
@@ -727,9 +778,10 @@ namespace NXProject.Views
         /// </summary>
         private async Task<List<string>> ReloadSprintListAsync()
         {
-            _sprints = _backend == NxBackendKind.Local && _localProject != null
-                ? LocalBoardService.Sprints(_localProject)
-                : await TfsImportService.ListSprintsAsync(_options);
+            // Fachada: a tela pede o provedor do destino e nao sabe quem esta atras.
+            _sprints = await NxBoardSources
+                .For(_backend, _options, _localProject, _options.GitProject)
+                .ListSprintsAsync();
             // Lista multi-seleção (estilo do filtro de pessoa): cada sprint com data início–fim.
             PopulateSprintList();
 
@@ -970,7 +1022,10 @@ namespace NXProject.Views
                 UpdateSprintToggleText();
                 var loadWatch = Stopwatch.StartNew();
                 // Modo local: o board sai do cronograma aberto, sem tocar na rede.
-                _board = _backend == NxBackendKind.Local && _localProject != null
+                _board = _backend == NxBackendKind.GitProject
+                    ? await NxBoardSources.For(_backend, _options, _localProject, _options.GitProject)
+                        .BuildBoardAsync(paths)
+                    : _backend == NxBackendKind.Local && _localProject != null
                     ? LocalBoardService.Build(_localProject, paths)
                     : await TfsImportService.BuildSprintBoardAsync(_options, paths);
                 AppendLoadPerf(
@@ -2347,9 +2402,11 @@ namespace NXProject.Views
         // sem escrita (não é responsável, não está no grupo, ou o token não permite).
         private async void OnUpdateTfsClick(object sender, RoutedEventArgs e)
         {
-            // Modo local: grava no cronograma, não no servidor. É a mesma fila de pendências —
-            // muda só para onde ela vai.
+            // A fila de pendências é uma só; o que muda é para onde ela vai. Antes o GitProject
+            // caía no caminho do Azure DevOps e devolvia um erro que não dizia nada a quem estava
+            // olhando ("Could not find workitemdataset").
             if (_backend == NxBackendKind.Local) { SaveLocalBoard(); return; }
+            if (_backend == NxBackendKind.GitProject) { await SaveGitBoardAsync(); return; }
             await UpdateTfsAsync();
         }
 
@@ -2365,6 +2422,86 @@ namespace NXProject.Views
         {
             if (_localProject == null) return;
 
+            var pend = MontaPendencias();
+            var recursos = _localProject.Resources?.ToArray();
+            var res = LocalBoardWriter.Apply(_localProject, pend, recursos);
+
+            // BLOCK vira linha no log da pasta: é o histórico que, no DevOps, vem das revisões do
+            // work item. Sem ele, a auditoria local não teria de onde contar as horas.
+            var pastaLog = LocalFolder();
+            if (!string.IsNullOrEmpty(pastaLog))
+            {
+                var quem = Environment.UserName;
+                foreach (var kv in _blockPending)
+                    LocalProjectFolder.AppendBlock(pastaLog, kv.Key, kv.Value, quem);
+            }
+
+            _saveLocalProject?.Invoke();
+
+            OnRevertClick(this, new RoutedEventArgs());
+            _board = LocalBoardService.Build(_localProject, _sprintPaths);
+            UpdatePendingButton();
+            Render();
+
+            StatusText.Text = AppStrings.Get("Sprint_LocalSaved", res.Applied.ToString());
+            if (res.Problems.Count > 0)
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, res.Problems)),
+                    AppStrings.Get("Sprint_TargetLocal"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        /// <summary>
+        /// Grava a fila no board do GitHub.
+        ///
+        /// Usa a MESMA fila do modo local: a tela não deve aprender um formato por destino — e foi
+        /// essa fila que permitiu dar ao GitProject um caminho próprio sem reescrever o board.
+        /// </summary>
+        private async Task SaveGitBoardAsync()
+        {
+            var git = _options.GitProject;
+            if (git?.IsConfigured != true)
+            {
+                MessageBox.Show(this, AppStrings.Get("Git_SyncNoConn"),
+                    AppStrings.Get("Sprint_TargetGitProject"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            UpdateTfsButton.IsEnabled = false;
+            StatusText.Text = AppStrings.Get("Git_Testing");
+            LocalBoardWriter.Result res;
+            try
+            {
+                var progresso = new Progress<string>(m => StatusText.Text = m);
+                res = await GitProjectBoardWriter.ApplyAsync(git, MontaPendencias(), progresso);
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "";
+                TfsErrorDialog.Show(this, AppStrings.Get("Sprint_TargetGitProject"), ex);
+                return;
+            }
+            finally { UpdateTfsButton.IsEnabled = true; }
+
+            // Gravou: a fila some e o board é relido do servidor, como no caminho do DevOps.
+            OnRevertClick(this, new RoutedEventArgs());
+            if (NxBoardSources.For(_backend, _options, _localProject, _options.GitProject)
+                    is GitProjectBoardSource fonte) fonte.Invalidate();
+            await ReloadBoardAsync(_sprintPaths?.ToList() ?? new List<string>());
+
+            StatusText.Text = AppStrings.Get("Sprint_LocalSaved", res.Applied.ToString());
+            if (res.Problems.Count > 0)
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, res.Problems)),
+                    AppStrings.Get("Sprint_TargetGitProject"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        /// <summary>
+        /// A fila de pendências do board, no formato que os gravadores entendem. Está fora dos
+        /// métodos de salvar porque é a MESMA para todos os destinos — e duplicá-la seria a
+        /// forma mais provável de um destino passar a gravar menos que o outro sem ninguém notar.
+        /// </summary>
+        private LocalBoardWriter.Pending MontaPendencias()
+        {
             var pend = new LocalBoardWriter.Pending();
             foreach (var kv in _pending) pend.States[kv.Key] = kv.Value;
             foreach (var kv in _storyStatePending) pend.States[kv.Key] = kv.Value;
@@ -2388,38 +2525,14 @@ namespace NXProject.Views
             foreach (var id in _taskRankPending)
                 if (_cardById.TryGetValue(id, out var c)) pend.Ranks[id] = EffTaskRank(c);
 
-            var recursos = _localProject.Resources?.ToArray();
-            var res = LocalBoardWriter.Apply(_localProject, pend, recursos);
-
-            // BLOCK vira linha no log da pasta: é o histórico que, no DevOps, vem das revisões do
-            // work item. Sem ele, a auditoria local não teria de onde contar as horas.
-            var pastaLog = LocalFolder();
-            if (!string.IsNullOrEmpty(pastaLog))
-            {
-                var quem = Environment.UserName;
-                foreach (var kv in _blockPending)
-                    LocalProjectFolder.AppendBlock(pastaLog, kv.Key, kv.Value, quem);
-            }
-
-            _saveLocalProject?.Invoke();
-
-            // A fila foi para o arquivo: zera tudo, como o caminho do DevOps faz após gravar.
-            OnRevertClick(this, new RoutedEventArgs());
-            _board = LocalBoardService.Build(_localProject, _sprintPaths);
-            UpdatePendingButton();
-            Render();
-
-            StatusText.Text = AppStrings.Get("Sprint_LocalSaved", res.Applied.ToString());
-            if (res.Problems.Count > 0)
-                MessageBox.Show(this,
-                    AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, res.Problems)),
-                    AppStrings.Get("Sprint_TargetLocal"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return pend;
         }
+
 
         /// <summary>
         /// Destino da gravação do board. Hoje só o Azure DevOps grava de verdade; GitProject e
         /// Projeto Local são caminhos em estudo — cada um tem um plano escrito em
-        /// <c>Plano_GitProject.md</c> e <c>Plano_Projeto_Local.md</c>, na raiz do repositório.
+        /// <c>features_gitproject.md</c> e <c>Plano_Projeto_Local.md</c>, na raiz do repositório.
         ///
         /// Escolher um deles avisa que ainda não vale e VOLTA para o DevOps. Deixar a opção
         /// selecionada sem implementação seria pior: o botão de gravar continuaria verde,
@@ -2427,20 +2540,27 @@ namespace NXProject.Views
         /// </summary>
         private async void OnTargetChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (TargetCombo == null) return;
+            if (TargetCombo == null || _ajustandoDestino) return;
 
-            // GitProject ainda não existe: avisa e volta (o desenho está no plano).
-            if (TargetCombo.SelectedIndex == 1)
+            // GitProject exige a conexão configurada: sem ela, abre a tela em vez de falhar na
+            // primeira consulta com uma mensagem de API.
+            if (TargetCombo.SelectedIndex == 1 && _options.GitProject?.IsConfigured != true)
             {
-                TargetCombo.SelectedIndex = _backend == NxBackendKind.Local ? 2 : 0;
-                MessageBox.Show(this,
-                    AppStrings.Get("Sprint_TargetTodo", AppStrings.Get("Sprint_TargetGitProject"),
-                        "Plano_GitProject.md"),
-                    AppStrings.Get("Sprint_TargetTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                if (new GitProjectConfigWindow { Owner = this }.ShowDialog() == true)
+                    _options.GitProject = TfsConnectionStore.Load().GitProject;
+                if (_options.GitProject?.IsConfigured != true)
+                {
+                    TargetCombo.SelectedIndex = _backend == NxBackendKind.Local ? 2 : 0;
+                    return;
+                }
             }
 
-            var novo = TargetCombo.SelectedIndex == 2 ? NxBackendKind.Local : NxBackendKind.AzureDevOps;
+            var novo = TargetCombo.SelectedIndex switch
+            {
+                1 => NxBackendKind.GitProject,
+                2 => NxBackendKind.Local,
+                _ => NxBackendKind.AzureDevOps
+            };
             if (novo == _backend) return;
 
             // Projeto Local precisa do cronograma aberto: é dele que o board sai.
@@ -4290,6 +4410,12 @@ namespace NXProject.Views
             {
                 var epicHead = new StackPanel { Orientation = Orientation.Horizontal };
                 epicHead.Children.Add(MakeHeader(AppStrings.Get("Sprint_ColEpic")));
+                // Suprimir os EPIC_GROUP: só aparece quando existe algum no board, senão seria
+                // mais um controle para quem não usa agrupamento.
+                if (_board?.Stories.Any(x => !string.IsNullOrWhiteSpace(x.FeatureEpicGroupTitle)) == true)
+                    epicHead.Children.Add(MakeColToggle(AppStrings.Get("Sprint_ColEpicGroup"),
+                        _prefs.ShowEpicGroup ?? true, AppStrings.Get("Sprint_ShowEpicGroupHint"),
+                        v => _prefs.ShowEpicGroup = v));
                 epicHead.Children.Add(ProjToggle());
                 AddCell(head, cEpic, epicHead);
             }
@@ -4796,6 +4922,8 @@ namespace NXProject.Views
                 Header = AppStrings.Get("Block_MenuItem"),
                 ToolTip = AppStrings.Get("Block_MenuItemTip")
             };
+            item.IsEnabled = _caps.BlockAudit;
+            if (!_caps.BlockAudit) item.Header = AppStrings.Get("Sprint_OnlyIn", item.Header?.ToString() ?? "", "Azure DevOps / GitProject");
             item.Click += async (_, _) => await ShowBlockAuditAsync(id);
             menu.Items.Add(item);
         }
@@ -4818,18 +4946,29 @@ namespace NXProject.Views
                 ToolTip = AppStrings.Get("Sprint_BlockAuditShortcut", h.ToString("0"))
             };
             btn.Click += async (_, _) => await ShowBlockAuditAsync(t.Id);
-            return btn;
+            return OnlyIn(btn, _caps.BlockAudit, "Azure DevOps / GitProject");
         }
 
-        /// <summary>Le a auditoria de bloqueio no DevOps e abre a tela. Sempre online, sob demanda.</summary>
+        /// <summary>
+        /// Le a auditoria de bloqueio e abre a tela. Sempre online, sob demanda.
+        ///
+        /// Quem responde e a FACHADA do destino: no Azure DevOps o historico do work item, no
+        /// GitHub a timeline da issue (label que entra e sai, com hora e autor), no modo local o
+        /// que houver em disco. A tela nao precisa saber de qual deles veio — e e por isso que
+        /// este metodo nao tem mais um `if` por destino.
+        /// </summary>
         private async Task ShowBlockAuditAsync(int id)
         {
             try
             {
                 StatusText.Text = AppStrings.Get("Block_Loading", id.ToString());
-                var audit = _backend == NxBackendKind.Local
-                    ? LocalBlockAudit(id)
-                    : await TfsImportService.LoadBlockAuditAsync(_options, id);
+                Task<TfsImportService.BlockAudit?> Carrega() =>
+                    _backend == NxBackendKind.Local
+                        ? Task.FromResult<TfsImportService.BlockAudit?>(LocalBlockAudit(id))
+                        : NxBoardSources.For(_backend, _options, _localProject, _options.GitProject)
+                                        .LoadBlockAuditAsync(id);
+
+                var audit = await Carrega();
                 StatusText.Text = "";
                 if (audit == null)
                 {
@@ -4837,10 +4976,7 @@ namespace NXProject.Views
                         "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-                new TfsBlockAuditWindow(audit, OpenInDevOps,
-                    () => _backend == NxBackendKind.Local
-                        ? Task.FromResult<TfsImportService.BlockAudit?>(LocalBlockAudit(id))
-                        : TfsImportService.LoadBlockAuditAsync(_options, id)) { Owner = this }.ShowDialog();
+                new TfsBlockAuditWindow(audit, OpenInDevOps, Carrega) { Owner = this }.ShowDialog();
             }
             catch (Exception ex)
             {
@@ -5161,6 +5297,12 @@ namespace NXProject.Views
                 if (!showProj && multiProject && !string.IsNullOrWhiteSpace(st.FeatureProjectTitle))
                     epicSp2.Children.Add(BuildLabelCard("🗂", st.FeatureProjectTitle, strong: false,
                         id: st.FeatureProjectId, state: st.FeatureProjectState));
+                // EPIC_GROUP: o agrupador de EPICs vem ACIMA do nome do EPIC, na mesma coluna.
+                // Não ganha coluna própria de propósito — ele é contexto, não um nível a mais
+                // para a pessoa percorrer, e a tela do board já tem colunas demais.
+                if ((_prefs.ShowEpicGroup ?? true) && !string.IsNullOrWhiteSpace(st.FeatureEpicGroupTitle))
+                    epicSp2.Children.Add(BuildLabelCard("🧩", st.FeatureEpicGroupTitle, strong: false,
+                        id: st.FeatureEpicGroupId));
                 if (!string.IsNullOrWhiteSpace(st.FeatureEpicTitle))
                     epicSp2.Children.Add(BuildLabelCard("🏔", st.FeatureEpicTitle, strong: true,
                         id: st.FeatureEpicId, extra: BuildCollapseButton(st.FeatureEpicId),
@@ -6056,6 +6198,10 @@ namespace NXProject.Views
                 foreach (var kv in _taskParentPending.Where(k => k.Value == nc.TempId).ToList())
                     _taskParentPending[kv.Key] = id;
 
+                // O item ja existe no servidor: entra no board EM MEMORIA agora. Sem isto ele
+                // saia da lista de novos e so voltava no proximo recarregamento — a pessoa via o
+                // card que acabou de criar desaparecer, e nada na tela explicava por que.
+                InsertCreatedCard(nc, id, iter);
                 _newCards.Remove(nc);
                 _scrollToNewCard = 0;
                 StatusText.Text = AppStrings.Get("Sprint_SaveNewNowDone", "#" + id);
@@ -6071,11 +6217,63 @@ namespace NXProject.Views
             //
             // Por isso o recarregamento so acontece com a fila VAZIA: o ReloadBoardAsync comeca
             // do zero e limpa todas as pendencias, e recarregar aqui jogaria fora o trabalho que
-            // a pessoa ainda nao gravou. Com fila pendente, o board fica como esta e o item novo
-            // aparece na proxima recarga — o texto de status ja dá o id dele.
+            // a pessoa ainda nao gravou. Com fila pendente, o board fica como esta — e o item
+            // novo CONTINUA VISIVEL porque o InsertCreatedCard ja o colocou em memoria.
             UpdatePendingButton();
             if (PendingCount() == 0) await ReloadBoardAsync(_sprintPaths);
             else { Render(); StatusText.Text += "  " + AppStrings.Get("Sprint_SaveNewNowKeptQueue"); }
+        }
+
+        /// <summary>
+        /// Coloca no board, sem ir ao servidor, o item que acabou de ser criado. É o mesmo que o
+        /// recarregamento traria — só que o recarregamento não pode acontecer com a fila cheia,
+        /// porque ele começa do zero e jogaria fora o que ainda não foi gravado.
+        ///
+        /// Só o que o NXProject já sabe entra aqui: id, título, pai, responsável, HH e sprint. O
+        /// que vem do servidor (rank efetivo, datas calculadas, anexos) chega no próximo reload.
+        /// </summary>
+        private void InsertCreatedCard(NewCard nc, int id, string iter)
+        {
+            if (_board == null) return;
+
+            if (nc.Type == "Task")
+            {
+                var story = _board.Stories.FirstOrDefault(x => x.Id == nc.ParentId);
+                if (story == null) return;   // Task sob Feature/EPIC: aparece no proximo reload
+                story.Tasks.Insert(0, new TfsImportService.SprintTaskCard(
+                    id, nc.Title.Trim(), "New", nc.AssignedTo ?? "",
+                    nc.Effort is { } e ? e.ToString("0.##") : "",
+                    nc.ParentId, "", null, 0, _taskRank.TryGetValue(id, out var tr) ? tr : double.NaN)
+                {
+                    IterationPath = iter ?? "",
+                    EstimateHours = nc.Effort
+                });
+                return;
+            }
+
+            if (nc.Type != "Story") return;   // Feature e EPIC mudam as colunas de cima: reload
+
+            // Story nova: herda a hierarquia da Feature em que foi pendurada, lendo de uma irma.
+            var irma = _board.Stories.FirstOrDefault(x => x.FeatureId == nc.FeatureId && x.Id > 0);
+            _board.Stories.Insert(0, new TfsImportService.SprintStoryRow(
+                id, nc.Title.Trim(), "New", nc.AssignedTo ?? "",
+                new List<TfsImportService.SprintTaskCard>())
+            {
+                IterationPath = iter ?? "",
+                StackRank = _storyRank.TryGetValue(id, out var sr) ? sr : double.NaN,
+                FeatureId = nc.FeatureId,
+                FeatureTitle = irma?.FeatureTitle ?? "",
+                FeatureAssignedTo = irma?.FeatureAssignedTo ?? "",
+                FeatureState = irma?.FeatureState ?? "",
+                FeatureIterationPath = irma?.FeatureIterationPath ?? "",
+                FeatureEpicId = irma?.FeatureEpicId ?? 0,
+                FeatureEpicTitle = irma?.FeatureEpicTitle ?? "",
+                FeatureEpicState = irma?.FeatureEpicState ?? "",
+                FeatureProjectId = irma?.FeatureProjectId ?? 0,
+                FeatureProjectTitle = irma?.FeatureProjectTitle ?? "",
+                FeatureProjectState = irma?.FeatureProjectState ?? ""
+            });
+            _storyById[id] = _board.Stories[0];
         }
 
         /// <summary>O card novo tem tudo que o DevOps exige? Devolve a mensagem, ou null se ok.</summary>
@@ -6187,6 +6385,20 @@ namespace NXProject.Views
             };
             tb.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; CopyId(id); };
             return tb;
+        }
+
+        /// <summary>
+        /// Botao que so existe em um destino: fica DESABILITADO e diz de quem e, em vez de
+        /// sumir. Sumir deixaria a pessoa procurando — e achando que o NXProject perdeu a
+        /// funcao; desabilitado com a marca ensina qual destino a tem.
+        /// </summary>
+        private T OnlyIn<T>(T controle, bool capaz, string destino) where T : Control
+        {
+            if (capaz) return controle;
+            controle.IsEnabled = false;
+            controle.ToolTip = AppStrings.Get("Sprint_OnlyIn", controle.ToolTip?.ToString() ?? "", destino);
+            controle.Opacity = 0.45;
+            return controle;
         }
 
         private Button BuildBlockButton(int id, string tags, bool isStory)
@@ -6646,6 +6858,44 @@ namespace NXProject.Views
                 }
                 StatusText.Text = copiados.Count == 0 ? ""
                     : AppStrings.Get("Sprint_LocalAttached", copiados.Count.ToString());
+                Render();
+                return;
+            }
+
+            // GitProject: nao existe API de anexo de ITEM no GitHub. O arquivo vai versionado
+            // para o repositorio da issue, numa arvore que espelha o backlog, e o link e
+            // comentado no item. Mesmo laco, terceiro destino.
+            if (_backend == NxBackendKind.GitProject)
+            {
+                var git = _options.GitProject;
+                if (git?.IsConfigured != true)
+                {
+                    MessageBox.Show(this, AppStrings.Get("Git_SyncNoConn"),
+                        AppStrings.Get("Sprint_TargetGitProject"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var enviados = new List<string>();
+                var problemas = new List<string>();
+                try
+                {
+                    var snapshot = await new GitProjectClient(git).LoadAsync();
+                    foreach (var file in dlg.FileNames)
+                    {
+                        var nome = System.IO.Path.GetFileName(file);
+                        StatusText.Text = AppStrings.Get("Git_Attaching", nome);
+                        var (ok, url, erro) = await GitProjectAttachmentService.AttachAsync(
+                            git, snapshot, taskId, nome, System.IO.File.ReadAllBytes(file));
+                        if (ok) enviados.Add(nome); else problemas.Add($"{nome}: {erro}");
+                    }
+                }
+                catch (Exception ex) { problemas.Add(ex.Message); }
+
+                StatusText.Text = enviados.Count == 0 ? ""
+                    : AppStrings.Get("Sprint_LocalAttached", enviados.Count.ToString());
+                if (problemas.Count > 0)
+                    MessageBox.Show(this, string.Join(Environment.NewLine, problemas),
+                        AppStrings.Get("Sprint_TargetGitProject"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 Render();
                 return;
             }
@@ -7224,6 +7474,8 @@ namespace NXProject.Views
                 actions.Children.Add(sched);
             }
 
+            // Capacidade, nao nome do destino: onde nao ha onde guardar anexo, o botao nem
+            // nasce. Decisao de produto: esconder, nao mostrar desabilitado.
             var attachBtn = new Button
             {
                 Content = "📎",
@@ -7233,7 +7485,7 @@ namespace NXProject.Views
                 ToolTip = "Anexar arquivo no Azure DevOps"
             };
             attachBtn.Click += async (_, _) => await UploadAttachmentForCardAsync(t.Id);
-            actions.Children.Add(attachBtn);
+            actions.Children.Add(OnlyIn(attachBtn, _caps.Attachments != NxAttachmentStore.None, "Azure DevOps"));
 
             // Bloquear/desbloquear (tag "Blocked"): entra na fila do Salvar TFS.
             AddEditButtons(actions, t.Id, t.Title, t.AssignedTo, "Task"); // ✎ descrição e 💬 trâmite da Task

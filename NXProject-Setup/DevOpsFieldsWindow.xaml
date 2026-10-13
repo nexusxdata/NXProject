@@ -1,4 +1,4 @@
-<Window x:Class="NXProject.Setup.DevOpsFieldsWindow"
+﻿<Window x:Class="NXProject.Setup.DevOpsFieldsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Setup_Step4Title}"
@@ -23,7 +23,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <!-- Onde os campos serao configurados. Hoje so o Azure DevOps; GitProject avisa e
-                 volta (desenho em Plano_GitProject_Import_Sync.md). -->
+                 volta (desenho em features_gitproject.md). -->
             <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Setup_Step4Server}"
                        VerticalAlignment="Center" FontSize="11" Margin="0,0,8,4"/>
             <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="ServerCombo" Height="22" Margin="0,0,0,4"
@@ -63,6 +63,21 @@
                 </TextBlock>
             </StackPanel>
         </Border>
+
+        <!-- Padrao de nomes. NAO e traducao: decide se o NXProject grava no campo NATIVO do
+             processo (Start Date, Finish Date, Original Estimate) ou num campo PROPRIO dele
+             (Data_Inicio, Data_Fim, HH Estimado). Cada nome segue editavel linha a linha; isto
+             so move o ponto de partida. -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBlock Text="{DynamicResource Setup_Step4Naming}" VerticalAlignment="Center"
+                       FontSize="11" Margin="0,0,8,0"/>
+            <ComboBox x:Name="NamingCombo" Width="260" Height="22" FontSize="11" SelectedIndex="0"
+                      SelectionChanged="OnNamingChanged"
+                      ToolTip="{DynamicResource Setup_Step4NamingTip}">
+                <ComboBoxItem Content="{DynamicResource Setup_Step4NamingPt}"/>
+                <ComboBoxItem Content="{DynamicResource Setup_Step4NamingEn}"/>
+            </ComboBox>
+        </StackPanel>
 
         <!-- Uma linha por campo: [criar] nome editavel + tipo/onde + situacao detectada. -->
         <Border BorderBrush="#E5E8EC" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">

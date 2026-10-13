@@ -1,4 +1,4 @@
-<Window x:Class="NXProject.Views.FeaturesHelpWindow"
+﻿<Window x:Class="NXProject.Views.FeaturesHelpWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Help_WindowTitle}"
@@ -51,30 +51,10 @@
                             </Style.Triggers>
                         </Style>
                     </ListBox.ItemContainerStyle>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Overview}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_DevOpsHierarchy}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_TechLead}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Schedule}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_ActivityDates}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Gantt}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Predecessors}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Resources}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_AllocationMap}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Sprints}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_TaskPlan}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_DevOps}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_ProjectList}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Sync}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_DevOpsSetup}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Export}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_HealthCheck}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_AI}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Baseline}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_CriticalPath}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_ActivityDiagram}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_ResourceCost}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_Settings}"/>
-                    <ListBoxItem Content="{DynamicResource Help_Topic_TaskBoard}"/>
+                    <!-- Os itens sao montados em codigo, a partir dos TOPICOS e com os
+                         cabecalhos de grupo (Geral / Azure DevOps / GitHub Projects). Antes esta
+                         lista era escrita a mao aqui e casava com os topicos POR INDICE: bastava
+                         inserir um topico no meio para a tela mostrar o texto errado. -->
                 </ListBox>
             </DockPanel>
         </Border>

@@ -166,6 +166,18 @@ namespace NXProject.Views
             }
         }
 
+        /// <summary>Nomes dos campos, nos dois destinos.</summary>
+        private void OnOpenFieldsClick(object sender, RoutedEventArgs e)
+        {
+            new FieldNamesWindow { Owner = this }.ShowDialog();
+        }
+
+        /// <summary>Conexão com o GitHub Projects — o par do "Configurar DevOps".</summary>
+        private void OnOpenGitConfigClick(object sender, RoutedEventArgs e)
+        {
+            new GitProjectConfigWindow { Owner = this }.ShowDialog();
+        }
+
         private void OnOpenConfigClick(object sender, RoutedEventArgs e)
         {
             var dlg = new TfsDevOpsConfigWindow(_storageKey) { Owner = this };
@@ -177,19 +189,22 @@ namespace NXProject.Views
         }
 
         /// <summary>
-        /// Origem da importação. Só o Azure DevOps está implementado; GitProject (GitHub Projects)
-        /// avisa e volta — o desenho do conector está em <c>Plano_GitProject_Import_Sync.md</c>,
-        /// na raiz do repositório.
+        /// Origem da importação: Azure DevOps ou GitHub Projects. Sem a conexão do GitProject
+        /// configurada, abre a tela de conexão em vez de recusar — é o passo que falta.
         /// </summary>
         private void OnSourceChanged(object sender, SelectionChangedEventArgs e)
         {
             if (SourceCombo == null || SourceCombo.SelectedIndex == 0) return;
-            SourceCombo.SelectedIndex = 0;
-            MessageBox.Show(this,
-                AppStrings.Get("Sprint_TargetTodo", AppStrings.Get("Sprint_TargetGitProject"),
-                    "Plano_GitProject_Import_Sync.md"),
-                AppStrings.Get("Sprint_TargetTodoTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            var options = TfsConnectionStore.Load();
+            if (options.GitProject?.IsConfigured == true) return;
+
+            if (new GitProjectConfigWindow { Owner = this }.ShowDialog() != true
+                || TfsConnectionStore.Load().GitProject?.IsConfigured != true)
+                SourceCombo.SelectedIndex = 0;
         }
+
+        /// <summary>A importação roda contra o GitHub Projects?</summary>
+        private bool DoGitProject => SourceCombo?.SelectedIndex == 1;
 
         private async void OnImportClick(object sender, RoutedEventArgs e)
         {
@@ -199,13 +214,28 @@ namespace NXProject.Views
             HideStatus();
 
             _savedOptions = TfsConnectionStore.Load(_storageKey);
-            if (string.IsNullOrWhiteSpace(_savedOptions.OrganizationUrl) || string.IsNullOrWhiteSpace(_savedOptions.PersonalAccessToken))
+            // Cada origem valida a SUA conexao: exigir PAT do DevOps para importar do GitHub
+            // era a tela recusando por um dado que nao tem nada a ver com o que vai acontecer.
+            if (DoGitProject)
+            {
+                if (_savedOptions.GitProject?.IsConfigured != true)
+                {
+                    ShowStatus(AppStrings.Get("Imp_NoGitConnection"));
+                    return;
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(_savedOptions.OrganizationUrl)
+                     || string.IsNullOrWhiteSpace(_savedOptions.PersonalAccessToken))
             {
                 ShowStatus(AppStrings.Get("Imp_NoConnectionStatus"));
                 return;
             }
 
-            if (!int.TryParse(RootIdBox.Text?.Trim(), out var rootId) || rootId <= 0)
+            // A raiz tem significados diferentes: no DevOps e o ID do work item tipo Project e
+            // e obrigatorio; no GitHub e o numero da issue marcada como Project — e valor <= 0
+            // quer dizer "o board inteiro", que e como o Discovery cadastra um board sem raiz.
+            int.TryParse(RootIdBox.Text?.Trim(), out var rootId);
+            if (!DoGitProject && rootId <= 0)
             {
                 ShowStatus(AppStrings.Get("Imp_SelectOrEnterId"));
                 return;
@@ -225,7 +255,12 @@ namespace NXProject.Views
             {
                 // Progresso por etapa (Progress<T> despacha para a thread da UI).
                 var progress = new Progress<string>(step => ImportStepText.Text = step);
-                var importResult = await TfsImportService.ImportAsync(options, progress, loadTasksOnImport: loadTasksOnImport);
+                // Mesma janela, duas origens: o que muda e de onde vem o cronograma; o que
+                // acontece depois — calendario, recalculo, relatorio — e identico.
+                var importResult = DoGitProject
+                    ? await GitProjectImportService.ImportAsync(options.GitProject!,
+                        rootId > 0 ? rootId : 0, progress)
+                    : await TfsImportService.ImportAsync(options, progress, loadTasksOnImport: loadTasksOnImport);
                 var project = importResult.Project;
 
                 // Grava a origem (organização + Team Project) para a sincronização

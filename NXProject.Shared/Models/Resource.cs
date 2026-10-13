@@ -41,6 +41,19 @@ namespace NXProject.Models
         public bool IsImportedFromTfs { get; set; }
 
         /// <summary>
+        /// Login da conta do GitHub desta pessoa (sem @).
+        ///
+        /// Fica no recurso porque é no IMPORT que a informação chega de graça: o GitHub devolve
+        /// login e nome de quem está atribuído, e guardar ali evita ter de adivinhar na hora de
+        /// gravar. Nome não serve como identidade — pode estar vazio, pode repetir, e é digitado
+        /// à mão no cronograma; o login é único e é o que a API entende.
+        ///
+        /// Vazio = pessoa que nunca veio do GitHub. Nesse caso o sync tenta casar por nome e, se
+        /// houver qualquer dúvida, avisa em vez de atribuir alguém errado.
+        /// </summary>
+        public string? GitLogin { get; set; }
+
+        /// <summary>
         /// % do dia útil disponível para este projeto (0–100, padrão 100).
         /// Afeta o prazo das tarefas: 80 % → uma atividade de 40 h leva 40/(8×0,8)=6,25 dias.
         /// Diferente de AllocationPercent (por tarefa): este é o teto global da pessoa.

@@ -311,6 +311,24 @@ namespace NXProject.Models
         /// <summary>EPIC de backlog — NÃO soma horas no total do projeto.</summary>
         public const string Backlog  = "BACKLOG";
 
+        /// <summary>
+        /// EPIC que AGRUPA outros EPICs — por exemplo, as Melhorias abertas como um EPIC por
+        /// sprint ou por semana.
+        ///
+        /// É o único caso em que a hierarquia do NXProject aceita Epic dentro de Epic: acima dele
+        /// tem de haver um Work Item Project, e abaixo só podem vir EPICs. No cronograma ele se
+        /// comporta como o Work Item Project — consolida datas e horas dos filhos — e no
+        /// TaskBoard aparece acima do nome do EPIC, com filtro próprio para sumir da tela.
+        ///
+        /// O valor NÃO repete a palavra "epic" por acaso: o campo já se chama EPIC_TYPE, e os
+        /// outros valores (DELIVERY, BACKLOG) também são só o qualificador.
+        /// </summary>
+        public const string Group = NXProject.Services.NxLevelMap.EpicGroupValue;
+
+        /// <summary>O EPIC é um agrupador?</summary>
+        public static bool IsGroup(string? epicType)
+            => NXProject.Services.NxLevelMap.IsEpicGroup(epicType);
+
         public static bool IsBacklog(string? epicType)
             => string.Equals(epicType?.Trim(), Backlog, StringComparison.OrdinalIgnoreCase);
 

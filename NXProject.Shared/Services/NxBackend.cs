@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -76,9 +76,9 @@ namespace NXProject.Services
                 RequiresOpenSchedule: false, RequiresProjectFolder: false),
 
             // GitHub Projects: sem anexo no item, sem auditoria por histórico e sem ordem
-            // gravável — ver Plano_GitProject_Import_Sync.md.
+            // gravável — ver features_gitproject.md.
             NxBackendKind.GitProject => new(
-                Attachments: NxAttachmentStore.None, Comments: true, BlockAudit: false,
+                Attachments: NxAttachmentStore.Server, Comments: true, BlockAudit: true,
                 OpenInBrowser: true, ServerStates: false, ServerPeople: true,
                 ConcurrencyControl: false, BacklogOrderWrite: false, CreateItem: true,
                 RequiresOpenSchedule: false, RequiresProjectFolder: false),
