@@ -210,3 +210,10 @@ Default is 8 hours per day, Monday through Friday.
 
 ---
 
+## The fields screen
+
+![Configure Fields and Tags, Azure DevOps tab](img/campos.png)
+
+The field names in DevOps, the PT/EN standard and, per work item type, the option to use the
+process's **native** field instead of a field of our own. Below the list sit detection and
+creation — the latter asking for the admin PAT on the spot, without storing it.

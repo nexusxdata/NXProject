@@ -216,3 +216,10 @@ O padrão é 8 horas por dia, segunda a sexta.
 
 ---
 
+## A tela de campos
+
+![Configurar Campos e Tags, aba Azure DevOps](img/campos.png)
+
+Os nomes dos campos no DevOps, o padrão PT/EN e, por tipo de work item, a opção de usar o campo
+**nativo** do processo em vez de um campo próprio. Abaixo da lista ficam a detecção e a criação —
+esta pedindo o PAT de administrador na hora, sem gravá-lo.

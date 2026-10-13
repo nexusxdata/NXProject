@@ -74,15 +74,10 @@ acesso ao código. O token fica cifrado pelo Windows (DPAPI), nunca em texto pla
 > `Approved`/`Committed`/`Proposed`), mas ainda não foram exercitados contra um servidor real.
 > Detalhes em [funcionalidades do Azure DevOps](../devops/features.pt-BR.md#processos-agile-é-o-que-foi-testado).
 
-## Capturas de tela
+## A tela de campos
 
-> As imagens desta seção ainda não foram tiradas. Os arquivos devem ir em `docs/gitproject/img/`
-> com exatamente estes nomes, e aparecem aqui assim que existirem.
+![Configurar Campos e Tags, aba GitProject](img/campos.png)
 
-| Tela | Arquivo | O que mostrar |
-|---|---|---|
-| Configurar GitProject | `conexao.png` | Dono, token, board e repositório, com o bloco "O que liberar no token" aberto |
-| Configurar Campos e Tags → GitProject | `campos.png` | A lista de campos do board e o painel "Criar os campos no board do GitHub" |
-| TaskBoard no GitProject | `taskboard.png` | O board com as colunas vindas do `Status` do projeto |
-| Importar | `importar.png` | A tela de importação com o destino GitProject escolhido |
-| Resultado do Sincronizar | `sync.png` | O relatório, de preferência com um aviso (ordem do backlog ou conflito) |
+Os nomes dos campos do board, com o padrão PT/EN, as tags e a classificação. O botão **Criar os
+campos no board do GitHub** cria o que falta já com o tipo certo — e, no GitHub, isso não exige ser
+administrador da organização.

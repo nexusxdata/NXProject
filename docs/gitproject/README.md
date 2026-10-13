@@ -75,15 +75,10 @@ granting code access. The token is encrypted by Windows (DPAPI), never stored in
 > `Approved`/`Committed`/`Proposed` states), but have not yet been exercised against a real
 > server. Details in [Azure DevOps features](../devops/features.md#processes-agile-is-what-has-been-tested).
 
-## Screenshots
+## The fields screen
 
-> The images in this section have not been taken yet. Files go under `docs/gitproject/img/` with
-> exactly these names, and show up here as soon as they exist.
+![Configure Fields and Tags, GitProject tab](img/campos.png)
 
-| Screen | File | What to show |
-|---|---|---|
-| Configure GitProject | `conexao.png` | Owner, token, board and repository, with the "What the token must grant" block expanded |
-| Configure Fields and Tags → GitProject | `campos.png` | The board field list and the "Create the fields on the GitHub board" panel |
-| TaskBoard on GitProject | `taskboard.png` | The board with columns coming from the project's `Status` |
-| Import | `importar.png` | The import screen with the GitProject target selected |
-| Sync result | `sync.png` | The report, preferably with a warning (backlog order or a conflict) |
+The board field names, with the PT/EN standard, the tags and the classification. The **Create the
+fields on the GitHub board** button creates what is missing with the correct type — and on GitHub
+that does not require organization-admin rights.
