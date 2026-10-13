@@ -1,6 +1,8 @@
+🌐 **Português** | [Read in English](features.md)
+
 # Azure DevOps no NXProject — o que faz e as decisões por trás
 
-> Par do [features_gitproject.md](features_gitproject.md). Aqui está o conector que o NXProject
+> Par do [docs/gitproject/features.md](../gitproject/features.pt-BR.md). Aqui está o conector que o NXProject
 > tem desde o começo: o que ele lê, o que devolve, e as regras que não são óbvias no código —
 > especialmente as que existem para **não** estragar dado de quem está do outro lado.
 >
@@ -162,7 +164,7 @@ mais comum de quem instala, e descobrir no meio da criação deixaria metade dos
 ## Diferenças em relação ao GitHub Projects
 
 Resumo do que muda para quem conhece um lado e vai mexer no outro — o detalhe está no
-[features_gitproject.md](features_gitproject.md):
+[docs/gitproject/features.md](../gitproject/features.pt-BR.md):
 
 | | Azure DevOps | GitHub Projects |
 |---|---|---|

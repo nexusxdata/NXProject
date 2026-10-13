@@ -194,7 +194,7 @@
                         ToolTip="{DynamicResource Imp_ViewLogTip}" Click="OnViewLogClick"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <!-- De ONDE importar. Hoje só o Azure DevOps; GitProject avisa que ainda não
-                         vale e volta (o desenho está em features_gitproject.md). -->
+                         vale e volta (o desenho está em docs/gitproject/features.md). -->
                     <TextBlock Text="{DynamicResource Imp_Source}" VerticalAlignment="Center"
                                FontSize="11" Foreground="#666" Margin="0,0,6,0"/>
                     <ComboBox x:Name="SourceCombo" Width="150" Height="26" VerticalAlignment="Center"

@@ -86,7 +86,7 @@ e passa a trabalhar nelas localmente.
 ## O que precisa existir
 
 1. ~~**Provedor local**~~ — **feito de outra forma.** Em vez da `IWorkItemProvider` da Fase 1 do
-   [Plano_GitProject.md](Plano_GitProject.md), o modo local entrou como caminho próprio no
+   [GitHub Projects](docs/gitproject/features.pt-BR.md), o modo local entrou como caminho próprio no
    TaskBoard (`LocalBoardService` para ler, `LocalBoardWriter` para gravar). A interface continua
    valendo quando entrar um terceiro destino — é o item 5 dos pendentes.
 2. ~~**Modelo de estado no arquivo**~~ — **já existia.** Ver "Correção de uma premissa" abaixo:

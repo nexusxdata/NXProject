@@ -76,7 +76,7 @@ namespace NXProject.Services
                 RequiresOpenSchedule: false, RequiresProjectFolder: false),
 
             // GitHub Projects: sem anexo no item, sem auditoria por histórico e sem ordem
-            // gravável — ver features_gitproject.md.
+            // gravável — ver docs/gitproject/features.md.
             NxBackendKind.GitProject => new(
                 Attachments: NxAttachmentStore.Server, Comments: true, BlockAudit: true,
                 OpenInBrowser: true, ServerStates: false, ServerPeople: true,

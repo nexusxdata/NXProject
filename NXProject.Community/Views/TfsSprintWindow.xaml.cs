@@ -2532,7 +2532,7 @@ namespace NXProject.Views
         /// <summary>
         /// Destino da gravação do board. Hoje só o Azure DevOps grava de verdade; GitProject e
         /// Projeto Local são caminhos em estudo — cada um tem um plano escrito em
-        /// <c>features_gitproject.md</c> e <c>Plano_Projeto_Local.md</c>, na raiz do repositório.
+        /// <c>docs/gitproject/features.md</c> e <c>Plano_Projeto_Local.md</c>, na raiz do repositório.
         ///
         /// Escolher um deles avisa que ainda não vale e VOLTA para o DevOps. Deixar a opção
         /// selecionada sem implementação seria pior: o botão de gravar continuaria verde,

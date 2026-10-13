@@ -1,3 +1,5 @@
+🌐 **Português** | [Read in English](features.md)
+
 # GitHub Projects no NXProject — funcionalidades, estado e decisões
 
 > Este documento começou como dois planos de desenho (`Plano_GitProject.md` e
