@@ -12,7 +12,13 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
-    <Version>1.1.0.10</Version>
+    <!-- Acompanha a linha do produto: a 1.2 e a versao que traz o GitProject e o relatorio de
+         niveis. O Setup e distribuido pelo timestamp (nxsetup-latest), nao pela tag, mas a
+         versao e o que aparece no arquivo e no "Sobre" — e ver 1.1 num Setup da 1.2 confunde. -->
+    <Version>1.2.0.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <InformationalVersion>1.2.0.0</InformationalVersion>
     <NoWarn>$(NoWarn);NU1900</NoWarn>
   </PropertyGroup>
 
