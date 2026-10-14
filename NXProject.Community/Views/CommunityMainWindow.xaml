@@ -585,7 +585,8 @@
             <!-- Hierarquia com que o cronograma ABRE. Cronograma grande chega com centenas de
                  linhas: começar fechado no nível de cima e ir abrindo o que interessa é o uso
                  normal. A escolha fica salva — é preferência de trabalho, não estado da janela. -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
+                        ToolTip="{DynamicResource Toolbar_HierarchyDefaultTip}">
                 <TextBlock Text="{DynamicResource Toolbar_HierarchyDefault}" FontSize="11"
                            Foreground="#444" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="HierarchyLevelsCombo" MinWidth="72" Height="22" FontSize="10.5" Padding="4,1"

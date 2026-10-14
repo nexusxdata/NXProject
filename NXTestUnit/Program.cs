@@ -106,6 +106,7 @@ internal static class Program
         ("Import TFS: ordem gravada no cronograma e a ordem recebida do DevOps", ImportedOrderMatchesReceivedOrder),
         ("Import TFS: item sem StackRank recebe rank calculado na posicao recebida", ImportFillsMissingBacklogRank),
         ("Sync TFS: reordenacao do backlog no DevOps gera aviso no relatorio", SyncWarnsWhenBacklogOrderIsRewritten),
+        ("Sync TFS: ordem publica so o que mudou NO CRONOGRAMA (arrasto no DevOps fica)", BacklogOrderBelongsToDevOpsByDefault),
         ("Sync TFS: ordem grava em StackRank (Agile) ou BacklogPriority (Scrum)", SyncWritesRankOnTheProcessField),
         ("Cronograma: Feature e Story preservam ordem do DevOps independente da prioridade", RebuildPreservesDevOpsHierarchyOrderIgnoringPriority),
         ("Cronograma: Task ordena por prioridade e desempata pela ordem do DevOps", RebuildOrdersTasksByPriorityThenDevOpsRank),
@@ -587,6 +588,9 @@ internal static class Program
             var nome = prop.Name;
             if (nome.Contains("EPIC", StringComparison.OrdinalIgnoreCase)
                 || nome is "System.Title" or "System.WorkItemType" or "System.Parent"
+                // Ordem do backlog: e por ela que o import coloca os irmaos no cronograma.
+                || nome.Contains("StackRank", StringComparison.OrdinalIgnoreCase)
+                || nome.Contains("BacklogPriority", StringComparison.OrdinalIgnoreCase)
                 || nome.Contains("Tipo", StringComparison.OrdinalIgnoreCase))
                 Console.WriteLine($"   {nome} = {prop.Value}");
         }
@@ -695,6 +699,73 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>
+    /// Imprime as revisoes do work item que MUDARAM o rank do backlog (StackRank ou
+    /// BacklogPriority), com quem fez e quando.
+    /// </summary>
+    private static async System.Threading.Tasks.Task<int> ProbeOrdem(string idTexto)
+    {
+        if (!int.TryParse(idTexto?.Trim(), out var id))
+        {
+            Console.WriteLine("uso: NXTestUnit ordem <id>");
+            return 1;
+        }
+
+        var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        if (string.IsNullOrWhiteSpace(cfg.OrganizationUrl) || string.IsNullOrWhiteSpace(cfg.PersonalAccessToken))
+        {
+            Console.WriteLine("[SKIP] Conexao do Azure DevOps nao configurada nesta maquina.");
+            return 0;
+        }
+
+        using var http = new System.Net.Http.HttpClient();
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(":" + cfg.PersonalAccessToken)));
+
+        var url = $"{cfg.OrganizationUrl.TrimEnd('/')}/_apis/wit/workItems/{id}/updates?api-version=7.1&$top=200";
+        var resp = await http.GetAsync(url);
+        var texto = await resp.Content.ReadAsStringAsync();
+        if (!resp.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"HTTP {(int)resp.StatusCode}: {texto[..Math.Min(300, texto.Length)]}");
+            return 1;
+        }
+
+        using var doc = System.Text.Json.JsonDocument.Parse(texto);
+        Console.WriteLine($"#{id} — revisoes que mudaram a ordem do backlog:");
+        Console.WriteLine();
+        var achou = false;
+        foreach (var upd in doc.RootElement.GetProperty("value").EnumerateArray())
+        {
+            if (!upd.TryGetProperty("fields", out var campos)) continue;
+            foreach (var campo in campos.EnumerateObject())
+            {
+                if (!campo.Name.Contains("StackRank", StringComparison.OrdinalIgnoreCase)
+                    && !campo.Name.Contains("BacklogPriority", StringComparison.OrdinalIgnoreCase)) continue;
+
+                string Valor(string chave) => campo.Value.TryGetProperty(chave, out var v) ? v.ToString() : "(vazio)";
+                var quem = upd.TryGetProperty("revisedBy", out var rb) && rb.TryGetProperty("displayName", out var dn)
+                    ? dn.GetString() : "(?)";
+                var quando = upd.TryGetProperty("revisedDate", out var rd) ? rd.ToString() : "(?)";
+                Console.WriteLine($"  rev {upd.GetProperty("rev")} | {quando} | {quem}");
+                Console.WriteLine($"     {campo.Name}: {Valor("oldValue")} -> {Valor("newValue")}");
+                // O QUE MAIS mudou na mesma revisao: so o rank = arrasto no backlog; rank junto
+                // com datas/HH/Sync_version = gravacao do NXProject.
+                foreach (var outro in campos.EnumerateObject())
+                {
+                    if (ReferenceEquals(outro.Name, campo.Name) || outro.Name == campo.Name) continue;
+                    if (outro.Name is "System.Rev" or "System.AuthorizedDate" or "System.RevisedDate"
+                        or "System.Watermark" or "System.AuthorizedAs" or "System.PersonId") continue;
+                    string V(string chave) => outro.Value.TryGetProperty(chave, out var v) ? v.ToString() : "";
+                    Console.WriteLine($"       + {outro.Name}: {V("oldValue")} -> {V("newValue")}");
+                }
+                achou = true;
+            }
+        }
+        if (!achou) Console.WriteLine("  (nenhuma revisao mexeu no rank — o arrasto no DevOps nao chegou a gravar)");
+        return 0;
+    }
+
     private static int Main(string[] args)
     {
         var category = args.Length > 0 ? args[0] : "schedule";
@@ -731,6 +802,10 @@ internal static class Program
         if (string.Equals(category, "arrasto", StringComparison.OrdinalIgnoreCase))
             return ProbeDrag(args.Length > 1 ? args[1] : "",
                              args.Length > 2 ? args[2] : "", args.Length > 3 ? args[3] : "");
+        // Sonda da ordem: o historico do campo de rank do item — quem mexeu, quando e para
+        // quanto. Responde "o DevOps nao gravou o arrasto" ou "alguem gravou por cima depois".
+        if (string.Equals(category, "ordem", StringComparison.OrdinalIgnoreCase))
+            return ProbeOrdem(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "board", StringComparison.OrdinalIgnoreCase))
             return ProbeBoard(args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))
@@ -3954,6 +4029,49 @@ internal static class Program
     }
 
     // O Sync avisa quando vai REESCREVER a posição do item no backlog do DevOps.
+    /// <summary>
+    /// Caso real: um EPIC arrastado no backlog do DevOps voltava para a posicao antiga. A ordem
+    /// do cronograma era publicada no servidor a cada sync, desfazendo o arrasto de quem mexeu
+    /// la — e sem isso ficar claro, porque o aviso se perdia no meio do relatorio.
+    ///
+    /// Agora a ordem e DO DEVOPS: o import le, o sync nao devolve. Item que o NXProject CRIA
+    /// continua recebendo posicao, senao nasceria no fim da lista.
+    /// </summary>
+    private static void BacklogOrderBelongsToDevOpsByDefault()
+    {
+        // A posicao so e publicada quando MUDOU NO CRONOGRAMA: o rank desejado e comparado com
+        // o que veio no import, nao com o que esta no servidor agora. Item em ordem mantem o
+        // rank que veio — e por isso que reordenar no DevOps nao e desfeito pelo sync.
+        //
+        // E o valor gravado e sempre ENTRE OS VIZINHOS: o numero em si nao significa nada para o
+        // DevOps, so a posicao dele na sequencia. Por isso o NX nao precisa imitar a aritmetica
+        // do servidor — precisa cair no intervalo certo.
+        var emOrdem = NXProject.Services.BacklogOrderService.NextRank(100.0, 300.0);
+        if (emOrdem <= 100.0 || emOrdem >= 300.0)
+            throw new Exception("O rank novo tem de cair ENTRE os vizinhos.");
+
+        // Primeiro da lista: so ha o proximo — entra ANTES dele.
+        if (NXProject.Services.BacklogOrderService.NextRank(null, 300.0) >= 300.0)
+            throw new Exception("Sem anterior, o item tem de ficar antes do proximo.");
+
+        // Ultimo da lista: so ha o anterior — entra DEPOIS dele.
+        if (NXProject.Services.BacklogOrderService.NextRank(100.0, null) <= 100.0)
+            throw new Exception("Sem proximo, o item tem de ficar depois do anterior.");
+
+        // Vizinhos colados (o DevOps usa incrementos pequenos): o meio ainda cabe e preserva a ordem.
+        var apertado = NXProject.Services.BacklogOrderService.NextRank(1995464850.0, 1995465036.0);
+        if (apertado <= 1995464850.0 || apertado >= 1995465036.0)
+            throw new Exception("Entre ranks vizinhos do DevOps o meio tem de caber.");
+
+        // Item NOVO continua ganhando posicao: BuildCreateOps grava o rank do processo.
+        var campos = NXProject.Services.TfsImportService.BacklogRankFieldsToWrite(null, "Agile");
+        if (!campos.Any(c => c.Contains("StackRank", StringComparison.OrdinalIgnoreCase)))
+            throw new Exception("Na criacao, o Agile continua posicionando por StackRank.");
+        campos = NXProject.Services.TfsImportService.BacklogRankFieldsToWrite(null, "Scrum");
+        if (!campos.Any(c => c.Contains("BacklogPriority", StringComparison.OrdinalIgnoreCase)))
+            throw new Exception("Na criacao, o Scrum continua posicionando por BacklogPriority.");
+    }
+
     private static void SyncWarnsWhenBacklogOrderIsRewritten()
     {
         var report = new TfsImportService.SyncReport();

@@ -1869,15 +1869,25 @@ namespace NXProject.Services
             var report = new SyncReport();
             progress?.Report(new SyncProgress("Preparando a sincronização...", 0, 0, ""));
 
-            // Recalcula a ordem (StackRank) conforme a árvore do NXProject e AVISA quando
-            // isso vai reordenar o backlog do DevOps (a ordem do cronograma sobrescreve o TFS).
+            // ORDEM DO BACKLOG, nos dois sentidos. O que diz quem mandou e o rank COMO VEIO NO
+            // IMPORT, guardado aqui antes de qualquer recalculo:
+            //
+            //   • mudou no cronograma (desejado != importado)  -> voce arrastou no NX: publica;
+            //   • mudou so no servidor (atual != importado)    -> arrastaram no DevOps: respeita.
+            //
+            // Sem essa terceira referencia, "desejado != atual" misturava os dois casos — e era
+            // por isso que um EPIC arrastado no DevOps voltava sozinho para a posicao antiga.
+            var rankImportado = tasks
+                .Where(t => t.TfsId is > 0)
+                .GroupBy(t => t.TfsId!.Value)
+                .ToDictionary(g => g.Key, g => g.First().TfsStackRank);
+
             var rankChanges = new List<StackRankChange>();
             ApplyDesiredStackRanks(project.Tasks, rankChanges);
             if (rankChanges.Count > 0)
             {
-                report.LogWarning($"⚠ Ordem do backlog: {rankChanges.Count} item(ns) terao a POSICAO reescrita no DevOps "
-                    + "para refletir a ordem do cronograma. Se a ordem no NXProject estiver errada, ela sera propagada ao TFS — "
-                    + "confira antes de continuar.");
+                report.LogWarning($"⚠ Ordem do backlog: {rankChanges.Count} item(ns) mudaram de posicao no cronograma "
+                    + "e terao a POSICAO publicada no DevOps. Item reordenado NO DEVOPS depois do import e respeitado.");
                 foreach (var c in rankChanges)
                     report.LogWarning($"    • \"{c.Name}\" (em \"{c.Parent}\"): rank "
                         + $"{(c.FromRank.HasValue ? c.FromRank.Value.ToString("0") : "sem rank")} → {c.ToRank:0}");
@@ -2324,17 +2334,38 @@ namespace NXProject.Services
                             changes.Add("tags");
                         }
 
-                        // Ordem (StackRank) — sincroniza se o rank desejado mudou.
+                        // Ordem (StackRank/BacklogPriority): grava SO quando a posicao mudou no
+                        // cronograma. Se mudou apenas no servidor, quem arrastou la tem razao —
+                        // e o relatorio diz que o cronograma vai se ajustar no proximo import.
                         if (task.TfsStackRank.HasValue)
                         {
                             var currentRank = GetBacklogRank(wi.Fields);
-                            if (currentRank == null || Math.Abs(currentRank.Value - task.TfsStackRank.Value) > 0.0001)
+                            var importedRank = rankImportado.TryGetValue(task.TfsId!.Value, out var ri) ? ri : null;
+                            var mudouNoCronograma = importedRank == null
+                                || Math.Abs(task.TfsStackRank.Value - importedRank.Value) > 0.0001;
+                            var mudouNoServidor = currentRank.HasValue && importedRank.HasValue
+                                && Math.Abs(currentRank.Value - importedRank.Value) > 0.0001;
+
+                            if (mudouNoCronograma)
                             {
+                                // O rank sai dos vizinhos COMO ESTAO NO SERVIDOR agora, e nao dos
+                                // que vieram no import: entre ler e gravar alguem pode ter mexido
+                                // no backlog, e um numero calculado sobre valores velhos cairia no
+                                // lugar errado. E a mesma ideia do DevOps — encaixar ENTRE os dois
+                                // vizinhos —, so que com os valores de agora.
+                                var rankParaGravar = RankEntreVizinhosAtuais(task, current, project.Tasks) ?? task.TfsStackRank.Value;
+                                task.TfsStackRank = rankParaGravar;
+
                                 // Agile/CMMI ordenam por StackRank; Scrum, por BacklogPriority —
                                 // grava nos campos que o work item tem, senao a ordem nao muda no board.
                                 foreach (var campo in BacklogRankFieldsToWrite(wi.Fields, project.DevOpsProcess))
-                                    ops.Add(PatchAdd($"/fields/{campo}", task.TfsStackRank.Value));
+                                    ops.Add(PatchAdd($"/fields/{campo}", rankParaGravar));
                                 changes.Add("ordem");
+                            }
+                            else if (mudouNoServidor)
+                            {
+                                report.LogWarning($"Ordem do backlog: \"{task.Name}\" foi reordenado no DevOps depois do "
+                                    + "import. A posicao de la foi mantida — reimporte para o cronograma acompanhar.");
                             }
                         }
 
@@ -2896,6 +2927,46 @@ namespace NXProject.Services
         /// seja, cuja posição no backlog do TFS será reescrita pela ordem do cronograma.
         /// </summary>
         public sealed record StackRankChange(string Name, double? FromRank, double ToRank, string Parent);
+
+        /// <summary>
+        /// Rank que coloca a atividade entre os IRMAOS QUE ELA TEM NO CRONOGRAMA, usando o rank
+        /// que esses irmaos tem NO SERVIDOR neste momento.
+        ///
+        /// E a tradução do "ponto" do DevOps para o NXProject: o numero em si nao significa nada,
+        /// o que vale e cair entre o anterior e o proximo. Pegar os vizinhos vivos — em vez dos
+        /// que vieram no import — e o que faz a posicao valer mesmo quando o backlog andou
+        /// enquanto o cronograma estava aberto.
+        ///
+        /// Devolve null quando nao da para situar (sem irmaos com rank no servidor); nesse caso
+        /// quem chama mantem o rank que o cronograma ja tinha.
+        /// </summary>
+        private static double? RankEntreVizinhosAtuais(ProjectTask task, Dictionary<int, WorkItem> noServidor,
+                                                       System.Collections.ObjectModel.ObservableCollection<ProjectTask> raiz)
+        {
+            // Item de topo nao tem Parent: os irmaos dele sao as atividades da raiz — e e
+            // justamente nesse nivel que ficam os EPICs do caso real.
+            var irmaos = task.Parent?.Children ?? raiz;
+            if (irmaos == null) return null;
+
+            var indice = irmaos.IndexOf(task);
+            if (indice < 0) return null;
+
+            double? RankDe(ProjectTask t) =>
+                t.TfsId is > 0 && noServidor.TryGetValue(t.TfsId.Value, out var wi)
+                    ? GetBacklogRank(wi.Fields) : null;
+
+            double? anterior = null;
+            for (var i = indice - 1; i >= 0; i--)
+                if (RankDe(irmaos[i]) is { } r) { anterior = r; break; }
+
+            double? proximo = null;
+            for (var i = indice + 1; i < irmaos.Count; i++)
+                if (RankDe(irmaos[i]) is { } r && (!anterior.HasValue || r > anterior.Value))
+                { proximo = r; break; }
+
+            if (!anterior.HasValue && !proximo.HasValue) return null;
+            return BacklogOrderService.NextRank(anterior, proximo);
+        }
 
         private static void ApplyDesiredStackRanks(
             System.Collections.ObjectModel.ObservableCollection<ProjectTask> siblings,

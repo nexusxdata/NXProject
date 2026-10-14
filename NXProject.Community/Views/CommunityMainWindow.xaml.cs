@@ -333,6 +333,56 @@ namespace NXProject.Views
             HierarchyLevelsCombo.SelectedIndex = niveis switch { 1 => 0, 2 => 1, _ => 2 };
             _hierarquiaCarregando = false;
             vm.HierarchyLevels = niveis;
+
+            // O nome do nivel acompanha o cronograma aberto, e o rotulo so diz "1" e "2" quando
+            // nao ha cronograma: fixar "EPIC" no XAML seria mentira em metade dos casos — tem
+            // cronograma que comeca no Work Item Project, e os nomes dos niveis sao configuraveis.
+            AtualizaNomesDaHierarquia();
+            vm.ProjectFileChanged += AtualizaNomesDaHierarquia;
+        }
+
+        /// <summary>
+        /// Escreve nos dois primeiros itens da combo o NOME do nivel que eles abrem, lido dos
+        /// tipos que o cronograma tem de fato no topo e logo abaixo dele.
+        /// </summary>
+        private void AtualizaNomesDaHierarquia()
+        {
+            if (DataContext is not MainViewModel vm || HierarchyLevelsCombo == null) return;
+
+            string Nome(int profundidade)
+            {
+                var tipo = vm.Project?.Tasks is { Count: > 0 } raizes
+                    ? (profundidade == 0
+                        ? raizes.Select(t => t.TfsType).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
+                        : raizes.SelectMany(t => t.Children).Select(t => t.TfsType)
+                                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)))
+                    : null;
+                if (string.IsNullOrWhiteSpace(tipo)) return "";
+                // O nome mostrado e o do MAPA DE NIVEIS, nao o tipo cru: quem renomeou "Epic"
+                // para "Iniciativa" na configuracao espera ver "Iniciativa" aqui.
+                var nivel = NxLevelMap.Current.LevelOf(tipo);
+                return nivel is { } n ? NxLevelMap.Current.Suggested(n) : tipo!.Trim();
+            }
+
+            void Aplica(int indice, string texto)
+            {
+                if (HierarchyLevelsCombo.Items.Count <= indice) return;
+                if (HierarchyLevelsCombo.Items[indice] is ComboBoxItem item) item.Content = texto;
+            }
+
+            string ComNome(string numero, int profundidade)
+            {
+                var nome = Nome(profundidade);
+                return string.IsNullOrWhiteSpace(nome) ? numero : $"{numero} · {nome}";
+            }
+
+            var guardado = HierarchyLevelsCombo.SelectedIndex;
+            _hierarquiaCarregando = true;
+            Aplica(0, ComNome("1", 0));
+            Aplica(1, ComNome("2", 1));
+            Aplica(2, AppStrings.Get("Toolbar_HierarchyAll"));
+            HierarchyLevelsCombo.SelectedIndex = guardado;
+            _hierarquiaCarregando = false;
         }
 
         private void OnHierarchyLevelsChanged(object sender, SelectionChangedEventArgs e)
@@ -346,6 +396,7 @@ namespace NXProject.Views
             NXProject.Services.ScheduleViewStore.Save(
                 new NXProject.Services.ScheduleViewStore.ScheduleViewPrefs { HierarchyLevels = niveis },
                 "NXProject.Community");
+            AtualizaNomesDaHierarquia();
         }
 
         private sealed class WinState { public bool Maximized { get; set; } public double Left { get; set; } public double Top { get; set; } public double Width { get; set; } public double Height { get; set; } }
