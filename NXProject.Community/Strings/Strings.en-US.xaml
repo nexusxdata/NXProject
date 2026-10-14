@@ -672,6 +672,11 @@
     <!-- Toolbar — hierarchy buttons -->
     <sys:String x:Key="Toolbar_ExpandSelected">Expand one level: expands all tasks at the same level as the selected</sys:String>
     <sys:String x:Key="Toolbar_CollapseAll">Collapse entire hierarchy</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyDefault">Outline:</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyLevel1">1</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyLevel2">2</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyAll">All</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyDefaultTip">How many outline levels the schedule shows when it OPENS. Level 1 brings only the top level (the EPIC, in the DevOps hierarchy) and you expand what you need; All opens the whole tree. The choice is saved and applies to files, imports and AI suggestions.</sys:String>
     <sys:String x:Key="Toolbar_ExpandAll">Expand the hierarchy one level at a time (EPIC → Feature → Story → Task)</sys:String>
 
     <!-- Column headers -->

@@ -60,6 +60,7 @@ internal static class Program
         ("EPIC_GROUP: sob o grupo so vem EPIC, e grupo nao aninha em grupo", EpicGroupRefusesFeatureAndNesting),
         ("EPIC_GROUP: arrasto move EPIC para dentro e para fora do grupo", DragDropMovesEpicIntoGroup),
         ("EPIC_GROUP: arrasto entra pelo EPIC de dentro e sai para a raiz", DragDropEntersGroupBySiblingAndLeavesToRoot),
+        ("Cronograma: hierarquia padrao abre o numero de niveis escolhido", DefaultHierarchyOpensChosenLevels),
         ("EPIC_GROUP: o valor sobrevive ao import e ao sync (nao vira DELIVERY)", EpicGroupSurvivesNormalization),
         ("Import TFS: ramo e decidido pelo TIPO, nao pela profundidade (EPIC_GROUP)", ImportDescendsByTypeNotDepth),
         ("Ordem: a ordem desejada e a da arvore do cronograma", OrderDesiredFollowsScheduleTree),
@@ -2837,6 +2838,47 @@ internal static class Program
         if (!project.Tasks.Contains(solto))
             throw new Exception("O EPIC tem de voltar para a colecao da raiz.");
         AssertEqual(0, solto.Level, "Na raiz o nivel volta para 0.");
+    }
+
+    /// <summary>
+    /// Cronograma grande chega com centenas de linhas abertas. A preferencia diz quantos niveis
+    /// aparecem ao abrir — 1 (so o EPIC), 2 ou tudo — e vale para QUALQUER cronograma que entre:
+    /// arquivo, import ou sugestao da IA, porque e aplicada na troca do Project.
+    /// </summary>
+    private static void DefaultHierarchyOpensChosenLevels()
+    {
+        static Project MontaProjeto()
+        {
+            var epic = new ProjectTask
+            { Id = 1, Name = "Epic", TfsType = "Epic", Level = 0, IsSummary = true };
+            var feature = new ProjectTask
+            { Id = 2, Name = "Feature", TfsType = "Feature", Parent = epic, Level = 1, IsSummary = true };
+            var story = new ProjectTask
+            { Id = 3, Name = "Story", TfsType = "Story", Parent = feature, Level = 2, EstimatedHours = 8 };
+            feature.Children.Add(story);
+            epic.Children.Add(feature);
+            var p = new Project { Name = "Hierarquia", StartDate = new DateTime(2026, 10, 5) };
+            p.Tasks.Add(epic);
+            return p;
+        }
+
+        // Nivel 1: so o EPIC aparece, fechado.
+        var vm = new MainViewModel("NXTestUnit") { HierarchyLevels = 1 };
+        vm.Project = MontaProjeto();
+        AssertEqual(1, vm.FlatTasks.Count, "Com 1 nivel, so o topo aparece.");
+
+        // Nivel 2: EPIC e Feature.
+        vm = new MainViewModel("NXTestUnit") { HierarchyLevels = 2 };
+        vm.Project = MontaProjeto();
+        AssertEqual(2, vm.FlatTasks.Count, "Com 2 niveis, a Feature aparece e a Story nao.");
+
+        // Tudo: a preferencia nao mexe em nada — nem recolhe ao abrir, nem desfaz o que o
+        // usuario recolheu na mao. Por isso aqui a montagem da lista e explicita, como em
+        // qualquer outro uso da ViewModel sem tela.
+        vm = new MainViewModel("NXTestUnit") { HierarchyLevels = 0 };
+        vm.Project = MontaProjeto();
+        vm.RebuildFlatTasks();
+        AssertEqual(3, vm.FlatTasks.Count, "Com 'tudo', a arvore inteira aparece.");
     }
 
     private static void GitProjectColumnsComeFromProjectStatus()

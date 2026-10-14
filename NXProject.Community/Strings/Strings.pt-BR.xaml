@@ -450,6 +450,11 @@
     <!-- Toolbar — botões de hierarquia -->
     <sys:String x:Key="Toolbar_ExpandSelected">Expandir um nível: expande todas as tarefas do mesmo nível da selecionada</sys:String>
     <sys:String x:Key="Toolbar_CollapseAll">Contrair toda a hierarquia</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyDefault">Níveis:</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyLevel1">1</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyLevel2">2</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyAll">Tudo</sys:String>
+    <sys:String x:Key="Toolbar_HierarchyDefaultTip">Quantos níveis o cronograma mostra ao ABRIR. Nível 1 traz só o nível de cima (o EPIC, na hierarquia do DevOps) e você vai abrindo o que interessa; Tudo abre a árvore inteira. A escolha fica salva e vale para arquivo, import e sugestão da IA.</sys:String>
     <sys:String x:Key="Toolbar_ExpandAll">Expandir a hierarquia um nível por vez (EPIC → Feature → Story → Task)</sys:String>
 
     <!-- Cabeçalhos de coluna -->

@@ -2672,49 +2672,7 @@ namespace NXProject.ViewModels
             }
         }
 
-        // ── LOG DO ARRASTO ───────────────────────────────────────────────────────────────
-        //
-        // Uma linha por soltada, com o que cada regra respondeu. Existe porque "nao consegui
-        // mover" chega sem o porque: o gesto falha igual quando o tipo nao bate, quando o
-        // EPIC_TYPE nao e o que parece e quando o alvo nao era a linha que se pensava.
-        // Fica sempre ligado — e barato (uma linha por gesto) e inutil se so existir depois
-        // que o problema ja aconteceu. O arquivo fica em drag-log.txt, ao lado dos outros.
-        private static string DragLogPath => System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "NXProject.Community", "drag-log.txt");
-
-        private static void LogArrasto(string linha)
-        {
-            try
-            {
-                var arquivo = DragLogPath;
-                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(arquivo)!);
-                // Nao deixa crescer sem fim: passou de 512 KB, recomeca.
-                if (System.IO.File.Exists(arquivo) && new System.IO.FileInfo(arquivo).Length > 512 * 1024)
-                    System.IO.File.Delete(arquivo);
-                System.IO.File.AppendAllText(arquivo,
-                    $"{DateTime.Now:dd/MM/yyyy HH:mm:ss}  {linha}{Environment.NewLine}");
-            }
-            catch { /* diagnostico nunca derruba o gesto */ }
-        }
-
-        /// <summary>Como o item aparece no log: id, nome, tipo, EPIC_TYPE e pai.</summary>
-        private static string Descreve(ProjectTask? t) => t == null ? "(nulo)"
-            : $"#{(t.TfsId is > 0 ? t.TfsId : t.Id)} \"{t.Name}\" tipo={t.TfsType ?? "(vazio)"}"
-              + $" epicType={t.EpicType ?? "(vazio)"} nivel={t.Level} pai=\"{t.Parent?.Name ?? "(raiz)"}\"";
-
         public bool MoveTaskByDrop(TaskViewModel sourceVm, TaskViewModel targetVm, bool insertAfter)
-        {
-            LogArrasto($"soltou  origem: {Descreve(sourceVm?.Model)}");
-            LogArrasto($"        alvo  : {Descreve(targetVm?.Model)}  insertAfter={insertAfter}");
-            var aceito = MoveTaskByDropCore(sourceVm!, targetVm!, insertAfter);
-            LogArrasto($"        => {(aceito ? "ACEITO" : "RECUSADO")}"
-                     + (string.IsNullOrWhiteSpace(StatusMessage) ? "" : $" | status: {StatusMessage}")
-                     + Environment.NewLine);
-            return aceito;
-        }
-
-        private bool MoveTaskByDropCore(TaskViewModel sourceVm, TaskViewModel targetVm, bool insertAfter)
         {
             if (sourceVm.Model == targetVm.Model)
                 return false;
@@ -2797,11 +2755,7 @@ namespace NXProject.ViewModels
             var source = sourceVm.Model;
             var target = targetVm.Model;
             if (!IsEpicTask(source) || EpicTypes.IsGroup(source.EpicType))
-            {
-                LogArrasto($"        grupo: origem nao e EPIC comum (tipo={source.TfsType}, "
-                         + $"epicType={source.EpicType ?? "(vazio)"}) — fora deste caminho");
                 return false;   // o grupo em si não entra em outro grupo
-            }
 
             ProjectTask? newParent;
             ProjectTask? targetSibling = null;
@@ -2820,7 +2774,6 @@ namespace NXProject.ViewModels
             }
             else
             {
-                LogArrasto($"        grupo: alvo nao e EPIC (tipo={target.TfsType}) — fora deste caminho");
                 return false;
             }
 
@@ -2829,11 +2782,7 @@ namespace NXProject.ViewModels
             // invalido" e o item ficava preso no grupo, sem como tira-lo pelo arrasto.
             if (ReferenceEquals(source.Parent, newParent)
                 || (newParent != null && IsTaskInSubtree(source, newParent)))
-            {
-                LogArrasto($"        grupo: pai novo ja e o atual ou esta dentro da origem "
-                         + $"(novo=\"{newParent?.Name ?? "(raiz)"}\", atual=\"{source.Parent?.Name ?? "(raiz)"}\")");
                 return false;
-            }
 
             // O pai novo tem de aceitar um EPIC: grupo aceita, Work Item Project aceita, e nada
             // mais. Perguntar ao mapa evita que o arrasto permita o que o sync recusaria. Na raiz
@@ -2842,13 +2791,9 @@ namespace NXProject.ViewModels
                 && !NxLevelMap.Current.ParentChildOk(newParent.TfsType, source.TfsType,
                                                      newParent.EpicType, source.EpicType))
             {
-                LogArrasto($"        grupo: hierarquia recusada pelo mapa — "
-                         + $"pai={newParent.TfsType}/{newParent.EpicType ?? "(vazio)"} "
-                         + $"filho={source.TfsType}/{source.EpicType ?? "(vazio)"}");
                 StatusMessage = AppStrings.Get("Status_DragSameLevel");
                 return false;
             }
-            LogArrasto($"        grupo: aceito — \"{source.Name}\" vai para \"{newParent?.Name ?? "(raiz)"}\"");
 
             var oldParent = source.Parent;
             var oldCollection = GetTaskCollection(source);
@@ -3154,6 +3099,43 @@ namespace NXProject.ViewModels
             RebuildFlatTasks();
         }
 
+        /// <summary>
+        /// Quantos niveis o cronograma mostra ao ABRIR: 1 = so o nivel de cima (EPIC, na
+        /// hierarquia do DevOps), 2 = dois niveis, 0 = tudo.
+        ///
+        /// Nasce em 0 (tudo) porque este e o comportamento de quem monta a ViewModel sem tela —
+        /// testes e rotinas; e o app passa o valor salvo na preferencia do usuario.
+        /// </summary>
+        [ObservableProperty] private int _hierarchyLevels;
+
+        partial void OnHierarchyLevelsChanged(int value) => ApplyHierarchyLevels();
+
+        /// <summary>
+        /// Deixa a arvore no estado da preferencia: recolhe o que esta ABAIXO do nivel escolhido
+        /// e expande o que esta acima. Com 0 (tudo) nao mexe em nada — quem escolheu "tudo" nao
+        /// quer que abrir um arquivo desfaça o que ele recolheu na mao.
+        /// </summary>
+        public void ApplyHierarchyLevels()
+        {
+            if (HierarchyLevels <= 0) return;
+
+            void Percorre(IEnumerable<ProjectTask> tarefas, int profundidade)
+            {
+                foreach (var t in tarefas)
+                {
+                    if (HasExpandableChildren(t))
+                    {
+                        // profundidade e 0-based: com 1 nivel, so o topo aparece e ele fica fechado.
+                        if (profundidade + 1 >= HierarchyLevels) _collapsedTaskIds.Add(t.Id);
+                        else _collapsedTaskIds.Remove(t.Id);
+                    }
+                    Percorre(t.Children, profundidade + 1);
+                }
+            }
+            Percorre(Project.Tasks, 0);
+            RebuildFlatTasks();
+        }
+
         [RelayCommand]
         private void CollapseAll()
         {
@@ -3316,6 +3298,9 @@ namespace NXProject.ViewModels
         {
             ProjectFileChanged?.Invoke();
             RebuildSprintCollections();
+            // Todo cronograma que entra — arquivo, import do DevOps/GitProject, sugestao da IA —
+            // passa por aqui: e o unico lugar onde a hierarquia padrao precisa ser aplicada.
+            ApplyHierarchyLevels();
             if (!string.IsNullOrEmpty(value?.LastZoom))
                 SelectedZoom = value.LastZoom;
         }

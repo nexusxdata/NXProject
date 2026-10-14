@@ -316,6 +316,36 @@ namespace NXProject.Views
             };
             ApplyLayoutMode(expanded: false);
             RestoreWindowState();
+            Loaded += (_, _) => CarregaHierarquiaPadrao();
+        }
+
+        // ── Hierarquia padrao do cronograma ─────────────────────────────────────────────
+        //
+        // A combo guarda 1, 2 ou "tudo"; a ViewModel trabalha com o NUMERO de niveis (0 = tudo).
+        // O valor fica salvo em schedule-view.json e e aplicado a cada cronograma que abre.
+        private bool _hierarquiaCarregando;
+
+        private void CarregaHierarquiaPadrao()
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var niveis = NXProject.Services.ScheduleViewStore.Load("NXProject.Community").HierarchyLevels;
+            _hierarquiaCarregando = true;
+            HierarchyLevelsCombo.SelectedIndex = niveis switch { 1 => 0, 2 => 1, _ => 2 };
+            _hierarquiaCarregando = false;
+            vm.HierarchyLevels = niveis;
+        }
+
+        private void OnHierarchyLevelsChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_hierarquiaCarregando || DataContext is not MainViewModel vm) return;
+            var niveis = HierarchyLevelsCombo.SelectedIndex switch { 0 => 1, 1 => 2, _ => 0 };
+            vm.HierarchyLevels = niveis;
+            // Trocar para "tudo" expande na hora: a preferencia so recolhe ao abrir, e deixar a
+            // arvore como estava faria o controle parecer sem efeito.
+            if (niveis == 0) vm.ExpandAllCommand.Execute(null);
+            NXProject.Services.ScheduleViewStore.Save(
+                new NXProject.Services.ScheduleViewStore.ScheduleViewPrefs { HierarchyLevels = niveis },
+                "NXProject.Community");
         }
 
         private sealed class WinState { public bool Maximized { get; set; } public double Left { get; set; } public double Top { get; set; } public double Width { get; set; } public double Height { get; set; } }
