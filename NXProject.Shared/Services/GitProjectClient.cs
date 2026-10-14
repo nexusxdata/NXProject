@@ -918,6 +918,8 @@ mutation($id: ID!, $body: String!) {
         {
             if (Igual(campo, _options.EffortFields)) item.Effort = valor;
             else if (Igual(campo, _options.CurrentHoursFields)) item.CurrentHours = valor;
+            else if (Igual(campo, _options.OriginalHoursFields)) item.OriginalHours = valor;
+            else if (Igual(campo, _options.RemainingHoursFields)) item.RemainingHours = valor;
             else if (Igual(campo, _options.PercentFields)) item.Percent = valor;
             else if (Igual(campo, _options.SyncVersionFields)) item.SyncVersion = valor;
         }

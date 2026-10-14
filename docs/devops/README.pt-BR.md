@@ -108,6 +108,9 @@ Cada um liga um recurso. Sem o campo, o NXProject funciona — só aquele recurs
 
 | Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Usado em | Finalidade |
 |---|---|---|---|---|---|
+| `HH Original` | `HH_Original_float` *(padrão)* | Decimal | `HH_Original_float` / `nx_original_hours` | Story — na Task, `Original Estimate` | Horas planejadas originalmente. Preserva o plano quando o item chega a 100% |
+| `HH Restante` | `HH_Restante_float` *(padrão)* | Decimal | `HH_Restante_float` / `nx_remaining_hours` | Story — na Task, `Remaining Work` | Horas que ainda faltam. **Tem prioridade sobre o `HH Estimado`** na importação |
+| `HH Atual` | `HH_Atual_float` *(padrão)* | Decimal | `HH_Atual_float` / `nx_completed_hours` | Story — na Task, `Completed Work` | Horas já realizadas. Entra na duração total (`HH Atual + HH Restante`) e no percentual |
 | `Perc_Alocacao` | `Custom.PercAlocacao` *(exemplo)* | Decimal/Float (1–100, até 2 casas) | `Perc_Alocacao` | Story, Task | % do dia da pessoa dedicado a esta Story |
 | `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | Story | % de conclusão. **Sem o campo**, o percentual vem do estado do work item |
 | `EPIC_TYPE` | `Custom.EPIC_TYPE` *(exemplo)* | Texto (lista: `DELIVERY` / `BACKLOG` / `EPIC_GROUP`) | `EPIC_TYPE` | Epic | Classifica o Epic: **Delivery** (soma horas no total do projeto), **Backlog** (não soma) ou **EPIC_GROUP** (um Epic que agrupa Epics). Habilitado por padrão. |
@@ -121,7 +124,7 @@ Cada um liga um recurso. Sem o campo, o NXProject funciona — só aquele recurs
 
 > **Feature e EPIC não precisam de HH nem de datas.** Nesses níveis os números são **consolidação dos filhos**, calculada pelo cronograma — não há o que preencher. Só `Sync_version` e `Sync_Name` fazem falta ali, porque o controle de concorrência acompanha todo item sincronizado. (Se os campos existirem na Feature/EPIC, o NXProject publica o rollup neles.)
 
-> **Campos de HH opcionais (avançado).** Além do `HH Estimado`, o NXProject reconhece campos separados de horas quando existem, para preservar o planejado em itens 100% concluídos: `HH Original` (`HH_Original_float`), `HH Restante` (`HH_Restante_float`) e `HH Atual` (`HH_Atual_float`) — em Story, Feature e Epic. Se não existirem, o NXProject deriva os valores do `HH Estimado`/estado.
+> **Os campos de HH e o processo.** Na Task o NXProject usa os campos nativos `Original Estimate`, `Remaining Work` e `Completed Work` — mas eles são de fábrica no **Agile** e no **CMMI**; a Task do **Scrum** traz `Remaining Work` e pode não ter os outros. Por isso cada um dos três aparece na tela de campos com o nome **por tipo** ao lado: marcado, usa o nativo; desmarcado, você digita o campo próprio daquele tipo. Nenhum deles é obrigatório — sem o `HH Restante` o NX usa o `HH Estimado` como restante, sem o `HH Atual` a Story fica sem horas realizadas e sem o `HH Original` o plano não é preservado em item concluído.
 
 > Os nomes de referência acima são exemplos — o Azure DevOps os gera automaticamente a partir do nome de exibição e do prefixo da sua organização.  
 > Se os seus campos tiverem nomes diferentes, ajuste-os no NXProject em **Configuração Integração Azure DevOps → Campos avançados**, onde todos os nomes são configuráveis: HH Estimado, Data_Inicio, Data_Fim, Perc_Alocacao, Perc_Conclusao, EPIC_TYPE, Tipo_Centro_Custo, Sync_version, Sync_Name, Adm_NX e block_duration_hours.

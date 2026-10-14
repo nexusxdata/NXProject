@@ -82,6 +82,11 @@ Os nomes dos campos do board, com o padrão PT/EN, as tags e a classificação. 
 campos no board do GitHub** cria o que falta já com o tipo certo — e, no GitHub, isso não exige ser
 administrador da organização.
 
+No GitHub não existe campo nativo nenhum, então os três campos de horas — `HH Original`,
+`HH Restante` e `HH Atual` — são campos do board como os demais, criados pelo mesmo botão e com
+tipo *number*. O `HH Restante` tem prioridade sobre o HH estimado na leitura, e o `HH Original`
+preserva o plano quando o item fecha.
+
 A classificação nasce copiando a do Azure DevOps: o picklist `Custom.Type` vira um single-select do
 board com os mesmos valores de fábrica — `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request` — e o **valor
 padrão**, logo abaixo da lista, é o que o NXProject grava ao criar o item sem classificação. Os dois

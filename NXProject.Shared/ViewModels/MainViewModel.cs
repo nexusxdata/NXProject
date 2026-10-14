@@ -2672,7 +2672,49 @@ namespace NXProject.ViewModels
             }
         }
 
+        // ── LOG DO ARRASTO ───────────────────────────────────────────────────────────────
+        //
+        // Uma linha por soltada, com o que cada regra respondeu. Existe porque "nao consegui
+        // mover" chega sem o porque: o gesto falha igual quando o tipo nao bate, quando o
+        // EPIC_TYPE nao e o que parece e quando o alvo nao era a linha que se pensava.
+        // Fica sempre ligado — e barato (uma linha por gesto) e inutil se so existir depois
+        // que o problema ja aconteceu. O arquivo fica em drag-log.txt, ao lado dos outros.
+        private static string DragLogPath => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NXProject.Community", "drag-log.txt");
+
+        private static void LogArrasto(string linha)
+        {
+            try
+            {
+                var arquivo = DragLogPath;
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(arquivo)!);
+                // Nao deixa crescer sem fim: passou de 512 KB, recomeca.
+                if (System.IO.File.Exists(arquivo) && new System.IO.FileInfo(arquivo).Length > 512 * 1024)
+                    System.IO.File.Delete(arquivo);
+                System.IO.File.AppendAllText(arquivo,
+                    $"{DateTime.Now:dd/MM/yyyy HH:mm:ss}  {linha}{Environment.NewLine}");
+            }
+            catch { /* diagnostico nunca derruba o gesto */ }
+        }
+
+        /// <summary>Como o item aparece no log: id, nome, tipo, EPIC_TYPE e pai.</summary>
+        private static string Descreve(ProjectTask? t) => t == null ? "(nulo)"
+            : $"#{(t.TfsId is > 0 ? t.TfsId : t.Id)} \"{t.Name}\" tipo={t.TfsType ?? "(vazio)"}"
+              + $" epicType={t.EpicType ?? "(vazio)"} nivel={t.Level} pai=\"{t.Parent?.Name ?? "(raiz)"}\"";
+
         public bool MoveTaskByDrop(TaskViewModel sourceVm, TaskViewModel targetVm, bool insertAfter)
+        {
+            LogArrasto($"soltou  origem: {Descreve(sourceVm?.Model)}");
+            LogArrasto($"        alvo  : {Descreve(targetVm?.Model)}  insertAfter={insertAfter}");
+            var aceito = MoveTaskByDropCore(sourceVm!, targetVm!, insertAfter);
+            LogArrasto($"        => {(aceito ? "ACEITO" : "RECUSADO")}"
+                     + (string.IsNullOrWhiteSpace(StatusMessage) ? "" : $" | status: {StatusMessage}")
+                     + Environment.NewLine);
+            return aceito;
+        }
+
+        private bool MoveTaskByDropCore(TaskViewModel sourceVm, TaskViewModel targetVm, bool insertAfter)
         {
             if (sourceVm.Model == targetVm.Model)
                 return false;
@@ -2684,12 +2726,19 @@ namespace NXProject.ViewModels
                 return false;
             }
 
-            // Soltar um EPIC SOBRE um EPIC_GROUP significa agrupar, mesmo quando os dois são
-            // irmãos — e eles costumam ser, já que o grupo nasce ao lado dos EPICs no Work Item
-            // Project. Sem esta exceção, o caminho normal trataria o gesto como reordenação e a
-            // regra de agrupamento nunca seria alcançada.
+            // Gesto que envolve um EPIC_GROUP tem de ser decidido pelo caminho do grupo, ANTES
+            // da reordenação. Senão o caminho normal sobe do alvo até achar um item da mesma
+            // coleção da origem — e, soltando sobre um EPIC de DENTRO do grupo, o que ele acha é
+            // o próprio grupo: o EPIC era reordenado ao lado dele, nunca entrava. Os três casos:
+            //
+            //   • alvo é o grupo               → entra no grupo;
+            //   • alvo é um EPIC de dentro     → entra no grupo, na posição desse irmão;
+            //   • origem está num grupo        → sai dele, indo para onde o alvo está.
             if (IsEpicTask(sourceVm.Model) && !EpicTypes.IsGroup(sourceVm.Model.EpicType)
-                && IsEpicTask(targetVm.Model) && EpicTypes.IsGroup(targetVm.Model.EpicType)
+                && IsEpicTask(targetVm.Model)
+                && (EpicTypes.IsGroup(targetVm.Model.EpicType)
+                    || EpicTypes.IsGroup(targetVm.Model.Parent?.EpicType)
+                    || EpicTypes.IsGroup(sourceVm.Model.Parent?.EpicType))
                 && MoveEpicToGroupByDrop(sourceVm, targetVm, insertAfter))
                 return true;
 
@@ -2748,7 +2797,11 @@ namespace NXProject.ViewModels
             var source = sourceVm.Model;
             var target = targetVm.Model;
             if (!IsEpicTask(source) || EpicTypes.IsGroup(source.EpicType))
+            {
+                LogArrasto($"        grupo: origem nao e EPIC comum (tipo={source.TfsType}, "
+                         + $"epicType={source.EpicType ?? "(vazio)"}) — fora deste caminho");
                 return false;   // o grupo em si não entra em outro grupo
+            }
 
             ProjectTask? newParent;
             ProjectTask? targetSibling = null;
@@ -2767,21 +2820,35 @@ namespace NXProject.ViewModels
             }
             else
             {
+                LogArrasto($"        grupo: alvo nao e EPIC (tipo={target.TfsType}) — fora deste caminho");
                 return false;
             }
 
-            if (newParent == null || ReferenceEquals(source.Parent, newParent)
-                || IsTaskInSubtree(source, newParent))
+            // newParent nulo NAO e erro: e o alvo estar na raiz do cronograma. E assim que o
+            // EPIC SAI do grupo — soltando sobre um EPIC de topo. Antes isso era lido como "pai
+            // invalido" e o item ficava preso no grupo, sem como tira-lo pelo arrasto.
+            if (ReferenceEquals(source.Parent, newParent)
+                || (newParent != null && IsTaskInSubtree(source, newParent)))
+            {
+                LogArrasto($"        grupo: pai novo ja e o atual ou esta dentro da origem "
+                         + $"(novo=\"{newParent?.Name ?? "(raiz)"}\", atual=\"{source.Parent?.Name ?? "(raiz)"}\")");
                 return false;
+            }
 
             // O pai novo tem de aceitar um EPIC: grupo aceita, Work Item Project aceita, e nada
-            // mais. Perguntar ao mapa evita que o arrasto permita o que o sync recusaria.
-            if (!NxLevelMap.Current.ParentChildOk(newParent.TfsType, source.TfsType,
-                                                  newParent.EpicType, source.EpicType))
+            // mais. Perguntar ao mapa evita que o arrasto permita o que o sync recusaria. Na raiz
+            // nao ha pai para consultar — o EPIC de topo e o topo.
+            if (newParent != null
+                && !NxLevelMap.Current.ParentChildOk(newParent.TfsType, source.TfsType,
+                                                     newParent.EpicType, source.EpicType))
             {
+                LogArrasto($"        grupo: hierarquia recusada pelo mapa — "
+                         + $"pai={newParent.TfsType}/{newParent.EpicType ?? "(vazio)"} "
+                         + $"filho={source.TfsType}/{source.EpicType ?? "(vazio)"}");
                 StatusMessage = AppStrings.Get("Status_DragSameLevel");
                 return false;
             }
+            LogArrasto($"        grupo: aceito — \"{source.Name}\" vai para \"{newParent?.Name ?? "(raiz)"}\"");
 
             var oldParent = source.Parent;
             var oldCollection = GetTaskCollection(source);
@@ -2793,10 +2860,10 @@ namespace NXProject.ViewModels
             CollapseIfChildless(oldParent);
 
             source.Parent = newParent;
-            UpdateTaskLevelRecursive(source, newParent.Level + 1);
-            newParent.IsSummary = true;
+            UpdateTaskLevelRecursive(source, newParent != null ? newParent.Level + 1 : 0);
+            if (newParent != null) newParent.IsSummary = true;
 
-            var newCollection = newParent.Children;
+            var newCollection = newParent?.Children ?? Project.Tasks;
             var insertIndex = targetSibling != null ? newCollection.IndexOf(targetSibling) : newCollection.Count;
             if (insertIndex < 0) insertIndex = newCollection.Count;
             else if (targetSibling != null && insertAfter) insertIndex++;

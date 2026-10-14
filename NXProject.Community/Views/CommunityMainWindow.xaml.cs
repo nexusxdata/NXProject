@@ -2596,10 +2596,17 @@ namespace NXProject.Views
             if (DevOpsProjectBanner.Visibility != Visibility.Visible) return;
 
             // Usa FlatTasks (depth=0) para ter o DurationHours correto (SumTaskHours).
-            // EPIC marcado como BACKLOG (campo EPIC_TYPE) fica fora do total do projeto.
+            // EPIC marcado como BACKLOG (campo EPIC_TYPE) fica fora do total do projeto — e isso
+            // vale DENTRO do EPIC_GROUP tambem: quem classifica e o EPIC, nao o agrupador. Olhar
+            // so o nivel de cima somava o backlog agrupado, enquanto o % e as datas (que descem a
+            // arvore) ja o ignoravam — o mesmo projeto respondia duas coisas diferentes.
             var epicHours = vm.FlatTasks
                 .Where(t => t.Depth == 0 && t.IsSummary && !EpicTypes.IsBacklog(t.Model.EpicType))
-                .Sum(t => t.DurationHours);
+                .Sum(t => EpicTypes.IsGroup(t.Model.EpicType)
+                    ? vm.FlatTasks.Where(f => f.Model.Parent == t.Model
+                                              && !EpicTypes.IsBacklog(f.Model.EpicType))
+                                  .Sum(f => f.DurationHours)
+                    : t.DurationHours);
 
             DevOpsEpicHoursLabel.Text = epicHours > 0
                 ? AppStrings.Get("Banner_EpicHours", epicHours)

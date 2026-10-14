@@ -96,6 +96,19 @@ namespace NXProject.Services
         public string EffortFieldName { get; set; } = "HH Estimado";
 
         /// <summary>Nome do campo de data de inicio da Story.</summary>
+        /// <summary>
+        /// Os tres campos de horas da Story. Opcionais: o import tem fallback para todos, mas sem
+        /// eles o NX perde fidelidade (restante vira o estimado inteiro, realizado some, plano
+        /// original nao e preservado). Configuraveis porque o nome depende do processo.
+        /// </summary>
+        public string OriginalHoursFieldName { get; set; } = "HH_Original_float";
+
+        /// <inheritdoc cref="OriginalHoursFieldName"/>
+        public string RemainingHoursFieldName { get; set; } = "HH_Restante_float";
+
+        /// <inheritdoc cref="OriginalHoursFieldName"/>
+        public string CurrentHoursFieldName { get; set; } = "HH_Atual_float";
+
         public string StartFieldName { get; set; } = "Data_Inicio";
 
         /// <summary>Nome do campo de data de fim da Story.</summary>
@@ -307,6 +320,20 @@ namespace NXProject.Services
         /// <summary>Campo de data de fim (ex.: "Target Date", "Data_Fim").</summary>
         public string? FinishField { get; set; }
 
+        /// <summary>
+        /// Os tres campos de horas NESTE tipo. Existem porque o nativo depende do processo: na
+        /// Task do Agile/CMMI o NX usa Original Estimate e Completed Work, mas no Scrum a Task de
+        /// fabrica tem Remaining Work — e quem precisa de outro campo ali tem de poder dizer qual.
+        /// Vazio = usa o campo global da configuracao.
+        /// </summary>
+        public string? OriginalHoursField { get; set; }
+
+        /// <inheritdoc cref="OriginalHoursField"/>
+        public string? RemainingHoursField { get; set; }
+
+        /// <inheritdoc cref="OriginalHoursField"/>
+        public string? CurrentHoursField { get; set; }
+
         /// <summary>Campo de percentual de alocação.</summary>
         public string? PercAlocField { get; set; }
 
@@ -348,6 +375,9 @@ namespace NXProject.Services
             public int RootWorkItemId { get; set; }
             public double HoursPerDay { get; set; } = 8.0;
             public string EffortFieldName { get; set; } = "HH Estimado";
+            public string OriginalHoursFieldName { get; set; } = "HH_Original_float";
+            public string RemainingHoursFieldName { get; set; } = "HH_Restante_float";
+            public string CurrentHoursFieldName { get; set; } = "HH_Atual_float";
             public string StartFieldName { get; set; } = "Data_Inicio";
             public string FinishFieldName { get; set; } = "Data_Fim";
             public string PercAlocFieldName { get; set; } = "Perc_Alocacao";
@@ -445,6 +475,12 @@ namespace NXProject.Services
                 options.HoursPerDay = stored.HoursPerDay <= 0 ? 8.0 : stored.HoursPerDay;
                 options.EffortFieldName = string.IsNullOrWhiteSpace(stored.EffortFieldName)
                     ? options.EffortFieldName : stored.EffortFieldName.Trim();
+                options.OriginalHoursFieldName = string.IsNullOrWhiteSpace(stored.OriginalHoursFieldName)
+                    ? options.OriginalHoursFieldName : stored.OriginalHoursFieldName.Trim();
+                options.RemainingHoursFieldName = string.IsNullOrWhiteSpace(stored.RemainingHoursFieldName)
+                    ? options.RemainingHoursFieldName : stored.RemainingHoursFieldName.Trim();
+                options.CurrentHoursFieldName = string.IsNullOrWhiteSpace(stored.CurrentHoursFieldName)
+                    ? options.CurrentHoursFieldName : stored.CurrentHoursFieldName.Trim();
                 options.StartFieldName = string.IsNullOrWhiteSpace(stored.StartFieldName)
                     ? options.StartFieldName : stored.StartFieldName.Trim();
                 options.FinishFieldName = string.IsNullOrWhiteSpace(stored.FinishFieldName)

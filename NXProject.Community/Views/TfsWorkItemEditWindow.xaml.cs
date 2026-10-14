@@ -272,7 +272,9 @@ namespace NXProject.Views
             EpicTypePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             if (!show) return;
 
-            var wanted = EpicTypes.IsBacklog(currentEpicType) ? EpicTypes.Backlog : EpicTypes.Delivery;
+            // Tres valores, e o grupo e um deles: selecionar "o que nao e BACKLOG e DELIVERY"
+            // fazia esta janela REBAIXAR um EPIC_GROUP para DELIVERY ao clicar em OK.
+            var wanted = TfsImportService.NormalizeEpicType(currentEpicType) ?? EpicTypes.Delivery;
             foreach (ComboBoxItem item in EpicTypeBox.Items)
                 if (string.Equals(item.Content?.ToString(), wanted, StringComparison.OrdinalIgnoreCase))
                     EpicTypeBox.SelectedItem = item;

@@ -1299,12 +1299,15 @@ namespace NXProject.Services
         // configuracao usa para detectar e que o Setup usa para criar. Tres copias da mesma regra
         // divergiram na primeira oportunidade, entao agora ha uma so.
         private static readonly string[] HoursFieldNames = NxDevOpsFieldCatalog.Names("effort");
+        // Os tres de horas tambem saem do catalogo agora. O HH Original mantem, no fim da lista,
+        // os apelidos do HH Estimado: ha organizacao que guarda o plano original no proprio campo
+        // de esforco, e tirar isso quebraria quem ja importava assim.
         private static readonly string[] OriginalHoursFieldNames =
-            { "HH_Original_float", "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado", "HH Original", "HH_Original" };
-        private static readonly string[] RemainingHoursFieldNames =
-            { "HH_Restante_float", "HH_Restante", "HH Restante", "HHRestante" };
-        private static readonly string[] CurrentHoursFieldNames =
-            { "HH_Atual_float", "HH_Atual", "HH Atual", "HHAtual", "HH Realizado", "HH_Realizado", "HHRealizado" };
+            NxDevOpsFieldCatalog.Names("originalHours")
+                .Concat(new[] { "Esforço Estimado", "Esforco Estimado", "HH Estimado", "HH_Estimado" })
+                .ToArray();
+        private static readonly string[] RemainingHoursFieldNames = NxDevOpsFieldCatalog.Names("remainingHours");
+        private static readonly string[] CurrentHoursFieldNames = NxDevOpsFieldCatalog.Names("currentHours");
         private static readonly string[] StartFieldNames = NxDevOpsFieldCatalog.Names("start");
         private static readonly string[] FinishFieldNames = NxDevOpsFieldCatalog.Names("finish");
         // Criterios de Aceitacao: campo padrao do DevOps (Agile/Scrum) em Feature/Epic/Story.
@@ -1340,14 +1343,14 @@ namespace NXProject.Services
             progress?.Report("Conectando e lendo os campos do DevOps...");
             var fieldMap = await LoadFieldMapAsync(orgBase, authHeader, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
-            var remainingHoursRefImport = ResolveField(fieldMap, null, RemainingHoursFieldNames);
-            var originalHoursRef = ResolveField(fieldMap, null, OriginalHoursFieldNames);
+            var remainingHoursRefImport = ResolveField(fieldMap, options.RemainingHoursFieldName, RemainingHoursFieldNames);
+            var originalHoursRef = ResolveField(fieldMap, options.OriginalHoursFieldName, OriginalHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
             var percConclusaoRef   = ResolveField(fieldMap, options.PercConclusaoFieldName, PercConclusaoFieldNames);
             var tipoCentroCustoRef = ResolveField(fieldMap, null, TipoCentroCustoFieldNames);
-            var realizedHoursRef   = ResolveField(fieldMap, null, CurrentHoursFieldNames);
+            var realizedHoursRef   = ResolveField(fieldMap, options.CurrentHoursFieldName, CurrentHoursFieldNames);
 
             // Sprints (iterations) do projeto. Carrega TODAS para o mapa de datas
             // (ancora das Stories sem data); as numeradas/exibidas serao so as
@@ -1812,9 +1815,9 @@ namespace NXProject.Services
 
             var fieldMap = await LoadFieldMapAsync(orgBase, auth, cancellationToken);
             var hoursRef = ResolveField(fieldMap, options.EffortFieldName, HoursFieldNames);
-            var originalHoursRef  = ResolveField(fieldMap, null, OriginalHoursFieldNames);
-            var remainingHoursRef = ResolveField(fieldMap, null, RemainingHoursFieldNames);
-            var realizedHoursRef  = ResolveField(fieldMap, null, CurrentHoursFieldNames);
+            var originalHoursRef  = ResolveField(fieldMap, options.OriginalHoursFieldName, OriginalHoursFieldNames);
+            var remainingHoursRef = ResolveField(fieldMap, options.RemainingHoursFieldName, RemainingHoursFieldNames);
+            var realizedHoursRef  = ResolveField(fieldMap, options.CurrentHoursFieldName, CurrentHoursFieldNames);
             var startRef = ResolveField(fieldMap, options.StartFieldName, StartFieldNames);
             var finishRef = ResolveField(fieldMap, options.FinishFieldName, FinishFieldNames);
             var percAlocRef = ResolveField(fieldMap, options.PercAlocFieldName, PercAlocFieldNames);
@@ -2523,9 +2526,15 @@ namespace NXProject.Services
                     // ── Task: Original Estimate (Decimal) + Priority (Integer, default 5) ──
                     if (isTask)
                     {
-                        // Original Estimate (Microsoft.VSTS.Scheduling.OriginalEstimate).
-                        const string OriginalEstimateRef = "Microsoft.VSTS.Scheduling.OriginalEstimate";
-                        const string CompletedWorkRef    = "Microsoft.VSTS.Scheduling.CompletedWork";
+                        // Os campos nativos da Task sao o PADRAO, nao uma certeza: eles vem de
+                        // fabrica no Agile e no CMMI, mas a Task do Scrum traz Remaining Work. Por
+                        // isso o nome sai da configuracao por tipo quando ela existe, e so entao
+                        // cai no nativo.
+                        var OriginalEstimateRef = ResolveForType(task.TfsType, c => c.OriginalHoursField,
+                                                                 "Microsoft.VSTS.Scheduling.OriginalEstimate")!;
+                        var CompletedWorkRef    = ResolveForType(task.TfsType, c => c.CurrentHoursField,
+                                                                 "Microsoft.VSTS.Scheduling.CompletedWork")!;
+                        var taskRemainingRef    = ResolveForType(task.TfsType, c => c.RemainingHoursField, null);
 
                         var taskHours = task.EstimatedHours ?? task.CurrentHours;
                         if (taskHours.HasValue)
@@ -2548,6 +2557,20 @@ namespace NXProject.Services
                                 ops.Add(PatchAdd($"/fields/{CompletedWorkRef}", task.CurrentHours.Value));
                                 var oldC = currentCompleted.HasValue ? $"{currentCompleted.Value:0.##}→" : "";
                                 changes.Add($"Completed Work: {oldC}{task.CurrentHours.Value:0.##}h");
+                            }
+                        }
+
+                        // HH Restante na Task: so quando a configuracao do tipo aponta um campo.
+                        // Nao ha nativo assumido aqui — no Agile a Task nem costuma ter esse campo,
+                        // e inventar um gravaria em cima de algo que nao e nosso.
+                        if (taskRemainingRef != null && task.EstimatedHours is { } taskRem && taskRem >= 0)
+                        {
+                            var currentTaskRem = ReadDouble(wi, taskRemainingRef);
+                            if (currentTaskRem == null || Math.Abs(currentTaskRem.Value - taskRem) > 0.0001)
+                            {
+                                ops.Add(PatchAdd($"/fields/{taskRemainingRef}", taskRem));
+                                var oldTr = currentTaskRem.HasValue ? $"{currentTaskRem.Value:0.##}→" : "";
+                                changes.Add($"HH Restante: {oldTr}{taskRem:0.##}h");
                             }
                         }
 
@@ -5358,6 +5381,11 @@ namespace NXProject.Services
         {
             var v = raw?.Trim();
             if (string.IsNullOrEmpty(v)) return null;
+            // EPIC_GROUP e um valor POR DIREITO, nao um Delivery com outro nome. Sem esta linha
+            // ele virava DELIVERY ao entrar no cronograma: o arrasto para dentro do grupo era
+            // recusado (o alvo deixava de ser grupo) e, pior, o sync devolvia DELIVERY para o
+            // campo EPIC_TYPE do DevOps, apagando a classificacao do item.
+            if (EpicTypes.IsGroup(v)) return EpicTypes.Group;
             return EpicTypes.IsBacklog(v) ? EpicTypes.Backlog : EpicTypes.Delivery;
         }
 

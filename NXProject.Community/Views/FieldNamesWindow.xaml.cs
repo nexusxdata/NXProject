@@ -712,6 +712,13 @@ namespace NXProject.Views
             public TextBox Box { get; init; } = new();
             public CheckBox? Enabled { get; init; }
             public Dictionary<string, CheckBox> UseStandard { get; } = new(StringComparer.CurrentCultureIgnoreCase);
+
+            /// <summary>
+            /// O NOME do campo neste tipo. Marcado "usar o padrao", mostra o campo nativo e fica
+            /// so de leitura; desmarcado, e onde se digita o campo proprio daquele tipo — hoje o
+            /// nativo e o default, mas o processo pode nao te-lo (a Task do Scrum e o caso).
+            /// </summary>
+            public Dictionary<string, TextBox> TypeBox { get; } = new(StringComparer.CurrentCultureIgnoreCase);
         }
 
         private readonly List<DevRow> _devRows = new();
@@ -784,15 +791,45 @@ namespace NXProject.Views
                     {
                         // A chave do Setup nao existe aqui: usar a do NXProject, senao a tela mostra o
                         // proprio nome da chave — foi o que aconteceu.
-                        Content = AppStrings.Get("Fld_UseStdOnType", wit, NomeCurto(nativo)),
+                        Content = AppStrings.Get("Fld_UseStdOnType", wit, NxDevOpsFieldCatalog.FriendlyName(nativo)),
                         FontSize = 10.5, VerticalAlignment = VerticalAlignment.Center,
                         Margin = new Thickness(0, 0, 10, 0),
                         ToolTip = AppStrings.Get("Cfg_TaskStdTip"),
+                        // Sem nada configurado ainda, a caixa nasce como o NX JA se comporta: na
+                        // Task ele usa o campo nativo (Original Estimate / Completed Work) mesmo no
+                        // padrao portugues, porque quem nomeia esse campo e o processo do DevOps,
+                        // nao o NXProject. Nascer desmarcada dizia o contrario do que acontecia.
                         IsChecked = saved.TypeFieldMappings.TryGetValue(wit, out var cfg)
-                                    && !string.IsNullOrWhiteSpace(CampoDoTipo(cfg, spec.Key))
+                                    && CampoDoTipo(cfg, spec.Key) is { } jaConfig
+                            ? !string.IsNullOrWhiteSpace(jaConfig)
+                            : spec.StandardDefaultOn(wit)
                     };
+                    var nomeNoTipo = new TextBox
+                    {
+                        Width = 150, Height = 22, FontSize = 11, Margin = new Thickness(0, 0, 10, 0),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        ToolTip = AppStrings.Get("Fld_TypeFieldTip", wit)
+                    };
+                    void AplicaNoTipo()
+                    {
+                        var marcado = usar.IsChecked == true;
+                        nomeNoTipo.IsEnabled = !marcado;
+                        if (marcado) nomeNoTipo.Text = NxDevOpsFieldCatalog.FriendlyName(nativo);
+                        else if (string.IsNullOrWhiteSpace(nomeNoTipo.Text) || nomeNoTipo.Text == NxDevOpsFieldCatalog.FriendlyName(nativo))
+                            nomeNoTipo.Text = caixa.Text;   // parte do nome da Story e segue editavel
+                    }
+                    nomeNoTipo.Text = saved.TypeFieldMappings.TryGetValue(wit, out var cfgTipo)
+                                      && CampoDoTipo(cfgTipo, spec.Key) is { Length: > 0 } nomeSalvo
+                                      && !nomeSalvo.Contains('.')
+                        ? nomeSalvo : "";
+                    AplicaNoTipo();
+                    usar.Checked += (_, _) => AplicaNoTipo();
+                    usar.Unchecked += (_, _) => AplicaNoTipo();
+
                     row.UseStandard[wit] = usar;
+                    row.TypeBox[wit] = nomeNoTipo;
                     opcoes.Children.Add(usar);
+                    opcoes.Children.Add(nomeNoTipo);
                 }
                 // Campo de lista fechada (EPIC_TYPE, por exemplo) não tem caixa de "usar o campo
                 // padrão": a coluna fica livre para dizer QUE VALORES ele aceita.
@@ -872,6 +909,9 @@ namespace NXProject.Views
             "effort" => cfg.EffortField,
             "start" => cfg.StartField,
             "finish" => cfg.FinishField,
+            "originalHours" => cfg.OriginalHoursField,
+            "remainingHours" => cfg.RemainingHoursField,
+            "currentHours" => cfg.CurrentHoursField,
             _ => null
         };
 
@@ -887,6 +927,9 @@ namespace NXProject.Views
         private static string NomeDevOps(NxFieldSpec spec, TfsConnectionOptions o) => spec.Key switch
         {
             "effort" => o.EffortFieldName,
+            "originalHours" => o.OriginalHoursFieldName,
+            "remainingHours" => o.RemainingHoursFieldName,
+            "currentHours" => o.CurrentHoursFieldName,
             "start" => o.StartFieldName,
             "finish" => o.FinishFieldName,
             "percAloc" => o.PercAlocFieldName,
@@ -912,6 +955,9 @@ namespace NXProject.Views
                 switch (row.Spec.Key)
                 {
                     case "effort": _options.EffortFieldName = v; break;
+                    case "originalHours": _options.OriginalHoursFieldName = v; break;
+                    case "remainingHours": _options.RemainingHoursFieldName = v; break;
+                    case "currentHours": _options.CurrentHoursFieldName = v; break;
                     case "start": _options.StartFieldName = v; break;
                     case "finish": _options.FinishFieldName = v; break;
                     case "percAloc": _options.PercAlocFieldName = v; break;
@@ -949,12 +995,23 @@ namespace NXProject.Views
                 foreach (var (wit, caixa) in row.UseStandard)
                 {
                     if (!mappings.TryGetValue(wit, out var cfg)) mappings[wit] = cfg = new TypeFieldConfig();
-                    var nativo = caixa.IsChecked == true ? row.Spec.OptionalStandardFor(wit) : null;
+                    // Marcado: grava a referencia do campo NATIVO. Desmarcado: grava o nome
+                    // digitado para aquele tipo, e so cai no campo global quando esta em branco.
+                    string? valorNoTipo;
+                    if (caixa.IsChecked == true) valorNoTipo = row.Spec.OptionalStandardFor(wit);
+                    else
+                    {
+                        var digitado = row.TypeBox.TryGetValue(wit, out var bx) ? bx.Text?.Trim() : null;
+                        valorNoTipo = string.IsNullOrWhiteSpace(digitado) ? null : digitado;
+                    }
                     switch (row.Spec.Key)
                     {
-                        case "effort": cfg.EffortField = nativo; break;
-                        case "start": cfg.StartField = nativo; break;
-                        case "finish": cfg.FinishField = nativo; break;
+                        case "effort": cfg.EffortField = valorNoTipo; break;
+                        case "start": cfg.StartField = valorNoTipo; break;
+                        case "finish": cfg.FinishField = valorNoTipo; break;
+                        case "originalHours": cfg.OriginalHoursField = valorNoTipo; break;
+                        case "remainingHours": cfg.RemainingHoursField = valorNoTipo; break;
+                        case "currentHours": cfg.CurrentHoursField = valorNoTipo; break;
                     }
                 }
 
@@ -990,12 +1047,33 @@ namespace NXProject.Views
             foreach (var row in _devRows)
             {
                 foreach (var (wit, caixa) in row.UseStandard)
+                {
                     caixa.IsChecked = ingles || row.Spec.StandardDefaultOn(wit);
+                    // A caixa do tipo acompanha: marcada mostra o nativo, desmarcada volta ao nome
+                    // de fabrica do padrao escolhido — senao ficava um nome em portugues ao lado
+                    // de uma configuracao em ingles.
+                    if (row.TypeBox.TryGetValue(wit, out var bxTipo))
+                    {
+                        var nativo = row.Spec.OptionalStandardFor(wit);
+                        bxTipo.IsEnabled = caixa.IsChecked != true;
+                        bxTipo.Text = caixa.IsChecked == true
+                            ? NxDevOpsFieldCatalog.FriendlyName(nativo)
+                            : DefaultFieldFor(row.Spec.Key, wit, naming) is { Length: > 0 } v2 && !v2.Contains('.')
+                                ? v2 : row.Spec.DefaultName;
+                    }
+                }
 
-                var valor = DefaultFieldFor(row.Spec.Key, row.Spec.Scope.FirstOrDefault() ?? "Task", naming);
-                // Referência de campo nativo (com ponto) não vai para a caixa de nome: ali se
-                // digita o nome amigável, e o nativo é escolhido pelas caixas ao lado.
-                if (!string.IsNullOrWhiteSpace(valor) && !valor.Contains('.')) row.Box.Text = valor;
+                // O nome do campo da STORY segue o padrao escolhido. Antes a busca usava o
+                // primeiro tipo do escopo, que para os campos de horas e a Story: com a Task
+                // tambem no escopo, fixar "User Story" mantem a caixa da esquerda sendo a dela.
+                var valor = DefaultFieldFor(row.Spec.Key, "User Story", naming);
+                // O padrao ingles pode responder com a REFERENCIA do campo nativo
+                // ("Microsoft.VSTS.Scheduling.OriginalEstimate"). Na caixa vai o nome amigavel
+                // dele ("Original Estimate"), que e como o campo aparece no DevOps — antes a
+                // referencia era descartada e a caixa ficava com o nome em portugues, dizendo o
+                // contrario do padrao escolhido.
+                if (!string.IsNullOrWhiteSpace(valor))
+                    row.Box.Text = valor.Contains('.') ? NxDevOpsFieldCatalog.FriendlyName(valor) : valor;
             }
         }
 
@@ -1136,6 +1214,9 @@ namespace NXProject.Views
             return spec.Key switch
             {
                 "effort" => git.EffortFields,
+                "originalHours" => git.OriginalHoursFields,
+                "remainingHours" => git.RemainingHoursFields,
+                "currentHours" => git.CurrentHoursFields,
                 "start" => git.StartDateFields,
                 "finish" => git.FinishDateFields,
                 "percConclusao" => git.PercentFields,
@@ -1275,6 +1356,11 @@ namespace NXProject.Views
                 switch (r.Spec.Key)
                 {
                     case "effort": git.EffortFields = Com(v, git.EffortFields); break;
+                    // No GitHub nao ha campo nativo de horas: os tres sao campos do board, e o
+                    // botao de criar campos os cria com tipo NUMBER.
+                    case "originalHours": git.OriginalHoursFields = Com(v, git.OriginalHoursFields); break;
+                    case "remainingHours": git.RemainingHoursFields = Com(v, git.RemainingHoursFields); break;
+                    case "currentHours": git.CurrentHoursFields = Com(v, git.CurrentHoursFields); break;
                     case "start": git.StartDateFields = Com(v, git.StartDateFields); break;
                     case "finish": git.FinishDateFields = Com(v, git.FinishDateFields); break;
                     case "percConclusao": git.PercentFields = Com(v, git.PercentFields); break;

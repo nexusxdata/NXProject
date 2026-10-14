@@ -2011,6 +2011,10 @@ Fields are created on the project, not on the issues, and can be removed from Gi
     <sys:String x:Key="Imp_ConfigFields">⚙ Configure Fields and Tags</sys:String>
     <sys:String x:Key="Imp_ConfigFieldsTip">NXProject field names, tags and classification on Azure DevOps and GitProject</sys:String>
     <sys:String x:Key="Fld_Concept_effort">Estimated effort</sys:String>
+    <sys:String x:Key="Fld_Concept_originalHours">Original hours</sys:String>
+    <sys:String x:Key="Fld_TypeFieldTip">Field name on {0}. Clear the option beside it to use a custom field on this type — the native field exists on Agile and CMMI, but your process may not have it.</sys:String>
+    <sys:String x:Key="Fld_Concept_remainingHours">Remaining hours</sys:String>
+    <sys:String x:Key="Fld_Concept_currentHours">Completed hours</sys:String>
     <sys:String x:Key="Fld_Concept_start">Start date</sys:String>
     <sys:String x:Key="Fld_Concept_finish">Finish date</sys:String>
     <sys:String x:Key="Fld_Concept_percAloc">Allocation %</sys:String>

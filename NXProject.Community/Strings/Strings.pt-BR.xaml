@@ -1441,6 +1441,10 @@ Os campos são criados no projeto, não nas issues, e podem ser removidos pela t
     <sys:String x:Key="Imp_ConfigFields">⚙ Configurar Campos e Tags</sys:String>
     <sys:String x:Key="Imp_ConfigFieldsTip">Nomes dos campos, tags e classificação do NXProject no Azure DevOps e no GitProject</sys:String>
     <sys:String x:Key="Fld_Concept_effort">HH estimado</sys:String>
+    <sys:String x:Key="Fld_Concept_originalHours">HH original</sys:String>
+    <sys:String x:Key="Fld_TypeFieldTip">Nome do campo em {0}. Desmarque a opção ao lado para usar um campo próprio neste tipo — o campo nativo existe no Agile e no CMMI, mas o processo pode não tê-lo.</sys:String>
+    <sys:String x:Key="Fld_Concept_remainingHours">HH restante</sys:String>
+    <sys:String x:Key="Fld_Concept_currentHours">HH atual (realizado)</sys:String>
     <sys:String x:Key="Fld_Concept_start">Data de início</sys:String>
     <sys:String x:Key="Fld_Concept_finish">Data de fim</sys:String>
     <sys:String x:Key="Fld_Concept_percAloc">% de alocação</sys:String>

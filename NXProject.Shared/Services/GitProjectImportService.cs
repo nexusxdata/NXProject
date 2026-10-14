@@ -268,8 +268,10 @@ namespace NXProject.Services
                 // é a mesma regra do import do DevOps.
                 Start = item.StartDate ?? default,
                 Finish = item.FinishDate ?? default,
-                EstimatedHours = encerrada ? 0 : item.Effort ?? 0,
-                OriginalEstimatedHours = item.Effort,
+                // HH restante tem prioridade sobre o estimado, e o original so cai no estimado
+                // quando o board nao tem o campo proprio: a mesma ordem do import do DevOps.
+                EstimatedHours = encerrada ? 0 : item.RemainingHours ?? item.Effort ?? 0,
+                OriginalEstimatedHours = item.OriginalHours ?? item.Effort,
                 CurrentHours = item.CurrentHours,
                 PercentComplete = item.Percent ?? (encerrada ? 100 : 0),
                 // Revisão do servidor no mesmo campo em que o DevOps guarda o Rev: é contra ela

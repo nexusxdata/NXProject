@@ -63,7 +63,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Grid.Row="1">
+            <!-- O corpo ROLA: a janela tem altura maxima e nao e redimensionavel, entao, com os
+                 paineis opcionais todos visiveis (EPIC_TYPE, centro de custo, classificacao), o
+                 fim do formulario ficava cortado e sem como alcancar. -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
+            <StackPanel>
                 <TextBlock Text="{DynamicResource WiEdit_IdLabel}" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 <TextBox x:Name="IdBox" Height="28" Padding="6,4"/>
                 <TextBlock Text="{DynamicResource WiEdit_IdHint}"
@@ -117,6 +122,9 @@
                         <ComboBox x:Name="EpicTypeBox" Height="28">
                             <ComboBoxItem Content="DELIVERY"/>
                             <ComboBoxItem Content="BACKLOG"/>
+                            <!-- EPIC que agrupa EPICs: nao classifica horas, so agrupa. Quem diz
+                                 se entra no total e o EPIC de dentro, com o EPIC_TYPE dele. -->
+                            <ComboBoxItem Content="EPIC_GROUP"/>
                         </ComboBox>
                         <TextBlock Text="{DynamicResource WiEdit_EpicTypeHint}"
                                    FontSize="11" Foreground="#888" Margin="0,3,0,0" TextWrapping="Wrap"/>
@@ -148,10 +156,11 @@
                 <TextBlock x:Name="StatusText" Foreground="#B00020" TextWrapping="Wrap"
                            Margin="0,12,0,0" Visibility="Collapsed"/>
             </StackPanel>
+            </ScrollViewer>
 
             <!-- Atividades filhas (Tasks DevOps) -->
             <Border x:Name="ChildTasksPanel"
-                    Grid.Row="2"
+                    Grid.Row="2" MaxHeight="220"
                     Visibility="Collapsed"
                     Background="#F5F7FA" BorderBrush="#D9E1EA" BorderThickness="1"
                     CornerRadius="4" Padding="8,6" Margin="0,12,0,0">
@@ -159,6 +168,9 @@
                     <TextBlock Text="{DynamicResource WiEdit_ChildTasks}"
                                FontWeight="SemiBold" FontSize="11" Foreground="#2B579A"
                                Margin="0,0,0,4"/>
+                    <!-- Uma Story pode ter muitas Tasks: a lista rola dentro do painel em vez de
+                         empurrar os botoes OK/Cancelar para fora da janela. -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="180">
                     <ItemsControl x:Name="ChildTasksList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -181,6 +193,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </ScrollViewer>
                 </StackPanel>
             </Border>
 

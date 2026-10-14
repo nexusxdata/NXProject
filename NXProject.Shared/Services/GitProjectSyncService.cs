@@ -187,6 +187,16 @@ namespace NXProject.Services
                 && Math.Abs((item.CurrentHours ?? -1) - atual) > 0.001)
                 Add("currentHours", atual);
 
+            // HH restante e HH original: a mesma regra do Azure DevOps — o restante e o que ainda
+            // esta planejado, e o original e o plano de antes, que o realizado nao pode apagar.
+            if (t.Children.Count == 0 && t.EstimatedHours is { } rest
+                && Math.Abs((item.RemainingHours ?? -1) - rest) > 0.001)
+                Add("remainingHours", rest);
+
+            if (t.Children.Count == 0 && t.OriginalEstimatedHours is { } orig && orig > 0
+                && Math.Abs((item.OriginalHours ?? -1) - orig) > 0.001)
+                Add("originalHours", orig);
+
             if (Math.Abs((item.Percent ?? -1) - t.PercentComplete) > 0.001)
                 Add("percConclusao", t.PercentComplete);
 
@@ -531,6 +541,8 @@ namespace NXProject.Services
         {
             "effort" => o.EffortFields,
             "currentHours" => o.CurrentHoursFields,
+            "originalHours" => o.OriginalHoursFields,
+            "remainingHours" => o.RemainingHoursFields,
             "start" => o.StartDateFields,
             "finish" => o.FinishDateFields,
             "percConclusao" => o.PercentFields,

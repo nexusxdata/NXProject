@@ -59,6 +59,8 @@ internal static class Program
         ("EPIC_GROUP: agrupa EPICs e so entra sob o Work Item Project", EpicGroupIsTheOnlyEpicUnderEpic),
         ("EPIC_GROUP: sob o grupo so vem EPIC, e grupo nao aninha em grupo", EpicGroupRefusesFeatureAndNesting),
         ("EPIC_GROUP: arrasto move EPIC para dentro e para fora do grupo", DragDropMovesEpicIntoGroup),
+        ("EPIC_GROUP: arrasto entra pelo EPIC de dentro e sai para a raiz", DragDropEntersGroupBySiblingAndLeavesToRoot),
+        ("EPIC_GROUP: o valor sobrevive ao import e ao sync (nao vira DELIVERY)", EpicGroupSurvivesNormalization),
         ("Import TFS: ramo e decidido pelo TIPO, nao pela profundidade (EPIC_GROUP)", ImportDescendsByTypeNotDepth),
         ("Ordem: a ordem desejada e a da arvore do cronograma", OrderDesiredFollowsScheduleTree),
         ("Ordem: move so o que esta fora de lugar (e nao a fila inteira)", OrderMovesOnlyWhatIsOutOfPlace),
@@ -76,6 +78,7 @@ internal static class Program
         ("Anexo GitProject: caminho e tipo_numero por nivel, sem titulo", GitAttachmentPathMirrorsHierarchy),
         ("Anexo GitProject: renomear o item NAO muda o caminho do anexo", GitAttachmentReusesFolderAfterRename),
         ("Campos DevOps: padrao PT usa campo proprio, EN usa o nativo quando existe", FieldNamingDefaultsPerLanguage),
+        ("Campos de horas: HH Original/Restante/Atual estao no DevOps e no GitProject", HoursFieldsExistOnBothTargets),
         ("Capacidades: cada destino diz o que sabe fazer (sem if por nome)", BackendCapabilitiesPerKind),
         ("WIQL: clausulas do editor voltam para o mesmo WIQL", WiqlModelRoundTripsClauses),
         ("WIQL: WHERE com parenteses nao vira editor visual", WiqlModelRefusesParentheses),
@@ -640,6 +643,57 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>
+    /// Abre o arquivo do cronograma, acha os dois itens pelo ID do DevOps e tenta o arrasto,
+    /// imprimindo tipo, EPIC_TYPE e a resposta de cada regra.
+    /// </summary>
+    private static int ProbeDrag(string arquivo, string idOrigem, string idDestino)
+    {
+        Console.WriteLine("NXTestUnit - sonda do arrasto no cronograma");
+        Console.WriteLine();
+        if (string.IsNullOrWhiteSpace(arquivo) || !System.IO.File.Exists(arquivo))
+        {
+            Console.WriteLine("Uso: NXTestUnit arrasto <arquivo.nxproj> <idOrigem> <idDestino>");
+            return 1;
+        }
+
+        var vm = new NXProject.ViewModels.MainViewModel();
+        vm.LoadProjectFromPath(arquivo);
+
+        TaskViewModel? Acha(string id) =>
+            int.TryParse(id?.Trim(), out var n)
+                ? vm.FlatTasks.FirstOrDefault(t => t.Model.TfsId == n || t.Model.Id == n)
+                : null;
+
+        var origem = Acha(idOrigem);
+        var destino = Acha(idDestino);
+        foreach (var (rotulo, item) in new[] { ("origem", origem), ("destino", destino) })
+        {
+            if (item == null) { Console.WriteLine($"[ERRO] {rotulo} nao encontrado no cronograma."); return 1; }
+            Console.WriteLine($"{rotulo}: #{item.Model.TfsId} \"{item.Model.Name}\" "
+                + $"tipo={item.Model.TfsType} EPIC_TYPE={item.Model.EpicType ?? "(vazio)"} "
+                + $"nivel={item.Model.Level} pai={item.Model.Parent?.Name ?? "(raiz)"}");
+        }
+        Console.WriteLine();
+
+        var mapa = NXProject.Services.NxLevelMap.Current;
+        Console.WriteLine($"nivel do destino no mapa: {mapa.LevelOf(destino!.Model.TfsType)?.ToString() ?? "(desconhecido)"}");
+        Console.WriteLine($"nivel da origem no mapa:  {mapa.LevelOf(origem!.Model.TfsType)?.ToString() ?? "(desconhecido)"}");
+        Console.WriteLine($"destino e EPIC_GROUP? {NXProject.Models.EpicTypes.IsGroup(destino.Model.EpicType)}");
+        Console.WriteLine($"ParentChildOk(destino -> origem): "
+            + mapa.ParentChildOk(destino.Model.TfsType, origem.Model.TfsType,
+                                 destino.Model.EpicType, origem.Model.EpicType));
+        Console.WriteLine();
+
+        var antes = origem.Model.Parent?.Name ?? "(raiz)";
+        var ok = vm.MoveTaskByDrop(origem, destino, insertAfter: false);
+        Console.WriteLine($"MoveTaskByDrop = {ok}");
+        Console.WriteLine($"pai antes: {antes} | pai depois: {origem.Model.Parent?.Name ?? "(raiz)"}");
+        if (!string.IsNullOrWhiteSpace(vm.StatusMessage))
+            Console.WriteLine($"mensagem: {vm.StatusMessage}");
+        return 0;
+    }
+
     private static int Main(string[] args)
     {
         var category = args.Length > 0 ? args[0] : "schedule";
@@ -671,6 +725,11 @@ internal static class Program
         // board nao achou a Feature" — duas causas que na tela parecem a mesma coisa.
         if (string.Equals(category, "item", StringComparison.OrdinalIgnoreCase))
             return ProbeItem(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
+        // Sonda do arrasto: abre o cronograma REAL e tenta o movimento, dizendo o que cada
+        // regra respondeu. Serve para separar "a regra recusa" de "o dado nao e o que parece".
+        if (string.Equals(category, "arrasto", StringComparison.OrdinalIgnoreCase))
+            return ProbeDrag(args.Length > 1 ? args[1] : "",
+                             args.Length > 2 ? args[2] : "", args.Length > 3 ? args[3] : "");
         if (string.Equals(category, "board", StringComparison.OrdinalIgnoreCase))
             return ProbeBoard(args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))
@@ -1819,6 +1878,49 @@ internal static class Program
     /// gravaria num campo inexistente; e se o inverso acontecesse na Task, a atividade acabaria
     /// com duas datas de inicio — a nativa e a do NX — sem ninguem saber qual vale.
     /// </summary>
+    /// <summary>
+    /// Os tres campos de horas da Story precisam aparecer NA LISTA dos dois destinos.
+    ///
+    /// Antes eles so existiam como lista fixa dentro do import: funcionavam, mas ninguem podia
+    /// apontar outro nome nem pedir que fossem criados. E o nativo da Task nao resolve, porque
+    /// Original Estimate / Completed Work sao de fabrica no Agile e no CMMI — no Scrum a Task
+    /// traz Remaining Work, e quem usa esse processo precisa do campo proprio. No GitHub nao ha
+    /// nativo nenhum: la os tres sao campos do board, criados pela tela, e com tipo NUMBER.
+    /// </summary>
+    private static void HoursFieldsExistOnBothTargets()
+    {
+        foreach (var chave in new[] { "originalHours", "remainingHours", "currentHours" })
+        {
+            var spec = NXProject.Services.NxDevOpsFieldCatalog.Find(chave)
+                       ?? throw new Exception($"{chave} tem de estar no catalogo.");
+            if (!spec.Optional)
+                throw new Exception($"{chave} e opcional: o import tem fallback para ele.");
+            if (spec.Type != "double")
+                throw new Exception($"{chave} guarda horas: tem de ser double.");
+
+            if (!NXProject.Services.NxDevOpsFieldCatalog.DevOpsFields.Any(f => f.Key == chave))
+                throw new Exception($"{chave} tem de aparecer na lista do Azure DevOps.");
+            if (!NXProject.Services.NxDevOpsFieldCatalog.GitProjectFields.Any(f => f.Key == chave))
+                throw new Exception($"{chave} tem de aparecer na lista do GitProject.");
+
+            // No board do GitHub o campo e criado como numero — criar como texto seria irreversivel.
+            if (NXProject.Services.GitProjectOptions.FieldDataType(chave) != "NUMBER")
+                throw new Exception($"{chave} no board do GitHub tem de ser NUMBER.");
+        }
+
+        // O nome de fabrica continua sendo o que as instalacoes existentes ja usam: trocar isso
+        // faria o import deixar de achar o campo, em silencio.
+        if (NXProject.Services.NxDevOpsFieldCatalog.Find("remainingHours")!.DefaultName != "HH_Restante_float")
+            throw new Exception("O nome de fabrica do HH Restante nao pode mudar.");
+        if (!NXProject.Services.NxDevOpsFieldCatalog.Names("currentHours").Contains("HH Realizado"))
+            throw new Exception("Os apelidos antigos do HH Atual tem de continuar valendo.");
+
+        // E a opcao de usar o campo nativo na Task continua oferecida, para quem esta no Agile.
+        if (NXProject.Services.NxDevOpsFieldCatalog.Find("currentHours")!.OptionalStandardFor("Task")
+            != "Microsoft.VSTS.Scheduling.CompletedWork")
+            throw new Exception("Na Task do Agile o Completed Work nativo tem de seguir como opcao.");
+    }
+
     private static void FieldNamingDefaultsPerLanguage()
     {
         var pt = NXProject.Services.NxDevOpsFieldCatalog.NxFieldNaming.Portuguese;
@@ -2649,6 +2751,92 @@ internal static class Program
             if (TfsImportService.ImportShouldDescend("Epic", 0))
                 throw new Exception("Nome que saiu do mapa deixa de ser reconhecido.");
         });
+    }
+
+    /// <summary>
+    /// Defeito encontrado em uso: nao dava para arrastar um EPIC para dentro do EPIC_GROUP.
+    ///
+    /// A normalizacao do EPIC_TYPE so conhecia dois valores — o que nao fosse BACKLOG virava
+    /// DELIVERY — e engolia o grupo na entrada do cronograma. O arrasto entao recusava (o alvo
+    /// nao era mais um grupo) e o sync devolvia DELIVERY para o DevOps, apagando a classificacao
+    /// do item. Por isso o teste cobre os dois sentidos, e nao so a tela.
+    /// </summary>
+    private static void EpicGroupSurvivesNormalization()
+    {
+        var G = NXProject.Models.EpicTypes.Group;
+
+        foreach (var entrada in new[] { G, "epic_group", "  EPIC_GROUP  " })
+            if (NXProject.Services.TfsImportService.NormalizeEpicType(entrada) != G)
+                throw new Exception($"'{entrada}' tem de continuar sendo um EPIC_GROUP.");
+
+        // Os outros dois valores seguem como eram.
+        if (NXProject.Services.TfsImportService.NormalizeEpicType("BACKLOG")
+            != NXProject.Models.EpicTypes.Backlog)
+            throw new Exception("BACKLOG nao pode mudar.");
+        if (NXProject.Services.TfsImportService.NormalizeEpicType("qualquer coisa")
+            != NXProject.Models.EpicTypes.Delivery)
+            throw new Exception("O default continua sendo DELIVERY.");
+        if (NXProject.Services.TfsImportService.NormalizeEpicType("  ") != null)
+            throw new Exception("Campo vazio nao inventa classificacao.");
+    }
+
+    /// <summary>
+    /// Os dois gestos que o log do arrasto pegou em uso, com o cronograma real:
+    ///
+    ///   • soltar o EPIC sobre um EPIC QUE JA ESTA no grupo nao o colocava no grupo. O caminho
+    ///     normal subia do alvo ate achar um item da coleção da origem — e achava o proprio
+    ///     grupo, entao o gesto virava "reordenar ao lado do grupo", com mensagem de sucesso;
+    ///   • soltar um EPIC do grupo sobre um EPIC DA RAIZ era recusado como "pai invalido",
+    ///     porque item de topo nao tem Parent. Sem isso nao havia como tirar um EPIC do grupo.
+    ///
+    /// O cronograma aqui e o do caso real: EPICs no topo, sem Work Item Project acima.
+    /// </summary>
+    private static void DragDropEntersGroupBySiblingAndLeavesToRoot()
+    {
+        var grupo = new ProjectTask
+        {
+            Id = 900, Name = "Melhorias", TfsType = "Epic", EpicType = NXProject.Models.EpicTypes.Group,
+            Level = 0, IsSummary = true
+        };
+        var dentro = new ProjectTask
+        {
+            Id = 901, Name = "Melhorias Semana 14/09", TfsType = "Epic",
+            EpicType = NXProject.Models.EpicTypes.Delivery, Parent = grupo, Level = 1, IsSummary = true
+        };
+        var naRaiz = new ProjectTask
+        {
+            Id = 902, Name = "PLANOS - PRODUTIVIDADE", TfsType = "Epic",
+            EpicType = NXProject.Models.EpicTypes.Delivery, Level = 0, IsSummary = true
+        };
+        var solto = new ProjectTask
+        {
+            Id = 903, Name = "Melhorias Semana 12/10", TfsType = "Epic",
+            EpicType = NXProject.Models.EpicTypes.Delivery, Level = 0, IsSummary = true
+        };
+        grupo.Children.Add(dentro);
+
+        var project = new Project { Name = "EPIC_GROUP raiz", StartDate = new DateTime(2026, 10, 5) };
+        project.Tasks.Add(grupo);
+        project.Tasks.Add(naRaiz);
+        project.Tasks.Add(solto);
+
+        var vm = new MainViewModel("NXTestUnit") { Project = project };
+        vm.RebuildFlatTasks();
+
+        // 1) Soltar sobre o EPIC de dentro: entra no grupo, ao lado dele.
+        AssertDrop(vm, solto.Id, dentro.Id, "Soltar sobre EPIC do grupo tem de ENTRAR no grupo.");
+        AssertEqual(grupo.Id, solto.Parent?.Id ?? -1, "O pai novo tem de ser o grupo, nao a raiz.");
+        if (project.Tasks.Contains(solto))
+            throw new Exception("O EPIC nao pode continuar na raiz depois de entrar no grupo.");
+
+        // 2) Soltar um EPIC do grupo sobre um EPIC da raiz: sai do grupo.
+        vm.RebuildFlatTasks();
+        AssertDrop(vm, solto.Id, naRaiz.Id, "Soltar sobre EPIC da raiz tem de TIRAR do grupo.");
+        if (solto.Parent != null)
+            throw new Exception("Fora do grupo, o EPIC fica na raiz (sem pai).");
+        if (!project.Tasks.Contains(solto))
+            throw new Exception("O EPIC tem de voltar para a colecao da raiz.");
+        AssertEqual(0, solto.Level, "Na raiz o nivel volta para 0.");
     }
 
     private static void GitProjectColumnsComeFromProjectStatus()

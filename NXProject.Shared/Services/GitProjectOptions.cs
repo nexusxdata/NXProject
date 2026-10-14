@@ -57,16 +57,26 @@ namespace NXProject.Services
         //
         // Os nomes em portugues seguem ACEITOS como apelidos — quem ja montou o board copiando o
         // vocabulario do DevOps nao precisa renomear nada.
-        public string[] EffortFields { get; set; } = Aceitos("effort", "Original Estimate", "Estimate", "Esforco Original");
-        public string[] CurrentHoursFields { get; set; } = { "Completed Work", "Completed Hours", "HH Realizado", "Trabalho Concluido" };
+        public string[] EffortFields { get; set; } = Aceitos("effort", "Original Estimate", "Estimate", "Esforco Original", "nx_estimated_hours");
+        public string[] CurrentHoursFields { get; set; } = Aceitos("currentHours", "Completed Work", "Completed Hours", "HH Realizado", "Trabalho Concluido");
 
         /// <summary>Horas de bloqueio — conceito do NX, logo com prefixo.</summary>
+        /// <summary>
+        /// HH original e HH restante no board. No Azure DevOps eles sao opcionais porque a Task do
+        /// Agile/CMMI ja traz campos nativos; aqui nao ha nada nativo, entao sao campos do board
+        /// como os outros — e o botao de criar campos os cria.
+        /// </summary>
+        public string[] OriginalHoursFields { get; set; } = Aceitos("originalHours", "nx_original_hours");
+
+        /// <inheritdoc cref="OriginalHoursFields"/>
+        public string[] RemainingHoursFields { get; set; } = Aceitos("remainingHours", "nx_remaining_hours");
+
         public string[] BlockHoursFields { get; set; } = Aceitos("blockDuration", "nx_block_hours");
 
         /// <summary>Percentual de alocação do recurso — idem.</summary>
         public string[] AllocationFields { get; set; } = Aceitos("percAloc", "nx_allocation_percent");
-        public string[] StartDateFields { get; set; } = Aceitos("start", "Start Date", "Data de Inicio");
-        public string[] FinishDateFields { get; set; } = Aceitos("finish", "Finish Date", "Target Date", "Data Alvo");
+        public string[] StartDateFields { get; set; } = Aceitos("start", "Start Date", "Data de Inicio", "nx_start_date");
+        public string[] FinishDateFields { get; set; } = Aceitos("finish", "Finish Date", "Target Date", "Data Alvo", "nx_finish_date");
         // O que NAO espelha um campo padrao do DevOps nasce com o prefixo nx_: no board do
         // GitHub o campo e do projeto e fica a vista de todo mundo, e o prefixo diz de quem ele
         // e. Os nomes sem prefixo seguem aceitos, para nao quebrar board ja montado.
@@ -91,7 +101,7 @@ namespace NXProject.Services
         /// campo single-select do próprio board, que funciona em conta pessoal também. Vazio
         /// significa "usar o Issue Type", quando houver.
         /// </summary>
-        public string[] LevelFields { get; set; } = NxDevOpsFieldCatalog.Names("cardType");
+        public string[] LevelFields { get; set; } = Aceitos("cardType");
 
         // ── Concorrência ────────────────────────────────────────────────────────────────
         //
@@ -112,7 +122,7 @@ namespace NXProject.Services
         /// Campo que diz o TIPO do EPIC: entrega, backlog ou agrupador (`EPIC_GROUP`). É o mesmo
         /// conceito do EPIC_TYPE do DevOps — e é dele que sai a única exceção da hierarquia.
         /// </summary>
-        public string[] EpicTypeFields { get; set; } = Aceitos("epicType", "EPIC_TYPE");
+        public string[] EpicTypeFields { get; set; } = Aceitos("epicType", "EPIC_TYPE", "nx_epic_type");
 
         /// <summary>
         /// Repositório onde as issues NOVAS são criadas, no formato `dono/repo`.
@@ -204,7 +214,8 @@ namespace NXProject.Services
         /// </summary>
         public static string FieldDataType(string chave) => chave switch
         {
-            "effort" or "currentHours" or "percConclusao" or "percAloc" or "blockDuration" => "NUMBER",
+            "effort" or "currentHours" or "originalHours" or "remainingHours"
+                or "percConclusao" or "percAloc" or "blockDuration" => "NUMBER",
             "start" or "finish" => "DATE",
             "cardType" => "SINGLE_SELECT",
             _ => "TEXT"
@@ -323,6 +334,12 @@ namespace NXProject.Services
         public string Status { get; set; } = string.Empty;
         public double? Effort { get; set; }
         public double? CurrentHours { get; set; }
+
+        /// <summary>HH planejado originalmente e HH que ainda falta — os mesmos do Azure DevOps.</summary>
+        public double? OriginalHours { get; set; }
+
+        /// <inheritdoc cref="OriginalHours"/>
+        public double? RemainingHours { get; set; }
         public double? Percent { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? FinishDate { get; set; }

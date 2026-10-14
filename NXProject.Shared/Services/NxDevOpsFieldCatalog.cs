@@ -183,6 +183,50 @@ namespace NXProject.Services
             },
             new()
             {
+                // Os tres campos de horas da Story. Ficam no catalogo — e nao mais numa lista fixa
+                // dentro do import — porque o processo do DevOps decide se eles fazem falta: no
+                // Agile e no CMMI a Task tem Original Estimate/Completed Work de fabrica, mas no
+                // Scrum a Task de fabrica so tem Remaining Work. Quem usa outro processo precisa
+                // ver o campo na lista para apontar (ou criar) o seu. No GitHub nao existe campo
+                // nativo nenhum: la os tres sao campos do board, criados pela tela.
+                //
+                // Nenhum deles e obrigatorio: sem o HH Restante o NX usa o HH Estimado como
+                // restante, sem o HH Atual a Story fica sem horas realizadas, e sem o HH Original
+                // o planejado nao e preservado quando o item chega a 100%.
+                Key = "originalHours", DefaultName = "HH_Original_float", EnglishName = "nx_original_hours",
+                Type = "double", Optional = true,
+                Names = new[] { "HH_Original_float", "HH Original", "HH_Original", "nx_original_hours" },
+                Scope = new[] { "User Story", "Task" },
+                OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
+                { ["Task"] = "Microsoft.VSTS.Scheduling.OriginalEstimate" },
+                StandardOnByDefault = new[] { "Task" },
+                Purpose = "NXProject: horas planejadas originalmente (preserva o plano em item 100%)"
+            },
+            new()
+            {
+                Key = "remainingHours", DefaultName = "HH_Restante_float", EnglishName = "nx_remaining_hours",
+                Type = "double", Optional = true,
+                Names = new[] { "HH_Restante_float", "HH_Restante", "HH Restante", "HHRestante", "nx_remaining_hours" },
+                Scope = new[] { "User Story", "Task" },
+                OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
+                { ["Task"] = "Microsoft.VSTS.Scheduling.RemainingWork" },
+                StandardOnByDefault = new[] { "Task" },
+                Purpose = "NXProject: horas que ainda faltam (tem prioridade sobre o HH Estimado)"
+            },
+            new()
+            {
+                Key = "currentHours", DefaultName = "HH_Atual_float", EnglishName = "nx_completed_hours",
+                Type = "double", Optional = true,
+                Names = new[] { "HH_Atual_float", "HH_Atual", "HH Atual", "HHAtual",
+                                "HH Realizado", "HH_Realizado", "HHRealizado", "nx_completed_hours" },
+                Scope = new[] { "User Story", "Task" },
+                OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
+                { ["Task"] = "Microsoft.VSTS.Scheduling.CompletedWork" },
+                StandardOnByDefault = new[] { "Task" },
+                Purpose = "NXProject: horas ja realizadas (entra na duracao total e no percentual)"
+            },
+            new()
+            {
                 Key = "start", DefaultName = "Data_Inicio", Type = "dateTime",
                 Names = new[] { "Data_Inicio", "Data Inicio", "DataInicio" },
                 Scope = new[] { "User Story", "Task" },
@@ -352,6 +396,14 @@ namespace NXProject.Services
             {
                 // Nativo do processo quando o tipo tem um…
                 if (spec.OptionalStandardFor(workItemType) is { Length: > 0 } nativo) return nativo;
+                // …o nativo de OUTRO tipo, quando o campo tem um em algum lugar. E o caso dos tres
+                // campos de horas: no DevOps quem da nome a eles e o processo (Original Estimate,
+                // Remaining Work, Completed Work), e o mesmo nome vale na Story — inventar um
+                // nx_* ao lado so criaria um segundo nome para a mesma coisa dentro do DevOps.
+                // (No GitHub nao ha nativo nenhum, e la o nx_* continua valendo: quem responde
+                // isso e EnglishFieldName, que prefere o EnglishName.)
+                if (spec.OptionalStandardByType.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))
+                    is { Length: > 0 } nativoDeOutroTipo) return nativoDeOutroTipo;
                 // …senão o nome em inglês do campo próprio, quando existir.
                 if (!string.IsNullOrWhiteSpace(spec.EnglishName)) return spec.EnglishName;
             }
@@ -368,16 +420,21 @@ namespace NXProject.Services
         /// <summary>
         /// Nome do campo em INGLÊS para esta chave, sem olhar tipo de work item.
         ///
-        /// Serve ao GitProject, onde não existe campo nativo nenhum para se apoiar: o que no
-        /// DevOps resolveria pelo nativo (Start Date, Finish Date, Original Estimate) aqui é só
-        /// um nome, e é o nome que o GitHub mostra nos próprios boards. Deriva do REFERENCE NAME
-        /// do nativo em vez de repetir a lista — a terceira cópia da mesma regra foi exatamente
-        /// o que já virou defeito entre o NX e o Setup.
+        /// Serve ao GitProject, onde não existe campo nativo nenhum para se apoiar. E e por isso
+        /// que TODOS levam o prefixo nx_: no DevOps o nome "Start Date" e do processo, e usa-lo e
+        /// reaproveitar o campo que ja existe; no board do GitHub ele seria apenas um campo nosso
+        /// com nome de campo alheio, no meio dos campos que a equipe criou. O prefixo diz de quem
+        /// e o campo — e e o mesmo criterio dos que ja nasceram nx_ (nx_sync_version, nx_adm_group).
+        ///
+        /// Os nomes antigos continuam ACEITOS na leitura (as listas de apelido em
+        /// <see cref="GitProjectOptions"/>): board que ja usa "Original Estimate" segue funcionando.
         /// </summary>
         public static string EnglishFieldName(string key)
         {
             var spec = Find(key);
             if (spec == null) return "";
+            if (!string.IsNullOrWhiteSpace(spec.EnglishName)) return spec.EnglishName;
+            if (NomeInglesNoBoard.TryGetValue(key, out var noBoard)) return noBoard;
             if (!string.IsNullOrWhiteSpace(spec.EnglishName)) return spec.EnglishName;
             foreach (var wit in spec.Scope)
                 if (spec.OptionalStandardFor(wit) is { Length: > 0 } nativo)
@@ -385,7 +442,31 @@ namespace NXProject.Services
             return spec.DefaultName;
         }
 
+        /// <summary>
+        /// Nome no board do GitHub para os campos que, no DevOps, resolvem pelo nativo e por isso
+        /// nao tem EnglishName proprio. Lista curta e explicita de proposito: derivar "nx_" do
+        /// reference name daria nomes como nx_original_estimate, que prometem um campo do DevOps
+        /// que nao existe aqui.
+        /// </summary>
+        private static readonly Dictionary<string, string> NomeInglesNoBoard = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["effort"] = "nx_estimated_hours",
+            ["start"] = "nx_start_date",
+            ["finish"] = "nx_finish_date",
+            ["epicType"] = "nx_epic_type",
+            ["cardType"] = "nx_card_type",
+        };
+
         /// <summary>"OriginalEstimate" -> "Original Estimate": o nome como o GitHub o escreveria.</summary>
+        /// <summary>
+        /// "Microsoft.VSTS.Scheduling.OriginalEstimate" -> "Original Estimate": o nome do campo
+        /// nativo como o DevOps o mostra. A tela usa isto para escrever na caixa o nome do campo,
+        /// e nao a referencia.
+        /// </summary>
+        public static string FriendlyName(string? referenceName) =>
+            string.IsNullOrWhiteSpace(referenceName) ? ""
+                : Legivel(referenceName!.Trim().Split('.').Last());
+
         private static string Legivel(string pascal) =>
             System.Text.RegularExpressions.Regex.Replace(pascal, "(?<=[a-z0-9])(?=[A-Z])", " ");
     }
