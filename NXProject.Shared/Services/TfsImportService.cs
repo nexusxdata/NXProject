@@ -855,8 +855,11 @@ namespace NXProject.Services
             var storyById = new System.Collections.Generic.Dictionary<int, SprintStoryRow>();
             var storyParent = new System.Collections.Generic.Dictionary<int, int>(); // Story → Feature (pai)
             // Feature/EPIC/Project que estão na sprint: guardados à parte para virar LevelItems.
+            // EpicType entra aqui porque o EPIC que vem como CARD do board nao passa pelo fetch
+            // de ancestrais — e era exatamente por isso que o EPIC_GROUP sumia: o grupo estava na
+            // sprint, virava card, e chegava na resolucao de hierarquia sem o EPIC_TYPE.
             var levelRaw = new System.Collections.Generic.List<(int Id, string Title, string Kind, string State,
-                string Who, string Iter, string Tags, int? ParentId)>();
+                string Who, string Iter, string Tags, int? ParentId, string EpicType)>();
             var tasks = new System.Collections.Generic.List<SprintTaskCard>();
             var people = new System.Collections.Generic.SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
             var statesSeen = new System.Collections.Generic.HashSet<string>();
@@ -976,8 +979,18 @@ namespace NXProject.Services
                         {
                             int? lvParent = f.TryGetProperty("System.Parent", out var lpp) && lpp.ValueKind == JsonValueKind.Number
                                 ? lpp.GetInt32() : (int?)null;
+                            // O EPIC_TYPE e lido pelo SUFIXO do nome do campo: o DevOps devolve o
+                            // reference name ("Custom.EPIC_TYPE") e a configuracao guarda o nome
+                            // amigavel ("EPIC_TYPE").
+                            var lvEpicType = "";
+                            foreach (var prop in f.EnumerateObject())
+                                if (prop.Value.ValueKind == JsonValueKind.String
+                                    && NomeDeCampoCasa(prop.Name, string.IsNullOrWhiteSpace(options.EpicTypeFieldName)
+                                        ? "EPIC_TYPE" : options.EpicTypeFieldName.Trim()))
+                                { lvEpicType = prop.Value.GetString() ?? ""; break; }
+
                             levelRaw.Add((id, S("System.Title"), levelKind, state, who,
-                                S("System.IterationPath"), S("System.Tags"), lvParent));
+                                S("System.IterationPath"), S("System.Tags"), lvParent, lvEpicType));
                             continue;
                         }
 
@@ -1033,6 +1046,7 @@ namespace NXProject.Services
             var nodeTitle = new System.Collections.Generic.Dictionary<int, string>();
             var nodeParent = new System.Collections.Generic.Dictionary<int, int>();
             var nodeType = new System.Collections.Generic.Dictionary<int, string>();
+            var nodeEpicType = new System.Collections.Generic.Dictionary<int, string>();
             var nodeOwner = new System.Collections.Generic.Dictionary<int, string>();
             var nodeState = new System.Collections.Generic.Dictionary<int, string>();
             foreach (var fid in storyById.Keys) { featureTitle[fid] = storyById[fid].Title; featureOwner[fid] = storyById[fid].AssignedTo; } // pai já no board
@@ -1042,10 +1056,15 @@ namespace NXProject.Services
             foreach (var li in levelRaw)
             {
                 nodeTitle[li.Id] = li.Title; nodeType[li.Id] = li.Kind; nodeOwner[li.Id] = li.Who;
+                if (!string.IsNullOrWhiteSpace(li.EpicType)) nodeEpicType[li.Id] = li.EpicType;
                 nodeState[li.Id] = li.State; nodeIter[li.Id] = li.Iter;
                 if (li.ParentId is int lp && lp > 0) nodeParent[li.Id] = lp;
                 if (li.Kind == "Feature") { featureTitle[li.Id] = li.Title; featureOwner[li.Id] = li.Who; }
             }
+
+            // Nome do campo EPIC_TYPE nesta instalacao (o configurado, senao o do catalogo).
+            var nomeEpicType = string.IsNullOrWhiteSpace(options.EpicTypeFieldName)
+                ? "EPIC_TYPE" : options.EpicTypeFieldName.Trim();
 
             // Busca em lote id -> (título, pai, tipo, responsável) para os ids informados.
             async System.Threading.Tasks.Task FetchNodesAsync(System.Collections.Generic.List<int> ids, bool wantOwner)
@@ -1073,6 +1092,14 @@ namespace NXProject.Services
                             if (f.TryGetProperty("System.IterationPath", out var wip)) nodeIter[wid] = wip.GetString() ?? "";
                             nodeRank[wid] = ReadRank(f);
                             if (f.TryGetProperty("System.WorkItemType", out var wtp)) nodeType[wid] = wtp.GetString() ?? "";
+                            // EPIC_TYPE do ancestral: e ele que distingue um EPIC comum de um
+                            // EPIC_GROUP. Lido pelo SUFIXO do nome do campo porque aqui nao ha o
+                            // mapa de campos — o DevOps devolve "Custom.EPIC_TYPE", "EPIC_TYPE"
+                            // ou o nome que a organizacao tiver dado.
+                            foreach (var prop in f.EnumerateObject())
+                                if (prop.Value.ValueKind == JsonValueKind.String
+                                    && NomeDeCampoCasa(prop.Name, nomeEpicType))
+                                { nodeEpicType[wid] = prop.Value.GetString() ?? ""; break; }
                             // Pai: primeiro o campo System.Parent; senão, a relação Hierarchy-Reverse.
                             if (f.TryGetProperty("System.Parent", out var ppx) && ppx.ValueKind == JsonValueKind.Number)
                                 nodeParent[wid] = ppx.GetInt32();
@@ -1135,14 +1162,21 @@ namespace NXProject.Services
                     var title = nodeTitle.TryGetValue(par, out var nt) ? nt
                               : featureTitle.TryGetValue(par, out var ft2) ? ft2 : "";
                     var state = nodeState.TryGetValue(par, out var ns) ? ns : "";
-                    if (IsBoardFeatureType(t) && featId == 0)
+                    // EPIC_GROUP primeiro: ele e um EPIC, mas NAO ocupa a coluna do EPIC. Antes
+                    // isto era "o segundo EPIC que aparecer", suposicao que quebrava nos dois
+                    // sentidos — Story pendurada direto no grupo mostrava o grupo como se fosse o
+                    // EPIC dela, e o grupo sumia quando o caminho tinha um EPIC so.
+                    if (IsBoardEpicType(t) && EpicTypes.IsGroup(nodeEpicType.TryGetValue(par, out var etp) ? etp : null))
+                    {
+                        if (epicGroupId == 0) { epicGroup = title; epicGroupId = par; }
+                    }
+                    else if (IsBoardFeatureType(t) && featId == 0)
                     {
                         feat = title; featId = par; featState = state;
                         featOwner = nodeOwner.TryGetValue(par, out var ow) ? ow
                                   : featureOwner.TryGetValue(par, out var ow2) ? ow2 : "";
                     }
                     else if (IsBoardEpicType(t) && epicId == 0) { epic = title; epicId = par; epicState = state; }
-                    else if (IsBoardEpicType(t) && epicGroupId == 0) { epicGroup = title; epicGroupId = par; }
                     else if (IsBoardProjectType(t) && projId == 0) { proj = title; projId = par; projState = state; }
                     cur = par;
                 }
@@ -3987,6 +4021,26 @@ namespace NXProject.Services
         /// Constroi recursivamente um ramo da arvore:
         /// nivel 0 = Epic, 1 = Feature, 2 = Story. Tasks (e abaixo) sao ignoradas.
         /// </summary>
+        /// <summary>
+        /// O import deve montar um RAMO a partir deste work item?
+        ///
+        /// A regra é por TIPO, com o mapa de níveis decidindo — e não por profundidade fixa, que
+        /// é o que quebrava com o EPIC_GROUP (um EPIC que agrupa EPICs acrescenta um nível). Story
+        /// entra em qualquer profundidade (há backlog com Story pendurada direto no Epic), Task
+        /// nunca vira ramo, e tipo que o NXProject não modela fica de fora.
+        ///
+        /// O limite de profundidade continua existindo, alto: ele não desenha a hierarquia, só
+        /// protege de um ciclo de links no servidor.
+        /// </summary>
+        public static bool ImportShouldDescend(string? workItemType, int level)
+        {
+            if (level >= 12) return false;
+            if (IsStoryType(workItemType)) return true;
+            if (IsTaskType(workItemType)) return false;
+            var nivel = NxLevelMap.Current.LevelOf(workItemType);
+            return nivel is not null && nivel.Value < NxLevel.Story;
+        }
+
         private static ProjectTask? BuildBranch(BuildContext ctx, int id, int level)
         {
             if (!ctx.Items.TryGetValue(id, out var item))
@@ -3999,13 +4053,14 @@ namespace NXProject.Services
             if (IsStoryType(item.WorkItemType))
                 return BuildStory(ctx, item, Math.Max(level, 2));
 
-            // Nivel 2+ sem ser Story: nao descemos para Task nem tipos auxiliares.
-            if (level >= 2)
-            {
-                if (IsType(item, "Task"))
-                    return null;
+            // Quem vira RAMO do cronograma é decidido pelo TIPO, não pela profundidade.
+            //
+            // Antes isto era `if (level >= 2) return null`, assumindo que a árvore tinha no
+            // máximo Epic (0) → Feature (1) → Story (2). Com o EPIC_GROUP essa conta ficou curta
+            // em um nível: a Feature caía no 2 e era descartada em silêncio — o grupo aparecia no
+            // cronograma com os EPICs vazios, sem Feature nem Story.
+            if (!ImportShouldDescend(item.WorkItemType, level))
                 return null;
-            }
 
             // Bloqueio derivado: Task filha direta com tag Block (só visão).
             bool summaryBlocked = ctx.ChildrenByParent.TryGetValue(item.Id, out var directChildren) &&
@@ -5091,10 +5146,29 @@ namespace NXProject.Services
             string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase) ||
             IsStoryType(type);
 
+        // Filho direto do work item raiz que vira ramo do cronograma. Sai do MAPA DE NIVEIS, e
+        // nao de nomes literais: organizacao que batizou o tipo de "Epico" ou "Iniciativa" tinha
+        // os ramos descartados aqui, em silencio — o mesmo vicio que o EPIC_GROUP expos no
+        // BuildBranch.
+        /// <summary>
+        /// O campo devolvido pelo DevOps e o campo PROCURADO sao o mesmo?
+        ///
+        /// O DevOps devolve o reference name ("Custom.EPIC_TYPE"), e a configuracao guarda o nome
+        /// amigavel ("EPIC_TYPE"). Comparar pelo sufixo resolve os dois casos sem precisar do mapa
+        /// de campos, que nem sempre esta carregado onde a comparacao e feita.
+        /// </summary>
+        private static bool NomeDeCampoCasa(string? refName, string? procurado)
+        {
+            if (string.IsNullOrWhiteSpace(refName) || string.IsNullOrWhiteSpace(procurado)) return false;
+            var r = refName!.Trim();
+            var p = procurado!.Trim();
+            return string.Equals(r, p, StringComparison.OrdinalIgnoreCase)
+                || r.EndsWith("." + p, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool IsImportRootType(string? type) =>
-            string.Equals(type, "Epic", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase) ||
-            IsStoryType(type);
+            IsStoryType(type)
+            || NxLevelMap.Current.LevelOf(type) is NxLevel.Epic or NxLevel.Feature;
 
         public static bool IsStoryTypePublic(string? type) => IsStoryType(type);
 

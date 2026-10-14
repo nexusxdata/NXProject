@@ -59,6 +59,7 @@ internal static class Program
         ("EPIC_GROUP: agrupa EPICs e so entra sob o Work Item Project", EpicGroupIsTheOnlyEpicUnderEpic),
         ("EPIC_GROUP: sob o grupo so vem EPIC, e grupo nao aninha em grupo", EpicGroupRefusesFeatureAndNesting),
         ("EPIC_GROUP: arrasto move EPIC para dentro e para fora do grupo", DragDropMovesEpicIntoGroup),
+        ("Import TFS: ramo e decidido pelo TIPO, nao pela profundidade (EPIC_GROUP)", ImportDescendsByTypeNotDepth),
         ("Ordem: a ordem desejada e a da arvore do cronograma", OrderDesiredFollowsScheduleTree),
         ("Ordem: move so o que esta fora de lugar (e nao a fila inteira)", OrderMovesOnlyWhatIsOutOfPlace),
         ("Ordem: item do servidor fora do cronograma fica onde esta", OrderLeavesForeignItemsAlone),
@@ -538,6 +539,107 @@ internal static class Program
         catch (Exception ex) { Console.WriteLine("   [FALHA] " + ex.Message); }
     }
 
+    /// <summary>
+    /// Monta o board como a tela monta e imprime a hierarquia que ele resolveu para cada Story.
+    /// <paramref name="sprint"/> vazio = todas as sprints.
+    /// </summary>
+    /// <summary>Mostra os campos crus de um work item — serve para conferir o EPIC_TYPE.</summary>
+    private static async System.Threading.Tasks.Task<int> ProbeItem(string idTexto)
+    {
+        var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        if (!int.TryParse(idTexto, out var id) || string.IsNullOrWhiteSpace(cfg.PersonalAccessToken))
+        {
+            Console.WriteLine("uso: NXTestUnit item <id>   (com a conexao do DevOps configurada)");
+            return 0;
+        }
+
+        var org = (cfg.OrganizationUrl ?? "").TrimEnd('/');
+        using var http = new System.Net.Http.HttpClient();
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(":" + cfg.PersonalAccessToken)));
+        var url = $"{org}/_apis/wit/workitems/{id}?$expand=all&api-version=7.1";
+        var resp = await http.GetAsync(url);
+        var texto = await resp.Content.ReadAsStringAsync();
+        if (!resp.IsSuccessStatusCode) { Console.WriteLine($"HTTP {(int)resp.StatusCode}: {texto[..Math.Min(300, texto.Length)]}"); return 1; }
+
+        // MESMO endpoint que o board usa (workitemsbatch + $expand=all): e aqui que se descobre
+        // se o campo chega na leitura em lote ou so na leitura individual.
+        var corpoLote = $"{{\"ids\":[{id}],\"$expand\":\"all\"}}";
+        using (var reqLote = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post,
+                   $"{org}/_apis/wit/workitemsbatch?api-version=7.1")
+               { Content = new System.Net.Http.StringContent(corpoLote, System.Text.Encoding.UTF8, "application/json") })
+        {
+            var respLote = await http.SendAsync(reqLote);
+            var txtLote = await respLote.Content.ReadAsStringAsync();
+            Console.WriteLine($"[batch] HTTP {(int)respLote.StatusCode} | tem EPIC_TYPE: "
+                + txtLote.Contains("EPIC_TYPE", StringComparison.OrdinalIgnoreCase));
+        }
+
+        using var doc = System.Text.Json.JsonDocument.Parse(texto);
+        var f = doc.RootElement.GetProperty("fields");
+        Console.WriteLine($"#{id}");
+        foreach (var prop in f.EnumerateObject())
+        {
+            var nome = prop.Name;
+            if (nome.Contains("EPIC", StringComparison.OrdinalIgnoreCase)
+                || nome is "System.Title" or "System.WorkItemType" or "System.Parent"
+                || nome.Contains("Tipo", StringComparison.OrdinalIgnoreCase))
+                Console.WriteLine($"   {nome} = {prop.Value}");
+        }
+        return 0;
+    }
+
+    private static async System.Threading.Tasks.Task<int> ProbeBoard(string sprint, string filtro)
+    {
+        Console.WriteLine("NXTestUnit - sonda do TaskBoard (hierarquia resolvida por linha)");
+        Console.WriteLine();
+
+        var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        if (string.IsNullOrWhiteSpace(cfg.OrganizationUrl) || string.IsNullOrWhiteSpace(cfg.TeamProject)
+            || string.IsNullOrWhiteSpace(cfg.PersonalAccessToken))
+        {
+            Console.WriteLine("[SKIP] Conexao do Azure DevOps nao configurada nesta maquina.");
+            return 0;
+        }
+
+        var paths = string.IsNullOrWhiteSpace(sprint) ? new List<string>() : new List<string> { sprint };
+        var board = await NXProject.Services.TfsImportService.BuildSprintBoardAsync(cfg, paths);
+
+        Console.WriteLine($"{board.Stories.Count} linha(s) no board.");
+        Console.WriteLine();
+        Console.WriteLine("Story                         | Projeto         | Grupo           | EPIC            | Feature");
+        Console.WriteLine(new string('-', 110));
+
+        static string Col(string? t, int id, int largura)
+        {
+            var txt = string.IsNullOrWhiteSpace(t) ? "(vazio)" : t.Trim();
+            if (id > 0) txt = $"#{id} {txt}";
+            return txt.Length <= largura ? txt.PadRight(largura) : txt.Substring(0, largura - 1) + "…";
+        }
+
+        // Filtro opcional: "board <sprint> <texto>" mostra so as linhas cujo EPIC, grupo ou
+        // titulo contenham o texto — util quando o board tem centenas de linhas.
+        var linhas = board.Stories.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(filtro))
+            linhas = linhas.Where(x =>
+                (x.Title ?? "").Contains(filtro, StringComparison.CurrentCultureIgnoreCase)
+                || (x.FeatureEpicTitle ?? "").Contains(filtro, StringComparison.CurrentCultureIgnoreCase)
+                || (x.FeatureEpicGroupTitle ?? "").Contains(filtro, StringComparison.CurrentCultureIgnoreCase));
+
+        foreach (var st in linhas.Take(40))
+            Console.WriteLine(
+                $"{Col(st.Title, st.Id, 29)} | {Col(st.FeatureProjectTitle, st.FeatureProjectId, 15)} | "
+                + $"{Col(st.FeatureEpicGroupTitle, st.FeatureEpicGroupId, 15)} | "
+                + $"{Col(st.FeatureEpicTitle, st.FeatureEpicId, 15)} | {Col(st.FeatureTitle, st.FeatureId, 20)}");
+
+        var semFeature = board.Stories.Count(s => s.FeatureId <= 0);
+        var semEpic = board.Stories.Count(s => s.FeatureEpicId <= 0);
+        var comGrupo = board.Stories.Count(s => s.FeatureEpicGroupId > 0);
+        Console.WriteLine();
+        Console.WriteLine($"sem Feature: {semFeature} | sem EPIC: {semEpic} | com EPIC_GROUP: {comGrupo}");
+        return 0;
+    }
+
     private static int Main(string[] args)
     {
         var category = args.Length > 0 ? args[0] : "schedule";
@@ -564,6 +666,13 @@ internal static class Program
             // grava-lo na configuracao da maquina. O que e so para medir nao deve virar
             // credencial persistida.
             return ProbeGitProjectGaps(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
+        // Sonda do TaskBoard: mostra, linha a linha, que Projeto/EPIC/Grupo/Feature o board
+        // resolveu para cada Story. Serve para separar "a hierarquia nao tem Feature" de "o
+        // board nao achou a Feature" — duas causas que na tela parecem a mesma coisa.
+        if (string.Equals(category, "item", StringComparison.OrdinalIgnoreCase))
+            return ProbeItem(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
+        if (string.Equals(category, "board", StringComparison.OrdinalIgnoreCase))
+            return ProbeBoard(args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))
             return DiagnoseXml(args.Length > 1 ? args[1] : "");
         _solutionRoot = args.Length > 1 ? args[1] : Directory.GetCurrentDirectory();
@@ -2488,6 +2597,58 @@ internal static class Program
         var target = vm.FlatTasks.First(t => t.Id == targetId);
         if (vm.MoveTaskByDrop(source, target, insertAfter: true) != esperado) throw new Exception(msg);
         vm.RebuildFlatTasks();
+    }
+
+    /// <summary>
+    /// Defeito encontrado em uso: com um EPIC_GROUP no topo, os EPICs apareciam no cronograma
+    /// VAZIOS — sem Feature e sem Story.
+    ///
+    /// A causa era uma conta de profundidade: o import so montava ramo ate o nivel 2, assumindo
+    /// Epic(0) → Feature(1) → Story(2). O grupo acrescenta um nivel, a Feature caiu no 2 e foi
+    /// descartada em silencio. Agora quem decide e o TIPO.
+    /// </summary>
+    private static void ImportDescendsByTypeNotDepth()
+    {
+        // Com EPIC_GROUP: grupo(0) → Epic(1) → Feature(2) → Story(3).
+        if (!TfsImportService.ImportShouldDescend("Feature", 2))
+            throw new Exception("Feature no nivel 2 e o caso do EPIC_GROUP: tem de virar ramo.");
+        if (!TfsImportService.ImportShouldDescend("User Story", 3))
+            throw new Exception("Story abaixo da Feature do grupo tem de entrar.");
+        if (!TfsImportService.ImportShouldDescend("Epic", 1))
+            throw new Exception("EPIC dentro do grupo e ramo.");
+
+        // Sem o grupo, a hierarquia de sempre continua valendo.
+        if (!TfsImportService.ImportShouldDescend("Epic", 0)
+            || !TfsImportService.ImportShouldDescend("Feature", 1)
+            || !TfsImportService.ImportShouldDescend("User Story", 2))
+            throw new Exception("A hierarquia tradicional nao pode ter mudado.");
+
+        // Story entra em qualquer profundidade: ha backlog com Story direto no Epic.
+        if (!TfsImportService.ImportShouldDescend("User Story", 1))
+            throw new Exception("Story pendurada direto no Epic tem de entrar.");
+
+        // Task nunca vira ramo (ela entra por outro caminho, como folha).
+        if (TfsImportService.ImportShouldDescend("Task", 2))
+            throw new Exception("Task nao e ramo do cronograma.");
+
+        // Tipo que o NXProject nao modela fica de fora, em qualquer nivel.
+        if (TfsImportService.ImportShouldDescend("Impediment", 1))
+            throw new Exception("Tipo fora do mapa de niveis nao vira ramo.");
+
+        // O limite alto continua protegendo de ciclo de links no servidor.
+        if (TfsImportService.ImportShouldDescend("Feature", 99))
+            throw new Exception("Profundidade absurda tem de parar — protecao contra ciclo.");
+
+        // O tipo tambem sai do MAPA: processo que chama o Epic de outra coisa continua valendo.
+        var mapa = new NXProject.Services.NxLevelMap();
+        mapa.Names[NXProject.Services.NxLevel.Epic] = new List<string> { "Iniciativa" };
+        ComMapa(mapa, () =>
+        {
+            if (!TfsImportService.ImportShouldDescend("Iniciativa", 0))
+                throw new Exception("Tipo configurado como Epic tem de virar ramo.");
+            if (TfsImportService.ImportShouldDescend("Epic", 0))
+                throw new Exception("Nome que saiu do mapa deixa de ser reconhecido.");
+        });
     }
 
     private static void GitProjectColumnsComeFromProjectStatus()

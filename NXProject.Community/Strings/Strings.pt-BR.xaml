@@ -1382,6 +1382,9 @@
     <sys:String x:Key="Fld_ColOptions">Opções</sys:String>
     <sys:String x:Key="Fld_UseStdOnType">na {0} usar "{1}"</sys:String>
     <sys:String x:Key="Fld_WhereBoard">campo do board</sys:String>
+    <sys:String x:Key="Fld_ValuesPrefix">valores: {0}</sys:String>
+    <sys:String x:Key="Fld_ValuesTip">Estes são os valores que o NXProject reconhece neste campo. No Azure DevOps, crie-o como lista (picklist) com exatamente esses itens; no GitProject, como single-select com essas opções.</sys:String>
+    <sys:String x:Key="Fld_ValuesBoolean">verdadeiro / falso</sys:String>
     <sys:String x:Key="Fld_GitClassTitle">Classificação no board (preenchida ao criar o item)</sys:String>
     <sys:String x:Key="Fld_GitTags">Tags (labels da issue)</sys:String>
     <sys:String x:Key="Fld_GitTagsHint">No GitHub a tag é a label da issue. Dois limites que vêm de lá: a label é do REPOSITÓRIO, não do board — um projeto que junta issues de vários repositórios precisa da mesma label em cada um; e aplicar uma label que não existe não a cria.</sys:String>

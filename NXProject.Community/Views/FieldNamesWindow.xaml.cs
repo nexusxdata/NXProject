@@ -794,6 +794,9 @@ namespace NXProject.Views
                     row.UseStandard[wit] = usar;
                     opcoes.Children.Add(usar);
                 }
+                // Campo de lista fechada (EPIC_TYPE, por exemplo) não tem caixa de "usar o campo
+                // padrão": a coluna fica livre para dizer QUE VALORES ele aceita.
+                if (RotuloValores(spec) is { } valores) opcoes.Children.Add(valores);
                 Grid.SetColumn(opcoes, 2); grid.Children.Add(opcoes);
 
                 _devRows.Add(row);
@@ -1049,9 +1052,12 @@ namespace NXProject.Views
 
                 // Onde o campo vive: tipos de work item no DevOps; no GitHub é sempre o board,
                 // porque lá campo é do projeto, não do item — e isso muda o que se pode esperar.
+                var valoresGit = ValoresAceitos(spec);
                 var onde = new TextBlock
                 {
-                    Text = AppStrings.Get("Fld_WhereBoard"),
+                    Text = valoresGit.Length == 0
+                        ? AppStrings.Get("Fld_WhereBoard")
+                        : AppStrings.Get("Fld_WhereBoard") + " · " + AppStrings.Get("Fld_ValuesPrefix", valoresGit),
                     FontSize = 10.5, Foreground = System.Windows.Media.Brushes.Gray,
                     VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
                 };
@@ -1066,6 +1072,38 @@ namespace NXProject.Views
             // O padrão PT/EN só decide entre campo nativo e campo próprio do NXProject, e isso é
             // conversa de DevOps: no GitHub não existe campo nativo nenhum.
             StatusText.Text = AppStrings.Get("Fld_HintGit");
+        }
+
+        /// <summary>
+        /// Os VALORES que o campo aceita, quando ele tem uma lista fechada.
+        ///
+        /// Saber o nome do campo não basta: quem cria o EPIC_TYPE no servidor precisa saber que
+        /// ali vai DELIVERY, BACKLOG ou EPIC_GROUP — e esses valores só existiam no código e na
+        /// documentação. A lista sai das mesmas constantes que o import e o sync comparam, para
+        /// a tela não virar uma quarta cópia que envelhece sozinha.
+        /// </summary>
+        private static string ValoresAceitos(NxFieldSpec spec) => spec.Key switch
+        {
+            "epicType" => string.Join(" · ", NXProject.Models.EpicTypes.Delivery,
+                                             NXProject.Models.EpicTypes.Backlog,
+                                             NXProject.Models.EpicTypes.Group),
+            "cardType" => string.Join(" · ", GitProjectOptions.DefaultOptions("cardType")),
+            "approved" => AppStrings.Get("Fld_ValuesBoolean"),
+            _ => ""
+        };
+
+        /// <summary>Rótulo cinza com os valores aceitos, ou null quando o campo é livre.</summary>
+        private static TextBlock? RotuloValores(NxFieldSpec spec)
+        {
+            var valores = ValoresAceitos(spec);
+            if (valores.Length == 0) return null;
+            return new TextBlock
+            {
+                Text = AppStrings.Get("Fld_ValuesPrefix", valores),
+                FontSize = 10.5, Foreground = System.Windows.Media.Brushes.Gray,
+                VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap,
+                ToolTip = AppStrings.Get("Fld_ValuesTip")
+            };
         }
 
         /// <summary>Nome do conceito para a pessoa — não a chave interna.</summary>

@@ -3650,10 +3650,10 @@ namespace NXProject.Views
                 var epicElements = new List<UIElement>();
                 var projLeaves = new List<CheckBox>();
 
-                foreach (var eg in pg
-                             .GroupBy(s => s.FeatureEpicId)
-                             .OrderBy(g => g.Key == 0 ? 1 : 0)
-                             .ThenBy(g => g.Min(FilterOrderOf)))
+                // Monta o ramo de UM EPIC: Feature → Stories. Virou funcao porque o EPIC agora
+                // pode estar dentro de um EPIC_GROUP, e o mesmo ramo e usado nos dois lugares.
+                (UIElement No, List<CheckBox> Folhas) RamoDoEpic(
+                    IGrouping<int, TfsImportService.SprintStoryRow> eg)
                 {
                     var featElements = new List<UIElement>();
                     var epicLeaves = new List<CheckBox>();
@@ -3685,9 +3685,42 @@ namespace NXProject.Views
                         ? AppStrings.Get("Sprint_FilterNoEpic")
                         : (eg.Select(s => s.FeatureEpicTitle).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))
                            ?? AppStrings.Get("Sprint_FilterNoEpic"));
-                    epicElements.Add(BuildFilterBranch("🏔 " + LevelLabel(eg.Key, epicTitle), eg.Key,
-                        featElements, epicLeaves));
-                    projLeaves.AddRange(epicLeaves);
+                    return (BuildFilterBranch("🏔 " + LevelLabel(eg.Key, epicTitle), eg.Key,
+                                              featElements, epicLeaves), epicLeaves);
+                }
+
+                // Primeiro nivel dentro do projeto: o EPIC_GROUP, quando houver. Ele AGRUPA EPICs —
+                // era isso que faltava: o grupo aparecia como se fosse um EPIC, com um "(sem
+                // Feature)" embaixo, em vez de conter os EPICs das semanas.
+                foreach (var gg in pg
+                             .GroupBy(s => s.FeatureEpicGroupId)
+                             .OrderBy(g => g.Key == 0 ? 0 : 1)        // sem grupo primeiro
+                             .ThenBy(g => g.Min(FilterOrderOf)))
+                {
+                    var epicsDoNivel = gg
+                        .GroupBy(s => s.FeatureEpicId)
+                        .OrderBy(g => g.Key == 0 ? 1 : 0)
+                        .ThenBy(g => g.Min(FilterOrderOf))
+                        .Select(RamoDoEpic)
+                        .ToList();
+
+                    if (gg.Key == 0)
+                    {
+                        // Sem grupo: os EPICs penduram direto no projeto, como sempre foi.
+                        foreach (var (no, folhas) in epicsDoNivel)
+                        {
+                            epicElements.Add(no);
+                            projLeaves.AddRange(folhas);
+                        }
+                        continue;
+                    }
+
+                    var grupoTitle = gg.Select(s => s.FeatureEpicGroupTitle)
+                                       .FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? $"#{gg.Key}";
+                    var folhasDoGrupo = epicsDoNivel.SelectMany(x => x.Folhas).ToList();
+                    epicElements.Add(BuildFilterBranch("🧩 " + LevelLabel(gg.Key, grupoTitle), gg.Key,
+                        epicsDoNivel.Select(x => x.No).ToList(), folhasDoGrupo));
+                    projLeaves.AddRange(folhasDoGrupo);
                 }
 
                 StoryFilterList.Children.Add(BuildFilterBranch("🗂 " + LevelLabel(projId, projTitle), projId,
@@ -4572,9 +4605,13 @@ namespace NXProject.Views
                     var entryStory = entry.Solo ?? (entry.Tasks is { } eg
                         ? HeadRowFor(eg.Select(EffTaskParent).FirstOrDefault(i2 => i2 > 0)) : null);
                     var entryProjId = entryStory?.FeatureProjectId ?? 0;
+                    var entryGroupId = entryStory?.FeatureEpicGroupId ?? 0;
                     var entryEpicId = entryStory?.FeatureEpicId ?? 0;
                     var entryFeatId = entryStory?.FeatureId ?? 0;
+                    // O grupo entra entre o Project e o EPIC: recolhido, ele esconde os EPICs
+                    // dele — e por isso vem antes do EPIC nesta cadeia.
                     var stopAt = IsCollapsed(entryProjId) ? entryProjId
+                               : IsCollapsed(entryGroupId) ? entryGroupId
                                : IsCollapsed(entryEpicId) ? entryEpicId
                                : IsCollapsed(entryFeatId) ? entryFeatId : 0;
                     if (stopAt > 0)
@@ -4586,7 +4623,10 @@ namespace NXProject.Views
                         if (showProj && entryProjId > 0)
                             AddCell(crow, cProj, BuildLabelCard("🗂", entry.Proj, strong: false, id: entryProjId,
                                 extra: BuildCollapseButton(entryProjId)));
-                        if (showEpic && stopAt != entryProjId && entryEpicId > 0)
+                        if (showEpic && stopAt == entryGroupId && entryGroupId > 0)
+                            AddCell(crow, cEpic, BuildLabelCard("🧩", entryStory?.FeatureEpicGroupTitle ?? "", strong: false,
+                                id: entryGroupId, extra: BuildCollapseButton(entryGroupId)));
+                        else if (showEpic && stopAt != entryProjId && entryEpicId > 0)
                             AddCell(crow, cEpic, BuildLabelCard("🏔", entry.Epic, strong: true, id: entryEpicId,
                                 extra: BuildCollapseButton(entryEpicId)));
                         if (showFeat && stopAt == entryFeatId && entryFeatId > 0)
@@ -4794,6 +4834,7 @@ namespace NXProject.Views
                         if (!showProj && multiProject && !string.IsNullOrWhiteSpace(featProj))
                             epicSp.Children.Add(BuildLabelCard("🗂", featProj, strong: false, id: headRow?.FeatureProjectId ?? 0,
                                 state: headRow?.FeatureProjectState ?? ""));
+                        if (BuildEpicGroupCard(headRow) is { } grpCard) epicSp.Children.Add(grpCard);
                         if (!string.IsNullOrWhiteSpace(featEpic))
                             epicSp.Children.Add(BuildLabelCard("🏔", featEpic, strong: true, id: headRow?.FeatureEpicId ?? 0,
                                 extra: BuildCollapseButton(headRow?.FeatureEpicId ?? 0),
@@ -5169,6 +5210,20 @@ namespace NXProject.Views
         /// Feature e Story). Recolhido, sobra so a linha do proprio item — e a forma de focar
         /// no que interessa sem mexer em filtro nenhum.
         /// </summary>
+        /// <summary>
+        /// Card do EPIC_GROUP: uma linha ACIMA do card do EPIC, na mesma coluna. Ele agrupa EPICs,
+        /// entao ganha o mesmo recolher que Project/EPIC/Feature tem — recolhido, o board mostra
+        /// so a linha do grupo. Devolve null quando a linha nao esta em grupo ou o usuario
+        /// desligou o "Grupo" no cabecalho da coluna.
+        /// </summary>
+        private UIElement? BuildEpicGroupCard(TfsImportService.SprintStoryRow? row)
+        {
+            if (row == null || !(_prefs.ShowEpicGroup ?? true)) return null;
+            if (string.IsNullOrWhiteSpace(row.FeatureEpicGroupTitle)) return null;
+            return BuildLabelCard("🧩", row.FeatureEpicGroupTitle, strong: false,
+                id: row.FeatureEpicGroupId, extra: BuildCollapseButton(row.FeatureEpicGroupId));
+        }
+
         private UIElement? BuildCollapseButton(int epicId, bool compact = false)
         {
             if (epicId <= 0) return null;
@@ -5300,9 +5355,7 @@ namespace NXProject.Views
                 // EPIC_GROUP: o agrupador de EPICs vem ACIMA do nome do EPIC, na mesma coluna.
                 // Não ganha coluna própria de propósito — ele é contexto, não um nível a mais
                 // para a pessoa percorrer, e a tela do board já tem colunas demais.
-                if ((_prefs.ShowEpicGroup ?? true) && !string.IsNullOrWhiteSpace(st.FeatureEpicGroupTitle))
-                    epicSp2.Children.Add(BuildLabelCard("🧩", st.FeatureEpicGroupTitle, strong: false,
-                        id: st.FeatureEpicGroupId));
+                if (BuildEpicGroupCard(st) is { } grpCard2) epicSp2.Children.Add(grpCard2);
                 if (!string.IsNullOrWhiteSpace(st.FeatureEpicTitle))
                     epicSp2.Children.Add(BuildLabelCard("🏔", st.FeatureEpicTitle, strong: true,
                         id: st.FeatureEpicId, extra: BuildCollapseButton(st.FeatureEpicId),
@@ -5546,6 +5599,7 @@ namespace NXProject.Views
             var lastProj = (string?)null;
             var lastEpic = (string?)null;
             var lastShownProjCollapsed = (string?)null;   // Project recolhido ja anunciado
+            var lastShownGroupCollapsed = (string?)null;  // EPIC_GROUP recolhido ja anunciado
             // Cards novos de EPIC/Feature ja renderizados (saem junto do bloco do pai).
             var newShown = new HashSet<int>();
             var rowNo = 0;
@@ -5600,6 +5654,7 @@ namespace NXProject.Views
                                     BuildCollapseButton(featRow?.FeatureProjectId ?? 0),
                                     BuildAddChildButton(featRow?.FeatureProjectId ?? 0, projTitle, "Epic")),
                                 state: featRow?.FeatureProjectState ?? ""));
+                        if (BuildEpicGroupCard(featRow) is { } grpCard3) epicSp.Children.Add(grpCard3);
                         epicSp.Children.Add(BuildLabelCard("🏔", epicTitle, strong: true, id: featRow?.FeatureEpicId ?? 0,
                             extra: JoinButtons(
                                 BuildCollapseButton(featRow?.FeatureEpicId ?? 0),
@@ -5615,6 +5670,7 @@ namespace NXProject.Views
                 // para expandir) e tudo abaixo sai. Project recolhe EPIC/Feature/Story; EPIC
                 // recolhe Feature/Story; Feature recolhe so as Storys.
                 var projIdRow = featRow?.FeatureProjectId ?? 0;
+                var groupIdRow = featRow?.FeatureEpicGroupId ?? 0;
                 var epicIdRow = featRow?.FeatureEpicId ?? 0;
                 var storyCount = groupStories.Count(s2 => !s2.IsLevelPlaceholder);
                 if (IsCollapsed(projIdRow))
@@ -5627,6 +5683,24 @@ namespace NXProject.Views
                         BoardHost.Children.Add(row);
                         BoardHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xD5, 0xDD, 0xD7)), Margin = new Thickness(0, 2, 0, 4) });
                         lastShownProjCollapsed = projTitle;
+                    }
+                    else rowNo--;
+                    continue;
+                }
+                // Grupo recolhido: uma linha por grupo, com o card dele (e o botao de expandir);
+                // os EPICs de dentro saem. Mesma logica do Project recolhido.
+                if (IsCollapsed(groupIdRow))
+                {
+                    var grupoTit = featRow?.FeatureEpicGroupTitle ?? "";
+                    if (grupoTit != lastShownGroupCollapsed)
+                    {
+                        if (showEpicCol)
+                            AddCell(row, cEpic, BuildLabelCard("🧩", grupoTit, strong: false, id: groupIdRow,
+                                extra: BuildCollapseButton(groupIdRow)));
+                        AddCell(row, cFeat, BuildCollapsedHint(0));
+                        BoardHost.Children.Add(row);
+                        BoardHost.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(0xD5, 0xDD, 0xD7)), Margin = new Thickness(0, 2, 0, 4) });
+                        lastShownGroupCollapsed = grupoTit;
                     }
                     else rowNo--;
                     continue;
