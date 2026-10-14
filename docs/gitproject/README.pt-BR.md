@@ -81,3 +81,9 @@ acesso ao código. O token fica cifrado pelo Windows (DPAPI), nunca em texto pla
 Os nomes dos campos do board, com o padrão PT/EN, as tags e a classificação. O botão **Criar os
 campos no board do GitHub** cria o que falta já com o tipo certo — e, no GitHub, isso não exige ser
 administrador da organização.
+
+A classificação nasce copiando a do Azure DevOps: o picklist `Custom.Type` vira um single-select do
+board com os mesmos valores de fábrica — `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request` — e o **valor
+padrão**, logo abaixo da lista, é o que o NXProject grava ao criar o item sem classificação. Os dois
+são editáveis, e o botão **Restaurar padrão** devolve a lista de fábrica sem tocar nos campos que
+você acrescentou.

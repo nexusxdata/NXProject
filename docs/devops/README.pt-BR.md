@@ -110,7 +110,8 @@ Cada um liga um recurso. Sem o campo, o NXProject funciona — só aquele recurs
 |---|---|---|---|---|---|
 | `Perc_Alocacao` | `Custom.PercAlocacao` *(exemplo)* | Decimal/Float (1–100, até 2 casas) | `Perc_Alocacao` | Story, Task | % do dia da pessoa dedicado a esta Story |
 | `Perc_Conclusao` | `Custom.PercConclusao` *(exemplo)* | Inteiro (0–100) | `Perc_Conclusao` | Story | % de conclusão. **Sem o campo**, o percentual vem do estado do work item |
-| `EPIC_TYPE` | `Custom.EPIC_TYPE` *(exemplo)* | Texto (lista: `DELIVERY` / `BACKLOG`) | `EPIC_TYPE` | Epic | Classifica o Epic: **Delivery** (soma horas no total do projeto) ou **Backlog** (não soma). Habilitado por padrão. |
+| `EPIC_TYPE` | `Custom.EPIC_TYPE` *(exemplo)* | Texto (lista: `DELIVERY` / `BACKLOG` / `EPIC_GROUP`) | `EPIC_TYPE` | Epic | Classifica o Epic: **Delivery** (soma horas no total do projeto), **Backlog** (não soma) ou **EPIC_GROUP** (um Epic que agrupa Epics). Habilitado por padrão. |
+| `Type` *(classificação)* | `Custom.Type` *(exemplo)* | Picklist | `Custom.Type` | Feature | Classificação da Feature, exibida no cronograma e no TaskBoard. Valores de fábrica: `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request`. O campo e a lista são configuráveis em **Configurar Campos e Tags**, e a mesma lista semeia o single-select do board no GitProject. |
 | `Tipo_Centro_Custo` | `Custom.Tipo_Centro_Custo` *(exemplo)* | Texto (`OPEX` / `CAPEX`) | `Tipo_Centro_Custo` | Epic | Tipo do centro de custo — usado no **Portfólio de Projetos** (OPEX/CAPEX) |
 | `block_duration_hours` | `Custom.block_duration_hours` *(exemplo)* | Decimal | `block_duration_hours` | Task | Horas acumuladas em BLOCK, calculadas do histórico. **Desligado por padrão** |
 | `Approved` | `Custom.Approved` *(exemplo)* | Booleano | `Approved` | Task | Aprovação da Task. Habilitado por padrão |

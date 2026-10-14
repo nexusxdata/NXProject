@@ -1160,6 +1160,7 @@ namespace NXProject.Views
         private void OnDefaultsClick(object sender, RoutedEventArgs e)
         {
             AplicaPadraoGit();
+            RestauraClassificacaoPadrao();
             StatusText.Text = AppStrings.Get("Fld_DefaultsDone");
         }
 
@@ -1178,7 +1179,58 @@ namespace NXProject.Views
         private void OnDevDefaultsClick(object sender, RoutedEventArgs e)
         {
             OnNamingChanged(sender, null!);
+            RestauraClassificacaoPadrao();
             StatusText.Text = AppStrings.Get("Fld_DefaultsDone");
+        }
+
+        /// <summary>
+        /// Devolve a classificacao de fabrica (Custom.Type e seus valores) nas duas abas.
+        ///
+        /// So mexe na LINHA do campo padrao: campo que a empresa acrescentou fica como esta —
+        /// "restaurar padrao" nao pode ser um jeito disfarcado de apagar configuracao. Quando a
+        /// linha nao existe mais, ela volta; quando existe, so a lista de valores e reposta, que
+        /// e o caso de quem instalou antes de um valor novo entrar no padrao.
+        /// </summary>
+        private void RestauraClassificacaoPadrao()
+        {
+            var iDev = IndiceDe(_classificationMappings.Select(m => m.FieldRef));
+            var padraoDev = new TfsDevOpsConfigWindow.ClassificationMapping
+            {
+                DevOpsType = iDev >= 0 ? _classificationMappings[iDev].DevOpsType : "Feature",
+                FieldRef = NxDevOpsFieldCatalog.DefaultClassificationField,
+                FieldType = "Picklist",
+                Values = NxDevOpsFieldCatalog.DefaultClassificationValues,
+                DefaultValue = iDev >= 0 ? _classificationMappings[iDev].DefaultValue : string.Empty
+            };
+            // Troca o item inteiro: as classes de linha nao notificam mudanca de propriedade, e
+            // so a colecao avisa a grade.
+            if (iDev >= 0) _classificationMappings[iDev] = padraoDev;
+            else _classificationMappings.Add(padraoDev);
+
+            var iGit = IndiceDe(_gitClass.Select(c => c.Field));
+            var curto = NxDevOpsFieldCatalog.DefaultClassificationField;
+            curto = curto[(curto.LastIndexOf('.') + 1)..];
+            var padraoGit = new GitProjectClassification
+            {
+                Level = iGit >= 0 ? _gitClass[iGit].Level : "Feature",
+                Field = curto,
+                FieldType = "Single select",
+                Values = NxDevOpsFieldCatalog.DefaultClassificationValues,
+                DefaultValue = iGit >= 0 ? _gitClass[iGit].DefaultValue : string.Empty
+            };
+            if (iGit >= 0) _gitClass[iGit] = padraoGit;
+            else _gitClass.Add(padraoGit);
+
+            static int IndiceDe(System.Collections.Generic.IEnumerable<string> campos)
+            {
+                var i = 0;
+                foreach (var c in campos)
+                {
+                    if (NxDevOpsFieldCatalog.IsDefaultClassificationField(c)) return i;
+                    i++;
+                }
+                return -1;
+            }
         }
 
         /// <summary>

@@ -110,7 +110,8 @@ Each one enables a feature. Without the field NXProject still works — only tha
 |---|---|---|---|---|---|
 | `Perc_Alocacao` | `Custom.PercAlocacao` *(example)* | Decimal/Float (1–100, up to 2 decimals) | `Perc_Alocacao` | Story, Task | % of person's day dedicated to this Story |
 | `Perc_Conclusao` | `Custom.PercConclusao` *(example)* | Integer (0–100) | `Perc_Conclusao` | Story | % completion. **Without the field**, the percentage comes from the work item state |
-| `EPIC_TYPE` | `Custom.EPIC_TYPE` *(example)* | Text (list: `DELIVERY` / `BACKLOG`) | `EPIC_TYPE` | Epic | Classifies the Epic: **Delivery** (adds hours to the project total) or **Backlog** (does not). Enabled by default. |
+| `EPIC_TYPE` | `Custom.EPIC_TYPE` *(example)* | Text (list: `DELIVERY` / `BACKLOG` / `EPIC_GROUP`) | `EPIC_TYPE` | Epic | Classifies the Epic: **Delivery** (adds hours to the project total), **Backlog** (does not) or **EPIC_GROUP** (an Epic that groups Epics). Enabled by default. |
+| `Type` *(classification)* | `Custom.Type` *(example)* | Picklist | `Custom.Type` | Feature | Feature classification, shown on the schedule and the TaskBoard. Factory values: `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request`. Both the field and the list are configurable in **Configure Fields and Tags**, and the same list seeds the single-select board field on GitProject. |
 | `Tipo_Centro_Custo` | `Custom.Tipo_Centro_Custo` *(example)* | Text (`OPEX` / `CAPEX`) | `Tipo_Centro_Custo` | Epic | Cost-center type — used by the **Projects Portfolio** (OPEX/CAPEX) |
 | `block_duration_hours` | `Custom.block_duration_hours` *(example)* | Decimal | `block_duration_hours` | Task | Hours accumulated in BLOCK, computed from history. **Off by default** |
 | `Approved` | `Custom.Approved` *(example)* | Boolean | `Approved` | Task | Task approval. Enabled by default |

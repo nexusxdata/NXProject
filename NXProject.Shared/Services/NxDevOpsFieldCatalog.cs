@@ -34,6 +34,32 @@ namespace NXProject.Services
         /// </summary>
         public const string SuggestedPrefix = "nx_";
 
+        /// <summary>
+        /// Campo de classificacao de fabrica e seus valores. Fica aqui, com os demais padroes,
+        /// porque a mesma lista e usada em tres lugares — a semente da aba DevOps, a semente do
+        /// board do GitProject e o "restaurar padrao" — e escrita em cada um deles ela divergia:
+        /// o valor novo entrava na semente e nao voltava pelo botao.
+        /// </summary>
+        public const string DefaultClassificationField = "Custom.Type";
+
+        /// <inheritdoc cref="DefaultClassificationField"/>
+        public const string DefaultClassificationValues =
+            "Architecture,Burocracy,Docs,Feature,Hotfix,Refactor,Request";
+
+        /// <summary>
+        /// E este o campo de classificacao de fabrica? Compara pelo SUFIXO: no DevOps ele e citado
+        /// pelo reference name ("Custom.Type") e no board do GitHub pelo nome da tela ("Type").
+        /// </summary>
+        public static bool IsDefaultClassificationField(string? nome)
+        {
+            if (string.IsNullOrWhiteSpace(nome)) return false;
+            var n = nome!.Trim();
+            var curto = DefaultClassificationField[(DefaultClassificationField.LastIndexOf('.') + 1)..];
+            return string.Equals(n, DefaultClassificationField, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(n, curto, StringComparison.OrdinalIgnoreCase)
+                || n.EndsWith("." + curto, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>Um campo do NXProject no DevOps.</summary>
         public sealed class NxFieldSpec
         {

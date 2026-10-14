@@ -80,8 +80,9 @@ namespace NXProject.Views
             if (_classificationMappings.Count == 0)
                 _classificationMappings.Add(new ClassificationMapping
                 {
-                    DevOpsType = "Feature", FieldRef = "Custom.Type", FieldType = "Picklist",
-                    Values = "Architecture,Burocracy,Docs,Feature,Hotfix,Refactor",
+                    DevOpsType = "Feature", FieldType = "Picklist",
+                    FieldRef = NxDevOpsFieldCatalog.DefaultClassificationField,
+                    Values = NxDevOpsFieldCatalog.DefaultClassificationValues,
                 });
 
             if (!string.IsNullOrEmpty(saved.PersonalAccessToken))

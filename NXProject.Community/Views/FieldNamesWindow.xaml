@@ -261,15 +261,12 @@
                                         <ColumnDefinition Width="90"/>
                                         <ColumnDefinition Width="6"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="6"/>
-                                        <ColumnDefinition Width="130"/>
                                         <ColumnDefinition Width="28"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="{DynamicResource Cfg_ColDevOpsType}"   FontSize="10" Foreground="#666"/>
                                     <TextBlock Grid.Column="2" Text="{DynamicResource Cfg_ColFieldRef}"  FontSize="10" Foreground="#666"/>
                                     <TextBlock Grid.Column="4" Text="{DynamicResource Cfg_ColFieldType}" FontSize="10" Foreground="#666"/>
                                     <TextBlock Grid.Column="6" Text="{DynamicResource Cfg_ColValues}"  FontSize="10" Foreground="#666"/>
-                                    <TextBlock Grid.Column="8" Text="{DynamicResource Fld_GitDefault}" FontSize="10" Foreground="#666"/>
                                 </Grid>
                                 <ItemsControl x:Name="ClassificationMappingsList">
                                     <ItemsControl.ItemTemplate>
@@ -283,10 +280,16 @@
                                                     <ColumnDefinition Width="90"/>
                                                     <ColumnDefinition Width="6"/>
                                                     <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="6"/>
-                                                    <ColumnDefinition Width="130"/>
                                                     <ColumnDefinition Width="26"/>
                                                 </Grid.ColumnDefinitions>
+                                                <!-- O valor padrao fica ABAIXO da lista de valores, e nao
+                                                     numa coluna espremida no fim da linha: ele e um DOS
+                                                     valores, e lado a lado a tela deixava de mostra-lo
+                                                     quando a janela estreitava. -->
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
                                                 <ComboBox Grid.Column="0" Height="26" Padding="4,2" FontSize="11"
                                                           SelectedItem="{Binding DevOpsType, UpdateSourceTrigger=PropertyChanged}"
                                                           ItemsSource="{Binding AvailableTypes}"/>
@@ -300,10 +303,14 @@
                                                 <TextBox Grid.Column="6" Height="26" Padding="6,3" FontSize="11"
                                                          Text="{Binding Values, UpdateSourceTrigger=PropertyChanged}"
                                                          ToolTip="{DynamicResource Cfg_ValuesTip}"/>
-                                                <TextBox Grid.Column="8" Height="26" Padding="6,3" FontSize="11" Margin="0,0,6,0"
-                                                         Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="{DynamicResource Fld_DevDefaultTip}"/>
-                                                <Button Grid.Column="9" Content="✕" Width="26" Height="26" Padding="0" FontSize="11"
+                                                <StackPanel Grid.Row="1" Grid.Column="6" Orientation="Horizontal" Margin="0,3,0,0">
+                                                    <TextBlock Text="{DynamicResource Fld_GitDefault}" FontSize="10"
+                                                               Foreground="#888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBox Width="170" Height="24" Padding="6,3" FontSize="11"
+                                                             Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="{DynamicResource Fld_DevDefaultTip}"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="7" VerticalAlignment="Top" Content="✕" Width="26" Height="26" Padding="0" FontSize="11"
                                                         Tag="{Binding}" Click="OnRemoveClassificationMapping"/>
                                             </Grid>
                                         </DataTemplate>
@@ -401,14 +408,12 @@
                                     <ColumnDefinition Width="150"/>
                                     <ColumnDefinition Width="110"/>
                                     <ColumnDefinition Width="*" MinWidth="150"/>
-                                    <ColumnDefinition Width="130"/>
                                     <ColumnDefinition Width="34"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="{DynamicResource Fld_GitClassLevel}" FontSize="10" Foreground="#666"/>
                                 <TextBlock Grid.Column="1" Text="{DynamicResource Fld_GitClassField}" FontSize="10" Foreground="#666"/>
                                 <TextBlock Grid.Column="2" Text="{DynamicResource Cfg_ColFieldType}" FontSize="10" Foreground="#666"/>
                                 <TextBlock Grid.Column="3" Text="{DynamicResource Cfg_ColValues}" FontSize="10" Foreground="#666"/>
-                                <TextBlock Grid.Column="4" Text="{DynamicResource Fld_GitDefault}" FontSize="10" Foreground="#666"/>
                             </Grid>
                             <ItemsControl x:Name="GitClassList">
                                 <ItemsControl.ItemTemplate>
@@ -419,9 +424,12 @@
                                                 <ColumnDefinition Width="150"/>
                                                 <ColumnDefinition Width="110"/>
                                                 <ColumnDefinition Width="*" MinWidth="150"/>
-                                                <ColumnDefinition Width="130"/>
                                                 <ColumnDefinition Width="34"/>
                                             </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
                                             <ComboBox Grid.Column="0" Height="24" FontSize="11" Margin="0,0,4,0"
                                                       ItemsSource="{Binding AvailableLevels}"
                                                       SelectedItem="{Binding Level, Mode=TwoWay}"/>
@@ -433,10 +441,14 @@
                                             <TextBox Grid.Column="3" Height="24" FontSize="11" Margin="0,0,4,0"
                                                      Text="{Binding Values, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                      ToolTip="{DynamicResource Fld_GitValuesTip}"/>
-                                            <TextBox Grid.Column="4" Height="24" FontSize="11" Margin="0,0,4,0"
-                                                     Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="{DynamicResource Fld_GitDefaultTip}"/>
-                                            <Button Grid.Column="5" Content="✕" Width="26" Height="24" FontSize="10"
+                                            <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Margin="0,3,0,0">
+                                                <TextBlock Text="{DynamicResource Fld_GitDefault}" FontSize="10"
+                                                           Foreground="#888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Width="170" Height="24" FontSize="11"
+                                                         Text="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="{DynamicResource Fld_GitDefaultTip}"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="4" VerticalAlignment="Top" Content="✕" Width="26" Height="24" FontSize="10"
                                                     Click="OnRemoveGitClass" Tag="{Binding}"/>
                                         </Grid>
                                     </DataTemplate>

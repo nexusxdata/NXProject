@@ -102,6 +102,7 @@
                             <ComboBoxItem>Feature</ComboBoxItem>
                             <ComboBoxItem>Hotfix</ComboBoxItem>
                             <ComboBoxItem>Refactor</ComboBoxItem>
+                            <ComboBoxItem>Request</ComboBoxItem>
                         </ComboBox>
                     </StackPanel>
                 </Border>

@@ -82,3 +82,9 @@ granting code access. The token is encrypted by Windows (DPAPI), never stored in
 The board field names, with the PT/EN standard, the tags and the classification. The **Create the
 fields on the GitHub board** button creates what is missing with the correct type — and on GitHub
 that does not require organization-admin rights.
+
+Classification starts as a copy of the Azure DevOps one: the `Custom.Type` picklist becomes a board
+single-select with the same factory values — `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request` — and the
+**default value**, right below the list, is what NXProject writes when an item is created without a
+classification. Both are editable, and **Restore defaults** brings the factory list back without
+touching the fields you added.
