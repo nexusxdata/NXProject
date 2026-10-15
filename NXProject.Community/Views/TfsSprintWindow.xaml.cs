@@ -3736,38 +3736,54 @@ namespace NXProject.Views
                                               featElements, epicLeaves), epicLeaves);
                 }
 
-                // Primeiro nivel dentro do projeto: o EPIC_GROUP, quando houver. Ele AGRUPA EPICs —
-                // era isso que faltava: o grupo aparecia como se fosse um EPIC, com um "(sem
-                // Feature)" embaixo, em vez de conter os EPICs das semanas.
-                foreach (var gg in pg
-                             .GroupBy(s => s.FeatureEpicGroupId)
-                             .OrderBy(g => g.Key == 0 ? 0 : 1)        // sem grupo primeiro
-                             .ThenBy(g => FilterOrderOfLevel(g.Key, g.Min(x => x.FeatureEpicRank))))
+                // Primeiro nivel dentro do projeto: EPIC solto e EPIC_GROUP convivem na MESMA
+                // fila, cada um com a posicao dele. Separar "sem grupo primeiro" jogava o grupo
+                // para o fim da lista mesmo quando no cronograma ele vinha antes — e o filtro
+                // so serve se espelhar a ordem que a pessoa esta vendo.
+                var ramosDoProjeto = new List<((int Fora, double Valor) Chave, UIElement No, List<CheckBox> Folhas)>();
+
+                foreach (var gg in pg.GroupBy(s => s.FeatureEpicGroupId))
                 {
                     var epicsDoNivel = gg
                         .GroupBy(s => s.FeatureEpicId)
                         .OrderBy(g => g.Key == 0 ? 1 : 0)
                         .ThenBy(g => FilterOrderOfLevel(g.Key, g.Min(x => x.FeatureEpicRank)))
-                        .Select(RamoDoEpic)
+                        .Select(g => (Chave: FilterOrderOfLevel(g.Key, g.Min(x => x.FeatureEpicRank)),
+                                      Ramo: RamoDoEpic(g)))
                         .ToList();
 
                     if (gg.Key == 0)
                     {
-                        // Sem grupo: os EPICs penduram direto no projeto, como sempre foi.
-                        foreach (var (no, folhas) in epicsDoNivel)
-                        {
-                            epicElements.Add(no);
-                            projLeaves.AddRange(folhas);
-                        }
+                        // Sem grupo: cada EPIC entra na fila com a chave dele.
+                        foreach (var (chave, ramo) in epicsDoNivel)
+                            ramosDoProjeto.Add((chave, ramo.No, ramo.Folhas));
                         continue;
                     }
 
                     var grupoTitle = gg.Select(s => s.FeatureEpicGroupTitle)
                                        .FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? $"#{gg.Key}";
-                    var folhasDoGrupo = epicsDoNivel.SelectMany(x => x.Folhas).ToList();
-                    epicElements.Add(BuildFilterBranch("🧩 " + LevelLabel(gg.Key, grupoTitle), gg.Key,
-                        epicsDoNivel.Select(x => x.No).ToList(), folhasDoGrupo));
-                    projLeaves.AddRange(folhasDoGrupo);
+                    var folhasDoGrupo = epicsDoNivel.SelectMany(x => x.Ramo.Folhas).ToList();
+                    // Chave do grupo: a posicao DELE — no cronograma aberto, ou o rank dele no
+                    // backlog. So quando o grupo nao tem nenhum dos dois (nao esta no cronograma
+                    // e veio sem rank) e que o menor dos EPICs de dentro serve de ancora, para
+                    // ele nao ser jogado para o fim da lista.
+                    var rankDoGrupo = gg.Select(x => x.FeatureEpicGroupRank)
+                                        .FirstOrDefault(x => !double.IsNaN(x), double.NaN);
+                    var chaveGrupo = FilterOrderOfLevel(gg.Key, rankDoGrupo);
+                    if (double.IsNaN(rankDoGrupo) && !_scheduleRank.ContainsKey(gg.Key)
+                        && epicsDoNivel.Count > 0)
+                        chaveGrupo = epicsDoNivel.OrderBy(x => x.Chave).First().Chave;
+
+                    ramosDoProjeto.Add((chaveGrupo,
+                        BuildFilterBranch("🧩 " + LevelLabel(gg.Key, grupoTitle), gg.Key,
+                            epicsDoNivel.Select(x => x.Ramo.No).ToList(), folhasDoGrupo),
+                        folhasDoGrupo));
+                }
+
+                foreach (var (_, no, folhas) in ramosDoProjeto.OrderBy(x => x.Chave))
+                {
+                    epicElements.Add(no);
+                    projLeaves.AddRange(folhas);
                 }
 
                 StoryFilterList.Children.Add(BuildFilterBranch("🗂 " + LevelLabel(projId, projTitle), projId,
@@ -3852,10 +3868,17 @@ namespace NXProject.Views
             }
         }
 
-        /// <summary>Chave de ordenação do filtro: posição no cronograma aberto quando o item está
-        /// lá; senão o rank do backlog do TFS. Assim a lista segue a ordem que o usuário conhece.</summary>
-        private double FilterOrderOf(TfsImportService.SprintStoryRow s) =>
-            _scheduleRank.TryGetValue(s.Id, out var pos) ? pos : double.MaxValue / 2 + s.StackRank;
+        /// <summary>
+        /// Chave de ordenação do filtro: posição no cronograma aberto quando o item está lá;
+        /// senão o rank do backlog do TFS. Assim a lista segue a ordem que o usuário conhece.
+        ///
+        /// São DOIS campos, e não uma soma: somar o rank a um número gigante (para jogar quem não
+        /// está no cronograma para o fim) perdia o rank inteiro na precisão do double — todas as
+        /// chaves viravam o mesmo valor e a lista ficava na ordem em que viesse.
+        /// </summary>
+        private (int Fora, double Valor) FilterOrderOf(TfsImportService.SprintStoryRow s) =>
+            _scheduleRank.TryGetValue(s.Id, out var pos) ? (0, pos)
+            : (1, double.IsNaN(s.StackRank) ? double.MaxValue : s.StackRank);
 
         /// <summary>
         /// A mesma chave, mas de um NIVEL (Feature, EPIC, EPIC_GROUP) — pelo id e pelo rank DELE.
@@ -3864,9 +3887,11 @@ namespace NXProject.Views
         /// batia com o cronograma: bastava um EPIC ter uma Story antiga para ele subir ao topo da
         /// arvore, enquanto no cronograma ele estava la embaixo. Quem ordena um EPIC e o EPIC.
         /// </summary>
-        private double FilterOrderOfLevel(int id, double rank) =>
-            _scheduleRank.TryGetValue(id, out var pos) ? pos
-            : double.MaxValue / 2 + (double.IsNaN(rank) ? 0 : rank);
+        private (int Fora, double Valor) FilterOrderOfLevel(int id, double rank) =>
+            _scheduleRank.TryGetValue(id, out var pos) ? (0, pos)
+            // Sem rank nenhum vai para o FIM do bloco, nao para o comeco: item sem posicao
+            // conhecida atrapalha menos no fim do que embaralhado no meio.
+            : (1, double.IsNaN(rank) ? double.MaxValue : rank);
 
         private void AddFilterRoot(string label, List<TfsImportService.SprintStoryRow> stories)
         {

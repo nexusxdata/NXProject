@@ -766,6 +766,51 @@ internal static class Program
         return 0;
     }
 
+    private static async System.Threading.Tasks.Task<int> ProbeArvore(string sprint)
+    {
+        Console.WriteLine("NXTestUnit - sonda da arvore do filtro (ordem dos EPICs e do EPIC_GROUP)");
+        Console.WriteLine();
+
+        var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        if (string.IsNullOrWhiteSpace(cfg.OrganizationUrl) || string.IsNullOrWhiteSpace(cfg.PersonalAccessToken))
+        { Console.WriteLine("[SKIP] Conexao do Azure DevOps nao configurada."); return 0; }
+
+        var paths = string.IsNullOrWhiteSpace(sprint) ? new List<string>() : new List<string> { sprint };
+        var board = await NXProject.Services.TfsImportService.BuildSprintBoardAsync(cfg, paths);
+
+        // Mesma chave da tela, SEM cronograma aberto: o rank do proprio nivel.
+        static (int Fora, double Valor) Chave(double rank) => (1, double.IsNaN(rank) ? double.MaxValue : rank);
+
+        foreach (var proj in board.Stories.GroupBy(s => s.FeatureProjectId).OrderBy(g => g.Key))
+        {
+            var titulo = proj.Select(s => s.FeatureProjectTitle).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
+            Console.WriteLine($"Projeto #{proj.Key} \"{titulo}\"");
+
+            var ramos = new List<((int Fora, double Valor) Chave, string Texto)>();
+            foreach (var g in proj.GroupBy(s => s.FeatureEpicGroupId))
+            {
+                if (g.Key == 0)
+                {
+                    foreach (var e in g.GroupBy(s => s.FeatureEpicId))
+                    {
+                        var rank = e.Min(x => x.FeatureEpicRank);
+                        var nome = e.Select(x => x.FeatureEpicTitle).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))
+                                   ?? "(sem EPIC)";
+                        ramos.Add((Chave(rank), $"   EPIC    #{e.Key,-9} rank={(double.IsNaN(rank) ? "(sem)" : rank.ToString("0")),-12} {nome}"));
+                    }
+                    continue;
+                }
+                var rankG = g.Select(x => x.FeatureEpicGroupRank).FirstOrDefault(x => !double.IsNaN(x), double.NaN);
+                var nomeG = g.Select(x => x.FeatureEpicGroupTitle).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
+                ramos.Add((Chave(rankG), $"   GRUPO   #{g.Key,-9} rank={(double.IsNaN(rankG) ? "(sem)" : rankG.ToString("0")),-12} {nomeG}"
+                                        + $"  [{g.Select(x => x.FeatureEpicId).Distinct().Count()} EPIC(s) dentro]"));
+            }
+            foreach (var r in ramos.OrderBy(x => x.Chave)) Console.WriteLine(r.Texto);
+            Console.WriteLine();
+        }
+        return 0;
+    }
+
     private static int Main(string[] args)
     {
         var category = args.Length > 0 ? args[0] : "schedule";
@@ -806,6 +851,10 @@ internal static class Program
         // quanto. Responde "o DevOps nao gravou o arrasto" ou "alguem gravou por cima depois".
         if (string.Equals(category, "ordem", StringComparison.OrdinalIgnoreCase))
             return ProbeOrdem(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
+        // Sonda da arvore do filtro: imprime a chave de ordenacao de cada EPIC e do EPIC_GROUP,
+        // do jeito que a tela calcula — sem cronograma aberto, so com os ranks do servidor.
+        if (string.Equals(category, "arvore", StringComparison.OrdinalIgnoreCase))
+            return ProbeArvore(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "board", StringComparison.OrdinalIgnoreCase))
             return ProbeBoard(args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))

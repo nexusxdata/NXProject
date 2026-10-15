@@ -688,6 +688,13 @@ namespace NXProject.Services
             /// pela hierarquia, e nao so pelo nome.</summary>
             public double FeatureRank { get; set; } = double.NaN;
             public double FeatureEpicRank { get; set; } = double.NaN;
+
+            /// <summary>
+            /// Rank do EPIC_GROUP no backlog. Existe pelo mesmo motivo dos outros: sem ele a
+            /// arvore do filtro nao tinha como ordenar o grupo por ele mesmo e acabava usando o
+            /// rank de algum EPIC de dentro — o grupo saia do lugar que ocupa no cronograma.
+            /// </summary>
+            public double FeatureEpicGroupRank { get; set; } = double.NaN;
             public double FeatureProjectRank { get; set; } = double.NaN;
             /// <summary>Título do EPIC pai da Feature — exibido no card da Feature.</summary>
             public string FeatureEpicTitle { get; set; } = "";
@@ -896,7 +903,7 @@ namespace NXProject.Services
             // de ancestrais — e era exatamente por isso que o EPIC_GROUP sumia: o grupo estava na
             // sprint, virava card, e chegava na resolucao de hierarquia sem o EPIC_TYPE.
             var levelRaw = new System.Collections.Generic.List<(int Id, string Title, string Kind, string State,
-                string Who, string Iter, string Tags, int? ParentId, string EpicType)>();
+                string Who, string Iter, string Tags, int? ParentId, string EpicType, double Rank)>();
             var tasks = new System.Collections.Generic.List<SprintTaskCard>();
             var people = new System.Collections.Generic.SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
             var statesSeen = new System.Collections.Generic.HashSet<string>();
@@ -1029,7 +1036,7 @@ namespace NXProject.Services
                                 { lvEpicType = prop.Value.GetString() ?? ""; break; }
 
                             levelRaw.Add((id, S("System.Title"), levelKind, state, who,
-                                S("System.IterationPath"), S("System.Tags"), lvParent, lvEpicType));
+                                S("System.IterationPath"), S("System.Tags"), lvParent, lvEpicType, ReadRank(f)));
                             continue;
                         }
 
@@ -1096,6 +1103,10 @@ namespace NXProject.Services
             {
                 nodeTitle[li.Id] = li.Title; nodeType[li.Id] = li.Kind; nodeOwner[li.Id] = li.Who;
                 if (!string.IsNullOrWhiteSpace(li.EpicType)) nodeEpicType[li.Id] = li.EpicType;
+                // O RANK tambem: sem ele, EPIC que esta na sprint (e por isso chega como card, e
+                // nao pelo fetch de ancestrais) ficava sem posicao, e a arvore do filtro o punha
+                // onde desse — foi assim que o EPIC_GROUP e o EPIC da semana sairam do lugar.
+                if (!double.IsNaN(li.Rank)) nodeRank[li.Id] = li.Rank;
                 nodeState[li.Id] = li.State; nodeIter[li.Id] = li.Iter;
                 if (li.ParentId is int lp && lp > 0) nodeParent[li.Id] = lp;
                 if (li.Kind == "Feature") { featureTitle[li.Id] = li.Title; featureOwner[li.Id] = li.Who; }
@@ -1179,7 +1190,8 @@ namespace NXProject.Services
 
             var grupos = nodeEpicType
                 .Where(kv => EpicTypes.IsGroup(kv.Value))
-                .Select(kv => $"#{kv.Key} \"{(nodeTitle.TryGetValue(kv.Key, out var gt) ? gt : "?")}\"")
+                .Select(kv => $"#{kv.Key} \"{(nodeTitle.TryGetValue(kv.Key, out var gt) ? gt : "?")}\" "
+                            + $"rank={(nodeRank.TryGetValue(kv.Key, out var gr) && !double.IsNaN(gr) ? gr.ToString("0") : "(sem)")}")
                 .ToList();
             BoardLog.Write($"    ancestrais: {nodeTitle.Count} no(s) | com EPIC_TYPE: {nodeEpicType.Count}"
                 + $" | EPIC_GROUP: {(grupos.Count == 0 ? "nenhum" : string.Join(", ", grupos))}");
@@ -1243,6 +1255,7 @@ namespace NXProject.Services
                     st.FeatureOutOfSprint = featI > 0 && !InSprintScope(st.FeatureIterationPath);
                     st.FeatureRank = nodeRank.TryGetValue(featI, out var frk) ? frk : double.NaN;
                     st.FeatureEpicRank = nodeRank.TryGetValue(epicI, out var erk) ? erk : double.NaN;
+                    st.FeatureEpicGroupRank = nodeRank.TryGetValue(grpI, out var grk) ? grk : double.NaN;
                     st.FeatureProjectRank = nodeRank.TryGetValue(projI, out var prk) ? prk : double.NaN;
                 }
 
@@ -1281,6 +1294,7 @@ namespace NXProject.Services
                 promoted.FeatureEpicGroupTitle = pGrpT; promoted.FeatureEpicGroupId = pGrpI;
                 promoted.FeatureRank = nodeRank.TryGetValue(pFeatI, out var pfr) ? pfr : double.NaN;
                 promoted.FeatureEpicRank = nodeRank.TryGetValue(pEpicI, out var per) ? per : double.NaN;
+                promoted.FeatureEpicGroupRank = nodeRank.TryGetValue(pGrpI, out var pgr) ? pgr : double.NaN;
                 promoted.FeatureProjectRank = nodeRank.TryGetValue(pProjI, out var ppr) ? ppr : double.NaN;
                 promoted.FeatureIterationPath = nodeIter.TryGetValue(pFeatI, out var pfi) ? pfi : "";
                 promoted.FeatureOutOfSprint = pFeatI > 0 && !InSprintScope(promoted.FeatureIterationPath);
@@ -1308,12 +1322,22 @@ namespace NXProject.Services
                     row.FeatureState = nodeState.TryGetValue(pid, out var pst) ? pst : "";
                     row.FeatureRank = nodeRank.TryGetValue(pid, out var prk2) ? prk2 : double.NaN;
                 }
-                var (_, _, _, _, oEpic, oEpicId, oEpicS, oProj, oProjId, oProjS, _, _) = ResolveAncestry(pid);
+                var (_, _, _, _, oEpic, oEpicId, oEpicS, oProj, oProjId, oProjS, oGrp, oGrpId) = ResolveAncestry(pid);
                 row.FeatureEpicId = oEpicId; row.FeatureEpicTitle = oEpic; row.FeatureEpicState = oEpicS;
+                row.FeatureEpicGroupId = oGrpId; row.FeatureEpicGroupTitle = oGrp;
                 row.FeatureProjectId = oProjId; row.FeatureProjectTitle = oProj; row.FeatureProjectState = oProjS;
                 row.FeatureEpicRank = nodeRank.TryGetValue(oEpicId, out var oerk) ? oerk : double.NaN;
                 row.FeatureProjectRank = nodeRank.TryGetValue(oProjId, out var oprk) ? oprk : double.NaN;
             }
+
+            // O RANK do EPIC_GROUP em toda linha agrupada. Fica aqui, depois de montadas todas
+            // elas, porque ha tres caminhos que criam linha (Story normal, Story promovida de
+            // outra sprint e linha "(sem Story)") — preencher em cada um ja deixou passar um,
+            // e a arvore do filtro mandava o grupo para o fim por falta justamente desse numero.
+            foreach (var linha in stories)
+                if (linha.FeatureEpicGroupId > 0 && double.IsNaN(linha.FeatureEpicGroupRank)
+                    && nodeRank.TryGetValue(linha.FeatureEpicGroupId, out var rankGrupo))
+                    linha.FeatureEpicGroupRank = rankGrupo;
 
             // 3c) Itens de nível (Feature/EPIC/Project na sprint) com EPIC/Project acima deles.
             var levelItems = new System.Collections.Generic.List<SprintLevelItem>();
