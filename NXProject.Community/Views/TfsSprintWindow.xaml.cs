@@ -686,6 +686,7 @@ namespace NXProject.Views
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeStory")); // 2
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeLevels")); // 3 = Feature/EPIC/Project
             SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopePerson")); // 4 = responsavel
+            SearchScopeCombo.Items.Add(AppStrings.Get("Sprint_ScopeEpicGroup")); // 5 = EPIC_GROUP
             SearchScopeCombo.SelectedIndex = 0;
             // Destino com que a tela NASCE: o do projeto, cadastrado no Portfólio. A escolha é do
             // projeto, não da tela — abrir sempre no Azure DevOps obrigava quem trabalha no
@@ -760,6 +761,9 @@ namespace NXProject.Views
             }
             catch (Exception ex)
             {
+                // A falha vai para o diario do board: "parou de carregar" precisa deixar rastro,
+                // senao so sobra a caixa de mensagem que o usuario ja fechou.
+                TfsImportService.BoardLog.Write($"!!! carga FALHOU: {ex.GetType().Name}: {ex.Message}");
                 StatusText.Text = "";
                 MessageBox.Show(this, AppStrings.Get("Sprint_Error", ex.Message),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1181,6 +1185,9 @@ namespace NXProject.Views
             }
             catch (Exception ex)
             {
+                // A falha vai para o diario do board: "parou de carregar" precisa deixar rastro,
+                // senao so sobra a caixa de mensagem que o usuario ja fechou.
+                TfsImportService.BoardLog.Write($"!!! carga FALHOU: {ex.GetType().Name}: {ex.Message}");
                 StatusText.Text = "";
                 MessageBox.Show(this, AppStrings.Get("Sprint_Error", ex.Message),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1522,9 +1529,16 @@ namespace NXProject.Views
 
         private bool _renderAgain;
 
-        private async void RenderBusy()
+        /// <param name="manterRolagem">
+        /// Repoe a posicao da barra de rolagem depois do redesenho. Serve ao recolher/expandir:
+        /// o board e remontado do zero, a lista volta ao topo e quem clicou perde de vista
+        /// justamente o item em que clicou — pior ainda no EPIC_GROUP, que costuma estar no meio
+        /// de uma lista longa.
+        /// </param>
+        private async void RenderBusy(bool manterRolagem = false)
         {
             if (_board == null) return;
+            var rolagem = manterRolagem && BoardScroll != null ? BoardScroll.VerticalOffset : 0.0;
             // Pedido novo com um redesenho em curso: nao se perde — roda de novo ao terminar,
             // senao o board ficaria mostrando o filtro anterior.
             if (_renderBusy) { _renderAgain = true; return; }
@@ -1554,6 +1568,11 @@ namespace NXProject.Views
                 // Rede de seguranca: se o Render nao repos a contagem, nao deixa a mensagem presa.
                 if (StatusText.Text == filtering) StatusText.Text = "";
                 _renderBusy = false;
+                // Depois do layout (prioridade Loaded): antes disso a altura nova ainda nao
+                // existe e o ScrollViewer corta o valor para o conteudo antigo.
+                if (manterRolagem && rolagem > 0 && BoardScroll != null)
+                    await Dispatcher.InvokeAsync(() => BoardScroll.ScrollToVerticalOffset(rolagem),
+                        System.Windows.Threading.DispatcherPriority.Loaded);
             }
         }
 
@@ -3139,6 +3158,10 @@ namespace NXProject.Views
             if (!TaskStoryFilterOk(t)) return false;
             // Busca ao vivo com escopo (Ambos / Task / Story).
             var q = SearchQuery();
+            // EPIC_GROUP com busca vazia e filtro de tipo: so o que esta agrupado.
+            if (string.IsNullOrEmpty(q) && SearchScope() == 5
+                && !EpicGroupMatches(_storyById.TryGetValue(EffTaskParent(t), out var stGrp) ? stGrp : null, q))
+                return false;
             if (!string.IsNullOrEmpty(q))
             {
                 var scope = SearchScope();
@@ -3153,6 +3176,7 @@ namespace NXProject.Views
                 bool match = scope switch
                 {
                     1 => taskMatch, 2 => storyMatch, 3 => levelMatch, 4 => personMatch,
+                    5 => EpicGroupMatches(storyRow, q),
                     _ => taskMatch || storyMatch || levelMatch
                 };
                 if (!match) return false;
@@ -3162,8 +3186,22 @@ namespace NXProject.Views
 
         // 0 = Tudo, 1 = Task, 2 = Story, 3 = niveis acima (Feature / EPIC / Work Item Project),
         // 4 = pessoa (responsavel da Task ou da Story) — atalho para quando o filtro de pessoa
-        // esta com varios marcados e o que se quer e so isolar um deles.
+        // esta com varios marcados e o que se quer e so isolar um deles —, 5 = EPIC_GROUP.
         private int SearchScope() => SearchScopeCombo?.SelectedIndex is int i && i >= 0 ? i : 0;
+
+        /// <summary>
+        /// Casa pelo EPIC_GROUP: nome ou id do agrupador. Com a BUSCA VAZIA o escopo vira filtro
+        /// de tipo — mostra so o que esta dentro de ALGUM grupo —, que e o jeito de responder
+        /// "o que esta agrupado?" sem saber o nome de nenhum grupo.
+        /// </summary>
+        private static bool EpicGroupMatches(TfsImportService.SprintStoryRow? s, string q)
+        {
+            if (s == null || s.FeatureEpicGroupId <= 0) return false;
+            if (string.IsNullOrEmpty(q)) return true;
+            return (!string.IsNullOrEmpty(s.FeatureEpicGroupTitle)
+                    && s.FeatureEpicGroupTitle.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0)
+                   || IdMatches(s.FeatureEpicGroupId, q);
+        }
 
         /// <summary>
         /// A Story casa com a busca pelos niveis ACIMA dela: Feature, EPIC e Work Item Project
@@ -3177,6 +3215,10 @@ namespace NXProject.Views
             bool IsId(int id) => id > 0 && IdMatches(id, q);
             return Has(s.FeatureTitle) || IsId(s.FeatureId)
                 || Has(s.FeatureEpicTitle) || IsId(s.FeatureEpicId)
+                // O EPIC_GROUP e um nivel como os outros: buscar pelo nome dele tem de trazer
+                // tudo que esta embaixo. Sem esta linha, procurar "Melhorias" nao achava nada
+                // pelo grupo — so pelo EPIC de dentro.
+                || Has(s.FeatureEpicGroupTitle) || IsId(s.FeatureEpicGroupId)
                 || Has(s.FeatureProjectTitle) || IsId(s.FeatureProjectId);
         }
 
@@ -3581,11 +3623,16 @@ namespace NXProject.Views
             // EPIC/Projeto a que pertencem.
             var coveredFeat = stories.Where(x => x.FeatureId > 0).Select(x => x.FeatureId).ToHashSet();
             var coveredEpic = stories.Where(x => x.FeatureEpicId > 0).Select(x => x.FeatureEpicId).ToHashSet();
+            // O EPIC_GROUP ja esta na arvore COMO GRUPO (o no 🧩 que contem os EPICs). Sem esta
+            // linha ele entrava DE NOVO como se fosse um EPIC comum, com um "(sem Feature)"
+            // embaixo — dois nos com o mesmo nome, parecendo item duplicado.
+            var coveredGroup = stories.Where(x => x.FeatureEpicGroupId > 0)
+                                      .Select(x => x.FeatureEpicGroupId).ToHashSet();
             foreach (var it in _board.LevelItems)
             {
                 if (it.Id <= 0) continue;
                 if (it.Kind == "Feature" && coveredFeat.Contains(it.Id)) continue;
-                if (it.Kind == "Epic" && coveredEpic.Contains(it.Id)) continue;
+                if (it.Kind == "Epic" && (coveredEpic.Contains(it.Id) || coveredGroup.Contains(it.Id))) continue;
                 if (it.Kind != "Feature" && it.Kind != "Epic") continue;   // Project e so no raiz
 
                 var row = new TfsImportService.SprintStoryRow(it.Id, it.Title, it.State, it.AssignedTo, new())
@@ -5243,7 +5290,7 @@ namespace NXProject.Views
             {
                 if (!_collapsed.Remove(epicId)) _collapsed.Add(epicId);
                 SavePrefs();
-                RenderBusy();
+                RenderBusy(manterRolagem: true);
             };
             return Light(btn);
         }
@@ -5311,7 +5358,7 @@ namespace NXProject.Views
             {
                 if (!_collapsedPeople.Remove(personKey)) _collapsedPeople.Add(personKey);
                 SavePrefs();
-                RenderBusy();
+                RenderBusy(manterRolagem: true);
             };
             var head = new StackPanel { Orientation = Orientation.Horizontal };
             head.Children.Add(Light(toggle));
@@ -5793,7 +5840,7 @@ namespace NXProject.Views
             bool SearchOk(string title, int id)
             {
                 if (string.IsNullOrEmpty(q)) return true;
-                if (SearchScope() is 1 or 2 or 4) return false;
+                if (SearchScope() is 1 or 2 or 4 or 5) return false;
                 return title.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0
                     || id.ToString().Contains(q);
             }
@@ -5989,6 +6036,7 @@ namespace NXProject.Views
                 if (!ownerMatch && !taskMatch) return false;
             }
             var q = SearchQuery();
+            if (string.IsNullOrEmpty(q) && SearchScope() == 5 && !EpicGroupMatches(s, q)) return false;
             if (!string.IsNullOrEmpty(q))
             {
                 var scope = SearchScope();
@@ -6004,6 +6052,7 @@ namespace NXProject.Views
                 return scope switch
                 {
                     1 => taskMatch, 2 => storyMatch, 3 => levelMatch, 4 => personMatch,
+                    5 => EpicGroupMatches(s, q),
                     _ => storyMatch || taskMatch || levelMatch
                 };
             }
@@ -6566,7 +6615,7 @@ namespace NXProject.Views
                 else _storyStatePending[story.Id] = chosen;
                 UpdatePendingButton();
                 // Redesenha depois que o combo fecha (recriar o card com o dropdown aberto trava o foco).
-                Dispatcher.BeginInvoke(new Action(RenderBusy), System.Windows.Threading.DispatcherPriority.Background);
+                Dispatcher.BeginInvoke(new Action(() => RenderBusy()), System.Windows.Threading.DispatcherPriority.Background);
             };
             row.Children.Add(combo);
             return row;

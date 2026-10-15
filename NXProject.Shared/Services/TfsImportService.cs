@@ -774,6 +774,40 @@ namespace NXProject.Services
         /// tempo e a janela despeja tudo no load-perf.txt. Com so o total na mao, otimizar seria
         /// chute: o custo e de rede em chamadas enfileiradas, e e preciso ver qual delas pesa.
         /// </summary>
+        /// <summary>
+        /// Diario da carga do TASKBOARD — e so dele. Uma linha por etapa, com o que foi lido e o
+        /// que foi resolvido; se a carga morrer no meio, a ultima linha diz ate onde ela chegou.
+        ///
+        /// Existe porque "parou de carregar" nao diz nada: pode ser consulta grande demais,
+        /// ancestral que nao chegou, hierarquia que nao resolveu. Fica sempre ligado (sao poucas
+        /// linhas por carga) e o arquivo se apaga sozinho ao passar de 512 KB.
+        /// </summary>
+        public static class BoardLog
+        {
+            private static readonly object Lock = new();
+
+            public static string Path => System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NXProject.Community", "board-log.txt");
+
+            public static void Write(string linha)
+            {
+                try
+                {
+                    lock (Lock)
+                    {
+                        var arquivo = Path;
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(arquivo)!);
+                        if (System.IO.File.Exists(arquivo) && new System.IO.FileInfo(arquivo).Length > 512 * 1024)
+                            System.IO.File.Delete(arquivo);
+                        System.IO.File.AppendAllText(arquivo,
+                            $"{DateTime.Now:dd/MM/yyyy HH:mm:ss}  {linha}{Environment.NewLine}");
+                    }
+                }
+                catch { /* diagnostico nunca derruba a carga do board */ }
+            }
+        }
+
         public static class LoadTrace
         {
             private static readonly object Lock = new();
@@ -827,6 +861,9 @@ namespace NXProject.Services
             // Com vários => OR de UNDER (une as sprints selecionadas).
             var paths = (iterationPaths ?? Array.Empty<string>())
                 .Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList();
+            BoardLog.Write($"=== TaskBoard: carga iniciada — sprints: "
+                + (paths.Count == 0 ? "TODAS (sem filtro de iteracao)" : string.Join(" | ", paths)));
+
             var iterFilter = paths.Count == 0
                 ? string.Empty
                 : " AND (" + string.Join(" OR ", paths.Select(p => "[System.IterationPath] UNDER '" + Esc(p) + "'")) + ")";
@@ -895,6 +932,8 @@ namespace NXProject.Services
                 }
                 catch { /* campo opcional: sem ele o board abre igual */ }
             }
+
+            BoardLog.Write($"    WIQL devolveu {ids.Count} work item(ns) em {chunks.Count} lote(s) de ate 200.");
 
             var batchWatch = System.Diagnostics.Stopwatch.StartNew();
             var payloads = await Task.WhenAll(chunks.Select(FetchBatchAsync));
@@ -1138,6 +1177,13 @@ namespace NXProject.Services
                 LoadTrace.Mark("ancestrais L" + (level + 1) + "(" + nextIds.Count + ")", lvlWatch.ElapsedMilliseconds);
             }
 
+            var grupos = nodeEpicType
+                .Where(kv => EpicTypes.IsGroup(kv.Value))
+                .Select(kv => $"#{kv.Key} \"{(nodeTitle.TryGetValue(kv.Key, out var gt) ? gt : "?")}\"")
+                .ToList();
+            BoardLog.Write($"    ancestrais: {nodeTitle.Count} no(s) | com EPIC_TYPE: {nodeEpicType.Count}"
+                + $" | EPIC_GROUP: {(grupos.Count == 0 ? "nenhum" : string.Join(", ", grupos))}");
+
             // Classifica os ancestrais PELO TIPO do work item, não pela posição na árvore:
             // Feature vai para a coluna Feature, Epic para a coluna EPIC e Project para a do
             // Projeto. Quando o backlog não tem aquele nível (ex.: Story pendurada direto no
@@ -1285,6 +1331,11 @@ namespace NXProject.Services
             // 4) Colunas por estado, na ordem canônica.
             var states = OrderTaskboardStates(statesSeen);
             if (states.Count == 0) states.Add("New");
+
+            BoardLog.Write($"    board montado: {stories.Count} linha(s) | sem Feature: "
+                + $"{stories.Count(x => x.FeatureId <= 0)} | sem EPIC: {stories.Count(x => x.FeatureEpicId <= 0)}"
+                + $" | em EPIC_GROUP: {stories.Count(x => x.FeatureEpicGroupId > 0)}");
+            BoardLog.Write("=== TaskBoard: carga concluida.");
 
             return new SprintBoard(states, stories, people.ToList()) { LevelItems = levelItems };
         }

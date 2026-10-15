@@ -1134,8 +1134,9 @@
     <sys:String x:Key="Sprint_ScopeStory">Story only</sys:String>
     <sys:String x:Key="Sprint_ScopeLevels">Feature/EPIC/Proj</sys:String>
     <sys:String x:Key="Sprint_ScopePerson">Person only</sys:String>
+    <sys:String x:Key="Sprint_ScopeEpicGroup">Group</sys:String>
     <sys:String x:Key="Sprint_PersonSearchTip">Search for a person in the list. Already selected people stay visible.</sys:String>
-    <sys:String x:Key="Sprint_SearchScopeTip">Where search looks: Story, Task, the levels above (Feature, EPIC, Work Item Project), the person or everything.</sys:String>
+    <sys:String x:Key="Sprint_SearchScopeTip">Where search looks: Story, Task, the levels above (Feature, EPIC, Work Item Project), the person, the Group (EPIC_GROUP) or everything. With Group and an empty search, the board shows only what is grouped.</sys:String>
     <sys:String x:Key="Sprint_SearchTip">Searches by name, assignee and ID. Typing digits only (with or without the #) finds the item with that ID — Task, Story, Feature, EPIC or Project. The search starts at 3 characters.</sys:String>
     <sys:String x:Key="Sprint_SearchMinChars">Type at least {0} characters to search.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Open on NX startup</sys:String>

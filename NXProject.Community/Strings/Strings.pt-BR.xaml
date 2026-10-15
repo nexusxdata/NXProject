@@ -2298,8 +2298,9 @@ Os campos são criados no projeto, não nas issues, e podem ser removidos pela t
     <sys:String x:Key="Sprint_ScopeStory">Só Story</sys:String>
     <sys:String x:Key="Sprint_ScopeLevels">Feature/EPIC/Proj</sys:String>
     <sys:String x:Key="Sprint_ScopePerson">Só Pessoa</sys:String>
+    <sys:String x:Key="Sprint_ScopeEpicGroup">Grupo</sys:String>
     <sys:String x:Key="Sprint_PersonSearchTip">Busca a pessoa na lista. Quem ja esta marcado continua visivel.</sys:String>
-    <sys:String x:Key="Sprint_SearchScopeTip">Onde a busca procura: Story, Task, os niveis acima (Feature, EPIC, Work Item Project), a pessoa ou tudo.</sys:String>
+    <sys:String x:Key="Sprint_SearchScopeTip">Onde a busca procura: Story, Task, os niveis acima (Feature, EPIC, Work Item Project), a pessoa, o Grupo (EPIC_GROUP) ou tudo. Com Grupo e a busca vazia, o board mostra so o que esta agrupado.</sys:String>
     <sys:String x:Key="Sprint_SearchTip">Procura por nome, responsável e ID. Digitando só números (com ou sem o #), acha o item daquele ID — Task, Story, Feature, EPIC ou Projeto. A busca começa com 3 caracteres.</sys:String>
     <sys:String x:Key="Sprint_SearchMinChars">Digite ao menos {0} caracteres para buscar.</sys:String>
     <sys:String x:Key="Sprint_AutoOpen">Abrir ao iniciar o NX</sys:String>
