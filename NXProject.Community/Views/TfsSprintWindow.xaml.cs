@@ -3708,7 +3708,7 @@ namespace NXProject.Views
                     foreach (var fg in eg
                                  .GroupBy(s => s.FeatureId)
                                  .OrderBy(g => g.Key == 0 ? 1 : 0)
-                                 .ThenBy(g => g.Min(FilterOrderOf)))
+                                 .ThenBy(g => FilterOrderOfLevel(g.Key, g.Min(x => x.FeatureRank))))
                     {
                         var storyBoxes = fg
                             .OrderBy(FilterOrderOf).ThenBy(s => s.Title, StringComparer.CurrentCultureIgnoreCase)
@@ -3742,12 +3742,12 @@ namespace NXProject.Views
                 foreach (var gg in pg
                              .GroupBy(s => s.FeatureEpicGroupId)
                              .OrderBy(g => g.Key == 0 ? 0 : 1)        // sem grupo primeiro
-                             .ThenBy(g => g.Min(FilterOrderOf)))
+                             .ThenBy(g => FilterOrderOfLevel(g.Key, g.Min(x => x.FeatureEpicRank))))
                 {
                     var epicsDoNivel = gg
                         .GroupBy(s => s.FeatureEpicId)
                         .OrderBy(g => g.Key == 0 ? 1 : 0)
-                        .ThenBy(g => g.Min(FilterOrderOf))
+                        .ThenBy(g => FilterOrderOfLevel(g.Key, g.Min(x => x.FeatureEpicRank)))
                         .Select(RamoDoEpic)
                         .ToList();
 
@@ -3856,6 +3856,17 @@ namespace NXProject.Views
         /// lá; senão o rank do backlog do TFS. Assim a lista segue a ordem que o usuário conhece.</summary>
         private double FilterOrderOf(TfsImportService.SprintStoryRow s) =>
             _scheduleRank.TryGetValue(s.Id, out var pos) ? pos : double.MaxValue / 2 + s.StackRank;
+
+        /// <summary>
+        /// A mesma chave, mas de um NIVEL (Feature, EPIC, EPIC_GROUP) — pelo id e pelo rank DELE.
+        ///
+        /// Antes cada ramo era ordenado pela menor chave das Stories de dentro, e o resultado nao
+        /// batia com o cronograma: bastava um EPIC ter uma Story antiga para ele subir ao topo da
+        /// arvore, enquanto no cronograma ele estava la embaixo. Quem ordena um EPIC e o EPIC.
+        /// </summary>
+        private double FilterOrderOfLevel(int id, double rank) =>
+            _scheduleRank.TryGetValue(id, out var pos) ? pos
+            : double.MaxValue / 2 + (double.IsNaN(rank) ? 0 : rank);
 
         private void AddFilterRoot(string label, List<TfsImportService.SprintStoryRow> stories)
         {
