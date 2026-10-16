@@ -247,6 +247,10 @@ namespace NXProject.Views
         /// </summary>
         private async Task UpdateBlockDurationsAsync(List<int> ids)
         {
+            // A duracao total sai do HISTORICO do work item: so o DevOps tem isso. Nos outros
+            // destinos o bloqueio ja foi aplicado e nao ha o que somar aqui.
+            if (_backend != NxBackendKind.AzureDevOps) return;
+
             var bad = new List<string>();
             foreach (var id in ids)
             {
@@ -360,6 +364,23 @@ namespace NXProject.Views
         /// </summary>
         private readonly HashSet<int> _finishAutoByActive = new();
         private readonly HashSet<int> _finishAutoByClosed = new();
+        /// <summary>
+        /// Percentual de conclusao (0 a 100) informado no card e ainda nao gravado. Existe para
+        /// a Task em ANDAMENTO: encerrada ela e 100% por definicao, e em New nao ha andamento.
+        /// </summary>
+        private readonly Dictionary<int, double?> _percPending = new();
+        /// <summary>
+        /// Percentuais JA GRAVADOS nesta sessao — mesma razao do <see cref="_finishApplied"/>:
+        /// o card le o valor da carga do board, que so e refeita no reload.
+        /// </summary>
+        private readonly Dictionary<int, double?> _percApplied = new();
+        /// <summary>
+        /// Percentual que foi o ARRASTO que colocou: 100% ao soltar em coluna encerrada, 0% ao
+        /// voltar para a coluna inicial. Cada regra so desfaz o valor que ELA colocou — um
+        /// numero digitado pela pessoa nunca e apagado pelo arrasto.
+        /// </summary>
+        private readonly HashSet<int> _percAutoByClosed = new();
+        private readonly HashSet<int> _percAutoByNew = new();
         // Critérios de Aceitação (HTML) pendentes por Story — gravados no "Atualizar TFS".
         private readonly Dictionary<int, string> _acPending = new();
         // Bloqueio alterado (pendente: novo valor) e conjuntos de tags já gravados.
@@ -407,6 +428,14 @@ namespace NXProject.Views
         private sealed class SprintPrefs
         {
             public string LastSprintPath { get; set; } = "";
+
+            /// <summary>
+            /// Ultimo destino usado no TaskBoard: "AzureDevOps", "GitProject" ou "Local".
+            /// Vazio = ainda nao houve escolha, e a tela nasce no destino cadastrado no
+            /// Portfolio do projeto. A escolha da pessoa vale mais que o cadastro porque e a
+            /// mais recente — e ela troca de destino para trabalhar, nao para experimentar.
+            /// </summary>
+            public string? LastBackend { get; set; }
             public int? ClosedDays { get; set; }        // só > 0 (0/null = todos)
             public List<string>? Persons { get; set; }   // vazio/null = todas
             public int? View { get; set; }              // 0 = Por Story, 1 = Pessoa & Task
@@ -641,6 +670,21 @@ namespace NXProject.Views
                 || string.Equals(c.ProjectName, _localProject.Name, StringComparison.CurrentCultureIgnoreCase));
 
             var destino = cfg?.BackendKind ?? NxBackendKind.Default;
+
+            // O ultimo destino escolhido no TaskBoard tem preferencia sobre o cadastro: foi a
+            // escolha mais recente de quem usa. As defesas abaixo continuam valendo para os
+            // dois — destino impossivel agora (GitProject sem conexao, Local sem cronograma)
+            // cai no padrao em vez de falhar na primeira consulta.
+            var salvo = LoadPrefs().LastBackend;
+            if (!string.IsNullOrWhiteSpace(salvo)
+                && Enum.TryParse<NxBackendKind>(salvo, ignoreCase: true, out var doUsuario))
+                destino = doUsuario;
+
+            // Quem abriu MANDA: vindo da aba DevOps ou da aba GitProject, a tela nasce naquele
+            // destino — clicar no TaskBoard de uma aba e cair no outro servidor seria a tela
+            // desmentindo o caminho que a pessoa escolheu.
+            if (_destinoFixo is { } pedido) destino = pedido;
+
             if (destino == NxBackendKind.GitProject && _options.GitProject?.IsConfigured != true)
                 destino = NxBackendKind.Default;
             if (destino == NxBackendKind.Local && _localProject == null)
@@ -664,10 +708,23 @@ namespace NXProject.Views
         /// <summary>A tela está só nascendo no destino do projeto, não trocando de destino.</summary>
         private bool _ajustandoDestino;
 
+        /// <summary>
+        /// Destino pedido por quem abriu a tela (aba DevOps ou aba GitProject). Null = a tela
+        /// decide, como sempre fez.
+        /// </summary>
+        private readonly NxBackendKind? _destinoFixo;
+
+        /// <param name="destinoFixo">
+        /// Destino pedido por QUEM ABRIU a tela: a aba DevOps abre no DevOps, a aba GitProject
+        /// no GitProject. Nulo (abertura pela aba Principal ou pelo menu) deixa a tela escolher
+        /// como sempre — último destino usado, senão o cadastro do projeto.
+        /// </param>
         public TfsSprintWindow(IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null,
             string? preferredSprint = null, IReadOnlyList<int>? scheduleOrder = null, int openRootId = 0,
-            NXProject.Models.Project? localProject = null, Action? saveLocalProject = null)
+            NXProject.Models.Project? localProject = null, Action? saveLocalProject = null,
+            NxBackendKind? destinoFixo = null)
         {
+            _destinoFixo = destinoFixo;
             _localProject = localProject;
             _saveLocalProject = saveLocalProject;
             _openRootId = openRootId;
@@ -691,7 +748,8 @@ namespace NXProject.Views
             // Destino com que a tela NASCE: o do projeto, cadastrado no Portfólio. A escolha é do
             // projeto, não da tela — abrir sempre no Azure DevOps obrigava quem trabalha no
             // GitHub ou no modo local a trocar o combo toda vez, e a primeira carga já ia buscar
-            // dados no servidor errado. O combo continua trocando à vontade, para experimentar.
+            // dados no servidor errado. Se a pessoa JA trocou o destino alguma vez, essa escolha
+            // vale mais que o cadastro: ela e a mais recente.
             AplicaDestinoDoPortfolio();
 
             // Carrega os últimos filtros salvos (aplicados na 1ª carga do board). Os recortes vêm
@@ -864,7 +922,7 @@ namespace NXProject.Views
         private void OnResetFiltersClick(object sender, RoutedEventArgs e)
         {
             _selectedPeople.Clear();
-            if (_board != null) PopulatePersonFilter(BoardPeople(_board));
+            if (_board != null) PopulatePersonFilter(PessoasDoFiltro());
             if (PersonSearchBox != null) PersonSearchBox.Text = "";
 
             _selectedStoryIds.Clear();
@@ -1037,7 +1095,7 @@ namespace NXProject.Views
                     + $"{_board.Stories.Sum(x => x.Tasks.Count)} tasks, {paths.Count} sprint(s))" + Environment.NewLine
                     + "  etapas: " + TfsImportService.LoadTrace.Dump());
                 TfsImportService.LoadTrace.Reset();
-                var people = BoardPeople(_board);
+                var people = PessoasDoFiltro();
                 // Mantém só as pessoas ainda existentes no board (preserva a seleção múltipla).
                 _selectedPeople.RemoveWhere(p => !people.Contains(p, StringComparer.CurrentCultureIgnoreCase));
                 PopulatePersonFilter(people);
@@ -1127,6 +1185,8 @@ namespace NXProject.Views
                 _startPending.Clear(); _startApplied.Clear();
                 _finishPending.Clear(); _finishApplied.Clear();
                 _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
+                _percPending.Clear(); _percApplied.Clear();
+                _percAutoByClosed.Clear(); _percAutoByNew.Clear();
             _acPending.Clear();
                 _acPending.Clear();
                 _newCards.Clear();
@@ -1223,7 +1283,7 @@ namespace NXProject.Views
                 // sem os ranks dos niveis a Story nova nao tinha onde se encaixar e ia parar no
                 // fim da faixa, longe do bloco da Feature onde foi criada.
                 var sib = _board?.Stories.FirstOrDefault(x => x.FeatureId == ns.FeatureId && x.Id > 0);
-                var row = new TfsImportService.SprintStoryRow(ns.TempId, ns.Title, "New", ns.AssignedTo ?? "", new())
+                var row = new TfsImportService.SprintStoryRow(ns.TempId, ns.Title, EstadoDeCardNovo(), ns.AssignedTo ?? "", new())
                 {
                     FeatureId = ns.FeatureId,
                     FeatureTitle = ns.FeatureTitle,
@@ -1254,7 +1314,15 @@ namespace NXProject.Views
         }
 
         private TfsImportService.SprintTaskCard NewToCard(NewCard n) =>
-            new(n.TempId, n.Title, "New", n.AssignedTo ?? "", "", n.ParentId, "", null, 0, 0) { IterationPath = n.IterationPath };
+            new(n.TempId, n.Title, EstadoDeCardNovo(), n.AssignedTo ?? "", "", n.ParentId, "", null, 0, 0)
+            { IterationPath = n.IterationPath };
+
+        /// <summary>
+        /// Coluna onde o card novo aparece: a primeira DO BOARD. Card com estado que não é coluna
+        /// nenhuma não é desenhado — foi o que escondeu a Task nova no GitProject, cujas colunas
+        /// são Todo/In Progress/Done e não têm "New".
+        /// </summary>
+        private string EstadoDeCardNovo() => TfsImportService.FirstBoardState(_board?.States);
 
         // Diálogo simples de uma linha (nome do novo card).
         private string? PromptText(string title)
@@ -1374,7 +1442,7 @@ namespace NXProject.Views
             };
             if (kind == "Epic") btn.Click += (_, _) => AddNewEpic(parentId, parentTitle);
             else                btn.Click += (_, _) => AddNewFeature(parentId, parentTitle);
-            return Light(btn);
+            return Light(OnlyIn(btn, _caps.CreateItem, "Azure DevOps"));
         }
 
         /// <summary>
@@ -1401,16 +1469,35 @@ namespace NXProject.Views
                 return;
             }
 
-            var n = await TfsImportService.CountChildrenAsync(_options, id);
+            if (!_caps.DeleteItem)
+            {
+                MessageBox.Show(this, AppStrings.Get("Sprint_OnlyIn",
+                        AppStrings.Get("Sprint_Delete"), "Azure DevOps"),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // A pergunta "tem filho?" e do SERVIDOR, e cada um responde do seu jeito: o DevOps
+            // consulta o work item, o GitProject le as sub-issues do snapshot.
+            var (n, filhos) = await Fonte().ChildrenAsync(id);
             if (n > 0)
             {
-                MessageBox.Show(this, AppStrings.Get("Sprint_DeleteHasChildrenDevOps", id.ToString(), n.ToString()),
+                // Com os ids na mao, o aviso fica conferivel: "tem 2 filhos" sem dizer quais
+                // deixava a pessoa procurando no board um item que nem esta carregado.
+                var quais = filhos.Count > 0
+                    ? string.Join(", ", filhos.Take(10).Select(x => "#" + x))
+                      + (filhos.Count > 10 ? "…" : "")
+                    : "";
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_DeleteHasChildren", id.ToString(), n.ToString(),
+                        NomeDoDestino(_backend), quais),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (n < 0)
             {
-                MessageBox.Show(this, AppStrings.Get("Sprint_DeleteCheckFailed", id.ToString()),
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_DeleteCheckFailedIn", id.ToString(), NomeDoDestino(_backend)),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -1420,7 +1507,10 @@ namespace NXProject.Views
 
         private UIElement? BuildDeleteFeatureButton(int featureId)
         {
-            if (featureId <= 0 || EditModeCheck.IsChecked != true) return null;
+            // A regra do 🗑 e UMA SO, igual a da Task: item sem filho, em destino que exclui.
+            // Exigir tambem o "Editar Cards" aqui (e so aqui) fazia o botao sumir sem explicacao
+            // — o ✎ e o "+ Story" do mesmo card continuavam visiveis.
+            if (featureId <= 0 || !_caps.DeleteItem) return null;
             var marked = _deletePending.Contains(featureId);
             var hasStory = _board?.Stories.Any(s2 => s2.Id > 0 && s2.FeatureId == featureId) == true;
             var hasTask = _board?.Stories.Where(s2 => s2.OrphanParentId == featureId)
@@ -1444,7 +1534,7 @@ namespace NXProject.Views
 
         private UIElement? BuildDeleteEpicButton(int epicId)
         {
-            if (epicId <= 0 || EditModeCheck.IsChecked != true) return null;
+            if (epicId <= 0 || !_caps.DeleteItem) return null;
             var marked = _deletePending.Contains(epicId);
             var hasChild = _board?.Stories.Any(s2 => s2.FeatureEpicId == epicId
                                && (s2.FeatureId > 0 || s2.Id > 0)) == true
@@ -1477,7 +1567,7 @@ namespace NXProject.Views
                 ToolTip = AppStrings.Get(kind == "Epic" ? "Sprint_EditEpic" : "Sprint_EditFeature")
             };
             btn.Click += async (_, _) => await EditDescriptionAsync(id, title, "", kind);
-            return Light(btn);
+            return Light(OnlyIn(btn, _caps.EditItem, "Azure DevOps"));
         }
 
         // Junta os botoes do card de Projeto/EPIC numa linha so (✎ editar + ➕ criar filho).
@@ -1486,7 +1576,10 @@ namespace NXProject.Views
             var list = buttons.Where(b => b != null).ToList();
             if (list.Count == 0) return null;
             if (list.Count == 1) return list[0];
-            var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            // WrapPanel, e nao StackPanel: a coluna da Feature e estreita e, com quatro botoes
+            // (recolher, +Story, 🗑 e o que vier), o ultimo saia da area visivel — parecia que o
+            // botao nao existia. Quebrando a linha, todos aparecem.
+            var sp = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             foreach (var b in list) sp.Children.Add(b);
             return sp;
         }
@@ -1615,7 +1708,7 @@ namespace NXProject.Views
                 {
                     _selectedPeople.Clear();
                     foreach (var who in wasPeople) _selectedPeople.Add(who);
-                    PopulatePersonFilter(BoardPeople(_board));
+                    PopulatePersonFilter(PessoasDoFiltro());
                     RenderBusy();
                 }
                 return;
@@ -1710,7 +1803,7 @@ namespace NXProject.Views
                 && _board != null && MatchCurrentUser() is { } me)
             {
                 _selectedPeople.Add(me);
-                PopulatePersonFilter(BoardPeople(_board));
+                PopulatePersonFilter(PessoasDoFiltro());
             }
             RenderBusy();
             SavePrefs();
@@ -1721,6 +1814,31 @@ namespace NXProject.Views
         /// People do board vem do AssignedTo de TODO work item da sprint (Feature, EPIC e
         /// Work Item Project inclusive), e esses nomes enchiam o filtro sem ter card algum.
         /// </summary>
+        /// <summary>
+        /// Quem pode ser RESPONSÁVEL. No GitProject a lista do board já vem com as contas
+        /// atribuíveis dos repositórios (ver GitProjectBoardSource); nos outros destinos é quem
+        /// aparece nos itens carregados. O FILTRO de pessoas continua usando outra lista — só
+        /// quem tem trabalho —, que é o que faz sentido filtrar.
+        /// </summary>
+        private List<string> PessoasParaAtribuir() => _board?.People.ToList() ?? new List<string>();
+
+        /// <summary>
+        /// A lista do FILTRO de pessoas. Junta quem tem trabalho no board com quem PODE receber
+        /// (no GitProject, as contas atribuiveis dos repositorios): filtrar por alguem que ainda
+        /// nao tem item e util logo depois de atribuir, e some a duvida de "por que fulano nao
+        /// esta na lista?".
+        /// </summary>
+        private List<string> PessoasDoFiltro()
+        {
+            var set = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
+            if (_board != null)
+            {
+                foreach (var p in BoardPeople(_board)) set.Add(p);
+                foreach (var p in _board.People) if (!string.IsNullOrWhiteSpace(p)) set.Add(p);
+            }
+            return set.ToList();
+        }
+
         private static List<string> BoardPeople(TfsImportService.SprintBoard b)
         {
             var set = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
@@ -2008,7 +2126,7 @@ namespace NXProject.Views
                 Foreground = descDirty ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.Black,
                 ToolTip = AppStrings.Get("Sprint_EditDesc") };
             desc.Click += async (_, _) => await EditDescriptionAsync(id, title, currentOwner, kind, currentIteration);
-            panel.Children.Add(desc);
+            panel.Children.Add(OnlyIn(desc, _caps.EditItem, "Azure DevOps"));
             // O 💬 (tramite) saiu do card: virou botao dentro da tela de edicao, que abre pelo
             // proprio ✎. Assim a linha de botoes da Story/Task cabe numa linha so.
         }
@@ -2043,39 +2161,41 @@ namespace NXProject.Views
 
         private async Task EditDescriptionAsync(int id, string title, string currentOwner = "", string kind = "Story", string currentIteration = "")
         {
+            if (!_caps.EditItem)
+            {
+                MessageBox.Show(this, AppStrings.Get("Sprint_EditOnlyDevOps"),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             // Nome efetivo (pendente > aplicado > título recebido), editável na mesma tela.
             var effName = EffTitle(id, title);
             var pt = new NXProject.Models.ProjectTask { TfsId = id, Name = effName };
-            // Todas as leituras do DevOps disparam JUNTAS aqui e sao aguardadas depois, cada uma
-            // onde e usada. Antes eram ~6 consultas em sequencia e a edicao demorava a abrir.
-            // So consulta o que nao tem valor pendente local.
-            var descTask = _descPending.ContainsKey(id) ? null
-                : TfsImportService.LoadWorkItemDescriptionHtmlAsync(_options, id);
-            var hoursTask = id > 0 && kind != "Feature" ? TfsImportService.GetWorkItemHoursAsync(_options, id) : null;
-            var startTask = kind is "Story" or "Task" && id > 0 && !_startPending.ContainsKey(id)
-                ? TfsImportService.GetWorkItemStartDateAsync(_options, id) : null;
-            var chainTask = kind == "Task" && id > 0 ? TfsImportService.GetParentChainAsync(_options, id) : null;
-            var finishTask = kind == "Task" && id > 0 && !_finishPending.ContainsKey(id)
-                ? TfsImportService.GetWorkItemFinishDateAsync(_options, id) : null;
-            var acTask = kind == "Story" && id > 0 && !_acPending.ContainsKey(id)
-                ? TfsImportService.GetWorkItemAcceptanceCriteriaAsync(_options, id) : null;
 
-            pt.Description = _descPending.TryGetValue(id, out var d) ? d
-                : (await descTask!) ?? string.Empty;
+            // Os campos que não cabem no board vêm da FONTE do destino, não do Azure DevOps:
+            // com o GitProject selecionado, perguntar ao DevOps por um id que não é dele dava
+            // "work item 47 does not exist" — erro do servidor errado.
+            var detalhes = await Fonte().LoadItemDetailsAsync(id, kind);
+
+            // A cadeia de pais (Projeto > EPIC > Feature) só existe como consulta no DevOps; nos
+            // outros destinos o board já carrega a hierarquia inteira.
+            var chainTask = kind == "Task" && id > 0 && _backend == NxBackendKind.AzureDevOps
+                ? TfsImportService.GetParentChainAsync(_options, id) : null;
+
+            pt.Description = _descPending.TryGetValue(id, out var d) ? d : detalhes.DescriptionHtml;
             // Responsável efetivo (pendente > aplicado > valor do board), editável na mesma tela.
             var owner = _ownerPending.TryGetValue(id, out var op) ? op
                 : _ownerApplied.TryGetValue(id, out var oa) ? oa : currentOwner;
-            var people = _board?.People.ToList() ?? new List<string>();
+            var people = PessoasParaAtribuir();
             // HH atuais do DevOps (com pendências locais sobrepostas) + estado p/ decidir HH Realizado.
             // Feature: só descrição (sem HH/estado/sprint), então não busca horas.
             double? est = null, done = null; string hState = kind;
             if (id > 0 && kind != "Feature")
             {
-                var (e, c, st) = await hoursTask!;
-                est = _estPending.TryGetValue(id, out var ep) ? ep : e;
-                done = _donePending.TryGetValue(id, out var dp) ? dp : c;
+                est = _estPending.TryGetValue(id, out var ep) ? ep : detalhes.EstimateHours;
+                done = _donePending.TryGetValue(id, out var dp) ? dp : detalhes.CompletedHours;
                 // Estado EFETIVO (considera arrasto pendente p/ Closed) → libera o HH Realizado.
-                hState = _cardById.TryGetValue(id, out var cardH) ? EffState(cardH) : st;
+                hState = _cardById.TryGetValue(id, out var cardH) ? EffState(cardH) : detalhes.State;
             }
             // Sprint editável em TODOS os níveis: Task, Story, Feature e EPIC. A Feature/EPIC
             // também mora numa sprint no DevOps, e é por ela que o board decide o que carregar —
@@ -2130,15 +2250,14 @@ namespace NXProject.Views
             var enableStart = kind is "Story" or "Task" && id > 0;
             DateTime? curStart = null;
             if (enableStart)
-                curStart = _startPending.TryGetValue(id, out var sp) ? sp
-                    : await startTask!;
+                curStart = _startPending.TryGetValue(id, out var sp) ? sp : detalhes.StartDate;
             // Cadeia de pais da Task direto do DevOps: mostra o id/tipo/nome de cada nivel,
             // porque a Task pode estar ligada a uma Feature ou outro tipo, nao so a uma Story.
             string? parentInfo = null;
             List<(int Id, string Text)>? parentLinks = null;
-            if (kind == "Task" && id > 0)
+            if (chainTask != null)
             {
-                var chain = await chainTask!;
+                var chain = await chainTask;
                 parentLinks = chain.Select((pl, i) => (pl.Id,
                     new string(' ', i * 3) + "↑ " + pl.Type + " #" + pl.Id + " — " + pl.Title
                     + (string.IsNullOrWhiteSpace(pl.State) ? "" : " (" + pl.State + ")"))).ToList();
@@ -2152,14 +2271,12 @@ namespace NXProject.Views
             var enableFinish = kind == "Task" && id > 0;
             DateTime? curFinish = null;
             if (enableFinish)
-                curFinish = _finishPending.TryGetValue(id, out var fp0) ? fp0
-                    : await finishTask!;
+                curFinish = _finishPending.TryGetValue(id, out var fp0) ? fp0 : detalhes.FinishDate;
             // Critérios de Aceitação: campo da Story no DevOps (pendente > valor atual).
             var enableAc = kind == "Story" && id > 0;
             var curAc = "";
             if (enableAc)
-                curAc = _acPending.TryGetValue(id, out var acp) ? acp
-                    : await acTask!;
+                curAc = _acPending.TryGetValue(id, out var acp) ? acp : detalhes.AcceptanceCriteria;
             // EPIC e Feature nao tem HH proprio (vem do rollup) nem tag de bloqueio no board:
             // o editor abre nos dois com os mesmos campos.
             var isFeat = kind is "Feature" or "Epic";
@@ -2347,7 +2464,7 @@ namespace NXProject.Views
         {
             var doingDiff = _doing.Except(_appliedDoing).Count() + _appliedDoing.Except(_doing).Count();
             doingDiff += _done.Except(_appliedDone).Count() + _appliedDone.Except(_done).Count();
-            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count + _finishPending.Count
+            return _pending.Count + doingDiff + _descPending.Count + _tramitePending.Count + _newCards.Count + _prioPending.Count + _storyRankPending.Count + _taskRankPending.Count + _storyStatePending.Count + _ownerPending.Count + _titlePending.Count + _estPending.Count + _donePending.Count + _deletePending.Count + _iterPending.Count + _blockPending.Count + _unplannedPending.Count + _featurePending.Count + _startPending.Count + _acPending.Count + _taskParentPending.Count + _finishPending.Count + _percPending.Count
                 + _attachRemovePending.Sum(kv => kv.Value.Count);
         }
 
@@ -2388,6 +2505,7 @@ namespace NXProject.Views
             _moveTaskIds.Clear();
             _startPending.Clear();
             _finishPending.Clear(); _finishAutoByActive.Clear(); _finishAutoByClosed.Clear();
+            _percPending.Clear(); _percAutoByClosed.Clear(); _percAutoByNew.Clear();
             // O "Reverter" desfaz PENDENCIAS; o que ja foi gravado continua valendo na tela.
 
             // Anexo marcado para excluir volta a aparecer: nada foi ao DevOps ainda.
@@ -2487,11 +2605,20 @@ namespace NXProject.Views
 
             UpdateTfsButton.IsEnabled = false;
             StatusText.Text = AppStrings.Get("Git_Testing");
+            TfsImportService.BoardLog.Write(
+                $"SALVAR GitProject: inicio — {PendingCount()} pendencia(s), {_newCards.Count} card(s) novo(s).");
+
+            // CARDS NOVOS primeiro. Este caminho só gravava campos de itens que já existiam: o
+            // card novo não era criado, e logo depois o "Reverter" interno limpava a fila — o
+            // card sumia da tela e a barra dizia "0 alteração(ões)", sem erro nenhum.
+            var falhasNovos = new List<string>();
+            var criados = await CriaCardsNovosGitAsync(falhasNovos);
+
             LocalBoardWriter.Result res;
             try
             {
                 var progresso = new Progress<string>(m => StatusText.Text = m);
-                res = await GitProjectBoardWriter.ApplyAsync(git, MontaPendencias(), progresso);
+                res = await Gravador().ApplyAsync(MontaPendencias(), progresso);
             }
             catch (Exception ex)
             {
@@ -2501,17 +2628,205 @@ namespace NXProject.Views
             }
             finally { UpdateTfsButton.IsEnabled = true; }
 
-            // Gravou: a fila some e o board é relido do servidor, como no caminho do DevOps.
-            OnRevertClick(this, new RoutedEventArgs());
-            if (NxBoardSources.For(_backend, _options, _localProject, _options.GitProject)
-                    is GitProjectBoardSource fonte) fonte.Invalidate();
-            await ReloadBoardAsync(_sprintPaths?.ToList() ?? new List<string>());
+            // RECARREGAR é a exceção, não a regra. Mover um card de coluna, trocar responsável
+            // ou HH já está na tela: a gravação apenas confirma o que se vê, e reler o projeto
+            // inteiro só para repintar o mesmo desenho é tempo perdido — o card pisca e some do
+            // lugar onde a pessoa estava olhando.
+            //
+            // Precisa reler quando a CARGA muda de verdade: card novo (nasce com id do servidor,
+            // e só a releitura sabe onde ele entra na hierarquia) ou troca de pai.
+            var precisaReler = criados > 0 || _taskParentPending.Count > 0;
 
-            StatusText.Text = AppStrings.Get("Sprint_LocalSaved", res.Applied.ToString());
-            if (res.Problems.Count > 0)
+            // ALGO FALHOU: a fila fica como está. Aceitar aqui faria a tela mostrar como gravado
+            // um valor que o servidor recusou — foi o que aconteceu com o HH Realizado num board
+            // sem o campo: o card exibia "HH Real.: 2h" e no GitHub não havia nada. Com a fila
+            // preservada, basta corrigir a causa (criar o campo, por exemplo) e salvar de novo —
+            // regravar o que já entrou é inofensivo.
+            var tudoGravado = falhasNovos.Count == 0 && res.Problems.Count == 0;
+
+            var naoCriados = _newCards.ToList();
+            if (tudoGravado) AceitaPendenciasGravadas();
+            // Card criado SEMPRE pede releitura, mesmo com outra coisa falhando: ele existe no
+            // servidor e precisa aparecer. Troca de pai, nao: sem a releitura a fila continua
+            // intacta e a pessoa tenta de novo.
+            else precisaReler = criados > 0;
+
+            if (precisaReler)
+            {
+                if (NxBoardSources.For(_backend, _options, _localProject, _options.GitProject)
+                        is GitProjectBoardSource fonte) fonte.Invalidate();
+                await ReloadBoardAsync(_sprintPaths?.ToList() ?? new List<string>());
+                _newCards.AddRange(naoCriados);
+            }
+            UpdatePendingButton();
+            Render();
+
+            TfsImportService.BoardLog.Write(
+                $"SALVAR GitProject: fim — {criados} card(s) criado(s), {res.Applied} alteracao(oes), "
+                + $"{falhasNovos.Count + res.Problems.Count} problema(s); restam {_newCards.Count} card(s) novo(s).");
+
+            StatusText.Text = AppStrings.Get("Sprint_LocalSaved", (res.Applied + criados).ToString());
+            var problemas = falhasNovos.Concat(res.Problems).ToList();
+            if (problemas.Count > 0)
                 MessageBox.Show(this,
-                    AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, res.Problems)),
+                    AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, problemas)),
                     AppStrings.Get("Sprint_TargetGitProject"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        /// <summary>
+        /// A fila foi gravada: cada pendência vira o valor APLICADO e sai da fila.
+        ///
+        /// É o que o caminho do DevOps faz fase a fase, aqui de uma vez. Sem isto a tela só tinha
+        /// duas saídas depois de gravar: reler o board (caro) ou reverter a fila (e voltar a
+        /// mostrar o valor antigo, que já não é o do servidor).
+        /// </summary>
+        private void AceitaPendenciasGravadas()
+        {
+            foreach (var kv in _pending) _applied[kv.Key] = kv.Value;
+            foreach (var kv in _storyStatePending) _storyStateApplied[kv.Key] = kv.Value;
+            foreach (var kv in _ownerPending) _ownerApplied[kv.Key] = kv.Value;
+            foreach (var kv in _titlePending) _titleApplied[kv.Key] = kv.Value;
+            foreach (var kv in _iterPending) _iterApplied[kv.Key] = kv.Value;
+            foreach (var kv in _startPending) _startApplied[kv.Key] = kv.Value;
+            foreach (var kv in _finishPending) _finishApplied[kv.Key] = kv.Value;
+            foreach (var kv in _percPending) _percApplied[kv.Key] = kv.Value;
+            foreach (var kv in _featurePending) _featureApplied[kv.Key] = kv.Value;
+            foreach (var kv in _taskParentPending) _taskParentApplied[kv.Key] = kv.Value;
+            foreach (var kv in _prioPending) _prioApplied[kv.Key] = kv.Value;
+
+            // HH e datas não têm dicionário de "aplicado": o card lê esses valores do próprio
+            // board. Então o board em memória passa a carregar o que acabou de ser gravado — sem
+            // isto, limpar a fila fazia o HH Realizado recém-digitado sumir do card, e o card
+            // encerrado ficava pedindo um HH que não tinha mais onde ser digitado.
+            AtualizaCardsGravados();
+            RemoveDoBoardOsExcluidos();
+
+            // Tags (BLOCK, NP, Doing/Done) viajam juntas: a baseline passa a ser o valor efetivo.
+            foreach (var id in _blockPending.Keys.Concat(_unplannedPending.Keys)
+                         .Concat(_doing).Concat(_done).Distinct().ToList())
+                if (_cardById.TryGetValue(id, out var card)) _tagsApplied[id] = EffTags(id, card.Tags);
+            _appliedDoing.Clear(); foreach (var id in _doing) _appliedDoing.Add(id);
+            _appliedDone.Clear(); foreach (var id in _done) _appliedDone.Add(id);
+
+            _pending.Clear(); _storyStatePending.Clear(); _ownerPending.Clear(); _titlePending.Clear();
+            _iterPending.Clear(); _startPending.Clear(); _finishPending.Clear(); _featurePending.Clear();
+            _percPending.Clear(); _percAutoByClosed.Clear(); _percAutoByNew.Clear();
+            _taskParentPending.Clear(); _prioPending.Clear(); _blockPending.Clear(); _unplannedPending.Clear();
+            _estPending.Clear(); _donePending.Clear(); _descPending.Clear(); _acPending.Clear();
+            _tramitePending.Clear(); _storyRankPending.Clear(); _taskRankPending.Clear();
+            _deletePending.Clear(); _moveTaskIds.Clear();
+        }
+
+        /// <summary>
+        /// Tira do board o que foi EXCLUÍDO no servidor. Sem isto o card continuava na tela
+        /// depois de gravar — a fila esvaziava, o item já não existia lá, e só um 🔄 fazia ele
+        /// sumir.
+        /// </summary>
+        private void RemoveDoBoardOsExcluidos()
+        {
+            if (_board == null || _deletePending.Count == 0) return;
+
+            foreach (var id in _deletePending)
+            {
+                foreach (var story in _board.Stories)
+                    story.Tasks.RemoveAll(t => t.Id == id);
+                _board.Stories.RemoveAll(s => s.Id == id);
+                _board.LevelItems.RemoveAll(l => l.Id == id);
+                _cardById.Remove(id);
+            }
+        }
+
+        /// <summary>
+        /// Leva para o board em memória os valores que acabaram de ser gravados (HH estimado,
+        /// HH realizado e data alvo). Card e Story são <c>record</c>: a cópia com o valor novo
+        /// substitui a antiga na lista, e a tela redesenha a partir dela.
+        /// </summary>
+        private void AtualizaCardsGravados()
+        {
+            if (_board == null) return;
+
+            foreach (var story in _board.Stories)
+            {
+                for (var i = 0; i < story.Tasks.Count; i++)
+                {
+                    var card = story.Tasks[i];
+                    var mudou = false;
+                    var novo = card;
+
+                    if (_estPending.TryGetValue(card.Id, out var est)) { novo = novo with { EstimateHours = est }; mudou = true; }
+                    if (_donePending.TryGetValue(card.Id, out var feito)) { novo = novo with { CompletedHours = feito }; mudou = true; }
+                    if (_finishPending.TryGetValue(card.Id, out var fim)) { novo = novo with { FinishDate = fim }; mudou = true; }
+                    if (_percPending.TryGetValue(card.Id, out var perc)) { novo = novo with { PercentComplete = perc }; mudou = true; }
+
+                    if (!mudou) continue;
+                    story.Tasks[i] = novo;
+                    _cardById[card.Id] = novo;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Cria no GitProject os cards novos da fila, na ordem EPIC → Feature → Story → Task
+        /// (o filho precisa do id real do pai, que pode ter nascido nesta mesma gravação).
+        /// Devolve quantos foram criados e, em <paramref name="fails"/>, o motivo de cada um que
+        /// não foi — com o nome do card, para a pessoa saber onde mexer.
+        /// </summary>
+        private async Task<int> CriaCardsNovosGitAsync(List<string> fails)
+        {
+            if (_newCards.Count == 0) return 0;
+
+            var criados = 0;
+            var tempParaReal = new Dictionary<int, int>();
+            string IterDoCard(NewCard n) => !string.IsNullOrWhiteSpace(n.IterationPath) ? n.IterationPath : _sprintPath;
+
+            foreach (var tipo in new[] { "Epic", "Feature", "Story", "Task" })
+                foreach (var nc in _newCards.Where(n => n.Type == tipo).ToList())
+                {
+                    if (CamposFaltandoNoCardNovo(nc, IterDoCard(nc)) is { } falta)
+                    {
+                        TfsImportService.BoardLog.Write($"SALVAR GitProject: {tipo} '{nc.Title}' RECUSADO — {falta}");
+                        fails.Add($"{tipo} '{nc.Title}': {falta}");
+                        continue;
+                    }
+
+                    // Pai que é outro card novo: usa o id que ele acabou de receber.
+                    var pai = nc.ParentId < 0
+                        ? (tempParaReal.TryGetValue(nc.ParentId, out var real) ? real : 0)
+                        : nc.ParentId;
+                    if (pai <= 0)
+                    {
+                        TfsImportService.BoardLog.Write(
+                            $"SALVAR GitProject: {tipo} '{nc.Title}' sem pai (ParentId={nc.ParentId}).");
+                        fails.Add($"{tipo} '{nc.Title}': {AppStrings.Get("Sprint_NewNoParent")}");
+                        continue;
+                    }
+
+                    // Mesmo nome sob o mesmo pai: o DevOps ja recusava; aqui tambem, pela MESMA
+                    // regra (ValidateNewCard), senao o GitProject criava um irmao duplicado que o
+                    // sync depois nao saberia distinguir.
+                    if (NomeRepetidoNoPai(nc, pai))
+                    {
+                        TfsImportService.BoardLog.Write(
+                            $"SALVAR GitProject: {tipo} '{nc.Title}' RECUSADO — nome repetido sob #{pai}.");
+                        fails.Add($"{tipo} '{nc.Title}': {AppStrings.Get("Sprint_DupName")}");
+                        continue;
+                    }
+
+                    var kind = tipo == "Story" ? "User Story" : tipo;
+                    var (id, msg) = await CriaFilhoNoDestinoAsync(kind, nc, pai, IterDoCard(nc));
+                    TfsImportService.BoardLog.Write(
+                        $"SALVAR GitProject: {tipo} '{nc.Title}' pai=#{pai} -> id={id} msg={msg}");
+
+                    if (id > 0)
+                    {
+                        tempParaReal[nc.TempId] = id;
+                        _newCards.Remove(nc);
+                        criados++;
+                    }
+                    else fails.Add($"{tipo} '{nc.Title}': {msg}");
+                }
+
+            return criados;
         }
 
         /// <summary>
@@ -2530,6 +2845,7 @@ namespace NXProject.Views
             foreach (var kv in _donePending) pend.CompletedHours[kv.Key] = kv.Value;
             foreach (var kv in _startPending) pend.StartDates[kv.Key] = kv.Value;
             foreach (var kv in _finishPending) pend.FinishDates[kv.Key] = kv.Value;
+            foreach (var kv in _percPending) pend.Percents[kv.Key] = kv.Value;
             foreach (var kv in _descPending) pend.Descriptions[kv.Key] = kv.Value;
             foreach (var kv in _acPending) pend.AcceptanceCriteria[kv.Key] = kv.Value;
             foreach (var kv in _prioPending) pend.Priorities[kv.Key] = kv.Value;
@@ -2565,7 +2881,7 @@ namespace NXProject.Views
             // primeira consulta com uma mensagem de API.
             if (TargetCombo.SelectedIndex == 1 && _options.GitProject?.IsConfigured != true)
             {
-                if (new GitProjectConfigWindow { Owner = this }.ShowDialog() == true)
+                if (new TfsDevOpsConfigWindow(abaInicial: 1) { Owner = this }.ShowDialog() == true)
                     _options.GitProject = TfsConnectionStore.Load().GitProject;
                 if (_options.GitProject?.IsConfigured != true)
                 {
@@ -2581,6 +2897,11 @@ namespace NXProject.Views
                 _ => NxBackendKind.AzureDevOps
             };
             if (novo == _backend) return;
+
+            // Guarda a escolha ANTES de recarregar: se a carga falhar, a proxima abertura ainda
+            // abre onde a pessoa pediu, e nao de volta no destino do cadastro.
+            _prefs.LastBackend = novo.ToString();
+            SavePrefs();
 
             // Projeto Local precisa do cronograma aberto: é dele que o board sai.
             if (novo == NxBackendKind.Local && _localProject == null)
@@ -2653,6 +2974,9 @@ namespace NXProject.Views
                 StatusText.Text = AppStrings.Get(key);
                 SaveProgress.Value = Math.Min(SaveProgress.Maximum, ok + fails.Count);
             }
+            TfsImportService.BoardLog.Write(
+                $"SALVAR: inicio — destino={NomeDoDestino(_backend)}, {total} pendencia(s), "
+                + $"{_newCards.Count} card(s) novo(s).");
             try
             {
             var reload = false;
@@ -2834,6 +3158,14 @@ namespace NXProject.Views
                 else fails.Add($"#{kv.Key} (data alvo): {msg}");
             }
 
+            // 3i3) Percentual de conclusão da Task (campo opcional Perc_Conclusao).
+            foreach (var kv in _percPending.ToList())
+            {
+                var (success, msg) = await TfsImportService.SetWorkItemPercentCompleteAsync(_options, kv.Key, kv.Value);
+                if (success) { _percApplied[kv.Key] = kv.Value; _percPending.Remove(kv.Key); ok++; }
+                else fails.Add($"#{kv.Key} (% concluído): {msg}");
+            }
+
             // 3j) Critérios de Aceitação da Story. 403 = sem permissão.
             foreach (var kv in _acPending.ToList())
             {
@@ -3000,6 +3332,11 @@ namespace NXProject.Views
             }
 
             Phase("Sprint_PhNew");
+            TfsImportService.BoardLog.Write(
+                $"SALVAR ({NomeDoDestino(_backend)}): {_newCards.Count} card(s) novo(s) na fila — "
+                + string.Join(" ; ", _newCards.Select(n =>
+                    $"{n.Type} '{n.Title}' pai=#{n.ParentId} hh={n.Effort?.ToString() ?? "(vazio)"} "
+                    + $"resp='{n.AssignedTo}' sprint='{n.IterationPath}'")));
             // 5) Novos cards: cria Stories (recebem ID) e depois Tasks (usando o ID da story-pai).
             // Em "Todas as sprints" não há iteração-alvo: não permite criar itens novos.
             var tempToReal = new Dictionary<int, int>();
@@ -3010,8 +3347,11 @@ namespace NXProject.Views
             foreach (var ne in _newCards.Where(n => n.Type is "Epic" or "Feature").ToList())
             {
                 var kind = ne.Type == "Epic" ? "Epic" : "Feature";
-                if (string.IsNullOrWhiteSpace(ne.Title))
-                { fails.Add(AppStrings.Get("Sprint_NewIncomplete")); continue; }
+                if (CamposFaltandoNoCardNovo(ne, IterOf(ne)) is { } faltaEf)
+                {
+                    TfsImportService.BoardLog.Write($"SALVAR: {kind} '{ne.Title}' RECUSADO — {faltaEf}");
+                    fails.Add($"{kind} '{ne.Title}': {faltaEf}"); continue;
+                }
 
                 var parentId = ne.ParentId < 0 ? (tempToReal.TryGetValue(ne.ParentId, out var pr) ? pr : 0) : ne.ParentId;
                 if (parentId <= 0) { fails.Add($"{kind} '{ne.Title}': {AppStrings.Get("Sprint_NewNoParent")}"); continue; }
@@ -3020,35 +3360,36 @@ namespace NXProject.Views
                     && o.Title.Trim().Equals(ne.Title.Trim(), StringComparison.CurrentCultureIgnoreCase));
                 if (dupEf) { fails.Add($"{kind} '{ne.Title}': {AppStrings.Get("Sprint_DupName")}"); continue; }
 
-                // Sem HH: o esforco de Feature/EPIC vem do rollup dos filhos no DevOps.
-                var (eid, emsg) = await TfsImportService.CreateChildWorkItemAsync(_options, kind, ne.Title.Trim(), parentId,
-                    string.IsNullOrWhiteSpace(IterOf(ne)) ? null : IterOf(ne),
-                    string.IsNullOrWhiteSpace(ne.Description) ? null : TfsImportService.PlainTextToSimpleHtml(ne.Description),
-                    string.IsNullOrWhiteSpace(ne.AssignedTo) ? null : ne.AssignedTo);
+                // Sem HH: o esforco de Feature/EPIC vem do rollup dos filhos.
+                var (eid, emsg) = await CriaFilhoNoDestinoAsync(kind, ne, parentId, IterOf(ne));
+                TfsImportService.BoardLog.Write($"SALVAR: {kind} '{ne.Title}' -> id={eid} msg={emsg}");
                 if (eid > 0) { tempToReal[ne.TempId] = eid; _newCards.Remove(ne); ok++; reload = true; }
                 else fails.Add($"{kind} '{ne.Title}': {emsg}");
             }
 
             foreach (var ns in _newCards.Where(n => n.Type == "Story").ToList())
             {
-                if (string.IsNullOrWhiteSpace(ns.Title) || !(ns.Effort is > 0) || string.IsNullOrWhiteSpace(ns.AssignedTo))
-                { fails.Add(AppStrings.Get("Sprint_NewIncomplete")); continue; }
-                if (string.IsNullOrWhiteSpace(IterOf(ns))) { fails.Add(AppStrings.Get("Sprint_NewNeedsSprint")); continue; }
+                if (CamposFaltandoNoCardNovo(ns, IterOf(ns)) is { } faltaSt)
+                {
+                    TfsImportService.BoardLog.Write($"SALVAR: Story '{ns.Title}' RECUSADA — {faltaSt}");
+                    fails.Add($"Story '{ns.Title}': {faltaSt}"); continue;
+                }
                 bool dup = (_board?.Stories.Any(s => s.FeatureId == ns.FeatureId && s.Title.Trim().Equals(ns.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false)
                     || _newCards.Any(o => o != ns && o.Type == "Story" && o.FeatureId == ns.FeatureId && o.Title.Trim().Equals(ns.Title.Trim(), StringComparison.CurrentCultureIgnoreCase));
                 if (dup) { fails.Add($"Story '{ns.Title}': {AppStrings.Get("Sprint_DupName")}"); continue; }
                 var storyParent = ns.ParentId < 0 ? (tempToReal.TryGetValue(ns.ParentId, out var sp2) ? sp2 : 0) : ns.ParentId;
                 if (storyParent <= 0) { fails.Add($"Story '{ns.Title}': {AppStrings.Get("Sprint_NewNoParent")}"); continue; }
-                var (nid, msg) = await TfsImportService.CreateChildWorkItemAsync(_options, "User Story", ns.Title.Trim(), storyParent, IterOf(ns),
-                    string.IsNullOrWhiteSpace(ns.Description) ? null : TfsImportService.PlainTextToSimpleHtml(ns.Description),
-                    string.IsNullOrWhiteSpace(ns.AssignedTo) ? null : ns.AssignedTo, ns.Effort, ns.StartDate);
+                var (nid, msg) = await CriaFilhoNoDestinoAsync("User Story", ns, storyParent, IterOf(ns));
+                TfsImportService.BoardLog.Write($"SALVAR: Story '{ns.Title}' pai=#{storyParent} -> id={nid} msg={msg}");
                 if (nid > 0)
                 {
                     tempToReal[ns.TempId] = nid; _newCards.Remove(ns); ok++; reload = true;
-                    // Fica no topo da Feature onde foi criada, inclusive depois do reload.
-                    _storyRank[nid] = await RankNewOnTopAsync(nid,
-                        (_board?.Stories.Where(s => s.FeatureId == ns.FeatureId && s.Id > 0)
-                                       .Select(s => StoryRankOf(s.Id)) ?? Enumerable.Empty<double>()));
+                    // Fica no topo da Feature onde foi criada, inclusive depois do reload. O rank
+                    // e um campo do DevOps; no GitProject a posicao sai do proprio board.
+                    if (_backend == NxBackendKind.AzureDevOps)
+                        _storyRank[nid] = await RankNewOnTopAsync(nid,
+                            (_board?.Stories.Where(s => s.FeatureId == ns.FeatureId && s.Id > 0)
+                                           .Select(s => StoryRankOf(s.Id)) ?? Enumerable.Empty<double>()));
                     // O filtro de Projeto guarda IDs de Story. A Story recem-criada nao esta
                     // nessa lista e sumia do board depois de gravar (so voltava ao reaplicar o
                     // filtro). Entra aqui, para continuar visivel onde foi criada.
@@ -3058,24 +3399,34 @@ namespace NXProject.Views
             }
             foreach (var nt in _newCards.Where(n => n.Type == "Task").ToList())
             {
-                if (string.IsNullOrWhiteSpace(nt.Title) || !(nt.Effort is > 0) || string.IsNullOrWhiteSpace(nt.AssignedTo))
-                { fails.Add(AppStrings.Get("Sprint_NewIncomplete")); continue; }
-                if (string.IsNullOrWhiteSpace(IterOf(nt))) { fails.Add(AppStrings.Get("Sprint_NewNeedsSprint")); continue; }
+                if (CamposFaltandoNoCardNovo(nt, IterOf(nt)) is { } faltaTk)
+                {
+                    TfsImportService.BoardLog.Write($"SALVAR: Task '{nt.Title}' RECUSADA — {faltaTk}");
+                    fails.Add($"Task '{nt.Title}': {faltaTk}"); continue;
+                }
                 var parent = nt.ParentId < 0 ? (tempToReal.TryGetValue(nt.ParentId, out var r) ? r : 0) : nt.ParentId;
-                if (parent <= 0) { fails.Add($"Task '{nt.Title}': story-pai não criada"); continue; }
+                if (parent <= 0)
+                {
+                    TfsImportService.BoardLog.Write($"SALVAR: Task '{nt.Title}' sem story-pai (ParentId={nt.ParentId}).");
+                    fails.Add($"Task '{nt.Title}': story-pai não criada"); continue;
+                }
                 bool dup = (_board?.Stories.FirstOrDefault(s => s.Id == parent)?.Tasks.Any(t => t.Title.Trim().Equals(nt.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false)
                     || _newCards.Any(o => o != nt && o.Type == "Task" && o.ParentId == nt.ParentId && o.Title.Trim().Equals(nt.Title.Trim(), StringComparison.CurrentCultureIgnoreCase));
-                if (dup) { fails.Add($"Task '{nt.Title}': {AppStrings.Get("Sprint_DupName")}"); continue; }
-                var (nid, msg) = await TfsImportService.CreateChildWorkItemAsync(_options, "Task", nt.Title.Trim(), parent, IterOf(nt),
-                    string.IsNullOrWhiteSpace(nt.Description) ? null : TfsImportService.PlainTextToSimpleHtml(nt.Description),
-                    string.IsNullOrWhiteSpace(nt.AssignedTo) ? null : nt.AssignedTo, nt.Effort);
+                if (dup)
+                {
+                    TfsImportService.BoardLog.Write($"SALVAR: Task '{nt.Title}' RECUSADA — nome repetido sob #{parent}.");
+                    fails.Add($"Task '{nt.Title}': {AppStrings.Get("Sprint_DupName")}"); continue;
+                }
+                var (nid, msg) = await CriaFilhoNoDestinoAsync("Task", nt, parent, IterOf(nt));
+                TfsImportService.BoardLog.Write($"SALVAR: Task '{nt.Title}' pai=#{parent} -> id={nid} msg={msg}");
                 if (nid > 0)
                 {
                     _newCards.Remove(nt); ok++; reload = true;
-                    // Mesma ideia da Story: no topo da Story onde foi criada.
-                    _taskRank[nid] = await RankNewOnTopAsync(nid,
-                        (_board?.Stories.FirstOrDefault(s => s.Id == parent)?.Tasks
-                                .Where(t => t.Id > 0).Select(EffTaskRank) ?? Enumerable.Empty<double>()));
+                    // Mesma ideia da Story: no topo da Story onde foi criada (so no DevOps).
+                    if (_backend == NxBackendKind.AzureDevOps)
+                        _taskRank[nid] = await RankNewOnTopAsync(nid,
+                            (_board?.Stories.FirstOrDefault(s => s.Id == parent)?.Tasks
+                                    .Where(t => t.Id > 0).Select(EffTaskRank) ?? Enumerable.Empty<double>()));
                 }
                 else fails.Add($"Task '{nt.Title}': {msg}");
             }
@@ -3092,10 +3443,23 @@ namespace NXProject.Views
                 else fails.Add($"#{kv.Key} (story): {msg}");
             }
 
+            TfsImportService.BoardLog.Write(
+                $"SALVAR: fim — {ok} aplicada(s), {fails.Count} falha(s)"
+                + (fails.Count > 0 ? ": " + string.Join(" | ", fails) : "")
+                + $"; restam {_newCards.Count} card(s) novo(s) na fila.");
+
             Phase("Sprint_PhReload");
             SaveProgress.Value = SaveProgress.Maximum;
             if (reload)
+            {
+                // Os cards novos que NAO foram gravados (faltou HH, nome repetido, pai ainda sem
+                // id) sobrevivem a recarga. A recarga limpa toda a fila, e com ela ia embora o
+                // card que a pessoa acabou de preencher: a mensagem dizia o que faltava e o card
+                // onde corrigir ja nao existia mais.
+                var naoGravados = _newCards.ToList();
                 await ReloadBoardAsync(_sprintPaths.ToList()); // recarrega a seleção atual (não "todas")
+                _newCards.AddRange(naoGravados);
+            }
             UpdatePendingButton();
             Render();
             if (fails.Count == 0)
@@ -3107,6 +3471,14 @@ namespace NXProject.Views
                 MessageBox.Show(this, AppStrings.Get("Sprint_UpdatePartial",
                         ok.ToString(), fails.Count.ToString(), string.Join("\n", fails)),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                // A gravacao em lote nao tinha catch: uma falha no meio subia e as fases
+                // seguintes (entre elas a dos cards novos) nem chegavam a rodar — na tela, o
+                // card simplesmente nao era criado e nao havia nada no log dizendo por que.
+                TfsImportService.BoardLog.Write($"SALVAR: EXCECAO {ex.GetType().Name}: {ex.Message}");
+                TfsErrorDialog.Show(this, AppStrings.Get("Sprint_SaveNewNow", NomeDoDestino(_backend)), ex);
             }
             finally
             {
@@ -4204,7 +4576,7 @@ namespace NXProject.Views
                 sp.Children.Add(up);
 
                 var actions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
-                var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+                var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), ToolTip = AbrirNoDestino() };
                 open.Click += (_, _) => OpenInDevOps(t.Id);
                 actions.Children.Add(open);
                 if (inSched && _openInSchedule != null)
@@ -4215,6 +4587,7 @@ namespace NXProject.Views
                     actions.Children.Add(sc);
                 }
                 sp.Children.Add(actions);
+                sp.Children.Add(IdLine(t.Id));
 
                 border.Child = sp;
                 BoardHost.Children.Add(border);
@@ -4331,7 +4704,7 @@ namespace NXProject.Views
             var b = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
                 Height = LevelButtonHeight, VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 4, 3, 0), HorizontalAlignment = HorizontalAlignment.Left,
-                Cursor = System.Windows.Input.Cursors.Arrow, ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+                Cursor = System.Windows.Input.Cursors.Arrow, ToolTip = AbrirNoDestino() };
             b.Click += (_, _) => OpenInDevOps(id);
             return Light(b);
         }
@@ -4348,10 +4721,13 @@ namespace NXProject.Views
             if (LevelStateLine(id, state, 10) is { } stLine) sp.Children.Add(stLine);
             if (id > 0 || extra != null)
             {
-                var actions = new StackPanel { Orientation = Orientation.Horizontal };
-                if (id > 0) { actions.Children.Add(OpenDevOpsButton(id)); actions.Children.Add(CopyIdText(id)); }
+                // WrapPanel: o card do EPIC e estreito e leva 🔗, id, recolher, ✎, +Feature e 🗑.
+                // Em linha unica o ultimo botao saia da area visivel — o 🗑 existia e nao se via.
+                var actions = new WrapPanel { Orientation = Orientation.Horizontal };
+                if (id > 0) actions.Children.Add(OpenDevOpsButton(id));
                 if (extra != null) actions.Children.Add(extra);
                 sp.Children.Add(actions);
+                if (id > 0) sp.Children.Add(IdLine(id));
             }
             return sp;
         }
@@ -4375,10 +4751,11 @@ namespace NXProject.Views
                 if (LevelStateLine(id, state, 9) is { } stLine) plain.Children.Add(stLine);
                 if (id > 0 || extra != null)
                 {
-                    var actions = new StackPanel { Orientation = Orientation.Horizontal };
-                    if (id > 0) { actions.Children.Add(OpenDevOpsButton(id)); actions.Children.Add(CopyIdText(id, 9)); }
+                    var actions = new WrapPanel { Orientation = Orientation.Horizontal };
+                    if (id > 0) actions.Children.Add(OpenDevOpsButton(id));
                     if (extra != null) actions.Children.Add(extra);
                     plain.Children.Add(actions);
+                    if (id > 0) plain.Children.Add(IdLine(id, 9));
                 }
                 return plain;
             }
@@ -4445,14 +4822,14 @@ namespace NXProject.Views
                 var featDesc = new Button { Content = "✎", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
                     Margin = new Thickness(0, 0, 4, 0), ToolTip = AppStrings.Get("Sprint_EditFeature") };
                 featDesc.Click += async (_, _) => await EditDescriptionAsync(fid, ftit, "", "Feature");
-                featBtns.Children.Add(Light(featDesc));
+                featBtns.Children.Add(Light(OnlyIn(featDesc, _caps.EditItem, "Azure DevOps")));
                 var featOpen = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
-                    ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+                    ToolTip = AbrirNoDestino() };
                 featOpen.Click += (_, _) => OpenInDevOps(fid);
                 featBtns.Children.Add(Light(featOpen));
-                featBtns.Children.Add(CopyIdText(fid));
                 if (extra != null) featBtns.Children.Add(extra);
                 featSp.Children.Add(featBtns);
+                featSp.Children.Add(IdLine(fid));
             }
             byte Bg(byte v) => (byte)(v + (255 - v) * 0.92); // fundo bem claro da cor
             byte Bd(byte v) => (byte)(v + (255 - v) * 0.70); // borda clara da cor
@@ -4490,6 +4867,8 @@ namespace NXProject.Views
             var cols = new List<GridLength> { new(RowNumberWidth), new(150) };
             if (showProj) cols.Add(new(150));
             if (showEpic) cols.Add(new(160));
+            // Na visao Pessoa & Task a Feature e so contexto (a Story e o card que importa):
+            // 160 basta, e os botoes que nao couberem quebram linha no WrapPanel.
             if (showFeat) cols.Add(new(160));
             cols.Add(new(210));
             var cProj = 2;                                   // só usado quando showProj
@@ -4771,18 +5150,18 @@ namespace NXProject.Views
                             ToolTip = AppStrings.Get("Sprint_OpenParentDevOps", orphanFeat.ToString())
                         };
                         openOrphan.Click += (_, _) => OpenInDevOps(orphanFeat);
-                        var orphanId = CopyIdText(orphanFeat);
-                        orphanId.Margin = new Thickness(0, 4, 4, 0);
+                        var orphanId = IdLine(orphanFeat);
+                        orphanId.Margin = new Thickness(0, 2, 4, 0);
                         // Excluir a Feature: so quando ela NAO tem Story e nenhuma Task solta
                         // sobrando. Com filho vivo, excluir deixaria trabalho orfao no DevOps —
                         // ai o botao fica desabilitado e sobra o 🔗 para abrir e resolver la.
-                        var orphanRow = new StackPanel { Orientation = Orientation.Horizontal };
-                        orphanRow.Children.Add(orphanId);
+                        var orphanRow = new WrapPanel { Orientation = Orientation.Horizontal };
                         orphanRow.Children.Add(openOrphan);
                         // Mesmo botao (e mesma regra) do card da Feature: so aparece se der para excluir.
                         if (BuildDeleteFeatureButton(orphanFeat) is { } delFeat) orphanRow.Children.Add(delFeat);
                         orphanRow.Children.Add(createSt);
                         storySp.Children.Add(orphanRow);
+                        storySp.Children.Add(orphanId);
                     }
                     else if (storyId > 0)
                     {
@@ -4813,21 +5192,21 @@ namespace NXProject.Views
                         // Abrir a Story no DevOps.
                         var openSt = new Button { Content = "🔗", FontSize = 11,
                             Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
-                            ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+                            ToolTip = AbrirNoDestino() };
                         var openStId = storyId;
                         openSt.Click += (_, _) => OpenInDevOps(openStId);
                         stActions.Children.Add(openSt);
-                        stActions.Children.Add(CopyIdText(openStId));
                         stActions.Children.Add(BuildStoryTasksButton(openStId, EffTitle(openStId, sgTitle)));
                         var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
                             Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
                         addTask.Click += (_, _) => AddNewTask(storyId, personKey); // já nasce na faixa da pessoa
-                        stActions.Children.Add(addTask);
+                        stActions.Children.Add(OnlyIn(addTask, _caps.CreateItem, "Azure DevOps"));
                         // Bloquear/desbloquear a Story — último botão, igual à visão Projeto & Story.
                         stActions.Children.Add(BuildBlockButton(storyId, StoryById(storyId)?.Tags ?? "", isStory: true));
                         // 👁 (mostrar encerradas desta pessoa) e o ULTIMO botao do card.
                         if (BuildRevealClosedButton(openStId, personKey) is { } revPerson) stActions.Children.Add(revPerson);
                         storySp.Children.Add(stActions);
+                        storySp.Children.Add(IdLine(openStId));
                     }
                     // Destaque laranja quando a Story tem alteração pendente (rank/responsável/nome).
                     var storyPend = storyId > 0 && (_storyRankPending.Contains(storyId) || _ownerPending.ContainsKey(storyId)
@@ -4937,7 +5316,7 @@ namespace NXProject.Views
                                 Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
                             var fId = featId; var fName = featTitle;
                             b.Click += (_, _) => AddNewStory(fId, fName, personKey);
-                            addStoryBtn = Light(b);
+                            addStoryBtn = Light(OnlyIn(b, _caps.CreateItem, "Azure DevOps"));
                         }
                         var featExtra = JoinButtons(BuildCollapseButton(featId), addStoryBtn,
                             BuildDeleteFeatureButton(featId));
@@ -5454,7 +5833,7 @@ namespace NXProject.Views
                         Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
                     var fId2 = st.FeatureId; var fName2 = st.FeatureTitle;
                     b2.Click += (_, _) => AddNewStory(fId2, fName2, personKey);
-                    addSt = Light(b2);
+                    addSt = Light(OnlyIn(b2, _caps.CreateItem, "Azure DevOps"));
                 }
                 var featExtra2 = JoinButtons(BuildCollapseButton(st.FeatureId), addSt,
                     BuildDeleteFeatureButton(st.FeatureId));
@@ -5522,15 +5901,14 @@ namespace NXProject.Views
                 Cursor = System.Windows.Input.Cursors.Arrow };
             AddEditButtons(actions, st.Id, st.Title, st.AssignedTo, "Story", st.IterationPath ?? "");
             var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(3, 0, 3, 0),
-                Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+                Margin = new Thickness(0, 0, 3, 2), ToolTip = AbrirNoDestino() };
             open.Click += (_, _) => OpenInDevOps(st.Id);
             actions.Children.Add(open);
-            actions.Children.Add(CopyIdText(st.Id));
             actions.Children.Add(BuildStoryTasksButton(st.Id, EffTitle(st.Id, st.Title)));
             var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
                 Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2) };
             addTask.Click += (_, _) => AddNewTask(st.Id, personKey);
-            actions.Children.Add(addTask);
+            actions.Children.Add(OnlyIn(addTask, _caps.CreateItem, "Azure DevOps"));
             // Excluir: so quando a Story esta SEM TASK DE VERDADE — nenhuma no DevOps, ou
             // todas ja marcadas para excluir. Task apenas escondida por filtro (Closed, por
             // exemplo) NAO libera o botao: o item continua existindo no DevOps.
@@ -5549,6 +5927,7 @@ namespace NXProject.Views
             // 👁 (mostrar encerradas desta pessoa) e o ULTIMO botao do card.
             if (BuildRevealClosedButton(st.Id, personKey) is { } revNoTask) actions.Children.Add(revNoTask);
             sp.Children.Add(actions);
+            sp.Children.Add(IdLine(st.Id));
 
             var pend = _storyRankPending.Contains(st.Id) || _ownerPending.ContainsKey(st.Id)
                 || _titlePending.ContainsKey(st.Id) || _blockPending.ContainsKey(st.Id)
@@ -5643,7 +6022,7 @@ namespace NXProject.Views
             var cols = new List<GridLength> { new(RowNumberWidth) };
             if (showProjCol) cols.Add(new(150));
             if (showEpicCol) cols.Add(new(170));
-            cols.Add(new(180));
+            cols.Add(new(190));   // Feature: cabe o nome e os botoes do nivel sem cortar
             var cProjCol = 1;                                 // só usado quando showProjCol
             var cEpic = 1 + (showProjCol ? 1 : 0);            // só usado quando showEpicCol
             var cFeat = 1 + (showProjCol ? 1 : 0) + (showEpicCol ? 1 : 0);
@@ -5712,7 +6091,7 @@ namespace NXProject.Views
                     var btn = new Button { Content = AppStrings.Get("Sprint_AddStory"), FontSize = 10,
                         Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(4, 0, 0, 0) };
                     btn.Click += (_, _) => AddNewStory(featureId, featName);
-                    addStory = Light(btn);
+                    addStory = Light(OnlyIn(btn, _caps.CreateItem, "Azure DevOps"));
                 }
                 // Colunas Project e EPIC (só na 1ª Feature de cada um, para não repetir).
                 var projTitle = featRow?.FeatureProjectTitle ?? "";
@@ -6210,17 +6589,18 @@ namespace NXProject.Views
 
             sp.Children.Add(new TextBlock { Text = AppStrings.Get("Sprint_FldOwner"), FontSize = 10, Foreground = Brushes.Gray });
             var person = new ComboBox { IsEditable = true, FontSize = 11, Margin = new Thickness(0, 0, 0, 3), Text = nc.AssignedTo };
-            if (_board != null) foreach (var p in _board.People) person.Items.Add(p);
-            // Trocar a pessoa move o card para a faixa dela. O re-render é ADIADO (Dispatcher) para
-            // não reconstruir a árvore no meio do evento do ComboBox — senão a 1ª troca não reagrupa.
-            void RegroupDeferred() => Dispatcher.BeginInvoke(new Action(Render), System.Windows.Threading.DispatcherPriority.Background);
+            foreach (var p in PessoasParaAtribuir()) person.Items.Add(p);
+            // Trocar a pessoa NAO reagrupa o card na hora. O card em edicao fica onde esta ate ser
+            // gravado: reagrupar no meio do preenchimento jogava o card para a faixa da outra
+            // pessoa — e, com um filtro de pessoa ligado, para fora da tela. A posicao definitiva
+            // vem na releitura do board, depois de gravar.
             person.SelectionChanged += (_, _) =>
             {
                 var chosen = person.SelectedItem as string;
                 if (string.IsNullOrEmpty(chosen) || string.Equals(chosen, nc.AssignedTo, StringComparison.CurrentCultureIgnoreCase)) return;
-                nc.AssignedTo = chosen; UpdatePendingButton(); RegroupDeferred();
+                nc.AssignedTo = chosen; UpdatePendingButton();
             };
-            person.LostFocus += (_, _) => { if (nc.AssignedTo != person.Text) { nc.AssignedTo = person.Text; RegroupDeferred(); } };
+            person.LostFocus += (_, _) => { if (nc.AssignedTo != person.Text) nc.AssignedTo = person.Text; };
             sp.Children.Add(person);
 
             // HH so faz sentido em Story/Task: o esforco de Feature e EPIC vem do rollup dos filhos.
@@ -6234,16 +6614,26 @@ namespace NXProject.Views
                 sp.Children.Add(hhRow);
             }
 
-            // Sprint-alvo: só aparece quando há mais de uma opção (várias sprints/"Todas" selecionadas).
+            // Sprint-alvo: SEMPRE visível, mesmo com uma só opção. Antes a combo era escondida
+            // quando havia uma única sprint, e a sprint do card ficava sendo um palpite invisível
+            // (a do board) — foi assim que uma Story nasceu sem sprint e sumiu do board. Com a
+            // combo à vista, quem cria escolhe, vê o que escolheu e pode trocar.
             var sprintOpts = NewCardSprintOptions();
-            if (sprintOpts.Count > 1 || (sprintOpts.Count == 1 && nc.Type is "Feature" or "Epic"))
+            if (sprintOpts.Count > 0)
             {
                 if (string.IsNullOrEmpty(nc.IterationPath) || sprintOpts.All(s => s.Path != nc.IterationPath))
                     nc.IterationPath = DefaultNewIterationPath();
-                sp.Children.Add(new TextBlock { Text = AppStrings.Get("Sprint_FldSprint"), FontSize = 10, Foreground = Brushes.Gray });
+                // Em Story/Task a sprint e obrigatoria (o board filtra por ela) — o asterisco diz isso.
+                var obrigatoria = nc.Type is "Story" or "Task";
+                sp.Children.Add(new TextBlock { Text = AppStrings.Get("Sprint_FldSprint") + (obrigatoria ? " *" : ""),
+                    FontSize = 10, Foreground = Brushes.Gray });
                 var spCombo = new ComboBox { FontSize = 11, Margin = new Thickness(0, 0, 0, 3),
                     ItemsSource = sprintOpts, DisplayMemberPath = nameof(TfsImportService.SprintInfo.Name) };
                 spCombo.SelectedItem = sprintOpts.FirstOrDefault(s => s.Path == nc.IterationPath) ?? sprintOpts[0];
+                // O card passa a valer o que a combo MOSTRA. Sem esta linha, uma sugestao fora da
+                // lista (sprint do board que nao esta entre as opcoes) deixava o card gravando numa
+                // sprint diferente da que estava a vista.
+                if (spCombo.SelectedItem is TfsImportService.SprintInfo sel) nc.IterationPath = sel.Path;
                 spCombo.SelectionChanged += (_, _) => { if (spCombo.SelectedItem is TfsImportService.SprintInfo si) nc.IterationPath = si.Path; };
                 sp.Children.Add(spCombo);
             }
@@ -6281,7 +6671,9 @@ namespace NXProject.Views
             // DevOps desfaz. O aviso na confirmacao diz isso com todas as letras.
             var saveNow = new Button
             {
-                Content = AppStrings.Get("Sprint_SaveNewNow"), FontSize = 10,
+                // O rotulo nomeia o DESTINO: "Gravar no TFS" com o GitProject selecionado
+                // dizia o que o botao nao ia fazer.
+                Content = AppStrings.Get("Sprint_SaveNewNow", NomeDoDestino(_backend)), FontSize = 10,
                 Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(6, 0, 0, 0),
                 ToolTip = AppStrings.Get("Sprint_SaveNewNowTip"),
                 // Pai que ainda nao existe no DevOps (outro card novo) nao tem onde pendurar:
@@ -6305,6 +6697,33 @@ namespace NXProject.Views
         /// acontece depois: o item nasce com id real e sai da fila, então o "descartar" do card
         /// não o alcança mais. Por isso a confirmação é explícita.
         /// </summary>
+        /// <summary>
+        /// Cria UM card novo no destino selecionado, e é por aqui que a gravação em lote
+        /// ("Atualizar") passa.
+        ///
+        /// Antes, o lote chamava a API do Azure DevOps direto, qualquer que fosse o destino: com
+        /// o GitProject na combo, a Task criada pelo botão "Atualizar" não nascia em lugar nenhum
+        /// e simplesmente não voltava no board — sem erro e sem linha de log, porque nada daquilo
+        /// chegava a passar pelo caminho do GitProject.
+        /// </summary>
+        private Task<(int Id, string Message)> CriaFilhoNoDestinoAsync(
+            string kind, NewCard nc, int parentId, string? iter)
+            => Gravador().CreateChildAsync(kind, nc.Title.Trim(), parentId, iter,
+                nc.Description, nc.AssignedTo, nc.Effort, nc.StartDate,
+                new Progress<string>(m => StatusText.Text = m));
+
+        /// <summary>
+        /// O gravador do destino atual. A tela não pergunta "qual é o destino?" em cada ponto de
+        /// escrita — pede o que quer e o gravador resolve. Foi a falta disso que deixou criar
+        /// card funcionando por um caminho e silenciosamente quebrado por outro.
+        /// </summary>
+        private INxBoardWriter Gravador()
+            => NxBoardWriters.For(_backend, _options, _localProject, _options.GitProject);
+
+        /// <summary>A fonte de leitura do destino atual — o par do <see cref="Gravador"/>.</summary>
+        private INxBoardSource Fonte()
+            => NxBoardSources.For(_backend, _options, _localProject, _options.GitProject);
+
         private async Task SaveNewCardNowAsync(NewCard nc)
         {
             var iter = !string.IsNullOrWhiteSpace(nc.IterationPath) ? nc.IterationPath : _sprintPath;
@@ -6315,10 +6734,29 @@ namespace NXProject.Views
                 return;
             }
 
+            // Cada destino cria do seu jeito. Sem esta porta, a tela chamava a API do DevOps
+            // mesmo com o GitProject selecionado — e o erro que aparecia era do servidor errado,
+            // sobre um id que nem era dele.
+            if (!_caps.CreateItem)
+            {
+                MessageBox.Show(this, AppStrings.Get("Sprint_CreateOnlyDevOps"),
+                    "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_backend == NxBackendKind.GitProject)
+            {
+                await SaveNewCardNowGitProjectAsync(nc);
+                return;
+            }
+
             var kind = nc.Type switch { "Story" => "User Story", "Epic" => "Epic", "Feature" => "Feature", _ => "Task" };
             var ask = MessageBox.Show(this,
-                AppStrings.Get("Sprint_SaveNewNowConfirm", nc.Title.Trim(), "#" + nc.ParentId),
-                AppStrings.Get("Sprint_SaveNewNow"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                // O destino entra na mensagem: dizer "DevOps" com o GitProject selecionado foi
+                // justamente o que escondeu o defeito — a tela afirmava o que nao ia fazer.
+                AppStrings.Get("Sprint_SaveNewNowConfirm", nc.Title.Trim(), "#" + nc.ParentId,
+                    NomeDoDestino(_backend)),
+                AppStrings.Get("Sprint_SaveNewNow", NomeDoDestino(_backend)), MessageBoxButton.OKCancel, MessageBoxImage.Question);
             if (ask != MessageBoxResult.OK) return;
 
             BeginLoading();
@@ -6436,27 +6874,42 @@ namespace NXProject.Views
         }
 
         /// <summary>O card novo tem tudo que o DevOps exige? Devolve a mensagem, ou null se ok.</summary>
+        /// <summary>
+        /// O que falta preencher no card novo, UMA coisa por vez e com nome: "Informe o HH
+        /// estimado" diz onde mexer; "dados incompletos" obrigava a adivinhar qual campo era.
+        /// Não olha o pai — na gravação em lote o pai pode ser outro card novo, que só ganha id
+        /// durante a própria gravação.
+        /// </summary>
+        private static string? CamposFaltandoNoCardNovo(NewCard nc, string? iter)
+        {
+            if (string.IsNullOrWhiteSpace(nc.Title)) return AppStrings.Get("Sprint_NewNeedsName");
+            if (nc.Type is not ("Story" or "Task")) return null;
+            if (!(nc.Effort is > 0)) return AppStrings.Get("Sprint_NewNeedsHH");
+            if (string.IsNullOrWhiteSpace(nc.AssignedTo)) return AppStrings.Get("Sprint_NewNeedsOwner");
+            if (string.IsNullOrWhiteSpace(iter)) return AppStrings.Get("Sprint_NewNeedsSprint");
+            return null;
+        }
+
+        /// <summary>
+        /// Já existe um irmão com este nome sob o mesmo pai? O DevOps aceita; o NXProject não —
+        /// a sincronização passaria a não saber qual é qual (há teste cobrindo isso no sync).
+        /// </summary>
+        private bool NomeRepetidoNoPai(NewCard nc, int pai) => nc.Type switch
+        {
+            "Story" => _board?.Stories.Any(x => x.FeatureId == pai
+                        && x.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false,
+            "Task" => _board?.Stories.FirstOrDefault(x => x.Id == pai)?.Tasks
+                        .Any(t => t.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false,
+            _ => _board?.LevelItems.Any(x => x.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)
+                        && string.Equals(x.Kind, nc.Type, StringComparison.OrdinalIgnoreCase)) ?? false
+        };
+
         private string? ValidateNewCard(NewCard nc, string iter)
         {
-            if (string.IsNullOrWhiteSpace(nc.Title)) return AppStrings.Get("Sprint_NewIncomplete");
+            if (CamposFaltandoNoCardNovo(nc, iter) is { } falta) return falta;
             if (nc.ParentId <= 0) return AppStrings.Get("Sprint_NewNoParent");
-            if (nc.Type is "Story" or "Task")
-            {
-                if (!(nc.Effort is > 0) || string.IsNullOrWhiteSpace(nc.AssignedTo))
-                    return AppStrings.Get("Sprint_NewIncomplete");
-                if (string.IsNullOrWhiteSpace(iter)) return AppStrings.Get("Sprint_NewNeedsSprint");
-            }
-            // Mesmo nome sob o mesmo pai: o DevOps aceita, o NX nao — a sincronizacao passa a
-            // nao saber qual e qual (ha teste cobrindo isso no sync).
-            var dup = nc.Type switch
-            {
-                "Story" => _board?.Stories.Any(x => x.FeatureId == nc.FeatureId
-                            && x.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false,
-                "Task" => _board?.Stories.FirstOrDefault(x => x.Id == nc.ParentId)?.Tasks
-                            .Any(t => t.Title.Trim().Equals(nc.Title.Trim(), StringComparison.CurrentCultureIgnoreCase)) ?? false,
-                _ => false
-            };
-            return dup ? AppStrings.Get("Sprint_DupName") : null;
+            var pai = nc.Type == "Story" ? nc.FeatureId : nc.ParentId;
+            return NomeRepetidoNoPai(nc, pai) ? AppStrings.Get("Sprint_DupName") : null;
         }
 
         /// <summary>
@@ -6534,6 +6987,21 @@ namespace NXProject.Views
         /// Fica ao lado do 🔗 porque os dois falam do mesmo item: um leva ate ele, o outro leva
         /// o numero dele embora.
         /// </summary>
+        /// <summary>
+        /// O #id numa linha PRÓPRIA, abaixo dos botões do card.
+        ///
+        /// Ele ficava no meio dos ícones e se lia como se fosse mais um botão — pior ainda
+        /// porque o que vem depois dele (Tasks, + Task, 🗑) parecia pertencer a outro item.
+        /// Como linha, ele é o que é: a identificação do card, e continua clicável para copiar.
+        /// </summary>
+        private TextBlock IdLine(int id, double fontSize = 10)
+        {
+            var tb = CopyIdText(id, fontSize);
+            tb.Margin = new Thickness(1, 1, 0, 0);
+            tb.HorizontalAlignment = HorizontalAlignment.Left;
+            return tb;
+        }
+
         private TextBlock CopyIdText(int id, double fontSize = 10)
         {
             var tb = new TextBlock
@@ -6551,6 +7019,102 @@ namespace NXProject.Views
         /// sumir. Sumir deixaria a pessoa procurando — e achando que o NXProject perdeu a
         /// funcao; desabilitado com a marca ensina qual destino a tem.
         /// </summary>
+        /// <summary>Nome do destino como ele aparece no combo — para as mensagens nao mentirem.</summary>
+        private static string NomeDoDestino(NxBackendKind kind) => kind switch
+        {
+            NxBackendKind.GitProject => "GitProject",
+            NxBackendKind.Local => AppStrings.Get("Sprint_TargetLocal"),
+            _ => "Azure DevOps"
+        };
+
+        /// <summary>
+        /// Cria o card novo no GitProject: issue no repositório do pai → item no board →
+        /// sub-issue → nível. Depois o board é RELIDO, porque o número da issue nova vem do
+        /// servidor e o resto da tela (ordem, filtros, hierarquia) tem de enxergá-lo.
+        /// </summary>
+        private async Task SaveNewCardNowGitProjectAsync(NewCard nc)
+        {
+            // MESMA validacao do DevOps — inclusive a sprint obrigatoria na Story/Task. Aqui ela
+            // pesa ainda mais: no GitProject o board filtra pela iteracao do item, entao item
+            // sem sprint nasce invisivel (foi o que aconteceu com a primeira Story criada).
+            var iter = !string.IsNullOrWhiteSpace(nc.IterationPath) ? nc.IterationPath : _sprintPath;
+            var problem = ValidateNewCard(nc, iter);
+            if (problem != null)
+            {
+                MessageBox.Show(this, problem, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var ask = MessageBox.Show(this,
+                AppStrings.Get("Sprint_SaveNewNowConfirmGit", nc.Title.Trim(), "#" + nc.ParentId),
+                AppStrings.Get("Sprint_SaveNewNow", NomeDoDestino(_backend)),
+                MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            if (ask != MessageBoxResult.OK) return;
+
+            BeginLoading();
+            try
+            {
+                // Os campos do card vao JUNTO com a criacao: o item nasce com sprint, responsavel,
+                // HH e inicio. Gravar depois obrigava a reler o board para achar o item pelo numero,
+                // e o item recem-criado ainda nao aparecia nessa releitura ("#96 nao esta neste board").
+                var avisos = new List<string>();
+                TfsImportService.BoardLog.Write(
+                    $"CRIAR GitProject: pedido tipo={nc.Type} titulo='{nc.Title.Trim()}' pai=#{nc.ParentId} "
+                    + $"sprint='{IterLeaf(iter ?? "")}' resp='{nc.AssignedTo}' hh={nc.Effort} inicio={nc.StartDate:dd/MM/yyyy}.");
+                var (numero, msg) = await GitProjectCreateService.CreateChildAsync(
+                    _options.GitProject!, nc.ParentId, nc.Type, nc.Title.Trim(),
+                    string.IsNullOrWhiteSpace(nc.Description) ? null : nc.Description,
+                    new Progress<string>(m => StatusText.Text = m),
+                    IterLeaf(iter ?? ""), nc.AssignedTo, nc.Effort, nc.StartDate, avisos);
+
+                if (numero <= 0)
+                {
+                    MessageBox.Show(this, msg, "NXProject", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (avisos.Count > 0)
+                    MessageBox.Show(this,
+                        AppStrings.Get("Sprint_LocalSavedProblems", string.Join(Environment.NewLine, avisos)),
+                        AppStrings.Get("Sprint_TargetGitProject"), MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                // ESPERA o item aparecer na leitura antes de recarregar. Sem isto, a releitura
+                // pegava o projeto ainda sem ele e o card sumia da tela — estando correto no
+                // servidor (medido: a issue existia, no board e com sprint, e so aparecia na
+                // consulta alguns segundos depois).
+                var visivel = await GitProjectCreateService.EsperaAparecerAsync(
+                    _options.GitProject!, numero, new Progress<string>(m => StatusText.Text = m));
+
+                // O card provisorio sai: o item agora existe no servidor e volta na releitura.
+                _newCards.Remove(nc);
+                if (NxBoardSources.For(_backend, _options, _localProject, _options.GitProject)
+                        is GitProjectBoardSource fonte) fonte.Invalidate();
+                await ReloadBoardAsync(_sprintPaths?.ToList() ?? new List<string>());
+
+                // O teste que importa: DEPOIS da releitura, o item novo esta no board? Se nao
+                // estiver, o log diz com que sprint ele ficou e quais sprints a tela pediu — foi
+                // assim que a Story "sumiu" das outras vezes.
+                var achado = _board?.Stories.FirstOrDefault(x => x.Id == numero);
+                var achadoNivel = _board?.LevelItems.FirstOrDefault(x => x.Id == numero);
+                var achadoTask = _board?.Stories.SelectMany(x => x.Tasks).FirstOrDefault(x => x.Id == numero);
+                TfsImportService.BoardLog.Write(
+                    $"CRIAR GitProject: apos recarregar, #{numero} "
+                    + (achado != null ? $"ESTA como Story (sprint='{achado.IterationPath}', resp='{achado.AssignedTo}')"
+                       : achadoTask != null ? $"ESTA como Task (sprint='{achadoTask.IterationPath}')"
+                       : achadoNivel != null ? $"ESTA como nivel {achadoNivel.Kind} (sprint='{achadoNivel.IterationPath}')"
+                       : "NAO esta no board")
+                    + $"; sprints pedidas=[{string.Join(" | ", _sprintPaths ?? new List<string>())}]"
+                    + $"; avisos={avisos.Count}.");
+                StatusText.Text = visivel ? msg
+                    : AppStrings.Get("Sprint_NewNotVisibleYet", "#" + numero);
+            }
+            catch (Exception ex)
+            {
+                TfsErrorDialog.Show(this, AppStrings.Get("Sprint_TargetGitProject"), ex);
+            }
+            finally { EndLoading(); }
+        }
+
         private T OnlyIn<T>(T controle, bool capaz, string destino) where T : Control
         {
             if (capaz) return controle;
@@ -6747,14 +7311,17 @@ namespace NXProject.Views
                 var actions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
                 AddEditButtons(actions, story.Id, story.Title, story.AssignedTo, "Story", story.IterationPath);
                 var openStory = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
-                    Margin = new Thickness(0, 0, 4, 0), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+                    Margin = new Thickness(0, 0, 4, 0), ToolTip = AbrirNoDestino() };
                 openStory.Click += (_, _) => OpenInDevOps(story.Id);
                 actions.Children.Add(openStory);
-                actions.Children.Add(CopyIdText(story.Id));
                 actions.Children.Add(BuildStoryTasksButton(story.Id, EffTitle(story.Id, story.Title)));
                 // Excluir Story: só quando está em New e SEM Tasks (ou todas as Tasks em New).
-                var tasksAllNew = story.Tasks.Count == 0 || story.Tasks.All(t => SameState(EffState(t), "New"));
-                if (string.Equals(EffStoryState(story), "New", StringComparison.OrdinalIgnoreCase) && tasksAllNew)
+                // "Nao comecou" pela regra normalizada: cobre New (DevOps), Todo (GitHub) e
+                // Proposed (CMMI) — a palavra muda, o significado nao.
+                var tasksAllNew = story.Tasks.Count == 0
+                    || story.Tasks.All(t => TfsImportService.NormalizeTaskState(EffState(t)) == "New");
+                if (_caps.DeleteItem
+                    && TfsImportService.NormalizeTaskState(EffStoryState(story)) == "New" && tasksAllNew)
                 {
                     var delSt = new Button { Content = storyToDelete ? "↩" : "🗑", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
                         Margin = new Thickness(0, 0, 4, 0), Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x30, 0x30)),
@@ -6767,6 +7334,7 @@ namespace NXProject.Views
                 // 👁 por ultimo. Projeto & Story nao tem faixa de pessoa: vale para a Story inteira.
                 if (BuildRevealClosedButton(story.Id, "") is { } revStory) actions.Children.Add(revStory);
                 sp.Children.Add(actions);
+                sp.Children.Add(IdLine(story.Id));
             }
             else
                 sp.Children.Add(new TextBlock { Text = AppStrings.Get("Sprint_New"), FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)) });
@@ -6984,7 +7552,8 @@ namespace NXProject.Views
         {
             if (taskId <= 0)
             {
-                MessageBox.Show(this, "Só é possível anexar arquivos em Tasks já enviadas ao Azure DevOps.", "Anexo", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, AppStrings.Get("Sprint_AttachNeedsSavedItem", NomeDoDestino(_backend)),
+                    "Anexo", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -7070,7 +7639,14 @@ namespace NXProject.Views
                 try
                 {
                     StatusText.Text = $"Enviando anexo {sentNames.Count + failed.Count + 1} de {dlg.FileNames.Length}: {System.IO.Path.GetFileName(file)}…";
-                    var info = await TfsAttachmentService.UploadAttachmentAsync(_options, taskId, file);
+                    // O destino decide COMO guarda o arquivo: anexo de work item no DevOps,
+                    // arquivo versionado no repositório da issue no GitProject.
+                    var (info, erro) = await Gravador().AttachAsync(taskId, file);
+                    if (info == null)
+                    {
+                        failed.Add($"{System.IO.Path.GetFileName(file)}: {erro}");
+                        continue;
+                    }
                     list.Add(info);
                     sentNames.Add(info.Name);
                 }
@@ -7085,7 +7661,8 @@ namespace NXProject.Views
             Render();
             if (failed.Count > 0)
                 MessageBox.Show(this,
-                    $"Falha ao anexar {failed.Count} arquivo(s) no Azure DevOps:\n\n{string.Join("\n", failed)}",
+                    AppStrings.Get("Sprint_AttachFailed", failed.Count.ToString(), NomeDoDestino(_backend))
+                        + "\n\n" + string.Join("\n", failed),
                     "Anexo", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
@@ -7204,6 +7781,20 @@ namespace NXProject.Views
                       .ToList();
         }
 
+        /// <summary>
+        /// Nome de pasta estavel para o identificador do anexo: so letras, digitos e traco. Dois
+        /// anexos diferentes continuam em pastas diferentes porque o identificador inteiro entra
+        /// (encurtado por hash quando e longo, como a URL do GitProject).
+        /// </summary>
+        private static string PastaDoAnexo(string? id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return Guid.NewGuid().ToString("N");
+            var limpo = new string(id.Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray());
+            if (limpo.Length is > 0 and <= 60) return limpo;
+            return Convert.ToHexString(System.Security.Cryptography.MD5.HashData(
+                System.Text.Encoding.UTF8.GetBytes(id)));
+        }
+
         private async Task OpenAttachmentAsync(TfsAttachmentService.TfsAttachmentInfo attachment)
         {
             // No modo local a "URL" é o caminho do arquivo: abre direto, sem baixar nada.
@@ -7223,15 +7814,19 @@ namespace NXProject.Views
             if (openDirect)
             {
                 // Pasta temporaria por anexo: dois anexos com o mesmo nome nao se sobrescrevem.
+                // O identificador vira NOME DE PASTA, entao nao pode ir cru: no DevOps ele e um
+                // GUID, mas no GitProject e a URL do arquivo no repositorio — e "https://..."
+                // nao e nome de pasta valido no Windows.
                 var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "NXProject", "attachments",
-                    string.IsNullOrWhiteSpace(attachment.Id) ? Guid.NewGuid().ToString("N") : attachment.Id);
+                    PastaDoAnexo(attachment.Id));
                 destination = System.IO.Path.Combine(dir, attachment.Name);
+                System.IO.Directory.CreateDirectory(dir);
             }
             else
             {
                 var save = new SaveFileDialog
                 {
-                    Title = "Salvar anexo do Azure DevOps",
+                    Title = AppStrings.Get("Sprint_AttachSaveTitle", NomeDoDestino(_backend)),
                     FileName = attachment.Name,
                     Filter = "Todos os arquivos|*.*"
                 };
@@ -7242,7 +7837,11 @@ namespace NXProject.Views
             try
             {
                 StatusText.Text = $"Baixando anexo: {attachment.Name}...";
-                await TfsAttachmentService.DownloadAttachmentAsync(_options, attachment.Url, attachment.Name, destination);
+                // Quem baixa e o gravador do destino: a URL do DevOps precisa do PAT da
+                // organizacao e a do GitProject e um arquivo do repositorio — caminhos diferentes
+                // para a mesma acao da tela.
+                var erroDownload = await Gravador().DownloadAttachmentAsync(attachment, destination);
+                if (!string.IsNullOrEmpty(erroDownload)) throw new InvalidOperationException(erroDownload);
                 if (openDirect)
                 {
                     Process.Start(new ProcessStartInfo(destination) { UseShellExecute = true });
@@ -7254,7 +7853,9 @@ namespace NXProject.Views
             catch (Exception ex)
             {
                 StatusText.Text = "";
-                MessageBox.Show(this, "Falha ao baixar o anexo do Azure DevOps:" + Environment.NewLine + Environment.NewLine + ex.Message, "Anexo",
+                MessageBox.Show(this,
+                    AppStrings.Get("Sprint_AttachDownloadFailed", NomeDoDestino(_backend))
+                        + Environment.NewLine + Environment.NewLine + ex.Message, "Anexo",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -7501,6 +8102,67 @@ namespace NXProject.Views
                 targetPicker.Resources.Add(typeof(System.Windows.Controls.Primitives.DatePickerTextBox), tbStyle);
                 targetRow.Children.Add(targetPicker);
                 sp.Children.Add(targetRow);
+
+                // Quanto ja andou. So aqui, na Task em andamento: em New nao ha andamento, e
+                // encerrada e 100% por definicao (o arrasto para a coluna final ja grava isso).
+                // O valor vai para o mesmo campo do cronograma e do import (Perc_Conclusao).
+                var percPend = _percPending.TryGetValue(t.Id, out var ppv);
+                var percBase = _percApplied.TryGetValue(t.Id, out var pav) ? pav : t.PercentComplete;
+                var percRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0),
+                    Cursor = System.Windows.Input.Cursors.Arrow };
+                percRow.Children.Add(new TextBlock
+                {
+                    Text = AppStrings.Get("Sprint_Percent"), FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    Foreground = percPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00)) : Brushes.DimGray
+                });
+                var efetivo = percPend ? ppv : percBase;
+                var percBox = new TextBox
+                {
+                    Width = 40, FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+                    // Numero a direita: encostado no "%" que vem logo depois, como se le.
+                    TextAlignment = TextAlignment.Right,
+                    Background = Brushes.Transparent,
+                    // Em andamento SEM percentual informado: borda vermelha, como a data alvo
+                    // vencida. O campo so aparece na Task que ja comecou, entao o vazio ali e uma
+                    // pendencia de quem acompanha — e sem borda ele nem parecia editavel.
+                    BorderBrush = percPend ? new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x00))
+                        : efetivo.HasValue ? null : red,
+                    Text = efetivo is { } pv ? pv.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture) : "",
+                    ToolTip = AppStrings.Get("Sprint_PercentTip")
+                };
+                percBox.TextChanged += (_, _) =>
+                {
+                    var txt = (percBox.Text ?? "").Trim().Replace('%', ' ').Trim().Replace(',', '.');
+                    if (string.IsNullOrEmpty(txt))
+                    {
+                        // Em branco = "nao informado". So vira pendencia se havia valor antes;
+                        // senao limpar um campo que ja estava vazio criaria fila do nada.
+                        if (percBase.HasValue) _percPending[t.Id] = null; else _percPending.Remove(t.Id);
+                    }
+                    else if (double.TryParse(txt, System.Globalization.NumberStyles.Any,
+                                 System.Globalization.CultureInfo.InvariantCulture, out var v))
+                    {
+                        // Percentual e 0 a 100, ponto. Fora disso o campo CORRIGE o que esta
+                        // escrito em vez de so ignorar: ignorando, o card mostrava "150" e
+                        // gravava outra coisa — a tela mentindo sobre o que vai para o servidor.
+                        var limitado = Math.Clamp(v, 0, 100);
+                        if (Math.Abs(limitado - v) > 0.001)
+                        {
+                            v = limitado;
+                            percBox.Text = v.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture);
+                            percBox.CaretIndex = percBox.Text.Length;
+                        }
+                        if (percBase is { } b2 && Math.Abs(b2 - v) < 0.001) _percPending.Remove(t.Id);
+                        else _percPending[t.Id] = v;
+                    }
+                    _percAutoByClosed.Remove(t.Id); _percAutoByNew.Remove(t.Id);
+                    UpdatePendingButton();
+                };
+                percRow.Children.Add(percBox);
+                percRow.Children.Add(new TextBlock { Text = "%", FontSize = 10, Margin = new Thickness(2, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.DimGray });
+                sp.Children.Add(percRow);
             }
             // Sprint da Task: mostra quando há mais de uma sprint no board (várias/"Todas").
             var tIter = IterLeaf(EffIter(t.Id, t.IterationPath));
@@ -7570,12 +8232,12 @@ namespace NXProject.Views
 
             var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
             if (prioCombo != null) actions.Children.Add(prioCombo);
-            var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2), ToolTip = AppStrings.Get("Sprint_OpenDevOps") };
+            var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2), ToolTip = AbrirNoDestino() };
             open.Click += (_, _) => OpenInDevOps(t.Id);
             actions.Children.Add(open);
             // Botão Doing: marcar só faz sentido no que já começou — em New não há andamento,
             // e em Closed o trabalho terminou. Tirar continua liberado em qualquer estado.
-            var isNewState = SameState(EffState(t), "New");
+            var isNewState = TfsImportService.NormalizeTaskState(EffState(t)) == "New";
             if (isDoing || (!closed && !isNewState))
             {
                 // Só o sinal (+/-) fica maior; o texto "Doing" mantém a fonte padrão.
@@ -7653,9 +8315,12 @@ namespace NXProject.Views
             // Atalho da Auditoria de BLOCK: so aparece quando o campo de duracao diz que ESTA Task
             // ja foi impedida (> 0). Sem o campo configurado, a auditoria fica so no botao direito.
             if (BuildBlockAuditButton(t) is { } auditBtn) actions.Children.Add(auditBtn);
-            // Excluir: só Tasks reais no estado New (evita apagar itens já em andamento/encerrados).
-            // Marca para excluir (pendente); a exclusão no DevOps ocorre no Salvar TFS.
-            if (t.Id > 0 && string.Equals(EffState(t), "New", StringComparison.OrdinalIgnoreCase))
+            // Excluir: só Tasks reais que ainda NÃO COMEÇARAM (evita apagar trabalho em
+            // andamento ou encerrado). O estado e comparado pela regra normalizada, e nao pela
+            // palavra "New": no GitProject a primeira coluna chama "Todo", e o botao nao aparecia.
+            // Marca para excluir (pendente); a exclusão acontece no Salvar.
+            if (t.Id > 0 && _caps.DeleteItem
+                && TfsImportService.NormalizeTaskState(EffState(t)) == "New")
             {
                 var marked = _deletePending.Contains(t.Id);
                 var del = new Button { Content = marked ? "↩" : "🗑", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
@@ -7821,6 +8486,30 @@ namespace NXProject.Views
                          && TfsImportService.NormalizeTaskState(newState) != "Active")
                     _finishPending.Remove(id);
 
+                // As duas pontas do board nao sao opiniao: encerrada e 100%, e na coluna
+                // inicial nao ha andamento nenhum — e zero. Por isso o arrasto manda ali mesmo
+                // que ja houvesse um numero digitado: o card nao pode ficar em "New, 50%".
+                // Entre as duas pontas, o arrasto so desfaz o valor que ELE colocou; o que a
+                // pessoa digitou no andamento continua valendo.
+                if (id > 0)
+                {
+                    var percBase = _percApplied.TryGetValue(id, out var pa) ? pa : dragged.PercentComplete;
+                    if (IsClosedState(newState))
+                    {
+                        _percAutoByNew.Remove(id);
+                        if (percBase is >= 99.999) _percPending.Remove(id);
+                        else { _percPending[id] = 100; _percAutoByClosed.Add(id); }
+                    }
+                    else if (TfsImportService.NormalizeTaskState(newState) == "New")
+                    {
+                        _percAutoByClosed.Remove(id);
+                        if (percBase is null or <= 0.0001) _percPending.Remove(id);
+                        else { _percPending[id] = 0; _percAutoByNew.Add(id); }
+                    }
+                    else if (_percAutoByClosed.Remove(id) | _percAutoByNew.Remove(id))
+                        _percPending.Remove(id);
+                }
+
                 // Soltou numa coluna encerrada: o campo de HH Realizado passa a aparecer no card
                 // ate a gravacao no TFS, mesmo que o estado em si nao tenha mudado.
                 if (id > 0 && IsClosedState(newState)) _closedDropped.Add(id);
@@ -7915,11 +8604,24 @@ namespace NXProject.Views
 
         // Verdadeiro se o elemento (ou um ancestral) é um controle interativo — para não confundir
         // clique em combo/botão com início de arrasto do card.
+        /// <summary>
+        /// O ponto onde o mouse está pertence a um controle de ENTRADA do card? Se sim, o arrasto
+        /// não começa.
+        ///
+        /// Campo de texto conta: selecionar o HH com o mouse é clicar e arrastar dentro dele, e
+        /// isso iniciava o arrasto do card inteiro. Durante o arrasto o WPF suspende o dispatcher,
+        /// e qualquer janela aberta ali estoura com "o processamento do dispatcher foi suspenso"
+        /// — uma pilha de erros que não dizia nada sobre a causa.
+        /// </summary>
         private static bool IsInteractive(DependencyObject? o)
         {
             while (o != null)
             {
-                if (o is System.Windows.Controls.Primitives.ButtonBase || o is ComboBox || o is System.Windows.Controls.Primitives.Selector)
+                if (o is System.Windows.Controls.Primitives.ButtonBase || o is ComboBox
+                    || o is System.Windows.Controls.Primitives.Selector
+                    || o is System.Windows.Controls.Primitives.TextBoxBase
+                    || o is PasswordBox || o is DatePicker
+                    || o is System.Windows.Controls.Primitives.CalendarItem)
                     return true;
                 o = o is System.Windows.Media.Visual || o is System.Windows.Media.Media3D.Visual3D
                     ? System.Windows.Media.VisualTreeHelper.GetParent(o)
@@ -7992,12 +8694,36 @@ namespace NXProject.Views
             }
         }
 
+        /// <summary>Rótulo do 🔗: o destino que está na combo, não "DevOps" fixo.</summary>
+        private string AbrirNoDestino() => AppStrings.Get("Sprint_OpenIn", NomeDoDestino(_backend));
+
+        /// <summary>
+        /// Abre o item NO DESTINO SELECIONADO. Com o GitProject na combo, o item é uma issue do
+        /// GitHub — mandar o navegador para a URL do Azure DevOps abriria a página errada (ou
+        /// nenhuma, quando a organização nem está configurada).
+        /// </summary>
         private void OpenInDevOps(int id)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(_options.OrganizationUrl) || string.IsNullOrWhiteSpace(_options.TeamProject)) return;
-                var url = $"{_options.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(_options.TeamProject.Trim())}/_workitems/edit/{id}";
+                string url;
+                if (_backend == NxBackendKind.GitProject)
+                {
+                    var git = _options.GitProject;
+                    if (git == null) return;
+                    // O repositório vem do PRÓPRIO item (cada issue mora no seu); sem ele, o
+                    // configurado. Fora de um repositório a issue não tem URL.
+                    var repo = (NxBoardSources.For(_backend, _options, _localProject, git)
+                                    as GitProjectBoardSource)?.RepositoryOf(id);
+                    if (string.IsNullOrWhiteSpace(repo)) repo = git.Repository;
+                    if (string.IsNullOrWhiteSpace(repo) || !repo!.Contains('/')) return;
+                    url = $"https://github.com/{repo}/issues/{id}";
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(_options.OrganizationUrl) || string.IsNullOrWhiteSpace(_options.TeamProject)) return;
+                    url = $"{_options.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(_options.TeamProject.Trim())}/_workitems/edit/{id}";
+                }
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             }
             catch { }

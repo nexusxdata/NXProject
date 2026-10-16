@@ -193,9 +193,15 @@ namespace NXProject.Services
                 // Nenhum deles e obrigatorio: sem o HH Restante o NX usa o HH Estimado como
                 // restante, sem o HH Atual a Story fica sem horas realizadas, e sem o HH Original
                 // o planejado nao e preservado quando o item chega a 100%.
-                Key = "originalHours", DefaultName = "HH_Original_float", EnglishName = "nx_original_hours",
+                // O nome padrao e "Esforço Estimado" porque e assim que esse numero se chama na
+                // pratica: na Story ele E o esforco estimado — o plano original e a estimativa
+                // sao o mesmo campo. Os nomes antigos seguem aceitos, para nao quebrar quem ja
+                // criou "HH_Original_float". Dois conceitos apontando para um campo so e
+                // previsto: o sync grava uma vez (ver a guarda typeHoursRef != originalHoursRef).
+                Key = "originalHours", DefaultName = "Esforço Estimado", EnglishName = "nx_original_hours",
                 Type = "double", Optional = true,
-                Names = new[] { "HH_Original_float", "HH Original", "HH_Original", "nx_original_hours" },
+                Names = new[] { "Esforço Estimado", "Esforco Estimado", "HH_Original_float",
+                                "HH Original", "HH_Original", "nx_original_hours" },
                 Scope = new[] { "User Story", "Task" },
                 OptionalStandardByType = new(StringComparer.CurrentCultureIgnoreCase)
                 { ["Task"] = "Microsoft.VSTS.Scheduling.OriginalEstimate" },
@@ -272,10 +278,28 @@ namespace NXProject.Services
                 EnglishName = "nx_percent_complete",
                 Names = new[] { "Perc_Conclusao", "Perc_Conclusão", "PercConclusao",
                                 "Percentual Conclusao", "Percentual_Conclusao" , "nx_percent_complete"},
-                // So na Story: a Task nao tem esse campo. Sem ele, o percentual vem do ESTADO
-                // (StateToPercent) e item encerrado e 100% — por isso o campo e opcional.
-                Scope = new[] { "User Story" },
+                // Story e Task. Na Task ele existe para o TaskBoard: enquanto ela esta em
+                // andamento, quem acompanha informa quanto ja andou em vez de deixar o estado
+                // responder por tudo. Continua OPCIONAL: sem o campo, o percentual vem do ESTADO
+                // (StateToPercent) e item encerrado e 100%, como sempre foi.
+                Scope = new[] { "User Story", "Task" },
                 Purpose = "NXProject: percentual concluído (inteiro, 0 a 100)"
+            },
+            new()
+            {
+                // Prioridade. No Azure DevOps ela e NATIVA (Microsoft.VSTS.Common.Priority), e e
+                // isso que o NX usa — a opcao "campo padrao" nasce ligada, igual ao HH da Task.
+                // Desmarcar aponta para um campo personalizado, para quem usa outra escala.
+                // No GitHub nao ha prioridade nenhuma de fabrica: la ela precisa ser um campo de
+                // numero no board, e e por falta dele que o card avisava "nao e campo do item".
+                // O nome fica em INGLES nos dois padroes: "Priority" e o campo de fabrica do
+                // DevOps, e campo nativo nao tem versao traduzida para escolher.
+                Key = "priority", DefaultName = "Priority", Type = "integer", Optional = true,
+                Names = new[] { "Priority", "Prioridade", "nx_priority" },
+                // So na Task: e dela que o board trata a prioridade. E o nome fica editavel —
+                // processo que nao seja o Agile pode guardar isso em outro campo.
+                Scope = new[] { "Task" },
+                Purpose = "NXProject: prioridade do item (1 a 4 no padrão do DevOps)"
             },
             new()
             {

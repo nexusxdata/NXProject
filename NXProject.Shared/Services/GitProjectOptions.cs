@@ -84,6 +84,13 @@ namespace NXProject.Services
             Aceitos("percConclusao", "nx_percent_complete", "Percent Complete", "Progress");
 
         /// <summary>
+        /// Prioridade. No DevOps ela e nativa; aqui precisa ser um campo de numero do board —
+        /// sem ele o board le e grava tudo menos a prioridade, e o card dizia so que ela "nao e
+        /// campo do item".
+        /// </summary>
+        public string[] PriorityFields { get; set; } = Aceitos("priority", "nx_priority", "Priority");
+
+        /// <summary>
         /// Nomes aceitos para um campo: os padroes do DevOps na frente, depois os apelidos que o
         /// catalogo do NXProject ja conhece. Sem repetir, e sem diferenciar maiusculas.
         /// </summary>
@@ -190,9 +197,29 @@ namespace NXProject.Services
         /// <summary>URL da API GraphQL. Configurável por causa do GitHub Enterprise Server.</summary>
         public string GraphQlUrl { get; set; } = "https://api.github.com/graphql";
 
-        /// <summary>Tem o mínimo para tentar conectar? Sem isto, nem vale chamar a API.</summary>
-        public bool IsConfigured =>
+        /// <summary>
+        /// A conexão com o GitHub Projects está em uso?
+        ///
+        /// Desligada, o NXProject se comporta como se ela não existisse — o par da mesma opção
+        /// no Azure DevOps. Os dados ficam guardados; só deixam de valer.
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Tem os dados mínimos para tentar conectar? É só o preenchimento — não olha se a
+        /// conexão está ligada. Quem decide "dá para usar" é <see cref="IsConfigured"/>; esta
+        /// aqui serve à tela de configuração, que precisa validar o que foi digitado mesmo com
+        /// a conexão desligada.
+        /// </summary>
+        public bool HasData =>
             !string.IsNullOrWhiteSpace(Owner) && ProjectNumber > 0 && !string.IsNullOrWhiteSpace(Token);
+
+        /// <summary>
+        /// Dá para usar esta conexão? Preenchida E ligada. Como todo o aplicativo já pergunta
+        /// isto antes de chamar a API, desligar aqui basta para o GitProject sumir de tudo —
+        /// board, importação e sincronização — sem caçar um `if` em cada tela.
+        /// </summary>
+        public bool IsConfigured => Enabled && HasData;
 
         /// <summary>
         /// Classificação por nível: campo single-select do board preenchido ao CRIAR o item.
@@ -215,7 +242,7 @@ namespace NXProject.Services
         public static string FieldDataType(string chave) => chave switch
         {
             "effort" or "currentHours" or "originalHours" or "remainingHours"
-                or "percConclusao" or "percAloc" or "blockDuration" => "NUMBER",
+                or "percConclusao" or "percAloc" or "blockDuration" or "priority" => "NUMBER",
             "start" or "finish" => "DATE",
             "cardType" => "SINGLE_SELECT",
             _ => "TEXT"
@@ -341,6 +368,8 @@ namespace NXProject.Services
         /// <inheritdoc cref="OriginalHours"/>
         public double? RemainingHours { get; set; }
         public double? Percent { get; set; }
+        /// <summary>Prioridade lida do campo de numero do board (null = o board nao tem o campo).</summary>
+        public double? Priority { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? FinishDate { get; set; }
         public string Labels { get; set; } = string.Empty;
@@ -353,6 +382,13 @@ namespace NXProject.Services
 
         /// <summary>Id da issue (I_…). É por ele que se fecha, reabre e liga sub-issue.</summary>
         public string IssueId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Repositório da issue, no formato dono/repo. No GitHub o item do board É uma issue, e
+        /// issue mora num repositório — é dele que saem as pessoas que podem ser atribuídas e é
+        /// nele que um filho criado pelo board nasce.
+        /// </summary>
+        public string Repository { get; set; } = string.Empty;
 
         /// <summary>
         /// Revisão do servidor: o instante da última alteração, tomado como o MAIOR entre o da

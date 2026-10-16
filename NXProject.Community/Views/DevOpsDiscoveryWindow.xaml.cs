@@ -1,10 +1,12 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
 
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -57,7 +59,8 @@ namespace NXProject.Views
             var git = TfsConnectionStore.Load().GitProject;
             if (git?.IsConfigured != true)
             {
-                if (new GitProjectConfigWindow { Owner = this }.ShowDialog() == true)
+                // Abre a tela de conexoes JA na aba do GitHub Projects: e de la que falta algo.
+                if (new TfsDevOpsConfigWindow(abaInicial: 1) { Owner = this }.ShowDialog() == true)
                     git = TfsConnectionStore.Load().GitProject;
                 if (git?.IsConfigured != true) { OriginCombo.SelectedIndex = 0; return; }
             }
@@ -189,8 +192,39 @@ namespace NXProject.Views
                 return;
             }
 
+            GravaOrigemDosProjetos();
             DialogResult = true;
             Close();
+        }
+
+        /// <summary>
+        /// Guarda a ORIGEM de cada projeto trazido: ele veio deste servidor, e é dele que o
+        /// Importar, o TaskBoard e o Sincronizar vão buscá-lo.
+        ///
+        /// Sem isto, um projeto descoberto no GitHub entrava no portfólio sem destino e a tela
+        /// de importação continuava oferecendo o Azure DevOps — o NXProject sabia de onde o
+        /// projeto tinha vindo e jogava essa informação fora.
+        /// </summary>
+        private void GravaOrigemDosProjetos()
+        {
+            var origem = OriginCombo?.SelectedIndex == 1
+                ? NxBackendKind.GitProject : NxBackendKind.AzureDevOps;
+
+            var opcoes = TfsConnectionStore.Load();
+            foreach (var p in SelectedProjects)
+            {
+                var cfg = opcoes.PortfolioProjectConfigs.FirstOrDefault(c =>
+                    string.Equals(c.ProjectName, p.Name, StringComparison.CurrentCultureIgnoreCase));
+                if (cfg == null)
+                {
+                    cfg = new PortfolioProjectConfig { ProjectName = p.Name };
+                    opcoes.PortfolioProjectConfigs.Add(cfg);
+                }
+                cfg.BackendKind = origem;
+                p.BackendLabel = origem == NxBackendKind.GitProject ? "GitProject" : "Azure DevOps";
+            }
+            // rememberToken: os tokens ja estao salvos; gravar sem eles apagaria o que existe.
+            TfsConnectionStore.Save(opcoes, rememberToken: true);
         }
 
         private void OnCancelClick(object sender, RoutedEventArgs e)

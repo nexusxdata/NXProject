@@ -60,6 +60,18 @@ namespace NXProject.Services
         bool BacklogOrderWrite,
         /// <summary>Criar Story/Task no destino.</summary>
         bool CreateItem,
+        /// <summary>
+        /// Abrir a tela de edição do item pelo board (descrição, HH, datas, sprint). Os campos
+        /// vêm de <c>INxBoardSource.LoadItemDetailsAsync</c>, que cada destino responde do seu
+        /// jeito — não mais do Azure DevOps em todos os casos.
+        /// </summary>
+        bool EditItem,
+        /// <summary>
+        /// EXCLUIR o item pelo board. Só o DevOps: no GitHub apagar uma issue é irreversível e
+        /// exige permissão de administrador (fechar é o caminho), e no modo local a atividade
+        /// se apaga no próprio cronograma.
+        /// </summary>
+        bool DeleteItem,
         /// <summary>Precisa de cronograma aberto para funcionar.</summary>
         bool RequiresOpenSchedule,
         /// <summary>Precisa da pasta do projeto (artefatos e logs).</summary>
@@ -72,24 +84,34 @@ namespace NXProject.Services
             NxBackendKind.Default or NxBackendKind.AzureDevOps => new(
                 Attachments: NxAttachmentStore.Server, Comments: true, BlockAudit: true,
                 OpenInBrowser: true, ServerStates: true, ServerPeople: true,
-                ConcurrencyControl: true, BacklogOrderWrite: true, CreateItem: true,
-                RequiresOpenSchedule: false, RequiresProjectFolder: false),
+                ConcurrencyControl: true, BacklogOrderWrite: true, CreateItem: true, EditItem: true,
+                DeleteItem: true, RequiresOpenSchedule: false, RequiresProjectFolder: false),
 
-            // GitHub Projects: sem anexo no item, sem auditoria por histórico e sem ordem
-            // gravável — ver docs/gitproject/features.md.
+            // GitHub Projects — ver docs/gitproject/features.md.
+            //
+            // CreateItem: a issue nasce no repositório do PAI (GitProjectCreateService), que é o
+            // que a pessoa espera ao clicar "+ Story" dentro de uma Feature.
+            // EditItem: a tela de edição lê os campos pela fonte do destino; aqui eles vêm do
+            // snapshot do board mais o corpo da issue.
+            // BacklogOrderWrite: a ordem é a posição do item na lista do projeto
+            // (updateProjectV2ItemPosition), não um campo de rank.
+            // DeleteItem: existe, com a ressalva de que o GitHub só deixa quem administra o
+            // repositório apagar uma issue — a recusa vem de lá, com a mensagem de lá.
             NxBackendKind.GitProject => new(
                 Attachments: NxAttachmentStore.Server, Comments: true, BlockAudit: true,
                 OpenInBrowser: true, ServerStates: false, ServerPeople: true,
-                ConcurrencyControl: false, BacklogOrderWrite: false, CreateItem: true,
-                RequiresOpenSchedule: false, RequiresProjectFolder: false),
+                ConcurrencyControl: false, BacklogOrderWrite: true, CreateItem: true, EditItem: true,
+                DeleteItem: true, RequiresOpenSchedule: false, RequiresProjectFolder: false),
 
             // Local: anexo e auditoria de BLOCK existem, mas vêm da PASTA DO PROJETO; o resto é
             // do cronograma aberto. Nada de servidor.
+            // CreateItem: false pelo mesmo motivo — no modo local a atividade nasce no
+            // cronograma, que e a fonte do board.
             NxBackendKind.Local => new(
                 Attachments: NxAttachmentStore.LocalFolder, Comments: false, BlockAudit: true,
                 OpenInBrowser: false, ServerStates: false, ServerPeople: false,
-                ConcurrencyControl: false, BacklogOrderWrite: true, CreateItem: true,
-                RequiresOpenSchedule: true, RequiresProjectFolder: true),
+                ConcurrencyControl: false, BacklogOrderWrite: true, CreateItem: false, EditItem: false,
+                DeleteItem: false, RequiresOpenSchedule: true, RequiresProjectFolder: true),
 
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "destino desconhecido")
         };

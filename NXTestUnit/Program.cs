@@ -81,6 +81,10 @@ internal static class Program
         ("Campos DevOps: padrao PT usa campo proprio, EN usa o nativo quando existe", FieldNamingDefaultsPerLanguage),
         ("Campos de horas: HH Original/Restante/Atual estao no DevOps e no GitProject", HoursFieldsExistOnBothTargets),
         ("Capacidades: cada destino diz o que sabe fazer (sem if por nome)", BackendCapabilitiesPerKind),
+        ("Gravador: cada destino tem o seu, escolhido pela fachada", BoardWriterComesFromFacade),
+        ("GitProject: criterio de aceite vai e volta do corpo da issue", AcceptanceSectionRoundTrips),
+        ("TaskBoard: percentual informado manda sobre o percentual do estado", PercentPendingWinsOverState),
+        ("TaskBoard: coluna em andamento e reconhecida fora do DevOps (In Progress/Doing)", InProgressColumnCountsAsActive),
         ("WIQL: clausulas do editor voltam para o mesmo WIQL", WiqlModelRoundTripsClauses),
         ("WIQL: WHERE com parenteses nao vira editor visual", WiqlModelRefusesParentheses),
         ("Prioridade: faixa central (config/descoberta) clampa e cicla corretamente", TaskPriorityRangeResolvesAndClamps),
@@ -190,6 +194,155 @@ internal static class Program
     ///   2. a leitura seguinte reflete a posicao nova?
     ///   3. o efeito persiste (nao e so a resposta da mutation dizendo que sim)?
     /// </summary>
+    private static async System.Threading.Tasks.Task<int> ProbeGitAnexo(string numeroTexto, string arquivo)
+    {
+        var conn = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        var git = conn.GitProject;
+        if (git?.IsConfigured != true)
+        {
+            Console.WriteLine("[SKIP] Conexao do GitProject nao configurada nesta maquina.");
+            return 0;
+        }
+        if (!int.TryParse(numeroTexto, out var numero) || string.IsNullOrWhiteSpace(arquivo))
+        {
+            Console.WriteLine("Uso: gitanexo <numero do item> <caminho do arquivo>");
+            return 1;
+        }
+        if (!System.IO.File.Exists(arquivo))
+        {
+            Console.WriteLine($"Arquivo nao encontrado: {arquivo}");
+            return 1;
+        }
+
+        // O MESMO caminho da tela: o gravador do destino, escolhido pela fachada.
+        var gravador = NXProject.Services.NxBoardWriters.For(
+            NXProject.Services.NxBackendKind.GitProject, conn, null, git);
+        Console.WriteLine($"Anexando '{System.IO.Path.GetFileName(arquivo)}' em #{numero} "
+            + $"pelo gravador {gravador.Kind}...");
+
+        var (info, erro) = await gravador.AttachAsync(numero, arquivo);
+        if (info == null)
+        {
+            Console.WriteLine($"   FALHOU: {erro}");
+            return 1;
+        }
+        Console.WriteLine($"   OK: {info.Name} ({info.SizeBytes} bytes)");
+        Console.WriteLine($"   url: {info.Url}");
+        return 0;
+    }
+
+    private static async System.Threading.Tasks.Task<int> ProbeGitCard(
+        string tipo, string paiTexto, string titulo)
+    {
+        var git = NXProject.Services.TfsConnectionStore.Load("NXProject.Community").GitProject;
+        if (git?.IsConfigured != true)
+        {
+            Console.WriteLine("[SKIP] Conexao do GitProject nao configurada nesta maquina.");
+            return 0;
+        }
+        if (string.IsNullOrWhiteSpace(tipo) || !int.TryParse(paiTexto, out var pai))
+        {
+            Console.WriteLine("Uso: gitcard <Story|Task|Feature|Epic> <numero do pai> [titulo]");
+            return 1;
+        }
+        if (string.IsNullOrWhiteSpace(titulo)) titulo = $"sonda {DateTime.Now:HHmmss}";
+
+        var snapAntes = await new NXProject.Services.GitProjectClient(git).LoadAsync();
+        var sprint = snapAntes.Iterations.FirstOrDefault()?.Title ?? "";
+        Console.WriteLine($"Criando {tipo} '{titulo}' sob #{pai}, sprint '{sprint}'...");
+
+        var avisos = new List<string>();
+        var (numero, msg) = await NXProject.Services.GitProjectCreateService.CreateChildAsync(
+            git, pai, tipo, titulo, null, new Progress<string>(m => Console.WriteLine("   " + m)),
+            sprint, null, 1, null, avisos);
+        Console.WriteLine($"   -> id={numero} msg={msg}");
+        foreach (var a in avisos) Console.WriteLine("   aviso: " + a);
+        if (numero <= 0) return 1;
+
+        var visivel = await NXProject.Services.GitProjectCreateService.EsperaAparecerAsync(
+            git, numero, new Progress<string>(m => Console.WriteLine("   " + m)));
+        Console.WriteLine($"   apareceu na leitura do projeto: {visivel}");
+
+        var snap = await new NXProject.Services.GitProjectClient(git).LoadAsync();
+        var board = NXProject.Services.GitProjectBoardService.Build(snap, git, new List<string> { sprint });
+        var naStory = board.Stories.FirstOrDefault(x => x.Id == numero);
+        var naTask = board.Stories.SelectMany(x => x.Tasks).FirstOrDefault(x => x.Id == numero);
+        var noNivel = board.LevelItems.FirstOrDefault(x => x.Id == numero);
+        Console.WriteLine($"   no board da sprint '{sprint}': "
+            + (naStory != null ? $"Story (feature=#{naStory.FeatureId}, estado='{naStory.State}')"
+               : naTask != null ? $"Task (pai=#{naTask.ParentId}, estado='{naTask.State}')"
+               : noNivel != null ? $"nivel {noNivel.Kind}"
+               : "NAO ENTRA"));
+        Console.WriteLine($"   colunas do board: {string.Join(" | ", board.States)}");
+        Console.WriteLine($"   primeira coluna (onde nasce o card novo na tela): "
+            + NXProject.Services.TfsImportService.FirstBoardState(board.States));
+        return 0;
+    }
+
+    private static async System.Threading.Tasks.Task<int> ProbeGitItem(string numeroTexto)
+    {
+        var git = NXProject.Services.TfsConnectionStore.Load("NXProject.Community").GitProject;
+        if (git?.IsConfigured != true)
+        {
+            Console.WriteLine("[SKIP] Conexao do GitProject nao configurada nesta maquina.");
+            return 0;
+        }
+        if (!int.TryParse(numeroTexto, out var numero))
+        {
+            Console.WriteLine("Uso: gititem <numero da issue>");
+            return 1;
+        }
+
+        var snap = await new NXProject.Services.GitProjectClient(git).LoadAsync();
+        Console.WriteLine($"Projeto '{snap.Title}' id={snap.ProjectId} | itens={snap.Items.Count} "
+            + $"| inacessiveis={snap.InaccessibleItems} | maiores numeros="
+            + string.Join(",", snap.Items.Select(i => i.Number).OrderBy(n => n).TakeLast(8)));
+        Console.WriteLine($"Iteracoes: "
+            + string.Join(" | ", snap.Iterations.Select(i => i.Title)));
+
+        var item = snap.Items.FirstOrDefault(i => i.Number == numero);
+        if (item == null)
+        {
+            Console.WriteLine($"#{numero} NAO veio na leitura do projeto.");
+            return 0;
+        }
+
+        Console.WriteLine($"#{item.Number} '{item.Title}'");
+        Console.WriteLine($"   repo={item.Repository} | estado={item.IssueState} | pai=#{item.ParentNumber}");
+        Console.WriteLine($"   sprint='{item.IterationTitle}' | responsavel='{item.Assignee}'");
+        Console.WriteLine($"   nivel='{item.LevelValue}' | tipo de issue='{item.IssueType}' | status='{item.Status}' | HH={item.Effort}");
+
+        // Pela FONTE do destino, como a tela faz — e assim os anexos entram no card.
+        var board = await NXProject.Services.NxBoardSources
+            .For(NXProject.Services.NxBackendKind.GitProject, null, null, git)
+            .BuildBoardAsync(new List<string>());
+        var naStory = board.Stories.FirstOrDefault(x => x.Id == numero);
+        var naTask = board.Stories.SelectMany(x => x.Tasks).FirstOrDefault(x => x.Id == numero);
+        var noNivel = board.LevelItems.FirstOrDefault(x => x.Id == numero);
+        var anexos = naTask?.Attachments;
+        Console.WriteLine("   anexos no card: "
+            + (anexos == null || anexos.Count == 0 ? "(nenhum)"
+               : string.Join(" | ", anexos.Select(x => $"{x.Name} ({x.SizeBytes}b)"))));
+        // Baixar e o outro lado do anexo: a URL so faz sentido para quem a criou.
+        if (anexos != null && anexos.Count > 0)
+        {
+            var destino = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nx_" + anexos[0].Name);
+            var erro = await NXProject.Services.NxBoardWriters
+                .For(NXProject.Services.NxBackendKind.GitProject,
+                     NXProject.Services.TfsConnectionStore.Load("NXProject.Community"), null, git)
+                .DownloadAttachmentAsync(anexos[0], destino);
+            Console.WriteLine("   download: " + (erro.Length == 0
+                ? $"OK, {new System.IO.FileInfo(destino).Length} bytes em {destino}"
+                : "FALHOU: " + erro));
+        }
+        Console.WriteLine("   no board (todas as sprints): "
+            + (naStory != null ? $"Story, feature=#{naStory.FeatureId}, sprint='{naStory.IterationPath}'"
+               : naTask != null ? "Task"
+               : noNivel != null ? $"nivel {noNivel.Kind}"
+               : "NAO ENTRA"));
+        return 0;
+    }
+
     private static async System.Threading.Tasks.Task<int> ProbeGitProjectOrder()
     {
         Console.WriteLine("NXTestUnit - sonda da ordem no GitHub Projects");
@@ -703,6 +856,156 @@ internal static class Program
     /// Imprime as revisoes do work item que MUDARAM o rank do backlog (StackRank ou
     /// BacklogPriority), com quem fez e quando.
     /// </summary>
+    /// <summary>
+    /// Para cada conceito do catalogo: o nome configurado, o reference name que o NX resolve na
+    /// organizacao e os campos de la que se parecem com ele. O filtro opcional limita a lista.
+    /// </summary>
+    private static async System.Threading.Tasks.Task<int> ProbeCampos(string filtro)
+    {
+        var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+        if (string.IsNullOrWhiteSpace(cfg.OrganizationUrl) || string.IsNullOrWhiteSpace(cfg.PersonalAccessToken))
+        {
+            Console.WriteLine("[SKIP] Conexao do Azure DevOps nao configurada nesta maquina.");
+            return 0;
+        }
+
+        using var http = new System.Net.Http.HttpClient();
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(":" + cfg.PersonalAccessToken)));
+
+        var url = $"{cfg.OrganizationUrl.TrimEnd('/')}/_apis/wit/fields?api-version=7.1";
+        var resp = await http.GetAsync(url);
+        var texto = await resp.Content.ReadAsStringAsync();
+        if (!resp.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"HTTP {(int)resp.StatusCode}: {texto[..Math.Min(300, texto.Length)]}");
+            return 1;
+        }
+
+        var daOrg = new List<(string Nome, string Ref, string Tipo)>();
+        using (var doc = System.Text.Json.JsonDocument.Parse(texto))
+            foreach (var f in doc.RootElement.GetProperty("value").EnumerateArray())
+                daOrg.Add((f.GetProperty("name").GetString() ?? "",
+                           f.GetProperty("referenceName").GetString() ?? "",
+                           f.TryGetProperty("type", out var tp) ? tp.GetString() ?? "" : ""));
+
+        Console.WriteLine($"Organizacao: {cfg.OrganizationUrl}  ({daOrg.Count} campos)");
+        Console.WriteLine();
+
+        // "#<id>" = os campos que o work item REALMENTE tem preenchidos. E a diferenca entre
+        // "o campo existe na organizacao" e "ele esta no formulario deste tipo" — duas coisas
+        // que a tela de configuracao nao consegue separar sozinha.
+        if (filtro.StartsWith("#", StringComparison.Ordinal))
+        {
+            var respItem = await http.GetAsync(
+                $"{cfg.OrganizationUrl.TrimEnd('/')}/_apis/wit/workitems/{filtro[1..]}?api-version=7.1");
+            var corpo = await respItem.Content.ReadAsStringAsync();
+            if (!respItem.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"HTTP {(int)respItem.StatusCode}: {corpo[..Math.Min(300, corpo.Length)]}");
+                return 1;
+            }
+            using var docItem = System.Text.Json.JsonDocument.Parse(corpo);
+            foreach (var campo in docItem.RootElement.GetProperty("fields").EnumerateObject())
+                Console.WriteLine($"  {campo.Name} = {campo.Value}");
+            return 0;
+        }
+
+        // "@<rotulo>" = onde esse ROTULO aparece no formulario, e a que campo ele esta ligado.
+        // E a pergunta que separa "o campo existe" de "o formulario chama assim": no DevOps o
+        // controle pode ter um rotulo diferente do nome do campo, e so o layout diz qual e qual.
+        if (filtro.StartsWith("@", StringComparison.Ordinal))
+        {
+            var rotulo = filtro[1..];
+            var proc = await http.GetStringAsync(
+                $"{cfg.OrganizationUrl.TrimEnd('/')}/_apis/projects/{Uri.EscapeDataString(cfg.TeamProject)}"
+                + "?includeCapabilities=true&api-version=7.1");
+            string processId;
+            using (var dp = System.Text.Json.JsonDocument.Parse(proc))
+                processId = dp.RootElement.GetProperty("capabilities").GetProperty("processTemplate")
+                              .GetProperty("templateTypeId").GetString() ?? "";
+            Console.WriteLine($"  processo: {processId}");
+
+            var wits = await http.GetStringAsync(
+                $"{cfg.OrganizationUrl.TrimEnd('/')}/_apis/work/processes/{processId}/workitemtypes?api-version=7.1-preview.2");
+            using var dw = System.Text.Json.JsonDocument.Parse(wits);
+            foreach (var wit in dw.RootElement.GetProperty("value").EnumerateArray())
+            {
+                var refName = wit.GetProperty("referenceName").GetString() ?? "";
+                string layout;
+                try
+                {
+                    layout = await http.GetStringAsync(
+                        $"{cfg.OrganizationUrl.TrimEnd('/')}/_apis/work/processes/{processId}/workitemtypes/{refName}/layout?api-version=7.1-preview.1");
+                }
+                catch { continue; }
+                using var dl = System.Text.Json.JsonDocument.Parse(layout);
+                foreach (var pagina in dl.RootElement.GetProperty("pages").EnumerateArray())
+                    foreach (var secao in pagina.GetProperty("sections").EnumerateArray())
+                        foreach (var grupo in secao.GetProperty("groups").EnumerateArray())
+                        {
+                            if (!grupo.TryGetProperty("controls", out var ctrls)) continue;
+                            foreach (var c in ctrls.EnumerateArray())
+                            {
+                                var label = c.TryGetProperty("label", out var lb) ? lb.GetString() ?? "" : "";
+                                if (!label.Contains(rotulo, StringComparison.CurrentCultureIgnoreCase)) continue;
+                                var id = c.TryGetProperty("id", out var cid) ? cid.GetString() ?? "" : "";
+                                var nomeDoCampo = daOrg.FirstOrDefault(f =>
+                                    string.Equals(f.Ref, id, StringComparison.OrdinalIgnoreCase)).Nome;
+                                Console.WriteLine($"  {wit.GetProperty("name").GetString()}: rotulo \"{label}\""
+                                    + $" -> {id}  (na organizacao: \"{nomeDoCampo}\")");
+                            }
+                        }
+            }
+            return 0;
+        }
+
+        // "?texto" = busca CRUA na lista da organizacao, sem passar pelo catalogo. Serve para a
+        // pergunta anterior a "o apelido casa?": existe la alguma coisa parecida com isto?
+        if (filtro.StartsWith("?", StringComparison.Ordinal))
+        {
+            var alvo = filtro[1..];
+            foreach (var c in daOrg.Where(c =>
+                         c.Nome.Contains(alvo, StringComparison.CurrentCultureIgnoreCase)
+                         || c.Ref.Contains(alvo, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(c => c.Nome))
+                Console.WriteLine($"  {c.Nome}  [{c.Ref}]  tipo={c.Tipo}");
+            return 0;
+        }
+
+        foreach (var spec in NXProject.Services.NxDevOpsFieldCatalog.DevOpsFields)
+        {
+            if (!string.IsNullOrWhiteSpace(filtro)
+                && spec.Key.IndexOf(filtro, StringComparison.OrdinalIgnoreCase) < 0
+                && spec.DefaultName.IndexOf(filtro, StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+            // A MESMA ordem de tentativa do import: o nome configurado primeiro, depois os
+            // apelidos do catalogo. Reproduzi-la aqui e o que torna a sonda uma medicao.
+            var candidatos = new List<string>(spec.Names);
+            var achado = candidatos
+                .Select(n => daOrg.FirstOrDefault(c =>
+                    string.Equals(c.Nome, n, StringComparison.CurrentCultureIgnoreCase)
+                    || string.Equals(c.Ref, n, StringComparison.OrdinalIgnoreCase)))
+                .FirstOrDefault(c => !string.IsNullOrEmpty(c.Ref));
+
+            var parecidos = daOrg
+                .Where(c => spec.Names.Any(n => c.Nome.Replace("_", " ").Contains(
+                    n.Split('_')[0].Replace("_", " "), StringComparison.CurrentCultureIgnoreCase)))
+                .Select(c => $"{c.Nome} [{c.Ref}]")
+                .Take(6).ToList();
+
+            Console.WriteLine($"{spec.Key,-16} padrao='{spec.DefaultName}'");
+            Console.WriteLine(string.IsNullOrEmpty(achado.Ref)
+                ? "                 >> NAO EXISTE na organizacao (nenhum dos apelidos: "
+                  + string.Join(", ", spec.Names) + ")"
+                : $"                 >> {achado.Nome} [{achado.Ref}] tipo={achado.Tipo}");
+            if (parecidos.Count > 0)
+                Console.WriteLine("                 parecidos la: " + string.Join(" | ", parecidos));
+            Console.WriteLine();
+        }
+        return 0;
+    }
+
     private static async System.Threading.Tasks.Task<int> ProbeOrdem(string idTexto)
     {
         if (!int.TryParse(idTexto?.Trim(), out var id))
@@ -829,6 +1132,23 @@ internal static class Program
         // medir seria o oposto do que o resto deste arquivo faz.
         if (string.Equals(category, "gitorder", StringComparison.OrdinalIgnoreCase))
             return ProbeGitProjectOrder().GetAwaiter().GetResult();
+        // Sonda de um item do GitProject: o que o servidor devolve sobre ele AGORA — nivel,
+        // sprint, pai — e se o board montado a partir dessa leitura o inclui. Serve para separar
+        // "o item nasceu errado" de "o item nao veio na leitura" — na tela as duas somem igual.
+        if (string.Equals(category, "gititem", StringComparison.OrdinalIgnoreCase))
+            return ProbeGitItem(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
+        // Sonda do CARD NOVO: cria um filho como o TaskBoard cria (campos junto, espera o item
+        // aparecer) e releva o board para dizer se ele entra. GRAVA no projeto de verdade — e e
+        // por isso que existe: foi medindo assim que se viu que o item demora a aparecer.
+        // Sonda do ANEXO: usa o gravador do destino, como a tela faz. GRAVA de verdade (arquivo
+        // versionado no repositorio + comentario na issue).
+        if (string.Equals(category, "gitanexo", StringComparison.OrdinalIgnoreCase))
+            return ProbeGitAnexo(args.Length > 1 ? args[1] : "",
+                                 args.Length > 2 ? args[2] : "").GetAwaiter().GetResult();
+        if (string.Equals(category, "gitcard", StringComparison.OrdinalIgnoreCase))
+            return ProbeGitCard(args.Length > 1 ? args[1] : "",
+                                args.Length > 2 ? args[2] : "",
+                                args.Length > 3 ? args[3] : "").GetAwaiter().GetResult();
         // POC dos tres itens que o plano dava como "nao fazer": auditoria de BLOCK, anexos e
         // responsavel. Mesma receita da sonda de ordem — medir no servidor de verdade, porque foi
         // assim que a suposicao sobre a ordem caiu.
@@ -857,6 +1177,12 @@ internal static class Program
             return ProbeArvore(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "board", StringComparison.OrdinalIgnoreCase))
             return ProbeBoard(args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "").GetAwaiter().GetResult();
+        // Sonda dos CAMPOS: pergunta a organizacao quais existem e mostra, por conceito, o que
+        // o import/sync resolve com o nome configurado. Responde a duvida que a tela de
+        // configuracao deixa em aberto quando marca um campo de vermelho — "o nome e esse
+        // mesmo?" — sem depender de abrir o DevOps no navegador.
+        if (string.Equals(category, "campos", StringComparison.OrdinalIgnoreCase))
+            return ProbeCampos(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))
             return DiagnoseXml(args.Length > 1 ? args[1] : "");
         _solutionRoot = args.Length > 1 ? args[1] : Directory.GetCurrentDirectory();
@@ -1833,6 +2159,107 @@ internal static class Program
         AssertEqual("Closed", ordered[3], "Closed depois de Resolved.");
         AssertEqual("Zebra", ordered[4], "Estado desconhecido vai para o fim.");
         AssertEqual(5, ordered.Count, "Duplicatas (New) sao removidas.");
+
+        // "Todo" e como o GitHub Projects escreve o estado inicial: tem de abrir o board, nao
+        // cair no fim junto dos desconhecidos.
+        var git = TfsImportService.OrderTaskboardStates(new[] { "Done", "In Progress", "Todo" });
+        AssertEqual("Todo", git[0], "Todo (GitHub) e a primeira coluna.");
+        AssertEqual("In Progress", git[1], "In Progress depois de Todo.");
+        AssertEqual("Done", git[2], "Done por ultimo.");
+
+        // O card novo nasce na primeira coluna DO BOARD: com as colunas do GitHub, "New" nao
+        // existe e o card ficava sem coluna — invisivel na tela, mas contado na fila.
+        AssertEqual("Todo", TfsImportService.FirstBoardState(git), "Card novo nasce na 1a coluna do board.");
+        AssertEqual("New", TfsImportService.FirstBoardState(new string[0]), "Sem colunas, continua 'New'.");
+    }
+
+    // A tela nao escolhe o caminho de gravacao por destino: ela pede o gravador a fachada. Se
+    // isto quebrar, volta o problema que ja aconteceu — criar card funcionando por um caminho e
+    // silenciosamente nao implementado por outro.
+    private static void BoardWriterComesFromFacade()
+    {
+        var devops = new NXProject.Services.TfsConnectionOptions();
+        var git = new NXProject.Services.GitProjectOptions();
+        var projeto = new NXProject.Models.Project { Name = "p" };
+
+        string GravadorDe(NXProject.Services.NxBackendKind k) =>
+            NXProject.Services.NxBoardWriters.For(k, devops, projeto, git).Kind.ToString();
+
+        AssertEqual("AzureDevOps", GravadorDe(NXProject.Services.NxBackendKind.AzureDevOps),
+            "DevOps tem o gravador do DevOps.");
+        AssertEqual("GitProject", GravadorDe(NXProject.Services.NxBackendKind.GitProject),
+            "GitProject tem o gravador do GitProject.");
+        AssertEqual("Local", GravadorDe(NXProject.Services.NxBackendKind.Local),
+            "Projeto Local tem o gravador do cronograma.");
+
+        // O board do cronograma nao cria item: ele diz isso em vez de estourar no meio.
+        var (id, msg) = NXProject.Services.NxBoardWriters.For(
+                NXProject.Services.NxBackendKind.Local, devops, projeto, git)
+            .CreateChildAsync("Task", "x", 1, null, null, null, 1, null)
+            .GetAwaiter().GetResult();
+        AssertEqual(0, id, "Local nao cria item.");
+        AssertTrue(!string.IsNullOrWhiteSpace(msg), "E diz por que nao cria.");
+    }
+
+    // O percentual que a pessoa informa no card em andamento e um DADO, nao um palpite do
+    // estado. Como o estado tambem acerta o percentual (Active vira 50), a ordem em que as duas
+    // filas sao aplicadas decide quem ganha — e e exatamente o que se perde numa refatoracao.
+    private static void PercentPendingWinsOverState()
+    {
+        var projeto = new NXProject.Models.Project { Name = "p" };
+        var task = new NXProject.Models.ProjectTask { Id = 7, Name = "t" };
+        projeto.Tasks.Add(task);
+
+        var fila = new NXProject.Services.LocalBoardWriter.Pending();
+        fila.States[7] = "Active";
+        fila.Percents[7] = 30;
+        NXProject.Services.LocalBoardWriter.Apply(projeto, fila);
+        AssertEqual(30.0, task.PercentComplete, "O percentual digitado manda sobre o padrao do estado.");
+
+        // Encerrar sem informar nada continua valendo 100: a regra antiga nao foi substituida.
+        var soEstado = new NXProject.Services.LocalBoardWriter.Pending();
+        soEstado.States[7] = "Closed";
+        NXProject.Services.LocalBoardWriter.Apply(projeto, soEstado);
+        AssertEqual(100.0, task.PercentComplete, "Encerrada sem percentual informado e 100%.");
+    }
+
+    // "Em andamento" nao se chama "Active" em lugar nenhum fora do Azure DevOps. O board so
+    // oferece data alvo e % conclusao na Task que ja comecou, entao essa traducao e o que faz
+    // esses campos existirem no GitProject e no Scrum.
+    private static void InProgressColumnCountsAsActive()
+    {
+        foreach (var coluna in new[] { "Active", "In Progress", "Doing", "Em andamento" })
+            AssertEqual("Active", TfsImportService.NormalizeTaskState(coluna),
+                $"'{coluna}' e uma Task em andamento.");
+
+        // E o que NAO comecou continua nao sendo: a traducao nao pode engolir as outras colunas.
+        AssertEqual("New", TfsImportService.NormalizeTaskState("Todo"), "Todo continua sendo 'nao comecou'.");
+        AssertEqual("Closed", TfsImportService.NormalizeTaskState("Done"), "Done continua sendo encerrada.");
+    }
+
+    // O GitHub nao tem campo de criterio de aceite: ele vira uma secao do corpo da issue. Ler e
+    // escrever sao a mesma regra em dois sentidos — e e exatamente ai que duas copias divergem.
+    private static void AcceptanceSectionRoundTrips()
+    {
+        const string corpo = "Descricao original.\n\nSegue depois.";
+        var comAceite = NXProject.Services.GitProjectBoardWriter.ComSecaoDeAceite(corpo, "Dado X, entao Y.");
+        var (desc, aceite) = NXProject.Services.GitProjectBoardWriter.SeparaAceiteDoCorpo(comAceite);
+        AssertEqual("Descricao original.\n\nSegue depois.", desc, "A descricao volta inteira.");
+        AssertEqual("Dado X, entao Y.", aceite, "O criterio volta inteiro.");
+
+        // Trocar o criterio reescreve a secao no lugar, sem duplicar nem perder a descricao.
+        var trocado = NXProject.Services.GitProjectBoardWriter.ComSecaoDeAceite(comAceite, "Dado Z.");
+        var (desc2, aceite2) = NXProject.Services.GitProjectBoardWriter.SeparaAceiteDoCorpo(trocado);
+        AssertEqual("Dado Z.", aceite2, "O criterio novo substitui o antigo.");
+        AssertEqual("Descricao original.\n\nSegue depois.", desc2, "A descricao continua a mesma.");
+
+        // Criterio vazio remove a secao; corpo sem secao devolve tudo como descricao.
+        var semAceite = NXProject.Services.GitProjectBoardWriter.ComSecaoDeAceite(trocado, "");
+        AssertEqual("", NXProject.Services.GitProjectBoardWriter.SeparaAceiteDoCorpo(semAceite).Aceite,
+            "Sem criterio, nao sobra secao.");
+        AssertEqual("So descricao.",
+            NXProject.Services.GitProjectBoardWriter.SeparaAceiteDoCorpo("So descricao.").Descricao,
+            "Corpo sem secao e todo descricao.");
     }
 
     // Crítico: marcar/tirar Doing e virar Done não pode perder as outras tags do work item.

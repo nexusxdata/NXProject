@@ -125,6 +125,7 @@ query($projectId: ID!, $after: String) {
               title
               state
               closedAt
+              repository { nameWithOwner }
               issueType { name }
               parent { number }
               assignees(first: 1) { nodes { login name } }
@@ -305,12 +306,41 @@ mutation($id: ID!, $state: IssueState!) {
   updateIssue(input: {id: $id, state: $state}) { issue { number state } }
 }", new Dictionary<string, object?> { ["id"] = issueId, ["state"] = fechada ? "CLOSED" : "OPEN" });
 
+        /// <summary>
+        /// Apaga a issue. Irreversível e restrito a quem administra o repositório — é o GitHub
+        /// que decide, e a recusa vem como erro da mutation.
+        /// </summary>
+        public Task DeleteIssueAsync(string issueId) =>
+            PostAsync(@"
+mutation($id: ID!) { deleteIssue(input: {issueId: $id}) { clientMutationId } }",
+                new Dictionary<string, object?> { ["id"] = issueId });
+
         /// <summary>Renomeia a issue. O título é dela, não do board — por isso não é campo.</summary>
         public Task SetIssueTitleAsync(string issueId, string titulo) =>
             PostAsync(@"
 mutation($id: ID!, $title: String!) {
   updateIssue(input: {id: $id, title: $title}) { issue { number } }
 }", new Dictionary<string, object?> { ["id"] = issueId, ["title"] = titulo });
+
+        /// <summary>
+        /// Reescreve o CORPO da issue — é onde mora a descrição no GitHub (no DevOps é um campo
+        /// do work item). O corpo é texto Markdown da issue, não um campo do board.
+        /// </summary>
+        public Task SetIssueBodyAsync(string issueId, string corpo) =>
+            PostAsync(@"
+mutation($id: ID!, $body: String!) {
+  updateIssue(input: {id: $id, body: $body}) { issue { number } }
+}", new Dictionary<string, object?> { ["id"] = issueId, ["body"] = corpo });
+
+        /// <summary>Corpo atual da issue, para alterar uma parte sem perder o resto.</summary>
+        public async Task<string> IssueBodyAsync(string issueId)
+        {
+            var raiz = await PostAsync(@"
+query($id: ID!) { node(id: $id) { ... on Issue { body } } }",
+                new Dictionary<string, object?> { ["id"] = issueId });
+            var no = raiz.GetProperty("data").GetProperty("node");
+            return no.ValueKind == JsonValueKind.Object ? Texto(no, "body") : "";
+        }
 
         /// <summary>
         /// Substitui as labels da issue pelo conjunto informado (REST: a API de labels não existe
@@ -695,6 +725,57 @@ query($org: String!, $team: String!) {
         /// para um CDN pelo corpo do comentário, e isso não é automatizável). Arquivo no
         /// repositório é versionado e tem histórico — mais do que o anexo do DevOps oferece.
         /// </summary>
+        /// <summary>
+        /// Arquivos do repositório sob um prefixo, em UMA chamada (git/trees recursivo).
+        ///
+        /// É assim que os anexos entram no board sem uma ida por card: a pasta de anexos inteira
+        /// vem de uma vez e é distribuída em memória. Repositório sem a pasta devolve lista
+        /// vazia — e não é erro, é o caso normal de quem nunca anexou nada.
+        /// </summary>
+        public async Task<List<(string Path, long Size, string Sha)>> ListFilesAsync(
+            string dono, string repo, string prefixo, string referencia = "HEAD")
+        {
+            var achados = new List<(string, long, string)>();
+            var (ok, corpo) = await RestAsync(HttpMethod.Get,
+                $"repos/{dono}/{repo}/git/trees/{referencia}?recursive=1", null);
+            if (!ok) return achados;
+
+            using var doc = JsonDocument.Parse(corpo);
+            if (!doc.RootElement.TryGetProperty("tree", out var arvore)) return achados;
+            foreach (var no in arvore.EnumerateArray())
+            {
+                if (Texto(no, "type") != "blob") continue;
+                var caminho = Texto(no, "path");
+                if (!caminho.StartsWith(prefixo, StringComparison.OrdinalIgnoreCase)) continue;
+                // O sha vem junto porque apagar arquivo pela API exige o sha do blob — buscar
+                // de novo, um por arquivo, seria uma ida à rede por anexo.
+                achados.Add((caminho,
+                    no.TryGetProperty("size", out var tam) && tam.TryGetInt64(out var v) ? v : 0,
+                    Texto(no, "sha")));
+            }
+            return achados;
+        }
+
+        /// <summary>
+        /// Baixa o conteúdo BRUTO de um arquivo do repositório (o anexo do GitProject é um
+        /// arquivo versionado). Vai pela API com o token: o repositório pode ser privado, e a
+        /// URL de navegação do GitHub devolveria a página HTML, não o arquivo.
+        /// </summary>
+        public async Task<byte[]> GetFileBytesAsync(string dono, string repo, string caminho, string? referencia = null)
+        {
+            var url = $"https://api.github.com/repos/{dono}/{repo}/contents/{caminho}"
+                    + (string.IsNullOrWhiteSpace(referencia) ? "" : $"?ref={referencia}");
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.Token);
+            req.Headers.UserAgent.ParseAdd("NXProject");
+            req.Headers.Accept.ParseAdd("application/vnd.github.raw");
+            using var resp = await _http.SendAsync(req);
+            if (!resp.IsSuccessStatusCode)
+                throw new InvalidOperationException(
+                    $"HTTP {(int)resp.StatusCode} ao baixar {caminho}. {Resumo(await resp.Content.ReadAsStringAsync())}");
+            return await resp.Content.ReadAsByteArrayAsync();
+        }
+
         public async Task<(bool Ok, string Url, string Sha, string Error)> PutFileAsync(
             string dono, string repo, string caminho, string conteudo, string mensagem,
             bool jaEmBase64 = false)
@@ -836,6 +917,8 @@ mutation($id: ID!, $body: String!) {
                 ParentNumber = c.TryGetProperty("parent", out var pai) && pai.ValueKind == JsonValueKind.Object
                     && pai.TryGetProperty("number", out var pn) ? pn.GetInt32() : 0,
                 IssueId = Texto(c, "id"),
+                Repository = c.TryGetProperty("repository", out var rp) && rp.ValueKind == JsonValueKind.Object
+                    ? Texto(rp, "nameWithOwner") : "",
                 ItemId = Texto(no, "id")
             };
 
@@ -921,6 +1004,7 @@ mutation($id: ID!, $body: String!) {
             else if (Igual(campo, _options.OriginalHoursFields)) item.OriginalHours = valor;
             else if (Igual(campo, _options.RemainingHoursFields)) item.RemainingHours = valor;
             else if (Igual(campo, _options.PercentFields)) item.Percent = valor;
+            else if (Igual(campo, _options.PriorityFields)) item.Priority = valor;
             else if (Igual(campo, _options.SyncVersionFields)) item.SyncVersion = valor;
         }
 

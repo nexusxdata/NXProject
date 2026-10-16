@@ -43,7 +43,8 @@ namespace NXProject.Services
         /// sprints; com valores, filtra pelo título da iteração do item.
         /// </summary>
         public static TfsImportService.SprintBoard Build(GitProjectClient.ProjectSnapshot snap,
-            GitProjectOptions options, IReadOnlyCollection<string>? iterationPaths = null)
+            GitProjectOptions options, IReadOnlyCollection<string>? iterationPaths = null,
+            IReadOnlyDictionary<int, List<TfsAttachmentService.TfsAttachmentInfo>>? anexos = null)
         {
             var stories = new List<TfsImportService.SprintStoryRow>();
             var levelItems = new List<TfsImportService.SprintLevelItem>();
@@ -73,7 +74,7 @@ namespace NXProject.Services
                 var tasks = snap.Items
                     .Where(t => t.ParentNumber == story.Number
                                 && LevelKindOf(t, porNumero, options) == "Task")
-                    .Select(ToCard)
+                    .Select(t => ToCard(t, anexos))
                     .ToList();
 
                 var feature = Parent(story, porNumero);
@@ -179,17 +180,24 @@ namespace NXProject.Services
             return string.Equals(item.IssueState, "CLOSED", StringComparison.OrdinalIgnoreCase) ? "Closed" : "New";
         }
 
-        private static TfsImportService.SprintTaskCard ToCard(GitProjectItem item) =>
+        private static TfsImportService.SprintTaskCard ToCard(GitProjectItem item,
+            IReadOnlyDictionary<int, List<TfsAttachmentService.TfsAttachmentInfo>>? anexos = null) =>
             new(item.Number, item.Title, StateOf(item), item.Assignee,
                 item.Effort is { } e ? e.ToString("0.##") : "",
-                item.ParentNumber, item.Labels ?? "", item.ClosedAt, 0, double.NaN)
+                item.ParentNumber, item.Labels ?? "", item.ClosedAt,
+                item.Priority is { } p ? (int)Math.Round(p) : 0, double.NaN)
             {
                 IterationPath = item.IterationTitle ?? "",
                 EstimateHours = item.Effort,
                 CompletedHours = item.CurrentHours,
+                PercentComplete = item.Percent,
                 // O card do board so carrega a data ALVO; a de inicio e lida quando a atividade
                 // e aberta, como ja acontece no DevOps.
-                FinishDate = item.FinishDate
+                FinishDate = item.FinishDate,
+                // Os anexos vêm da árvore do repositório, lida uma vez por carga: sem isto o
+                // arquivo era gravado e o card não mostrava nada, como se nada tivesse ido.
+                Attachments = anexos != null && anexos.TryGetValue(item.Number, out var lista)
+                    ? lista : new List<TfsAttachmentService.TfsAttachmentInfo>()
             };
     }
 }

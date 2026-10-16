@@ -151,6 +151,7 @@ namespace NXProject.Services
                 IterationPath = t.TfsIterationPath ?? "",
                 EstimateHours = t.EstimatedHours,
                 CompletedHours = t.CurrentHours,
+                PercentComplete = t.PercentComplete,
                 FinishDate = t.Finish
             };
 

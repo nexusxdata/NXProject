@@ -32,6 +32,8 @@
     <sys:String x:Key="Setup_Step4Server">Servidor</sys:String>
     <sys:String x:Key="Setup_Step4ServerTip">Onde os campos do NXProject serão configurados. Hoje só o Azure DevOps está implementado; GitProject (GitHub Projects) é um caminho em estudo.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNx">Abrir no NXProject</sys:String>
+    <sys:String x:Key="Setup_Step4OpenNxConn">Abrir a conexão (DevOps / GitProject)</sys:String>
+    <sys:String x:Key="Setup_Step4OpenNxConnTip">Abre a tela de conexão do NXProject: URL e PAT do Azure DevOps numa aba, dono/token/board do GitHub Projects na outra. É a mesma tela do app — o instalador só encaminha.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNxTip">Abre a tela "Configurar Campos e Tags" do NXProject já no destino escolhido ao lado. A configuração de campos é uma só: o instalador encaminha em vez de ter uma segunda tela.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNxDevOps">Para o Azure DevOps, os campos são criados aqui mesmo (botão "Criar campos", abaixo) — a tela do NXProject só detecta e ajusta nomes. Este botão vale para o GitProject.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNxMissing">Não encontrei o NXProject nesta máquina.&#10;&#10;Procurei na pasta de instalação (%USERPROFILE%\Apps\NXProject), ao lado deste instalador e na saída de compilação do repositório.&#10;&#10;Conclua a instalação (passos 1 a 3) e volte aqui: o botão abre a tela de campos do próprio NXProject, onde os campos são detectados e criados.</sys:String>

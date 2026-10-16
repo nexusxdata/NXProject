@@ -6,6 +6,7 @@
 using System;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using NXProject.Services;
 
 namespace NXProject.Views
@@ -16,15 +17,24 @@ namespace NXProject.Views
     /// Pede **dono + número do board**, e não um nome, porque é assim que o GitHub identifica
     /// projeto: a URL termina em /projects/7, e renomear o board não muda esse número. O botão
     /// "listar" existe justamente para ninguém precisar decorá-lo.
+    ///
+    /// É um PAINEL, não uma janela: quem decide o enquadramento é a tela de conexões, onde ele
+    /// vive numa aba ao lado do Azure DevOps. Salvar também é de lá — aqui só se lê a tela
+    /// (<see cref="Atual"/>) e se grava quando a janela manda (<see cref="Salvar"/>).
     /// </summary>
-    public partial class GitProjectConfigWindow : Window
+    public partial class GitProjectConfigPanel : UserControl
     {
-        private readonly TfsConnectionOptions _options = TfsConnectionStore.Load();
+        private readonly TfsConnectionOptions _options;
 
-        public GitProjectConfigWindow()
+        public GitProjectConfigPanel() : this(TfsConnectionStore.Load()) { }
+
+        public GitProjectConfigPanel(TfsConnectionOptions options)
         {
             InitializeComponent();
+            _options = options;
+
             var git = _options.GitProject ?? new GitProjectOptions();
+            EnabledBox.IsChecked = git.Enabled;
             OwnerBox.Text = git.Owner;
             IsOrgBox.IsChecked = git.OwnerIsOrganization;
             TokenBox.Password = git.Token;
@@ -34,8 +44,34 @@ namespace NXProject.Views
                 BoardCombo.Items.Add($"#{git.ProjectNumber}");
                 BoardCombo.SelectedIndex = 0;
             }
-            Loaded += (_, _) => OwnerBox.Focus();
         }
+
+        /// <summary>Foco no primeiro campo — a janela chama ao mostrar esta aba.</summary>
+        public void FocarPrimeiroCampo() => OwnerBox.Focus();
+
+        /// <summary>
+        /// Põe a conexão desta aba no objeto que a janela vai gravar. Devolve a mensagem de
+        /// recusa, ou null quando está tudo certo.
+        ///
+        /// Painel EM BRANCO não é erro: quem usa só o Azure DevOps passa por esta aba sem
+        /// preencher nada, e exigir os campos aqui travaria o salvar da outra.
+        /// </summary>
+        public string? AplicarEm(TfsConnectionOptions destino)
+        {
+            var git = Atual();
+            if (!PreenchidoAlgo(git)) { destino.GitProject = git; return null; }
+            // HasData, e nao IsConfigured: com a conexão desligada, IsConfigured é falso de
+            // propósito — validar por ele impediria salvar a aba desligada.
+            if (!git.HasData) return AppStrings.Get("Git_NeedAll");
+
+            destino.GitProject = git;
+            return null;
+        }
+
+        /// <summary>Alguém mexeu nesta aba? (Em branco, ela é simplesmente ignorada.)</summary>
+        private static bool PreenchidoAlgo(GitProjectOptions git) =>
+            !string.IsNullOrWhiteSpace(git.Owner) || !string.IsNullOrWhiteSpace(git.Token)
+            || git.ProjectNumber > 0 || !string.IsNullOrWhiteSpace(git.Repository);
 
         /// <summary>O que está na tela agora, sem gravar.</summary>
         private GitProjectOptions Atual()
@@ -52,6 +88,7 @@ namespace NXProject.Views
             git.Token = TokenBox.Password ?? "";
             git.ProjectNumber = NumeroEscolhido();
             git.Repository = RepoBox.Text?.Trim() ?? "";
+            git.Enabled = EnabledBox.IsChecked == true;
             return git;
         }
 
@@ -123,7 +160,11 @@ namespace NXProject.Views
         private async void OnTestClick(object sender, RoutedEventArgs e)
         {
             var git = Atual();
-            if (!git.IsConfigured) { StatusText.Text = AppStrings.Get("Git_NeedAll"); return; }
+            if (!git.HasData) { StatusText.Text = AppStrings.Get("Git_NeedAll"); return; }
+            // Testar vale mesmo com a conexão desligada: é assim que se confere o que foi
+            // digitado antes de ligar.
+            git = git.Clone();
+            git.Enabled = true;
             StatusText.Text = AppStrings.Get("Git_Testing");
             try
             {
@@ -147,8 +188,7 @@ namespace NXProject.Views
             var msg = ex.Message ?? "";
             // "Resource not accessible by personal access token" e a resposta do GitHub a um
             // token FINE-GRAINED pedindo um board de conta pessoal: para esses boards a
-            // permissao de Projects nao existe no fine-grained, so no token classico. A mensagem
-            // crua nao diz nada disso, e a pessoa fica refazendo o token igual.
+            // permissao de Projects nao existe no fine-grained, so no token classico.
             if (msg.Contains("not accessible by personal access token", StringComparison.OrdinalIgnoreCase))
                 return AppStrings.Get("Git_FineGrainedError", msg);
             return msg.Contains("read:project", StringComparison.OrdinalIgnoreCase)
@@ -168,16 +208,6 @@ namespace NXProject.Views
             }
             catch { /* sem navegador padrao: o link continua visivel para copiar */ }
             e.Handled = true;
-        }
-
-        private void OnSaveClick(object sender, RoutedEventArgs e)
-        {
-            var git = Atual();
-            if (!git.IsConfigured) { StatusText.Text = AppStrings.Get("Git_NeedAll"); return; }
-            _options.GitProject = git;
-            // Token cifrado pelo Windows, como o PAT do DevOps — nunca em texto plano.
-            TfsConnectionStore.Save(_options, rememberToken: true);
-            DialogResult = true;
         }
     }
 }

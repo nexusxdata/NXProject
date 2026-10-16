@@ -32,6 +32,8 @@
     <sys:String x:Key="Setup_Step4Server">Server</sys:String>
     <sys:String x:Key="Setup_Step4ServerTip">Where the NXProject fields will be configured. Only Azure DevOps is implemented today; GitProject (GitHub Projects) is a path under study.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNx">Open in NXProject</sys:String>
+    <sys:String x:Key="Setup_Step4OpenNxConn">Open the connection (DevOps / GitProject)</sys:String>
+    <sys:String x:Key="Setup_Step4OpenNxConnTip">Opens the NXProject connection window: Azure DevOps URL and PAT in one tab, GitHub Projects owner/token/board in the other. Same window as the app — the installer just forwards.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNxTip">Opens NXProject's "Configure Fields and Tags" screen already on the target selected beside it. Field configuration lives in one place: the installer forwards instead of having a second screen.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNxDevOps">For Azure DevOps the fields are created right here ("Create fields" button below) — NXProject's screen only detects and adjusts names. This button is for GitProject.</sys:String>
     <sys:String x:Key="Setup_Step4OpenNxMissing">NXProject was not found on this machine.&#10;&#10;I looked in the install folder (%USERPROFILE%\Apps\NXProject), next to this installer, and in the repository build output.&#10;&#10;Finish the installation (steps 1 to 3) and come back: the button opens NXProject's own fields screen, where fields are detected and created.</sys:String>

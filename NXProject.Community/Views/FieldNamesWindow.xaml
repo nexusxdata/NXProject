@@ -72,23 +72,6 @@
                             <TextBlock Text="{DynamicResource Fld_PrefixHint}" FontSize="10.5" Foreground="#888"
                                        TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-                            <!-- Prioridade nao e campo: e faixa de valores aceitos. Fica fora da
-                                 lista, com as duas caixas que so ela usa. -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <CheckBox x:Name="TaskPriorityRangeEnabledBox" VerticalAlignment="Center"
-                                          Content="{DynamicResource Cfg_TaskPrioRangeEnable}"
-                                          ToolTip="{DynamicResource Cfg_TaskPrioRangeTip}" FontSize="11"
-                                          Checked="OnTaskPriorityRangeEnabledChanged"
-                                          Unchecked="OnTaskPriorityRangeEnabledChanged"/>
-                                <TextBlock Text="{DynamicResource Cfg_TaskPrioMin}" VerticalAlignment="Center"
-                                           FontSize="10.5" Foreground="#666" Margin="14,0,4,0"/>
-                                <TextBox x:Name="TaskPriorityMinBox" Width="60" Height="24" Padding="6,3" IsEnabled="False"
-                                         ToolTip="{DynamicResource Cfg_TaskPrioRangeTip}"/>
-                                <TextBlock Text="{DynamicResource Cfg_TaskPrioMax}" VerticalAlignment="Center"
-                                           FontSize="10.5" Foreground="#666" Margin="10,0,4,0"/>
-                                <TextBox x:Name="TaskPriorityMaxBox" Width="60" Height="24" Padding="6,3" IsEnabled="False"
-                                         ToolTip="{DynamicResource Cfg_TaskPrioRangeTip}"/>
-                            </StackPanel>
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

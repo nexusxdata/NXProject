@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -41,11 +41,36 @@ namespace NXProject.Views
         private void LoadFromFile(string path)
         {
             var loaded = DevOpsProjectListService.Load(path);
+            var cfgs = (_connectionOptions ?? TfsConnectionStore.Load("NXProject.Community"))
+                .PortfolioProjectConfigs;
+
             _projects.Clear();
             foreach (var p in loaded)
+            {
+                p.BackendLabel = RotuloDoDestino(cfgs, p.Name);
                 _projects.Add(p);
+            }
             FilePathLabel.Text = path;
             ResultFilePath = path;
+        }
+
+        /// <summary>
+        /// Rótulo do destino cadastrado para o projeto. Sem cadastro (ou "Padrão"), mostra o
+        /// Azure DevOps com um "?" — é o que o NXProject usa por omissão, e o sinal avisa que
+        /// ninguém disse isso explicitamente.
+        /// </summary>
+        private static string RotuloDoDestino(
+            System.Collections.Generic.List<PortfolioProjectConfig> cfgs, string nome)
+        {
+            var kind = cfgs.FirstOrDefault(c =>
+                string.Equals(c.ProjectName, nome, StringComparison.CurrentCultureIgnoreCase))?.BackendKind;
+            return kind switch
+            {
+                NxBackendKind.GitProject => "GitProject",
+                NxBackendKind.Local      => AppStrings.Get("Sprint_TargetLocal"),
+                NxBackendKind.AzureDevOps => "Azure DevOps",
+                _ => "Azure DevOps ?"
+            };
         }
 
         private void OnBrowseFileClick(object sender, RoutedEventArgs e)
@@ -129,6 +154,11 @@ namespace NXProject.Views
             {
                 // Owner é informativo (vem do DevOps) e não é editável nesta tela — preserva o atual.
                 dlg.Result.Owner = selected.Owner;
+                // A coluna Origem vem da CONFIGURACAO, e a tela de edicao acabou de grava-la:
+                // reler aqui evita a linha mostrar o destino antigo ate o proximo abrir.
+                dlg.Result.BackendLabel = RotuloDoDestino(
+                    TfsConnectionStore.Load("NXProject.Community").PortfolioProjectConfigs,
+                    dlg.Result.Name);
                 var idx = _projects.IndexOf(selected);
                 _projects[idx] = dlg.Result;
                 ProjectsGrid.SelectedItem = dlg.Result;

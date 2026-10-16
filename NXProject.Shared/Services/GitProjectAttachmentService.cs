@@ -113,6 +113,102 @@ namespace NXProject.Services
             return (true, url, "");
         }
 
+        /// <summary>
+        /// Apaga os anexos de um item e devolve quantos saíram.
+        ///
+        /// Existe porque excluir um item precisa levar os anexos junto: no Azure DevOps o anexo
+        /// morre com o work item, e aqui ele é um arquivo versionado do repositório — a pasta
+        /// ficaria lá, cheia, apontada por uma issue que não existe mais.
+        ///
+        /// O conteúdo continua no HISTÓRICO do Git, e isso não é escolha do NXProject: apagar um
+        /// arquivo em Git remove a versão atual, não o passado.
+        /// </summary>
+        public static async Task<(int Apagados, string? Erro)> DeleteAllOfItemAsync(
+            GitProjectOptions options, string dono, string repo, int numero)
+        {
+            try
+            {
+                var cliente = new GitProjectClient(options);
+                var arquivos = await cliente.ListFilesAsync(dono, repo, Root + "/");
+                var apagados = 0;
+
+                foreach (var (caminho, _, sha) in arquivos)
+                {
+                    var partes = caminho.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (partes.Length < 2) continue;
+                    // A pasta do item é a penúltima: "tipo_numero".
+                    var pasta = partes[^2];
+                    var sublinhado = pasta.LastIndexOf('_');
+                    if (sublinhado < 0 || !int.TryParse(pasta[(sublinhado + 1)..], out var n) || n != numero)
+                        continue;
+
+                    if (await cliente.DeleteFileAsync(dono, repo, caminho, sha,
+                            $"NXProject: anexo removido com #{numero}"))
+                        apagados++;
+                }
+                return (apagados, null);
+            }
+            catch (Exception ex) { return (0, ex.Message); }
+        }
+
+        /// <summary>
+        /// Baixa um anexo a partir da URL que o <see cref="AttachAsync"/> devolveu
+        /// (https://github.com/dono/repo/blob/ref/caminho). A URL é de navegação; o que importa
+        /// dela são as quatro partes, e o arquivo vem pela API, com o token — senão repositório
+        /// privado não baixaria e público devolveria a página HTML.
+        /// </summary>
+        public static async Task<byte[]> DownloadAsync(GitProjectOptions options, string url)
+        {
+            var (dono, repo, referencia, caminho) = PartesDaUrl(url);
+            if (dono.Length == 0 || caminho.Length == 0)
+                throw new InvalidOperationException(NxText.T(
+                    "Não reconheci a URL do anexo: {0}", "Unrecognized attachment URL: {0}", url));
+            return await new GitProjectClient(options).GetFileBytesAsync(dono, repo, caminho, referencia);
+        }
+
+        /// <summary>Quebra a URL de um arquivo do GitHub em (dono, repo, ref, caminho).</summary>
+        public static (string Dono, string Repo, string Ref, string Caminho) PartesDaUrl(string? url)
+        {
+            var limpa = (url ?? "").Replace("https://github.com/", "")
+                                   .Replace("https://raw.githubusercontent.com/", "");
+            var partes = limpa.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            // dono / repo / blob / ref / caminho...
+            if (partes.Length < 5 || !string.Equals(partes[2], "blob", StringComparison.OrdinalIgnoreCase))
+                return ("", "", "", "");
+            return (partes[0], partes[1], partes[3], string.Join("/", partes.Skip(4)));
+        }
+
+        /// <summary>
+        /// Anexos de TODOS os itens do repositório, por número do item.
+        ///
+        /// O caminho é <c>nxproject/anexos/…/tipo_numero/arquivo</c>: o número sai da última
+        /// pasta, que é justamente a parte estável do caminho. Uma leitura por carga do board,
+        /// não uma por card.
+        /// </summary>
+        public static async Task<Dictionary<int, List<TfsAttachmentService.TfsAttachmentInfo>>> ByItemAsync(
+            GitProjectOptions options, string dono, string repo, string referencia = "main")
+        {
+            var porItem = new Dictionary<int, List<TfsAttachmentService.TfsAttachmentInfo>>();
+            var arquivos = await new GitProjectClient(options).ListFilesAsync(dono, repo, Root + "/");
+
+            foreach (var (caminho, tamanho, _) in arquivos)
+            {
+                var partes = caminho.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (partes.Length < 2) continue;
+
+                var pastaDoItem = partes[^2];                       // tipo_numero
+                var sublinhado = pastaDoItem.LastIndexOf('_');
+                if (sublinhado < 0 || !int.TryParse(pastaDoItem[(sublinhado + 1)..], out var numero)) continue;
+
+                var nome = partes[^1];
+                var url = $"https://github.com/{dono}/{repo}/blob/{referencia}/{caminho}";
+                if (!porItem.TryGetValue(numero, out var lista))
+                    porItem[numero] = lista = new List<TfsAttachmentService.TfsAttachmentInfo>();
+                lista.Add(new TfsAttachmentService.TfsAttachmentInfo(url, nome, tamanho, url));
+            }
+            return porItem;
+        }
+
         /// <summary>Nome de pasta legível: sem acento, sem espaço, curto.</summary>
         public static string Slug(string? texto)
         {

@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -65,7 +65,10 @@ namespace NXProject.Views
             LoadTasksOnImportBox.IsChecked = loadTasksOnImport;
 
             _originalName = name ?? "";
-            BackendBox.Items.Add(AppStrings.Get("PTgt_Default"));
+            // "Padrao" sozinho nao diz o que acontece: o item mostra o destino que vale de
+            // fato — e esse e o Azure DevOps enquanto ninguem escolher outro para o projeto.
+            BackendBox.Items.Add(AppStrings.Get("PTgt_Default")
+                + " (" + AppStrings.Get("Sprint_TargetDevOps") + ")");
             BackendBox.Items.Add(AppStrings.Get("Sprint_TargetDevOps"));
             BackendBox.Items.Add(AppStrings.Get("Sprint_TargetGitProject"));
             BackendBox.Items.Add(AppStrings.Get("Sprint_TargetLocal"));

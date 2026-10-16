@@ -317,7 +317,13 @@ namespace NXProject.Services
                         // O nome digitado nao existe — mas o campo pode estar la com OUTRO nome
                         // aceito pelo import. Sem olhar os apelidos, a resposta seria "nao existe"
                         // e o passo seguinte criaria um campo duplicado na organizacao.
-                        var alias = spec.Aliases.FirstOrDefault(a => byName.ContainsKey(a));
+                        // spec.Names, e nao spec.Aliases: o nome PADRAO tambem entra na busca.
+                        // Quem digitou (ou tem salvo) um nome antigo continuaria sem achar o
+                        // campo quando o padrao do catalogo mudou — foi o que aconteceu com o
+                        // HH Original depois que o padrao virou "Esforço Estimado".
+                        var alias = spec.Names.FirstOrDefault(a =>
+                            !string.Equals(a, check.Name, StringComparison.CurrentCultureIgnoreCase)
+                            && byName.ContainsKey(a));
                         if (alias == null) { check.Status = FieldStatus.Missing; continue; }
                         check.MatchedByAlias = alias;
                         found = byName[alias];

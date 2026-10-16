@@ -136,16 +136,12 @@
                                         <TextBlock Text="{DynamicResource Imp_ConfigConnectionTitle}"
                                                    FontWeight="SemiBold" FontSize="13" Foreground="#333" Margin="0,0,0,8"/>
                                         <WrapPanel>
-                                            <Button Content="{DynamicResource Imp_ConfigDevOps}" Padding="10,4" FontSize="11" MinWidth="175"
+                                            <!-- Uma conexao, uma tela: Azure DevOps e GitHub
+                                                 Projects sao abas dela. Eram dois botoes para a
+                                                 mesma janela. -->
+                                            <Button Content="{DynamicResource Imp_ConfigConn}" Padding="10,4" FontSize="11" MinWidth="175"
                                                     Click="OnOpenConfigClick"
-                                                    ToolTip="{DynamicResource Imp_ConfigDevOpsTip}"
-                                                    Margin="0,0,8,8"/>
-                                            <!-- Cada origem tem a sua conexao: a combo de Origem
-                                                 decide de onde o cronograma vem, e aqui se
-                                                 configura o servidor correspondente. -->
-                                            <Button Content="{DynamicResource Imp_ConfigGit}" Padding="10,4" FontSize="11" MinWidth="175"
-                                                    Click="OnOpenGitConfigClick"
-                                                    ToolTip="{DynamicResource Imp_ConfigGitTip}"
+                                                    ToolTip="{DynamicResource Imp_ConfigConnTip}"
                                                     Margin="0,0,8,8"/>
                                             <!-- Nomes dos campos: tela unica para os dois
                                                  destinos, porque a regra e a mesma e vem do

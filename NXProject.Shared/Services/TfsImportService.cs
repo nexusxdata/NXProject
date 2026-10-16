@@ -645,6 +645,12 @@ namespace NXProject.Services
             public double? BlockDurationHours { get; init; }
             /// <summary>Data alvo (campo configurado, padrao Data_Fim) — editavel no card Active.</summary>
             public DateTime? FinishDate { get; init; }
+            /// <summary>
+            /// Percentual de conclusao (0 a 100) informado na Task enquanto ela esta em
+            /// andamento. Null = o campo nao existe no destino ou nunca foi preenchido; ai o
+            /// andamento continua saindo do ESTADO, como sempre saiu.
+            /// </summary>
+            public double? PercentComplete { get; init; }
             /// <summary>Anexos da Task (relacoes "AttachedFile"), lidos na mesma carga do board.</summary>
             public System.Collections.Generic.IReadOnlyList<TfsAttachmentService.TfsAttachmentInfo> Attachments { get; init; }
                 = System.Array.Empty<TfsAttachmentService.TfsAttachmentInfo>();
@@ -765,8 +771,11 @@ namespace NXProject.Services
         }
 
         // Ordem canônica das colunas do taskboard (estados). Desconhecidos vão para o fim.
+        // "Todo" (sem espaco) e a grafia do GitHub Projects, e e o estado inicial de la. Sem ele
+        // aqui, a coluna caia no fim como estado desconhecido — o board do GitProject abria com a
+        // primeira coluna no lugar errado.
         private static readonly string[] TaskboardStateOrder =
-            { "New", "To Do", "Approved", "Committed", "Open", "Active", "In Progress", "Doing",
+            { "New", "To Do", "Todo", "Approved", "Committed", "Open", "Active", "In Progress", "Doing",
               "Resolved", "Done", "Completed", "Closed" };
 
         /// <summary>Monta o taskboard da sprint: Stories (linhas) com suas Tasks agrupadas por estado.</summary>
@@ -940,6 +949,16 @@ namespace NXProject.Services
                 catch { /* campo opcional: sem ele o board abre igual */ }
             }
 
+            // Percentual de conclusao da Task (opcional, padrao Perc_Conclusao): mesma ideia do
+            // campo de bloqueio — o $expand=all ja traz o valor, so falta o reference name.
+            string? percRef = null;
+            try
+            {
+                var fmapPerc = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
+                percRef = ResolveField(fmapPerc, options.PercConclusaoFieldName, PercConclusaoFieldNames);
+            }
+            catch { /* campo opcional: sem ele o card so nao oferece o percentual */ }
+
             BoardLog.Write($"    WIQL devolveu {ids.Count} work item(ns) em {chunks.Count} lote(s) de ate 200.");
 
             var batchWatch = System.Diagnostics.Stopwatch.StartNew();
@@ -1006,6 +1025,10 @@ namespace NXProject.Services
                             StateChangeDate = stateOn,
                             // $expand=all ja traz as relacoes: os anexos saem daqui sem consulta extra.
                             Attachments = TfsAttachmentService.ParseAttachmentRelations(it),
+                            PercentComplete = !string.IsNullOrEmpty(percRef)
+                                && f.TryGetProperty(percRef!, out var pcv)
+                                && pcv.ValueKind == JsonValueKind.Number && pcv.TryGetDouble(out var pcd)
+                                    ? pcd : (double?)null,
                             FinishDate = !string.IsNullOrEmpty(boardFinishRef)
                                 && f.TryGetProperty(boardFinishRef, out var fdv) && fdv.ValueKind == JsonValueKind.String
                                 && DateTime.TryParse(fdv.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var fdd)
@@ -4032,10 +4055,18 @@ namespace NXProject.Services
                 _ => false
             };
 
+        /// <summary>
+        /// Estado "em andamento". Alem do Active do DevOps (Agile/CMMI), entram as grafias dos
+        /// outros destinos e processos: "In Progress" (Scrum e GitHub Projects), "Doing" e as
+        /// versoes em portugues. Sem isso, tudo que o board so oferece na Task em andamento —
+        /// a data alvo editavel e o % conclusao — simplesmente nao aparecia no GitProject, onde
+        /// a coluna nunca se chama "Active".
+        /// </summary>
         private static bool IsActiveState(string? state) =>
             state?.Trim().ToLowerInvariant() switch
             {
-                "active" or "actived" => true,
+                "active" or "actived" or "in progress" or "inprogress" or "doing"
+                    or "em andamento" or "em progresso" or "fazendo" => true,
                 _ => false
             };
 
@@ -4095,10 +4126,16 @@ namespace NXProject.Services
         public static bool AllocationCountsState(string? state) =>
             string.IsNullOrWhiteSpace(state) || IsClosedState(state) || IsActiveState(state);
 
+        /// <summary>
+        /// Estado "ainda nao comecou". Alem do New do DevOps, entram as grafias dos outros
+        /// destinos e processos: "Todo"/"To Do" (GitHub Projects e Scrum) e "Proposed" (CMMI).
+        /// Sem isso, o que depende de "item novo" — como o 🗑 do card — simplesmente nao
+        /// aparecia fora do Azure DevOps.
+        /// </summary>
         private static bool IsNewState(string? state) =>
             state?.Trim().ToLowerInvariant() switch
             {
-                "new" or "novo" => true,
+                "new" or "novo" or "todo" or "to do" or "proposed" or "a fazer" => true,
                 _ => false
             };
 
@@ -5121,6 +5158,7 @@ namespace NXProject.Services
             // trocar o campo configurado continuaria valendo o valor antigo entre execucoes.
             lock (_startRefCache)  _startRefCache.Clear();
             lock (_finishRefCache) _finishRefCache.Clear();
+            lock (_percRefCache)   _percRefCache.Clear();
             _fieldRefDisk = null;
             try { if (System.IO.File.Exists(FieldRefCachePath)) System.IO.File.Delete(FieldRefCachePath); }
             catch { /* limpar cache nunca pode derrubar a operacao */ }
@@ -7685,6 +7723,7 @@ namespace NXProject.Services
                 var ctx = CreateTfsAuthContext(options, "limpar cache de campos", requireTeamProject: false);
                 lock (_startRefCache)  _startRefCache.Remove(ctx.OrgBase);
                 lock (_finishRefCache) _finishRefCache.Remove(ctx.OrgBase);
+                lock (_percRefCache)   _percRefCache.Remove(ctx.OrgBase);
                 var all = FieldRefDisk();
                 string json;
                 lock (all)
@@ -7753,6 +7792,36 @@ namespace NXProject.Services
                 var r = ResolveField(map, options.StartFieldName, StartFieldNames);
                 _startRefCache[ctx.OrgBase] = r ?? "";
                 WriteFieldRefDisk(startKey, r ?? "");
+                return string.IsNullOrEmpty(r) ? null : r;
+            }
+            catch { return null; }
+        }
+
+        // Cache do reference name do campo de percentual de conclusao por organizacao.
+        private static readonly Dictionary<string, string> _percRefCache = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Reference name do campo de percentual de conclusao (padrao "Perc_Conclusao"), ou null
+        /// quando o processo nao tem o campo. Opcional de propósito: sem ele o board nao oferece
+        /// o percentual e o andamento continua vindo do estado.
+        /// </summary>
+        public static async Task<string?> ResolvePercentFieldRefAsync(TfsConnectionOptions options, CancellationToken ct = default)
+        {
+            var ctx = CreateTfsAuthContext(options, "ler campos", requireTeamProject: false);
+            if (FieldRefCacheEnabled && _percRefCache.TryGetValue(ctx.OrgBase, out var cached))
+                return string.IsNullOrEmpty(cached) ? null : cached;
+            var percKey = "perc|" + ctx.OrgBase + "|" + (options.PercConclusaoFieldName ?? "");
+            if (ReadFieldRefDisk(percKey) is { } saved)
+            {
+                _percRefCache[ctx.OrgBase] = saved;
+                return string.IsNullOrEmpty(saved) ? null : saved;
+            }
+            try
+            {
+                var map = await LoadFieldMapCachedAsync(ctx.OrgBase, ctx.Authorization, ct);
+                var r = ResolveField(map, options.PercConclusaoFieldName, PercConclusaoFieldNames);
+                _percRefCache[ctx.OrgBase] = r ?? "";
+                WriteFieldRefDisk(percKey, r ?? "");
                 return string.IsNullOrEmpty(r) ? null : r;
             }
             catch { return null; }
@@ -8145,6 +8214,51 @@ namespace NXProject.Services
             catch (Exception ex) { return (false, ex.Message); }
         }
 
+        /// <summary>
+        /// Grava o percentual de conclusao (0 a 100) de um work item; null remove o valor.
+        /// O campo e opcional no DevOps: sem ele a gravacao falha com uma mensagem que diz
+        /// QUAL campo falta, em vez de um erro de API cru.
+        /// </summary>
+        public static async Task<(bool Ok, string Message)> SetWorkItemPercentCompleteAsync(
+            TfsConnectionOptions options, int id, double? percent, CancellationToken ct = default)
+        {
+            var percRef = await ResolvePercentFieldRefAsync(options, ct);
+            if (string.IsNullOrEmpty(percRef))
+            {
+                // Pode ser cache de "nao existe" de um campo criado depois: descarta e tenta 1x.
+                InvalidateFieldRefCache(options);
+                percRef = await ResolvePercentFieldRefAsync(options, ct);
+            }
+            if (string.IsNullOrEmpty(percRef))
+                return (false, NxText.T(
+                    "o campo de percentual de conclusão ('" + (options.PercConclusaoFieldName ?? "Perc_Conclusao")
+                        + "') não existe na Task do DevOps — crie-o em Configuração → Nomes dos campos.",
+                    "the percent complete field ('" + (options.PercConclusaoFieldName ?? "Perc_Conclusao")
+                        + "') does not exist on the DevOps Task — create it in Configuration → Field names."));
+            var ctx = CreateTfsAuthContext(options, "gravar percentual de conclusão", requireTeamProject: false);
+            // Inteiro 0..100: e assim que o import grava e como o campo nasce no catalogo.
+            var ops = percent.HasValue
+                ? new List<object> { PatchAdd($"/fields/{percRef}", (int)Math.Round(Math.Clamp(percent.Value, 0, 100))) }
+                : new List<object> { new { op = "remove", path = $"/fields/{percRef}" } };
+            var url = $"{ctx.OrgBase}/_apis/wit/workitems/{id}?{QueryApiVersion}";
+            using var req = new HttpRequestMessage(new HttpMethod("PATCH"), url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ops), Encoding.UTF8, "application/json-patch+json")
+            };
+            req.Headers.Authorization = ctx.Authorization;
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            try
+            {
+                using var resp = await Http.SendAsync(req, ct);
+                if (resp.IsSuccessStatusCode) return (true, string.Empty);
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                var msg = $"HTTP {(int)resp.StatusCode}";
+                try { using var d = JsonDocument.Parse(body); if (d.RootElement.TryGetProperty("message", out var m)) msg = m.GetString() ?? msg; } catch { }
+                return (false, msg);
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
         /// <summary>Grava a Data de Início (campo Data_Inicio) de um work item. null remove.
         /// (Ok, Mensagem); 403 = sem permissão.</summary>
         public static async Task<(bool Ok, string Message)> SetWorkItemStartDateAsync(
@@ -8344,6 +8458,17 @@ namespace NXProject.Services
             if (!string.IsNullOrWhiteSpace(targetTag)) tags.Add(targetTag.Trim());
             return string.Join("; ", tags);
         }
+
+        /// <summary>
+        /// Estado em que um card NOVO nasce: a primeira coluna do board.
+        ///
+        /// Era "New" fixo, que é o estado inicial do Azure DevOps. No GitProject as colunas são
+        /// as do Status do projeto (Todo / In Progress / Done) e não existe "New": o card novo
+        /// ficava sem coluna e não era desenhado em lugar nenhum — a fila contava a pendência
+        /// ("Salvar (1)") e a tela não mostrava nada.
+        /// </summary>
+        public static string FirstBoardState(System.Collections.Generic.IEnumerable<string>? states)
+            => states?.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "New";
 
         /// <summary>Ordena os estados (colunas do taskboard) na ordem canônica; desconhecidos ao fim.</summary>
         public static System.Collections.Generic.List<string> OrderTaskboardStates(System.Collections.Generic.IEnumerable<string> states)

@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -33,6 +33,15 @@ namespace NXProject.Models
         // Quando true, a importação do portfólio carrega Epic/Feature/Story e depois
         // busca as Tasks filhas das Stories como etapa complementar.
         public bool LoadTasksOnImport { get; set; }
+
+        /// <summary>
+        /// De onde este projeto vem — "Azure DevOps" ou "GitProject" —, para a coluna do
+        /// portfólio. NÃO vai para o arquivo: o destino mora na configuração do NXProject
+        /// (PortfolioProjectConfig.BackendKind), e duplicá-lo no .devops.json criaria duas
+        /// verdades sobre a mesma coisa. Quem abre a lista preenche.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string BackendLabel { get; set; } = "";
 
         // Nome com o owner anexado, para exibição em listas/combos.
         [System.Text.Json.Serialization.JsonIgnore]

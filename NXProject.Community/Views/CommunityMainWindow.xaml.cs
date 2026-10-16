@@ -1116,14 +1116,39 @@ namespace NXProject.Views
         }
 
         // Abre a visão de Sprint (Taskboard: cards por estado, filtro por pessoa e cronograma).
+        /// <summary>
+        /// TaskBoard pela aba Principal e pelo menu: sem destino imposto, a tela nasce no
+        /// último destino usado — quem abre daqui não escolheu servidor nenhum.
+        /// </summary>
         private void OnTfsSprintClick(object sender, RoutedEventArgs e) => OpenTaskBoard(silent: false);
+
+        /// <summary>TaskBoard pela aba DevOps: nasce no Azure DevOps.</summary>
+        private void OnDevOpsTaskBoardClick(object sender, RoutedEventArgs e)
+            => OpenTaskBoard(silent: false, NxBackendKind.AzureDevOps);
 
         // Abre o TaskBoard do NX. silent=true (auto-abertura na inicialização) não mostra
         // aviso caso o DevOps ainda não esteja configurado — apenas não abre.
-        private void OpenTaskBoard(bool silent)
+        /// <param name="destinoFixo">
+        /// Destino da ABA que abriu o board (DevOps ou GitProject). Null quando o pedido veio da
+        /// aba Principal ou do menu: aí vale a escolha anterior, como antes.
+        /// </param>
+        private void OpenTaskBoard(bool silent, NxBackendKind? destinoFixo = null)
         {
             var conn = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
-            if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)
+            // A conexão exigida é a do destino pedido. Cobrar o PAT do DevOps para abrir o board
+            // do GitProject seria recusar por um dado que não tem nada a ver com o que vai
+            // acontecer.
+            if (destinoFixo == NxBackendKind.GitProject)
+            {
+                if (conn.GitProject?.IsConfigured != true)
+                {
+                    if (!silent)
+                        MessageBox.Show(this, AppStrings.Get("Git_SyncNoConn"),
+                            "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)
                 || string.IsNullOrWhiteSpace(conn.PersonalAccessToken))
             {
                 if (!silent)
@@ -1162,7 +1187,7 @@ namespace NXProject.Views
                 vm.SaveProjectCommand.Execute(null);
             }
             new NXProject.Views.TfsSprintWindow(scheduleIds, FocusScheduleTaskByTfsId, preferred,
-                    scheduleOrder, openRootId, vm?.Project, SalvarCronograma)
+                    scheduleOrder, openRootId, vm?.Project, SalvarCronograma, destinoFixo)
                 { Owner = this }.Show();
         }
 
@@ -2526,11 +2551,48 @@ namespace NXProject.Views
             TaskGridCtrl.SetClassificationTypes(types);
         }
 
+        /// <summary>
+        /// A aba DevOps só existe quando HÁ integração configurada — Azure DevOps (URL + projeto)
+        /// ou GitHub Projects. Sem nenhuma das duas, todos os botões dela só saberiam dizer
+        /// "configure primeiro", e quem usa o NXProject como cronograma nunca vai lá.
+        ///
+        /// Chamada ao abrir e depois de salvar a conexão: a aba aparece sem precisar reiniciar.
+        /// </summary>
+        private void AtualizaAbaDevOps()
+        {
+            if (DevOpsTab == null) return;
+            var o = Services.TfsConnectionStore.Load("NXProject.Community");
+
+            // Cada aba segue o SEU destino: a do DevOps olha o "Conexao habilitada" dele
+            // (mais URL e projeto); a do GitProject olha a chave dela (IsConfigured ja soma
+            // "ligada" + dados).
+            var visivel = o.DevOpsEnabled
+                       && !string.IsNullOrWhiteSpace(o.OrganizationUrl)
+                       && !string.IsNullOrWhiteSpace(o.TeamProject);
+
+            if (GitProjectTab != null)
+            {
+                var git = o.GitProject?.IsConfigured == true;
+                GitProjectTab.Visibility = git ? Visibility.Visible : Visibility.Collapsed;
+                if (!git && GitProjectTab.IsSelected && GitProjectTab.Parent is TabControl tcGit)
+                    tcGit.SelectedIndex = 0;
+            }
+            DevOpsTab.Visibility = visivel ? Visibility.Visible : Visibility.Collapsed;
+            // Aba escondida com ela selecionada deixaria a janela sem conteúdo nenhum.
+            if (!visivel && DevOpsTab.IsSelected && DevOpsTab.Parent is TabControl tc)
+                tc.SelectedIndex = 0;
+        }
+
+        /// <summary>TaskBoard pela aba do GitProject: a mesma tela, nascendo no GitProject.</summary>
+        private void OnGitTaskBoardClick(object sender, RoutedEventArgs e)
+            => OpenTaskBoard(silent: false, NxBackendKind.GitProject);
+
         private void OnConfigureAzureDevOpsClick(object sender, RoutedEventArgs e)
         {
             var projectName = (DataContext as MainViewModel)?.Project?.Name;
             new TfsDevOpsConfigWindow("NXProject.Community", projectName) { Owner = this }.ShowDialog();
             ApplyClassificationTypesToGrid();
+            AtualizaAbaDevOps();
         }
         private void OnImportTfsToolbarClick(object sender, RoutedEventArgs e) => OpenTfsImport();
         private async void OnSyncGitProjectClick(object sender, RoutedEventArgs e)
@@ -2624,9 +2686,16 @@ namespace NXProject.Views
             }, System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
+        /// <summary>
+        /// Indice das configuracoes de integracao — o mesmo bloco de botoes da tela de
+        /// importacao. De la cada botao abre a tela que faz o trabalho.
+        /// </summary>
         private void OnDevOpsConfigClick(object sender, RoutedEventArgs e)
         {
-            new TfsDevOpsConfigWindow("NXProject.Community") { Owner = this }.ShowDialog();
+            var projectName = (DataContext as MainViewModel)?.Project?.Name;
+            new ConfigHubWindow("NXProject.Community", projectName) { Owner = this }.ShowDialog();
+            ApplyClassificationTypesToGrid();
+            AtualizaAbaDevOps();
         }
 
         /// <summary>Nomes dos campos do NXProject, no DevOps e no GitProject.</summary>
@@ -2635,11 +2704,7 @@ namespace NXProject.Views
             new NXProject.Views.FieldNamesWindow { Owner = this }.ShowDialog();
         }
 
-        /// <summary>Conexão com o GitHub Projects — o equivalente do "Configurar DevOps".</summary>
-        private void OnGitProjectConfigClick(object sender, RoutedEventArgs e)
-        {
-            new NXProject.Views.GitProjectConfigWindow { Owner = this }.ShowDialog();
-        }
+
 
         // Menu "Exibir Cronograma": delega para os mesmos controles da barra do cronograma,
         // para as ações ficarem TANTO na aba quanto no menu.
@@ -4235,6 +4300,7 @@ namespace NXProject.Views
         {
             var opts = Services.TfsConnectionStore.Load("NXProject.Community");
             BaselineAutoLoadItem.IsChecked = opts.AutoLoadBaseline;
+            AtualizaAbaDevOps();
 
             // Perfil desenvolvedor: abrir o TaskBoard automaticamente ao iniciar (opção da própria tela).
             if (NXProject.Views.TfsSprintWindow.ShouldAutoOpenTaskBoard())

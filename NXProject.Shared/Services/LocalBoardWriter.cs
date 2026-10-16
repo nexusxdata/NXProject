@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -35,6 +35,8 @@ namespace NXProject.Services
             public Dictionary<int, double?> CompletedHours { get; } = new();
             public Dictionary<int, DateTime?> StartDates { get; } = new();
             public Dictionary<int, DateTime?> FinishDates { get; } = new();
+            /// <summary>Percentual de conclusão (0 a 100) informado no card em andamento.</summary>
+            public Dictionary<int, double?> Percents { get; } = new();
             public Dictionary<int, string> Tags { get; } = new();
             public Dictionary<int, string> Descriptions { get; } = new();
             public Dictionary<int, string> AcceptanceCriteria { get; } = new();
@@ -95,6 +97,11 @@ namespace NXProject.Services
                 else if (string.Equals(norm, "New", StringComparison.OrdinalIgnoreCase)) t.PercentComplete = 0;
                 else if (t.PercentComplete <= 0) t.PercentComplete = 50;
             }, "estado");
+
+            // Percentual informado no card. Vem DEPOIS do estado de proposito: o estado ja
+            // acerta um percentual padrao, e o que a pessoa digitou tem de prevalecer sobre ele.
+            ForEach(pending.Percents, (t, v) => { if (v is { } p) t.PercentComplete = Math.Clamp(p, 0, 100); },
+                "percentual de conclusão");
 
             // Responsável: casa pelo nome com os recursos do cronograma. Nome desconhecido é
             // avisado em vez de criar recurso silenciosamente — recurso é cadastro, não efeito

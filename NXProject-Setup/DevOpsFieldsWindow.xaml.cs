@@ -69,23 +69,37 @@ public partial class DevOpsFieldsWindow : Window
         return null;
     }
 
+    /// <summary>
+    /// Abre a tela de CONEXÕES do NXProject (Azure DevOps + GitHub Projects). O instalador não
+    /// tem cópia dela: dar o PAT e o token é a mesma tarefa, feita na tela única do app.
+    /// </summary>
+    private void OnOpenNxConnectionClick(object sender, RoutedEventArgs e)
+        => AbreNoNXProject("--conexao", App.Str("Setup_Step4OpenNxConn"));
+
     private void OnOpenNxFieldsClick(object sender, RoutedEventArgs e)
     {
-        var exe = AchaNXProject();
+        // A tela abre com as DUAS abas: o instalador não precisa escolher por quem vai usar.
+        AbreNoNXProject("--setup", App.Str("Setup_Step4OpenNx"));
+    }
 
+    /// <summary>
+    /// Roda o NXProject instalado com um argumento de tela. Está num lugar só porque são duas
+    /// chamadas iguais em tudo menos no argumento — e o tratamento de "não achei o app" é o
+    /// mesmo nas duas.
+    /// </summary>
+    private void AbreNoNXProject(string argumento, string titulo)
+    {
+        var exe = AchaNXProject();
         if (exe == null)
         {
             Step4StatusText.Text = App.Str("Setup_Step4OpenNxMissing");
-            MessageBox.Show(this, App.Str("Setup_Step4OpenNxMissing"),
-                App.Str("Setup_Step4OpenNx"), MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, App.Str("Setup_Step4OpenNxMissing"), titulo,
+                MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-
-        // A tela abre com as DUAS abas: o instalador não precisa escolher por quem vai usar.
-        const string arg = "--setup";
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, arg)
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, argumento)
             { UseShellExecute = true, WorkingDirectory = System.IO.Path.GetDirectoryName(exe)! });
             Step4StatusText.Text = App.Str("Setup_Step4OpenNxDone");
         }

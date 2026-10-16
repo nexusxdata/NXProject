@@ -1,4 +1,4 @@
-🌐 **Português** | [Read in English](README.md)
+﻿🌐 **Português** | [Read in English](README.md)
 
 # NXProject com Azure DevOps
 
@@ -108,7 +108,7 @@ Cada um liga um recurso. Sem o campo, o NXProject funciona — só aquele recurs
 
 | Nome do campo (exibição) | Nome de referência | Tipo | Padrão no NXProject | Usado em | Finalidade |
 |---|---|---|---|---|---|
-| `HH Original` | `HH_Original_float` *(padrão)* | Decimal | `HH_Original_float` / `nx_original_hours` | Story — na Task, `Original Estimate` | Horas planejadas originalmente. Preserva o plano quando o item chega a 100% |
+| `HH Original` | `Esforço Estimado` *(padrão)* | Decimal | `Esforço Estimado` / `nx_original_hours` | Story — na Task, `Original Estimate` | Horas planejadas originalmente. Preserva o plano quando o item chega a 100% |
 | `HH Restante` | `HH_Restante_float` *(padrão)* | Decimal | `HH_Restante_float` / `nx_remaining_hours` | Story — na Task, `Remaining Work` | Horas que ainda faltam. **Tem prioridade sobre o `HH Estimado`** na importação |
 | `HH Atual` | `HH_Atual_float` *(padrão)* | Decimal | `HH_Atual_float` / `nx_completed_hours` | Story — na Task, `Completed Work` | Horas já realizadas. Entra na duração total (`HH Atual + HH Restante`) e no percentual |
 | `Perc_Alocacao` | `Custom.PercAlocacao` *(exemplo)* | Decimal/Float (1–100, até 2 casas) | `Perc_Alocacao` | Story, Task | % do dia da pessoa dedicado a esta Story |
@@ -123,6 +123,15 @@ Cada um liga um recurso. Sem o campo, o NXProject funciona — só aquele recurs
 | `Adm_NX` | `Custom.Adm_NX` *(exemplo)* | Identity (aponta um grupo/Team do DevOps) | `Adm_NX` | Project (item raiz) | Grupo administrador do NX: **somente os membros deste grupo podem Exportar/Sincronizar** no DevOps. Vazio/ausente = liberado para todos. Habilitado por padrão. |
 
 > **Feature e EPIC não precisam de HH nem de datas.** Nesses níveis os números são **consolidação dos filhos**, calculada pelo cronograma — não há o que preencher. Só `Sync_version` e `Sync_Name` fazem falta ali, porque o controle de concorrência acompanha todo item sincronizado. (Se os campos existirem na Feature/EPIC, o NXProject publica o rollup neles.)
+
+> **Por que o `HH Original` e o `HH Estimado` apontam para o mesmo campo.** É o mesmo número em
+> dois momentos. Enquanto a atividade não começou, o que está no campo é a estimativa. Quando
+> ela começa, o NXProject guarda aquele valor inicial como **HH Original**, e o campo passa a
+> ser o **registro do plano**: o andamento não é mais gravado ali — vai para o `HH Atual` e o
+> `HH Restante`, e o esforço estimado de agora é a soma dos dois. Por isso os dois conceitos
+> têm o mesmo nome padrão, e o sync grava nesse campo **uma só vez** (a estimativa de quem
+> executa muda; o plano, não). Para manter os dois números separados no servidor, aponte o
+> `HH Original` para um campo próprio na tela de campos.
 
 > **Os campos de HH e o processo.** Na Task o NXProject usa os campos nativos `Original Estimate`, `Remaining Work` e `Completed Work` — mas eles são de fábrica no **Agile** e no **CMMI**; a Task do **Scrum** traz `Remaining Work` e pode não ter os outros. Por isso cada um dos três aparece na tela de campos com o nome **por tipo** ao lado: marcado, usa o nativo; desmarcado, você digita o campo próprio daquele tipo. Nenhum deles é obrigatório — sem o `HH Restante` o NX usa o `HH Estimado` como restante, sem o `HH Atual` a Story fica sem horas realizadas e sem o `HH Original` o plano não é preservado em item concluído.
 

@@ -1,6 +1,7 @@
 ﻿<Window x:Class="NXProject.Views.TfsDevOpsConfigWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:NXProject.Views"
         Title="{DynamicResource Cfg_Title}"
         Width="700" Height="680" MinWidth="620" MinHeight="500"
         WindowStartupLocation="CenterOwner"
@@ -23,7 +24,15 @@
                            FontSize="12" Foreground="#666" Margin="0,4,0,0"/>
             </StackPanel>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
+            <!--
+                As conexões moram numa tela só, em abas: eram duas janelas com o mesmo papel
+                (uma por destino), abertas por dois itens de menu, e quem ia configurar
+                precisava saber de antemão qual procurar. A aba de campos fecha o conjunto:
+                conexão e mapeamento são a mesma tarefa, feita na mesma sentada.
+            -->
+            <TabControl Grid.Row="1" x:Name="Abas" FontSize="12">
+            <TabItem Header="{DynamicResource Cfg_TabDevOps}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,10,6,10">
             <StackPanel>
 
                 <!-- ══ Conexão ══════════════════════════════════════ -->
@@ -32,6 +41,12 @@
                     <StackPanel>
                         <TextBlock Text="{DynamicResource Cfg_ConnSection}"
                                    FontWeight="SemiBold" FontSize="13" Margin="0,0,0,10" Foreground="#2B579A"/>
+
+                        <!-- Liga/desliga a integracao inteira sem apagar o que esta configurado. -->
+                        <CheckBox x:Name="DevOpsEnabledCheck" Margin="0,0,0,10"
+                                  Content="{DynamicResource Cfg_DevOpsEnabled}"
+                                  ToolTip="{DynamicResource Cfg_DevOpsEnabledTip}"
+                                  FontSize="11.5" FontWeight="SemiBold" Foreground="#2B579A"/>
 
                         <TextBlock Text="{DynamicResource Cfg_OrgUrl}" FontSize="11" Foreground="#555" Margin="0,0,0,3"/>
                         <TextBox x:Name="OrgUrlBox" Height="28" Padding="6,4" FontSize="12"
@@ -127,27 +142,34 @@
                     </Grid>
                 </Border>
 
-                <!-- Campos avançados -->
-                <Border Background="#FAFAFA" BorderBrush="#DDD" BorderThickness="1"
-                        CornerRadius="6" Padding="12,10" Margin="0,0,0,4">
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Cfg_AdvancedFields}" FontWeight="SemiBold" FontSize="13" Foreground="#2B579A" Margin="0,0,0,6"/>
-                        <!-- Os nomes dos campos sairam daqui: viviam em DUAS telas (esta e a do
-                             GitProject) e a mesma regra em dois lugares ja nos custou defeito.
-                             Agora moram em "Configurar Campos", que atende aos dois destinos. -->
-                        <TextBlock Text="{DynamicResource Cfg_FieldsMoved}" FontSize="11"
-                                   Foreground="#666" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <Button Content="{DynamicResource Imp_ConfigFields}" HorizontalAlignment="Left"
-                                Padding="12,5" Click="OnOpenFieldsClick"
-                                ToolTip="{DynamicResource Imp_ConfigFieldsTip}"/>
-                    </StackPanel>
-                </Border>
-
                 <TextBlock x:Name="StatusText"
                            Foreground="#B00020" TextWrapping="Wrap"
                            Margin="0,12,0,0" Visibility="Collapsed"/>
             </StackPanel>
             </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="{DynamicResource Cfg_TabGit}">
+                <Border Padding="10">
+                    <v:GitProjectConfigPanel x:Name="GitPanel"/>
+                </Border>
+            </TabItem>
+
+            <!-- Campos e tags: a tela propria continua separada porque e grande e tem as suas
+                 proprias abas (DevOps | GitProject | Niveis). Aqui fica o caminho ate ela, para
+                 quem veio configurar nao precisar procurar no menu. -->
+            <TabItem Header="{DynamicResource Cfg_TabFields}">
+                <Border Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Cfg_FieldsMoved}" FontSize="12"
+                                   Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                        <Button Content="{DynamicResource Imp_ConfigFields}" HorizontalAlignment="Left"
+                                Padding="14,6" Click="OnOpenFieldsClick"
+                                ToolTip="{DynamicResource Imp_ConfigFieldsTip}"/>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+            </TabControl>
 
             <!-- Botões -->
             <StackPanel Grid.Row="2" Orientation="Horizontal"

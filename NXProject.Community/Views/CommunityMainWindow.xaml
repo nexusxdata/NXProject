@@ -84,9 +84,10 @@
             </MenuItem>
             <MenuItem Header="{DynamicResource Menu_View}">
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsList}" Click="OnDevOpsProjectListClick"/>
+                <!-- Um item so: as duas conexoes (DevOps e GitHub Projects) sao abas da mesma
+                     tela. Dois itens obrigavam a saber, antes de abrir, qual deles tinha o que
+                     se queria configurar. -->
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsConfig}" Click="OnDevOpsConfigClick"/>
-                <MenuItem Header="{DynamicResource Menu_View_GitProjectConfig}" Click="OnGitProjectConfigClick"/>
-                <MenuItem Header="{DynamicResource Menu_View_FieldNames}" Click="OnFieldNamesClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
                 <MenuItem Header="{DynamicResource Main_CostPeople}" Click="OnPeopleCostClick"/>
                 <Separator/>
@@ -601,8 +602,11 @@
         </ToolBar>
         </TabItem>
 
-        <!-- Aba DevOps (por último): importar / sincronizar / abrir / consultar / backlog / taskboard -->
-        <TabItem>
+        <!-- Aba DevOps (por último): importar / sincronizar / abrir / consultar / backlog / taskboard.
+             Some quando NAO ha integracao configurada (nem DevOps nem GitProject): uma aba
+             inteira de botoes que so sabem dizer "configure primeiro" e ruido para quem usa o
+             NXProject so como cronograma. Reaparece assim que a conexao e salva. -->
+        <TabItem x:Name="DevOpsTab">
             <TabItem.Header>
                 <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource Ribbon_Tfs}">
                     <TextBlock Text="&#x1F4CB;" FontSize="15" VerticalAlignment="Center"/>
@@ -613,6 +617,25 @@
         <ToolBar Background="{StaticResource SurfaceBrush}" Padding="4,2"
                  FocusManager.IsFocusScope="False"
                  Button.Click="OnToolbarButtonClick">
+            <!-- Sprint / Taskboard (cards por estado): PRIMEIRO da aba, porque e o que se
+                 abre todo dia; importar e sincronizar sao operacoes pontuais. -->
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnDevOpsTaskBoardClick"
+                    ToolTip="{DynamicResource Sprint_BoardTitle}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Viewbox Width="17" Height="17" Stretch="Uniform">
+                        <Canvas Width="24" Height="24">
+                            <Rectangle Canvas.Left="2" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#6B7A8A"/>
+                            <Rectangle Canvas.Left="9" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#2B579A"/>
+                            <Rectangle Canvas.Left="16" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#107C10"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="TaskBoard" Foreground="#5A6B7B" FontSize="12" FontWeight="Bold"
+                               FontFamily="Segoe UI" Margin="3,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <Rectangle Width="1" Fill="#C9D3CC" Margin="6,4,6,4"/>
+
             <!-- Importar do Azure DevOps -->
             <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnImportTfsToolbarClick"
                     ToolTip="{DynamicResource Main_ImportTip}">
@@ -660,22 +683,6 @@
             </Button>
 
             <Rectangle Width="1" Fill="#C9D3CC" Margin="6,4,6,4"/>
-
-            <!-- Sprint / Taskboard (cards por estado) -->
-            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnTfsSprintClick"
-                    ToolTip="{DynamicResource Sprint_BoardTitle}">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Viewbox Width="17" Height="17" Stretch="Uniform">
-                        <Canvas Width="24" Height="24">
-                            <Rectangle Canvas.Left="2" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#6B7A8A"/>
-                            <Rectangle Canvas.Left="9" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#2B579A"/>
-                            <Rectangle Canvas.Left="16" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#107C10"/>
-                        </Canvas>
-                    </Viewbox>
-                    <TextBlock Text="TaskBoard" Foreground="#5A6B7B" FontSize="12" FontWeight="Bold"
-                               FontFamily="Segoe UI" Margin="3,0,0,0" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
 
             <!-- Consultas (Shared Queries do DevOps): cilindro de banco (SQL) + "SQL" -->
             <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnTfsQueryClick"
@@ -734,6 +741,41 @@
             </Button>
 
         </ToolBar>
+        </TabItem>
+
+        <!-- Aba GitProject: o par da aba DevOps, com a chave dela. Some junto com a conexão
+             desligada (ver AtualizaAbaDevOps). Hoje leva o TaskBoard, que é o que se usa
+             todo dia no GitHub Projects; importar e sincronizar continuam nos menus e na
+             aba do destino que os gravou. -->
+        <TabItem x:Name="GitProjectTab">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource Sprint_TargetGitProject}">
+                    <TextBlock Text="&#x1F419;" FontSize="15" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Sprint_TargetGitProject}" FontSize="12" Margin="5,0,0,0"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </TabItem.Header>
+
+            <ToolBar Background="{StaticResource SurfaceBrush}" Padding="4,2"
+                     FocusManager.IsFocusScope="False"
+                     Button.Click="OnToolbarButtonClick">
+                <!-- Mesmo botao (e mesmo desenho) do TaskBoard da aba DevOps: a tela e uma so,
+                     e o destino dela vem da combo de la. -->
+                <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnGitTaskBoardClick"
+                        ToolTip="{DynamicResource Sprint_BoardTitle}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Viewbox Width="17" Height="17" Stretch="Uniform">
+                            <Canvas Width="24" Height="24">
+                                <Rectangle Canvas.Left="2" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#6B7A8A"/>
+                                <Rectangle Canvas.Left="9" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#2B579A"/>
+                                <Rectangle Canvas.Left="16" Canvas.Top="4" Width="6" Height="16" RadiusX="1" RadiusY="1" Fill="#107C10"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="TaskBoard" Foreground="#5A6B7B" FontSize="12" FontWeight="Bold"
+                                   FontFamily="Segoe UI" Margin="3,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </ToolBar>
         </TabItem>
         </TabControl>
 

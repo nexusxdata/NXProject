@@ -46,9 +46,18 @@ namespace NXProject.Views
         // Projeto (cronograma) aberto — habilita o campo do path da planilha de Task Plan.
         private readonly string? _currentProjectName;
 
-        public TfsDevOpsConfigWindow(string storageKey = "NXProject.Community", string? currentProjectName = null)
+        /// <param name="abaInicial">
+        /// Qual aba abrir: 0 = Azure DevOps, 1 = GitHub Projects, 2 = Campos e tags. Quem chega
+        /// por um erro do GitProject ja cai na aba dele, em vez de procurar.
+        /// </param>
+        public TfsDevOpsConfigWindow(string storageKey = "NXProject.Community",
+            string? currentProjectName = null, int abaInicial = 0)
         {
             InitializeComponent();
+            // Aberta pelo Setup (StartupUri), o construtor vem sem parametro: a aba pedida
+            // chega pela App, que foi quem leu a linha de comando.
+            var aba = abaInicial > 0 ? abaInicial : NXProject.CommunityApp.AbaDaConexao;
+            if (aba > 0) Abas.SelectedIndex = aba;
             _storageKey = string.IsNullOrWhiteSpace(storageKey) ? "NXProject.Community" : storageKey.Trim();
             _savedFields = TfsConnectionStore.Load(_storageKey);
             _currentProjectName = string.IsNullOrWhiteSpace(currentProjectName) ? null : currentProjectName.Trim();
@@ -62,6 +71,7 @@ namespace NXProject.Views
             var saved = TfsConnectionStore.Load(_storageKey);
             OrgUrlBox.Text = saved.OrganizationUrl;
             ProjectBox.Text = saved.TeamProject;
+            DevOpsEnabledCheck.IsChecked = _savedFields.DevOpsEnabled;
             EnableOrgDiscoveryCheck.IsChecked = saved.EnableOrgPeopleDiscovery;
 
             // Carrega mapeamentos de classificação por tipo
@@ -183,13 +193,27 @@ namespace NXProject.Views
 
         private void OnSaveClick(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(OrgUrlBox.Text) || string.IsNullOrWhiteSpace(PatBox.Password))
+            // Conexão desligada não precisa de URL nem de PAT: é justamente o caso de quem usa
+            // só o GitProject. Exigir os dois aqui impediria de desligar.
+            if (DevOpsEnabledCheck.IsChecked == true
+                && (string.IsNullOrWhiteSpace(OrgUrlBox.Text) || string.IsNullOrWhiteSpace(PatBox.Password)))
             {
                 ShowStatus(AppStrings.Get("Cfg_UrlPatRequired"));
                 return;
             }
 
             var options = BuildOptions();
+
+            // A aba do GitHub Projects grava junto: e a MESMA conexao do projeto, so que do
+            // outro destino. Recusa dela (preenchida pela metade) impede o salvar inteiro e
+            // leva a tela para a aba onde esta o problema.
+            if (GitPanel.AplicarEm(options) is { } problemaGit)
+            {
+                Abas.SelectedIndex = 1;
+                ShowStatus(problemaGit);
+                return;
+            }
+
             TfsConnectionStore.Save(options, RememberTokenCheck.IsChecked == true, _storageKey);
             // Conexão nova (URL, projeto ou PAT): descarta metadados lidos com a anterior.
             TfsImportService.ResetMetadataCaches();
@@ -248,7 +272,12 @@ namespace NXProject.Views
             DevOpsProjectListPath = _devOpsProjectListPath,
             ExtraCreateFields   = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))],
             ClassificationPicklistValues = TfsConnectionStore.Load(_storageKey).ClassificationPicklistValues,
-            TypeFieldMappings = BuildTypeFieldMappings()
+            TypeFieldMappings = BuildTypeFieldMappings(),
+            // A conexao do GitProject vem do que ja esta salvo e, se a aba dele foi preenchida,
+            // e sobrescrita no salvar. Sem este repasse, gravar a conexao do DevOps zerava a do
+            // GitProject — o objeto nascia aqui com um GitProject vazio.
+            GitProject = _savedFields.GitProject,
+            DevOpsEnabled = DevOpsEnabledCheck.IsChecked == true
         };
 
         /// <summary>

@@ -163,8 +163,25 @@
             </Popup>
             <!-- Limpar filtros: fica ANTES da escolha da Sprint, junto do filtro de Projeto. -->
             <Button x:Name="ResetFiltersButton" VerticalAlignment="Center"
-                    Padding="6,2" Margin="0,0,10,0" Click="OnResetFiltersClick"
-                    Content="⟲" ToolTip="{DynamicResource Sprint_ResetFiltersTip}"/>
+                    Padding="4,2" Margin="0,0,10,0" Click="OnResetFiltersClick"
+                    ToolTip="{DynamicResource Sprint_ResetFiltersTip}">
+                <!-- Borracha: o ⟲ era lido como "recarregar", e o botao LIMPA os filtros.
+                     Desenhada em vez de emoji porque emoji muda de forma (e de cor) conforme
+                     a fonte instalada, e esta barra ja tem icones proprios. -->
+                <Viewbox Width="16" Height="16">
+                    <Canvas Width="18" Height="18">
+                        <!-- corpo (parte que apaga), inclinado -->
+                        <Polygon Points="2,13 8,4.5 13.5,8.5 7.5,17"
+                                 Fill="#F7CFCF" Stroke="#9E5A5A" StrokeThickness="1.3"
+                                 StrokeLineJoin="Round"/>
+                        <!-- cinta de metal -->
+                        <Polyline Points="5,8.8 10.5,12.7" Stroke="#9E5A5A" StrokeThickness="1.2"/>
+                        <!-- a superficie que esta sendo apagada -->
+                        <Line X1="1" Y1="17.2" X2="16.5" Y2="17.2"
+                              Stroke="#9AA3AD" StrokeThickness="1.2"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
             <TextBlock Text="{DynamicResource Sprint_Pick}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ToggleButton x:Name="SprintFilterToggle" VerticalAlignment="Center" Padding="8,2" MinWidth="240"
                           Content="{DynamicResource Sprint_AllSprints}" ToolTip="{DynamicResource Sprint_MultiTip}"

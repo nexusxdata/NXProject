@@ -31,6 +31,16 @@ namespace NXProject.Views
             public NxFieldSpec Spec { get; init; } = new();
             public TextBox Box { get; init; } = new();
             public TextBlock Where { get; init; } = new();
+
+            /// <summary>Selo do "Detectar": ✔ existe no board, ✖ falta.</summary>
+            public TextBlock Status { get; init; } = new();
+
+            /// <summary>
+            /// Resultado da última detecção: null = ainda não detectou, true = está no board.
+            /// É ele que decide o que o "Criar campos no board" vai criar — criar o que já
+            /// existe duplicaria campo, e no GitHub o tipo não se troca depois.
+            /// </summary>
+            public bool? NoBoard { get; set; }
         }
 
         private readonly TfsConnectionOptions _options = TfsConnectionStore.Load();
@@ -98,31 +108,43 @@ namespace NXProject.Views
             try
             {
                 var snap = await new GitProjectClient(git).LoadAsync();
-                var achados = new List<string>();
-                var faltando = new List<string>();
+                var achados = 0;
+                var faltando = 0;
 
                 foreach (var row in _rows)
                 {
                     var nomes = NomesGit(row.Spec);
                     var noBoard = snap.FieldNames.FirstOrDefault(n => GitProjectOptions.Matches(n, nomes));
-                    if (noBoard != null) achados.Add($"{Conceito(row.Spec)} → {noBoard}");
-                    else faltando.Add($"{Conceito(row.Spec)} ({GitProjectOptions.Suggested(nomes)})");
+                    row.NoBoard = noBoard != null;
+
+                    if (noBoard != null)
+                    {
+                        achados++;
+                        row.Status.Text = "✔";
+                        row.Status.Foreground = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(0x10, 0x7C, 0x10));
+                        row.Status.ToolTip = AppStrings.Get("Fld_GitRowFound", noBoard, snap.Title);
+                    }
+                    else
+                    {
+                        faltando++;
+                        row.Status.Text = "✖";
+                        row.Status.Foreground = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(0xC0, 0x30, 0x30));
+                        row.Status.ToolTip = AppStrings.Get("Fld_GitRowMissing",
+                            GitProjectOptions.Suggested(nomes), snap.Title);
+                    }
                 }
 
                 // A classificacao tambem e campo do board: conferir junto evita a surpresa de
                 // criar o item e o valor nao ir a lugar nenhum.
                 foreach (var c in _gitClass.Where(c => !string.IsNullOrWhiteSpace(c.Field)))
-                    (snap.FieldNames.Any(n => string.Equals(n, c.Field.Trim(), StringComparison.CurrentCultureIgnoreCase))
-                        ? achados : faltando).Add($"{c.Field.Trim()} ({c.FieldType})");
+                    if (snap.FieldNames.Any(n => string.Equals(n, c.Field.Trim(), StringComparison.CurrentCultureIgnoreCase)))
+                        achados++;
+                    else faltando++;
 
                 GitDetectStatus.Text = AppStrings.Get("Fld_GitDetectResult",
-                    snap.FieldNames.Count.ToString(), achados.Count.ToString(), faltando.Count.ToString());
-                MessageBox.Show(this,
-                    AppStrings.Get("Fld_GitDetectBody",
-                        snap.Title,
-                        achados.Count == 0 ? "-" : string.Join(Environment.NewLine + "   ", achados),
-                        faltando.Count == 0 ? "-" : string.Join(Environment.NewLine + "   ", faltando)),
-                    AppStrings.Get("Fld_GitDetect"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    snap.FieldNames.Count.ToString(), achados.ToString(), faltando.ToString());
             }
             catch (Exception ex)
             {
@@ -684,7 +706,22 @@ namespace NXProject.Views
                 var erros = new List<string>();
                 foreach (var x in criar)
                 {
-                    try { await cliente.CreateFieldAsync(snap.ProjectId, x.Nome, x.Tipo, x.Opcoes); feitos++; }
+                    try
+                    {
+                        await cliente.CreateFieldAsync(snap.ProjectId, x.Nome, x.Tipo, x.Opcoes);
+                        feitos++;
+                        // Criado: o selo da linha vira ✔ na hora, sem precisar detectar de novo.
+                        var linha = _rows.FirstOrDefault(r =>
+                            string.Equals(r.Box.Text.Trim(), x.Nome, StringComparison.CurrentCultureIgnoreCase));
+                        if (linha != null)
+                        {
+                            linha.NoBoard = true;
+                            linha.Status.Text = "✔";
+                            linha.Status.Foreground = new System.Windows.Media.SolidColorBrush(
+                                System.Windows.Media.Color.FromRgb(0x10, 0x7C, 0x10));
+                            linha.Status.ToolTip = AppStrings.Get("Fld_GitRowFound", x.Nome, snap.Title);
+                        }
+                    }
                     // Um campo que falha nao derruba os outros: o board fica com o que deu certo,
                     // e a mensagem diz exatamente qual nao foi.
                     catch (Exception ex) { erros.Add($"{x.Nome}: {ex.Message}"); }
@@ -711,6 +748,13 @@ namespace NXProject.Views
             public NxFieldSpec Spec { get; init; } = new();
             public TextBox Box { get; init; } = new();
             public CheckBox? Enabled { get; init; }
+
+            /// <summary>
+            /// Selo do "Detectar": ✔ existe, ✖ falta, ⛔ existe com tipo incompatível. O detalhe
+            /// (tipo, apelido que casou, em que work item falta) vai no ToolTip — na linha fica
+            /// o que se lê de relance.
+            /// </summary>
+            public TextBlock Status { get; init; } = new();
             public Dictionary<string, CheckBox> UseStandard { get; } = new(StringComparer.CurrentCultureIgnoreCase);
 
             /// <summary>
@@ -725,6 +769,28 @@ namespace NXProject.Views
 
         /// <summary>Campos cujo recurso é opcional: a caixa liga o campo e o que ele alimenta.</summary>
         private static readonly string[] Opcionais = { "epicType", "approved", "blockDuration", "admGroup" };
+
+        /// <summary>
+        /// O conceito "HH original" — que a tela NAO mostra em linha separada porque ele divide o
+        /// campo com o HH estimado: ate a atividade comecar, os dois sao o mesmo numero; depois,
+        /// o campo guarda o plano e o andamento vai para HH Atual e HH Restante.
+        /// </summary>
+        private static bool EhHoraOriginal(NxFieldSpec spec) =>
+            string.Equals(spec.Key, "originalHours", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// As duas caixas da faixa de prioridade. Nascem com a LINHA do campo, e nao no XAML,
+        /// porque e ao lado do campo que elas limitam que elas querem dizer alguma coisa.
+        /// </summary>
+        private TextBox? _prioMinBox;
+        private TextBox? _prioMaxBox;
+
+        /// <summary>Lê "P3" ou "3" como 3; qualquer outra coisa fica com o padrão.</summary>
+        private static int LeFaixa(TextBox? caixa, int padrao)
+        {
+            var txt = (caixa?.Text ?? "").Trim().TrimStart('P', 'p');
+            return int.TryParse(txt, out var v) && v >= 1 && v <= 99 ? v : padrao;
+        }
 
         /// <summary>
         /// Monta a aba do Azure DevOps a partir do catálogo — a mesma lista da aba do GitProject.
@@ -744,6 +810,10 @@ namespace NXProject.Views
 
             foreach (var spec in DevOpsFields)
             {
+                // HH original NAO tem linha propria: ele e o MESMO numero do HH estimado em
+                // outro momento (ver docs/hh-modelo.pt-BR.md). Duas caixas com o mesmo nome so
+                // davam a impressao de dois campos — e a chance de elas discordarem.
+                if (EhHoraOriginal(spec)) continue;
                 var grid = new Grid { Margin = new Thickness(0, 3, 0, 3) };
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
@@ -781,8 +851,19 @@ namespace NXProject.Views
                 };
                 Grid.SetColumn(caixa, 1); grid.Children.Add(caixa);
 
+                // O selo divide a coluna do nome com a caixa: fica logo ao lado do campo a que
+                // se refere, sem mexer no resto do layout.
+                var selo = new TextBlock
+                {
+                    FontSize = 12, FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 1, 0)
+                };
+                Grid.SetColumn(selo, 1); grid.Children.Add(selo);
+
                 var opcoes = new WrapPanel { Orientation = Orientation.Horizontal };
-                var row = new DevRow { Spec = spec, Box = caixa, Enabled = liga };
+                var row = new DevRow { Spec = spec, Box = caixa, Enabled = liga, Status = selo };
                 foreach (var wit in spec.Scope)
                 {
                     var nativo = spec.OptionalStandardFor(wit);
@@ -834,6 +915,33 @@ namespace NXProject.Views
                 // Campo de lista fechada (EPIC_TYPE, por exemplo) não tem caixa de "usar o campo
                 // padrão": a coluna fica livre para dizer QUE VALORES ele aceita.
                 if (RotuloValores(spec) is { } valores) opcoes.Children.Add(valores);
+                // A faixa aceita e EDITAVEL e mora na propria linha: ela e tao parte da
+                // prioridade quanto o nome do campo, e, separada la embaixo, ninguem ligava uma
+                // coisa na outra. O formulario do DevOps vai de 1 a 9, mas a instalacao PADRAO
+                // para em 4 — dai o aviso ao lado, em vez de um limite escondido no codigo.
+                if (string.Equals(spec.Key, "priority", StringComparison.OrdinalIgnoreCase))
+                {
+                    var faixa = TaskPriorityRange.FromOptions(saved);
+                    TextBox CaixaFaixa(int valor) => new()
+                    {
+                        Text = "P" + valor, Width = 46, Height = 22, FontSize = 11,
+                        Margin = new Thickness(4, 0, 0, 0), VerticalContentAlignment = VerticalAlignment.Center,
+                        ToolTip = AppStrings.Get("Cfg_TaskPrioRangeTip")
+                    };
+                    _prioMinBox = CaixaFaixa(faixa.Min);
+                    _prioMaxBox = CaixaFaixa(faixa.Max);
+                    TextBlock Rotulo(string chave, double esquerda) => new()
+                    {
+                        Text = AppStrings.Get(chave), FontSize = 10.5,
+                        Foreground = System.Windows.Media.Brushes.Gray,
+                        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(esquerda, 0, 0, 0)
+                    };
+                    opcoes.Children.Add(Rotulo("Cfg_TaskPrioMin", 8));
+                    opcoes.Children.Add(_prioMinBox);
+                    opcoes.Children.Add(Rotulo("Cfg_TaskPrioMax", 10));
+                    opcoes.Children.Add(_prioMaxBox);
+                    opcoes.Children.Add(Rotulo("Fld_PrioStdLimit", 8));
+                }
                 Grid.SetColumn(opcoes, 2); grid.Children.Add(opcoes);
 
                 _devRows.Add(row);
@@ -847,11 +955,6 @@ namespace NXProject.Views
             // trocados na hora (o Setup manda para ca quem ainda nao configurou nada).
             CreateOrgBox.Text = saved.OrganizationUrl ?? "";
             CreateProjBox.Text = saved.TeamProject ?? "";
-
-            TaskPriorityRangeEnabledBox.IsChecked = saved.TaskPriorityRangeEnabled;
-            TaskPriorityMinBox.Text = saved.TaskPriorityMin.ToString();
-            TaskPriorityMaxBox.Text = saved.TaskPriorityMax.ToString();
-            TaskPriorityMinBox.IsEnabled = TaskPriorityMaxBox.IsEnabled = saved.TaskPriorityRangeEnabled;
 
             SyncVersionFieldBox.Text = saved.SyncVersionFieldName;
             SyncNameFieldBox.Text = saved.SyncNameFieldName;
@@ -934,6 +1037,7 @@ namespace NXProject.Views
             "finish" => o.FinishFieldName,
             "percAloc" => o.PercAlocFieldName,
             "percConclusao" => o.PercConclusaoFieldName,
+            "priority" => o.PriorityFieldName,
             "syncVersion" => o.SyncVersionFieldName,
             "syncName" => o.SyncNameFieldName,
             "approved" => o.ApprovedFieldName,
@@ -954,7 +1058,10 @@ namespace NXProject.Views
                 var ligado = row.Enabled == null || row.Enabled.IsChecked == true;
                 switch (row.Spec.Key)
                 {
-                    case "effort": _options.EffortFieldName = v; break;
+                    // O HH original acompanha o HH estimado: e o mesmo campo, e a tela mostra
+                    // uma linha so. Quem precisar separa-los aponta o outro campo no arquivo de
+                    // configuracao — na tela, dois nomes iguais nao eram escolha, eram ruido.
+                    case "effort": _options.EffortFieldName = v; _options.OriginalHoursFieldName = v; break;
                     case "originalHours": _options.OriginalHoursFieldName = v; break;
                     case "remainingHours": _options.RemainingHoursFieldName = v; break;
                     case "currentHours": _options.CurrentHoursFieldName = v; break;
@@ -962,6 +1069,7 @@ namespace NXProject.Views
                     case "finish": _options.FinishFieldName = v; break;
                     case "percAloc": _options.PercAlocFieldName = v; break;
                     case "percConclusao": _options.PercConclusaoFieldName = v; break;
+                    case "priority": _options.PriorityFieldName = v; break;
                     case "syncVersion": _options.SyncVersionFieldName = v; break;
                     case "syncName": _options.SyncNameFieldName = v; break;
                     case "approved": _options.ApprovedFieldName = v; _options.ApprovedFieldEnabled = ligado; break;
@@ -971,9 +1079,14 @@ namespace NXProject.Views
                 }
             }
 
-            _options.TaskPriorityRangeEnabled = TaskPriorityRangeEnabledBox.IsChecked == true;
-            _options.TaskPriorityMin = int.TryParse(TaskPriorityMinBox.Text?.Trim(), out var mn) && mn >= 1 ? mn : 1;
-            _options.TaskPriorityMax = int.TryParse(TaskPriorityMaxBox.Text?.Trim(), out var mx) && mx >= 1 ? mx : 4;
+            var prioMin = LeFaixa(_prioMinBox, 1);
+            var prioMax = Math.Max(prioMin, LeFaixa(_prioMaxBox, 9));
+            _options.TaskPriorityMin = prioMin;
+            _options.TaskPriorityMax = prioMax;
+            // "Faixa personalizada" deixa de ser uma caixa a marcar: faixa diferente da do
+            // formulario do DevOps (1 a 9) JA E a personalizacao, e dizer isso em dois lugares
+            // so dava chance de os dois discordarem.
+            _options.TaskPriorityRangeEnabled = prioMin != 1 || prioMax != 9;
             _options.SyncVersionFieldName = Txt(SyncVersionFieldBox, "Sync_version");
             _options.SyncNameFieldName = Txt(SyncNameFieldBox, "Sync_Name");
             _options.FixedStartTagName = Txt(FixedStartTagBox, "DT-INI-NEG");
@@ -1109,9 +1222,11 @@ namespace NXProject.Views
             var host = new StackPanel();
             foreach (var spec in GitProjectFields)
             {
+                if (EhHoraOriginal(spec)) continue;   // mesma razao da aba do DevOps
                 var grid = new Grid { Margin = new Thickness(0, 3, 0, 3) };
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
 
                 var nome = new TextBlock
@@ -1139,9 +1254,20 @@ namespace NXProject.Views
                     FontSize = 10.5, Foreground = System.Windows.Media.Brushes.Gray,
                     VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap
                 };
-                Grid.SetColumn(onde, 2); grid.Children.Add(onde);
+                Grid.SetColumn(onde, 3); grid.Children.Add(onde);
 
-                _rows.Add(new Row { Spec = spec, Box = caixa, Where = onde });
+                // Selo por linha: o resultado da detecção fica ao lado do campo, e não num
+                // popup com a lista inteira — ali era preciso procurar o nome no meio do texto
+                // para saber de qual linha se tratava.
+                var selo = new TextBlock
+                {
+                    FontSize = 12, FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(selo, 2); grid.Children.Add(selo);
+
+                _rows.Add(new Row { Spec = spec, Box = caixa, Where = onde, Status = selo });
                 host.Children.Add(grid);
             }
 
@@ -1162,6 +1288,9 @@ namespace NXProject.Views
         /// </summary>
         private static string ValoresAceitos(NxFieldSpec spec) => spec.Key switch
         {
+            // A prioridade nao e texto livre: o card oferece P1 a P9. A faixa fica na linha
+            // porque e ela, e nao o nome do campo, que responde "o que posso pôr aqui".
+            "priority" => FaixaDePrioridade(),
             "epicType" => string.Join(" · ", NXProject.Models.EpicTypes.Delivery,
                                              NXProject.Models.EpicTypes.Backlog,
                                              NXProject.Models.EpicTypes.Group),
@@ -1169,6 +1298,9 @@ namespace NXProject.Views
             "approved" => AppStrings.Get("Fld_ValuesBoolean"),
             _ => ""
         };
+
+        /// <summary>A faixa de prioridade, escrita como o card a mostra: P1 a P9.</summary>
+        private static string FaixaDePrioridade() => "P1 … P9";
 
         /// <summary>Rótulo cinza com os valores aceitos, ou null quando o campo é livre.</summary>
         private static TextBlock? RotuloValores(NxFieldSpec spec)
@@ -1355,7 +1487,10 @@ namespace NXProject.Views
                     ? GitProjectOptions.Suggested(NomesGit(r.Spec)) : r.Box.Text.Trim();
                 switch (r.Spec.Key)
                 {
-                    case "effort": git.EffortFields = Com(v, git.EffortFields); break;
+                    case "effort":
+                        git.EffortFields = Com(v, git.EffortFields);
+                        git.OriginalHoursFields = Com(v, git.OriginalHoursFields);
+                        break;
                     // No GitHub nao ha campo nativo de horas: os tres sao campos do board, e o
                     // botao de criar campos os cria com tipo NUMBER.
                     case "originalHours": git.OriginalHoursFields = Com(v, git.OriginalHoursFields); break;
@@ -1402,14 +1537,6 @@ namespace NXProject.Views
 
 
 
-        private void OnTaskPriorityRangeEnabledChanged(object sender, RoutedEventArgs e)
-        {
-            if (TaskPriorityMinBox == null || TaskPriorityMaxBox == null) return;
-            var enabled = TaskPriorityRangeEnabledBox.IsChecked == true;
-            TaskPriorityMinBox.IsEnabled = enabled;
-            TaskPriorityMaxBox.IsEnabled = enabled;
-        }
-
         private async void OnDetectFieldsClick(object sender, RoutedEventArgs e)
         {
             var opts = _options;
@@ -1449,6 +1576,12 @@ namespace NXProject.Views
                     "finish" => cfg.FinishField,
                     "percAloc" => cfg.PercAlocField,
                     "percConclusao" => cfg.PercConclusaoField,
+                    // Os tres campos de horas POR TIPO faltavam aqui, e era so isso que fazia o
+                    // detector cobrar o campo personalizado na Task mesmo com "usar Original
+                    // Estimate" marcado: na Task o sync grava no nativo, nunca no personalizado.
+                    "originalHours" => cfg.OriginalHoursField,
+                    "remainingHours" => cfg.RemainingHoursField,
+                    "currentHours" => cfg.CurrentHoursField,
                     _ => null
                 };
                 return !string.IsNullOrWhiteSpace(configured);
@@ -1473,6 +1606,28 @@ namespace NXProject.Views
 
                 var lines = new List<string>();
                 var missing = 0;
+
+                // O selo de cada linha: verde existe, vermelho falta, ⛔ tipo incompatível. O
+                // texto detalhado continua sendo montado — agora ele vai para o ToolTip da
+                // própria linha, que é onde se procura quando a dúvida é sobre AQUELE campo.
+                void Selo(string kind, string texto, string cor)
+                {
+                    var alvo = _devRows.FirstOrDefault(r =>
+                        string.Equals(r.Spec.Key, kind, StringComparison.OrdinalIgnoreCase));
+                    if (alvo == null) return;
+                    alvo.Status.Text = texto;
+                    alvo.Status.Foreground = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(cor));
+                }
+                void Detalhe(string kind, string texto)
+                {
+                    var alvo = _devRows.FirstOrDefault(r =>
+                        string.Equals(r.Spec.Key, kind, StringComparison.OrdinalIgnoreCase));
+                    if (alvo != null) alvo.Status.ToolTip = texto;
+                }
+
+                foreach (var r in _devRows) { r.Status.Text = ""; r.Status.ToolTip = null; }
+
                 foreach (var (label, name, kind) in wanted)
                 {
                     if (string.IsNullOrWhiteSpace(name)) continue;
@@ -1480,6 +1635,22 @@ namespace NXProject.Views
                     var scope = Scope(kind);
                     if (pr.Status == DevOpsFieldSetupService.FieldStatus.Missing)
                     {
+                        // Campo OPCIONAL que nao existe nao e erro: o NX funciona sem ele, e
+                        // pintar de vermelho fazia a tela pedir um campo que ninguem precisa
+                        // criar. Fica o traco cinza, que diz "nao tem, e tudo bem" — vermelho
+                        // continua so para o que falta de verdade.
+                        if (NxDevOpsFieldCatalog.Find(kind)?.Optional == true)
+                        {
+                            var ondeFalta = Scope(kind);
+                            Selo(kind, "–", "#808080");
+                            Detalhe(kind, $"'{name.Trim()}' " + AppStrings.Get("Cfg_DetectNotFound")
+                                + " — " + AppStrings.Get("Fld_OptionalMissing")
+                                + (ondeFalta.Length > 0
+                                    ? " (" + AppStrings.Get("Cfg_DetectExpectedIn", string.Join(", ", ondeFalta)) + ")"
+                                    : ""));
+                            lines.Add($"– {label}: " + AppStrings.Get("Fld_OptionalMissing"));
+                            continue;
+                        }
                         missing++;
                         // Dizer ONDE o campo deveria estar e o que torna o aviso acionavel.
                         var need = scope.Length > 0
@@ -1491,12 +1662,16 @@ namespace NXProject.Views
                         var suggest = string.IsNullOrEmpty(alt.Value) ? ""
                             : "  💡 " + AppStrings.Get("Cfg_DetectSuggestStd", alt.Key,
                                 DevOpsFieldSetupService.ShortFieldName(alt.Value));
-                        lines.Add($"❌ {label}: '{name.Trim()}' "
-                                  + AppStrings.Get("Cfg_DetectNotFound") + need + suggest);
+                        var faltaTexto = $"'{name.Trim()}' " + AppStrings.Get("Cfg_DetectNotFound") + need + suggest;
+                        Selo(kind, "✖", "#C03030");
+                        Detalhe(kind, faltaTexto);
+                        lines.Add($"❌ {label}: {faltaTexto}");
                         continue;
                     }
                     if (pr.Status == DevOpsFieldSetupService.FieldStatus.Unknown)
                     {
+                        Selo(kind, "…", "#808080");
+                        Detalhe(kind, pr.Note);
                         lines.Add($"… {label}: {pr.Note}");
                         continue;
                     }
@@ -1529,8 +1704,16 @@ namespace NXProject.Views
                         ? "  · " + AppStrings.Get("Cfg_DetectStandard", string.Join(" | ", pr.CoveredByStandard))
                         : "";
                     if (pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict) missing++;
-                    var mark = pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict ? "⛔" : "✅";
-                    lines.Add($"{mark} {label}: {pr.ReferenceName}{tp}{via}{typeNote}{gap}{std}");
+                    var conflito = pr.Status == DevOpsFieldSetupService.FieldStatus.TypeConflict;
+                    var mark = conflito ? "⛔" : "✅";
+                    var detalhe = $"{pr.ReferenceName}{tp}{via}{typeNote}{gap}{std}";
+                    // Existe, mas com ressalva (apelido, tipo mais estreito, falta num tipo):
+                    // amarelo, porque "tudo certo" ali seria mentira.
+                    Selo(kind, conflito ? "⛔" : "✔",
+                        conflito ? "#C03030"
+                        : (via.Length > 0 || typeNote.Length > 0 || gap.Length > 0) ? "#B8860B" : "#107C10");
+                    Detalhe(kind, detalhe);
+                    lines.Add($"{mark} {label}: {detalhe}");
                 }
 
                 // Campos com checkbox: a deteccao MARCA o que existe no tipo em que o NX usa e
@@ -1558,6 +1741,20 @@ namespace NXProject.Views
                 // opcionais em vez de conhecer os nomes dos controles um a um.
                 foreach (var row in _devRows.Where(r => r.Enabled != null))
                     ApplyCheck(row.Spec.Key, row.Enabled!, row.Box, Conceito(row.Spec));
+
+                // Achado por APELIDO: a tela passa a mostrar o nome que a organizacao usa DE
+                // FATO, e nao o nome padrao que ninguem cadastrou la. O NX ja importava por
+                // apelido — o que faltava era a configuracao dizer a verdade sobre o que ela
+                // esta lendo. Campo coberto pelo nativo fica como esta: la nao ha nome a trocar.
+                foreach (var row in _devRows)
+                {
+                    if (!byKind.TryGetValue(row.Spec.Key, out var pr)) continue;
+                    if (string.IsNullOrWhiteSpace(pr.MatchedByAlias)) continue;
+                    if (string.Equals(row.Box.Text?.Trim(), pr.MatchedByAlias, StringComparison.CurrentCultureIgnoreCase))
+                        continue;
+                    row.Box.Text = pr.MatchedByAlias;
+                    toggled.Add("✎ " + Conceito(row.Spec) + " → \"" + pr.MatchedByAlias + "\"");
+                }
                 // Duas opcoes desta tela nao dependem de CAMPO:
                 //  • predecessoras: depende do TIPO DE LINK do processo — isso da para detectar;
                 //  • fechar Story so com Task: e regra do proprio NX, sem contraparte no DevOps —

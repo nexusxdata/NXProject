@@ -25,10 +25,19 @@
                                FontWeight="SemiBold" Foreground="#2B579A" Margin="0,0,0,8"/>
                     <TextBlock Text="{DynamicResource Setup_Step4OneScreenBody}" FontSize="11.5"
                                Foreground="#444" TextWrapping="Wrap"/>
-                    <Button x:Name="OpenNxBigButton" Content="{DynamicResource Setup_Step4OpenNxBig}"
-                            HorizontalAlignment="Left" Height="34" Padding="18,0" Margin="0,14,0,0"
-                            FontWeight="SemiBold" Click="OnOpenNxFieldsClick"
-                            ToolTip="{DynamicResource Setup_Step4OpenNxTip}"/>
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button x:Name="OpenNxBigButton" Content="{DynamicResource Setup_Step4OpenNxBig}"
+                                Height="34" Padding="18,0" Margin="0,0,10,8"
+                                FontWeight="SemiBold" Click="OnOpenNxFieldsClick"
+                                ToolTip="{DynamicResource Setup_Step4OpenNxTip}"/>
+                        <!-- A CONEXAO (PAT do DevOps, token do GitHub) tambem e uma tela so do
+                             NXProject: o instalador encaminha, em vez de ter uma segunda copia
+                             dela aqui. -->
+                        <Button x:Name="OpenNxConnButton" Content="{DynamicResource Setup_Step4OpenNxConn}"
+                                Height="34" Padding="18,0" Margin="0,0,0,8"
+                                Click="OnOpenNxConnectionClick"
+                                ToolTip="{DynamicResource Setup_Step4OpenNxConnTip}"/>
+                    </WrapPanel>
                 </StackPanel>
             </Border>
 

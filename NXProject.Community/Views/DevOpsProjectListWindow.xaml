@@ -1,4 +1,4 @@
-<Window x:Class="NXProject.Views.DevOpsProjectListWindow"
+﻿<Window x:Class="NXProject.Views.DevOpsProjectListWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Port_Title}"
@@ -76,6 +76,12 @@
                                         Width="150" IsReadOnly="True"/>
                     <DataGridTextColumn Header="{DynamicResource Port_ColId}" Binding="{Binding RootWorkItemId, UpdateSourceTrigger=PropertyChanged}"
                                         Width="160"/>
+                    <!-- DE ONDE o projeto vem. E a mesma escolha que o TaskBoard, o Importar
+                         e o Sincronizar usam; aqui ela aparece na lista, em vez de so dentro
+                         da tela de edicao de cada projeto. -->
+                    <DataGridTextColumn Header="{DynamicResource Port_ColBackend}"
+                                        Binding="{Binding BackendLabel}"
+                                        IsReadOnly="True" Width="110"/>
                     <DataGridCheckBoxColumn Header="{DynamicResource Port_ColLoadTasksOnImport}"
                                             Binding="{Binding LoadTasksOnImport}"
                                             IsReadOnly="True"

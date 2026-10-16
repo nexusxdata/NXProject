@@ -120,6 +120,12 @@ namespace NXProject.Services
         /// <summary>Nome do campo de percentual de conclusão da Story (ex.: "Perc_Conclusao").</summary>
         public string PercConclusaoFieldName { get; set; } = "Perc_Conclusao";
 
+        /// <summary>
+        /// Nome do campo de prioridade. No DevOps o padrão é o nativo "Priority"; guardar o nome
+        /// aqui é o que permite apontar para outro campo no futuro, como no HH.
+        /// </summary>
+        public string PriorityFieldName { get; set; } = "Priority";
+
         /// <summary>Campo inteiro que armazena a versão de sincronização (controle de concorrência).</summary>
         public string SyncVersionFieldName { get; set; } = "Sync_version";
 
@@ -226,6 +232,26 @@ namespace NXProject.Services
 
         /// <summary>Caminho do arquivo JSON da lista de projetos DevOps (compartilhável entre usuários).</summary>
         public string DevOpsProjectListPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A conexão com o Azure DevOps está em uso?
+        ///
+        /// Desligada, o NXProject se comporta como se não houvesse DevOps: a aba some e o
+        /// destino deixa de ser oferecido. Serve a quem usa só o GitProject (ou só o
+        /// cronograma) e a quem precisa conferir como o app fica sem ele — sem apagar a URL,
+        /// o projeto e o PAT já configurados.
+        ///
+        /// Padrão LIGADA; nasce desligada quando não há PAT, que é o caso de quem nunca
+        /// configurou — ligar algo que não funciona só produz erro na primeira tentativa.
+        /// </summary>
+        public bool DevOpsEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Última origem escolhida na tela de importação (AzureDevOps ou GitProject). A tela
+        /// reabre onde parou: trocar a origem a cada importação, num projeto que vive num só
+        /// destino, era um passo repetido à toa.
+        /// </summary>
+        public NxBackendKind LastImportSource { get; set; } = NxBackendKind.AzureDevOps;
 
         /// <summary>Código do idioma selecionado pelo usuário (ex: "pt-BR", "en-US"). Vazio = detectar do Windows.</summary>
         public string Language { get; set; } = string.Empty;
@@ -382,6 +408,7 @@ namespace NXProject.Services
             public string FinishFieldName { get; set; } = "Data_Fim";
             public string PercAlocFieldName { get; set; } = "Perc_Alocacao";
             public string PercConclusaoFieldName { get; set; } = "Perc_Conclusao";
+            public string PriorityFieldName { get; set; } = "Priority";
             public string SyncVersionFieldName { get; set; } = "Sync_version";
             public string SyncNameFieldName { get; set; } = "Sync_Name";
             public string FixedStartTagName { get; set; } = "DT-INI-NEG";
@@ -436,6 +463,9 @@ namespace NXProject.Services
             /// </summary>
             public Dictionary<string, string> GitFieldNames { get; set; } = [];
             public string DevOpsProjectListPath { get; set; } = string.Empty;
+            public string LastImportSource { get; set; } = string.Empty;
+            public bool? DevOpsEnabled { get; set; }
+            public bool? GitProjectEnabled { get; set; }
             public string Language { get; set; } = string.Empty;
             public string CompanyName { get; set; } = string.Empty;
             public string CompanyLogoBase64 { get; set; } = string.Empty;
@@ -492,6 +522,8 @@ namespace NXProject.Services
                     options.PercAlocFieldName = "Perc_Alocacao";
                 options.PercConclusaoFieldName = string.IsNullOrWhiteSpace(stored.PercConclusaoFieldName)
                     ? options.PercConclusaoFieldName : stored.PercConclusaoFieldName.Trim();
+                options.PriorityFieldName = string.IsNullOrWhiteSpace(stored.PriorityFieldName)
+                    ? options.PriorityFieldName : stored.PriorityFieldName.Trim();
                 options.SyncVersionFieldName = string.IsNullOrWhiteSpace(stored.SyncVersionFieldName)
                     ? options.SyncVersionFieldName : stored.SyncVersionFieldName.Trim();
                 options.SyncNameFieldName = string.IsNullOrWhiteSpace(stored.SyncNameFieldName)
@@ -543,6 +575,10 @@ namespace NXProject.Services
                     BlockedTag = stored.GitBlockedTag ?? "BLOCK",
                     Repository = stored.GitRepository ?? string.Empty
                 };
+                // Configuração antiga (sem o campo): ligada quando há token — era como o
+                // NXProject se comportava.
+                options.GitProject.Enabled = stored.GitProjectEnabled
+                    ?? !string.IsNullOrWhiteSpace(options.GitProject.Token);
                 AplicaNomesGit(options.GitProject, stored.GitFieldNames);
                 options.Levels = LeNiveis(stored.LevelNames, stored.DisabledLevels);
                 // O mapa é consultado de métodos estáticos espalhados (board, import, sync);
@@ -550,6 +586,13 @@ namespace NXProject.Services
                 // assinaturas.
                 NxLevelMap.Current = options.Levels;
                 options.DevOpsProjectListPath = stored.DevOpsProjectListPath ?? string.Empty;
+                // Configuração antiga (sem o campo): decide pelo que existe. Com PAT, ligada —
+                // é como o NXProject sempre se comportou.
+                options.DevOpsEnabled = stored.DevOpsEnabled
+                    ?? !string.IsNullOrWhiteSpace(options.PersonalAccessToken);
+                options.LastImportSource =
+                    Enum.TryParse<NxBackendKind>(stored.LastImportSource, true, out var origem)
+                        ? origem : NxBackendKind.AzureDevOps;
                 options.Language = stored.Language ?? string.Empty;
                 options.CompanyName = stored.CompanyName ?? string.Empty;
                 options.CompanyLogoBase64 = stored.CompanyLogoBase64 ?? string.Empty;
@@ -586,6 +629,7 @@ namespace NXProject.Services
                 FinishFieldName = string.IsNullOrWhiteSpace(options.FinishFieldName) ? "Data_Fim" : options.FinishFieldName.Trim(),
                 PercAlocFieldName = string.IsNullOrWhiteSpace(options.PercAlocFieldName) ? "Perc_Alocacao" : options.PercAlocFieldName.Trim(),
                 PercConclusaoFieldName = string.IsNullOrWhiteSpace(options.PercConclusaoFieldName) ? "Perc_Conclusao" : options.PercConclusaoFieldName.Trim(),
+                PriorityFieldName = string.IsNullOrWhiteSpace(options.PriorityFieldName) ? "Priority" : options.PriorityFieldName.Trim(),
                 SyncVersionFieldName = string.IsNullOrWhiteSpace(options.SyncVersionFieldName) ? "Sync_version" : options.SyncVersionFieldName.Trim(),
                 SyncNameFieldName = string.IsNullOrWhiteSpace(options.SyncNameFieldName) ? "Sync_Name" : options.SyncNameFieldName.Trim(),
                 FixedStartTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName) ? "DT-INI-NEG" : options.FixedStartTagName.Trim(),
@@ -632,6 +676,9 @@ namespace NXProject.Services
                     ? WindowsDataProtection.Encrypt(options.GitProject!.Token, "NXProject.GitProject")
                     : string.Empty,
                 DevOpsProjectListPath = options.DevOpsProjectListPath ?? string.Empty,
+                LastImportSource = options.LastImportSource.ToString(),
+                DevOpsEnabled = options.DevOpsEnabled,
+                GitProjectEnabled = options.GitProject?.Enabled ?? true,
                 Language = options.Language ?? string.Empty,
                 CompanyName = options.CompanyName ?? string.Empty,
                 CompanyLogoBase64 = options.CompanyLogoBase64 ?? string.Empty,
@@ -682,6 +729,7 @@ namespace NXProject.Services
             ("start", o => o.StartDateFields),
             ("finish", o => o.FinishDateFields),
             ("percConclusao", o => o.PercentFields),
+            ("priority", o => o.PriorityFields),
             ("percAloc", o => o.AllocationFields),
             ("blockDuration", o => o.BlockHoursFields),
             ("cardType", o => o.LevelFields),
@@ -720,6 +768,7 @@ namespace NXProject.Services
                     case "start": git.StartDateFields = lista; break;
                     case "finish": git.FinishDateFields = lista; break;
                     case "percConclusao": git.PercentFields = lista; break;
+                    case "priority": git.PriorityFields = lista; break;
                     case "percAloc": git.AllocationFields = lista; break;
                     case "blockDuration": git.BlockHoursFields = lista; break;
                     case "cardType": git.LevelFields = lista; break;

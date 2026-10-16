@@ -89,11 +89,19 @@ namespace NXProject
         /// </summary>
         public static bool AbrirCamposNoGitProject { get; private set; }
 
+        /// <summary>
+        /// Aba inicial da tela de CONEXÕES quando o app é aberto com <c>--conexao</c>
+        /// (0 = Azure DevOps, 1 = GitHub Projects). Mesmo motivo do campo acima: a janela de
+        /// arranque é escolhida por StartupUri e não há onde passar parâmetro.
+        /// </summary>
+        public static int AbaDaConexao { get; private set; }
+
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
             base.OnStartup(e);
 
             var abrirCampos = false;
+            var abrirConexao = false;
             var abaGit = false;
             if (e.Args != null)
                 foreach (var bruto in e.Args)
@@ -120,6 +128,20 @@ namespace NXProject
                         abaGit = a.EndsWith("=gitproject", StringComparison.OrdinalIgnoreCase)
                               || a.EndsWith("=git", StringComparison.OrdinalIgnoreCase);
                     }
+                    // Também chamado pelo Setup: a tela de CONEXÕES (Azure DevOps + GitHub
+                    // Projects + atalho para campos). O instalador não tem cópia dela — abre
+                    // esta, que é a única. Mesmos sufixos da de campos.
+                    //
+                    //   --conexao            → a tela, na aba do Azure DevOps
+                    //   --conexao=gitproject → já na aba do GitProject
+                    else if (a.StartsWith("--conexao", StringComparison.OrdinalIgnoreCase)
+                             || a.StartsWith("--connection", StringComparison.OrdinalIgnoreCase)
+                             || a.StartsWith("--config-connection", StringComparison.OrdinalIgnoreCase))
+                    {
+                        abrirConexao = true;
+                        abaGit = a.EndsWith("=gitproject", StringComparison.OrdinalIgnoreCase)
+                              || a.EndsWith("=git", StringComparison.OrdinalIgnoreCase);
+                    }
                 }
 
             // Troca a janela de arranque: em vez do cronograma, a tela de campos.
@@ -131,6 +153,11 @@ namespace NXProject
             {
                 AbrirCamposNoGitProject = abaGit;
                 StartupUri = new Uri("Views/FieldNamesWindow.xaml", UriKind.Relative);
+            }
+            else if (abrirConexao)
+            {
+                AbaDaConexao = abaGit ? 1 : 0;
+                StartupUri = new Uri("Views/TfsDevOpsConfigWindow.xaml", UriKind.Relative);
             }
 
 

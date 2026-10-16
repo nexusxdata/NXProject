@@ -35,6 +35,13 @@ namespace NXProject.Views
             _savedOptions = TfsConnectionStore.Load(_storageKey);
             UpdateViewLogButton();
 
+            // A origem reabre onde parou. Fica ANTES de carregar o portfolio porque o
+            // SelectionChanged da combo valida a conexao, e validar durante a montagem da tela
+            // abriria a janela de conexao por cima dela.
+            _restaurandoOrigem = true;
+            SourceCombo.SelectedIndex = _savedOptions.LastImportSource == NxBackendKind.GitProject ? 1 : 0;
+            _restaurandoOrigem = false;
+
             if (!string.IsNullOrWhiteSpace(_savedOptions.DevOpsProjectListPath))
                 LoadProjectList(_savedOptions.DevOpsProjectListPath, _savedOptions.RootWorkItemId);
             else if (_savedOptions.RootWorkItemId > 0)
@@ -126,9 +133,39 @@ namespace NXProject.Views
                 : AppStrings.Get("Imp_AdmGroupInfo");
         }
 
+        /// <summary>
+        /// A ORIGEM segue o projeto escolhido no portfolio. O destino e do PROJETO — esta
+        /// gravado no cadastro dele (PortfolioProjectConfig.BackendKind), e e de la que o
+        /// TaskBoard e o Sincronizar ja nascem. A combo so estava ignorando isso: escolher um
+        /// projeto de GitProject e continuar vendo "Azure DevOps" embaixo era a tela
+        /// contradizendo o cadastro.
+        ///
+        /// Sem cadastro (projeto que nao esta no portfolio), fica a ultima origem usada.
+        /// </summary>
+        private void SyncOrigemDoProjeto()
+        {
+            if (SourceCombo == null) return;
+            var nome = (DevOpsProjectCombo.SelectedItem as DevOpsProject)?.Name;
+            if (string.IsNullOrWhiteSpace(nome)) return;
+
+            var cfg = TfsConnectionStore.Load(_storageKey).PortfolioProjectConfigs
+                .FirstOrDefault(c => string.Equals(c.ProjectName, nome, StringComparison.CurrentCultureIgnoreCase));
+            if (cfg == null || cfg.BackendKind == NxBackendKind.Default) return;
+
+            var indice = cfg.BackendKind == NxBackendKind.GitProject ? 1 : 0;
+            if (SourceCombo.SelectedIndex == indice) return;
+
+            // Sem passar pela validacao da combo: aqui nao e escolha do usuario, e sim o
+            // cadastro do projeto sendo refletido na tela.
+            _restaurandoOrigem = true;
+            SourceCombo.SelectedIndex = indice;
+            _restaurandoOrigem = false;
+        }
+
         private void SyncImportConfig()
         {
             if (LoadTasksOnImportBox == null) return;
+            SyncOrigemDoProjeto();
             // Sempre reposiciona pelo projeto selecionado: sem cadastro no Portfólio, nasce
             // desmarcada. Nunca herda o que ficou marcado para o projeto anterior.
             var selected = DevOpsProjectCombo.SelectedItem as DevOpsProject;
@@ -172,12 +209,6 @@ namespace NXProject.Views
             new FieldNamesWindow { Owner = this }.ShowDialog();
         }
 
-        /// <summary>Conexão com o GitHub Projects — o par do "Configurar DevOps".</summary>
-        private void OnOpenGitConfigClick(object sender, RoutedEventArgs e)
-        {
-            new GitProjectConfigWindow { Owner = this }.ShowDialog();
-        }
-
         private void OnOpenConfigClick(object sender, RoutedEventArgs e)
         {
             var dlg = new TfsDevOpsConfigWindow(_storageKey) { Owner = this };
@@ -194,14 +225,69 @@ namespace NXProject.Views
         /// </summary>
         private void OnSourceChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (SourceCombo == null || SourceCombo.SelectedIndex == 0) return;
+            if (SourceCombo == null || _restaurandoOrigem) return;
+            GravaOrigemEscolhida();
+            if (SourceCombo.SelectedIndex == 0) return;
+
             var options = TfsConnectionStore.Load();
             if (options.GitProject?.IsConfigured == true) return;
 
-            if (new GitProjectConfigWindow { Owner = this }.ShowDialog() != true
+            if (new TfsDevOpsConfigWindow(abaInicial: 1) { Owner = this }.ShowDialog() != true
                 || TfsConnectionStore.Load().GitProject?.IsConfigured != true)
-                SourceCombo.SelectedIndex = 0;
+                SourceCombo.SelectedIndex = 0;   // volta, e o próprio evento regrava a escolha
         }
+
+        /// <summary>
+        /// Guarda a origem escolhida. Com um projeto do portfólio selecionado, ela vira o
+        /// DESTINO DAQUELE PROJETO — é onde o NXProject guarda isso, e é de lá que o TaskBoard
+        /// e o Sincronizar nascem. Assim, escolher o projeto de novo traz a origem certa, sem
+        /// depender de "a última vez que usei a tela".
+        ///
+        /// Sem projeto selecionado, fica só a preferência da tela.
+        /// </summary>
+        private void GravaOrigemEscolhida()
+        {
+            var escolhida = SourceCombo.SelectedIndex == 1
+                ? NxBackendKind.GitProject : NxBackendKind.AzureDevOps;
+            var opcoes = TfsConnectionStore.Load(_storageKey);
+            var mudou = false;
+
+            if (opcoes.LastImportSource != escolhida)
+            {
+                opcoes.LastImportSource = escolhida;
+                mudou = true;
+            }
+
+            var nome = (DevOpsProjectCombo?.SelectedItem as DevOpsProject)?.Name;
+            if (!string.IsNullOrWhiteSpace(nome))
+            {
+                var cfg = opcoes.PortfolioProjectConfigs.FirstOrDefault(c =>
+                    string.Equals(c.ProjectName, nome, StringComparison.CurrentCultureIgnoreCase));
+                if (cfg == null)
+                {
+                    // Projeto ainda sem cadastro: nasce aqui, com o destino escolhido. Antes era
+                    // preciso ir ao "Gerenciar Portfólio" só para dizer de onde o projeto vem.
+                    cfg = new PortfolioProjectConfig { ProjectName = nome! };
+                    opcoes.PortfolioProjectConfigs.Add(cfg);
+                }
+                if (cfg.BackendKind != escolhida)
+                {
+                    cfg.BackendKind = escolhida;
+                    mudou = true;
+                }
+            }
+
+            if (!mudou) return;
+            // rememberToken: o token ja esta salvo; gravar sem ele apagaria o que existe.
+            TfsConnectionStore.Save(opcoes, rememberToken: true, _storageKey);
+            _savedOptions = opcoes;
+        }
+
+        /// <summary>
+        /// Restaurando a escolha salva: o evento da combo nao deve validar conexao nem regravar
+        /// nessa hora — a tela ainda esta sendo montada.
+        /// </summary>
+        private bool _restaurandoOrigem;
 
         /// <summary>A importação roda contra o GitHub Projects?</summary>
         private bool DoGitProject => SourceCombo?.SelectedIndex == 1;
