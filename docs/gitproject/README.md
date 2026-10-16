@@ -1,4 +1,4 @@
-🌐 [Leia em Português](README.pt-BR.md) | **English**
+﻿🌐 [Leia em Português](README.pt-BR.md) | **English**
 
 # NXProject with GitHub Projects
 
@@ -83,10 +83,36 @@ The board field names, with the PT/EN standard, the tags and the classification.
 fields on the GitHub board** button creates what is missing with the correct type — and on GitHub
 that does not require organization-admin rights.
 
-GitHub has no native field at all, so the three hour fields — `HH Original`, `HH Restante` and
-`HH Atual` — are board fields like the rest, created by the same button and typed as *number*.
-`HH Restante` takes precedence over the estimate when reading, and `HH Original` preserves the plan
-once the item closes.
+GitHub has no native field at all: everything NXProject reads and writes is a board field,
+created by that same button with the right type. Portuguese names are still accepted as aliases,
+for boards built with the Azure DevOps vocabulary.
+
+| Board field | Type | Required? | What it is for |
+|---|---|---|---|
+| `card_type` | single select | yes | **The item level** (Project, EPIC, Feature, Story, Task). GitHub does not validate hierarchy: without this field NXProject cannot tell what is what |
+| `Original Estimate` | number | yes | **Original estimated effort.** Until the activity starts it is the estimate; once it starts it becomes the record of the plan — see [the HH model](../hh-modelo.pt-BR.md) |
+| `Completed Work` | number | no | **Hours already spent** |
+| `nx_remaining_hours` | number | no | **Remaining hours.** Takes precedence over the estimate when reading |
+| `Start Date` | date | no | Planned start date |
+| `Finish Date` | date | no | Target date. This is the date the TaskBoard card lets you edit while the activity is in progress |
+| `nx_percent_complete` | number | no | **Percent complete** (0 to 100), editable on the card in progress. Without it, progress comes from the column |
+| `nx_priority` | number | no | Item priority (P1 to P9). Without it, priority has nowhere to be written |
+| `nx_allocation_percent` | number | no | % of the person's day dedicated to this Story |
+| `nx_block_hours` | number | no | Hours accumulated while blocked, for the BLOCK audit |
+| `EPIC_TYPE` | text / single select | no | Classifies the EPIC: `DELIVERY` (counts in the total), `BACKLOG` (does not) or `EPIC_GROUP` (groups EPICs) |
+| `nx_sync_version` | number | no | Version of the last sync — this is the conflict control |
+| `nx_sync_name` | text | no | Who synced last |
+| `nx_adm_group` | text | no | Logins allowed to sync. Empty = everyone |
+
+> **One field for effort, not two.** The original and the estimated effort are the same number at
+> two moments, so the screen shows **a single line** and writes both concepts. Once the activity
+> starts, progress no longer goes into that field: it goes to `Completed Work` and
+> `nx_remaining_hours`, and today's estimated effort is the sum of the two.
+
+> **The type is a one-shot choice.** GitHub **does not allow changing a field's type after it is
+> created**: an hours field created as *text* accepts "8h" and never adds up, and a date created
+> as *text* shows up in no roadmap view. That is why it is worth using the button, which already
+> picks the right type, instead of creating them by hand on GitHub.
 
 Classification starts as a copy of the Azure DevOps one: the `Custom.Type` picklist becomes a board
 single-select with the same factory values — `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request` — and the

@@ -1,4 +1,4 @@
-🌐 **Português** | [Read in English](README.md)
+﻿🌐 **Português** | [Read in English](README.md)
 
 # NXProject com GitHub Projects
 
@@ -82,10 +82,37 @@ Os nomes dos campos do board, com o padrão PT/EN, as tags e a classificação. 
 campos no board do GitHub** cria o que falta já com o tipo certo — e, no GitHub, isso não exige ser
 administrador da organização.
 
-No GitHub não existe campo nativo nenhum, então os três campos de horas — `HH Original`,
-`HH Restante` e `HH Atual` — são campos do board como os demais, criados pelo mesmo botão e com
-tipo *number*. O `HH Restante` tem prioridade sobre o HH estimado na leitura, e o `HH Original`
-preserva o plano quando o item fecha.
+No GitHub não existe campo nativo nenhum: tudo o que o NXProject lê e grava é campo do board,
+criado pelo mesmo botão e com o tipo certo. **Os nomes são em inglês também aqui** — o board do
+GitHub é em inglês e não há campo nativo com que colidir. Os nomes em português seguem aceitos
+como apelidos, para quem montou o board copiando o vocabulário do Azure DevOps.
+
+| Campo no board | Tipo | Obrigatório? | Para que serve |
+|---|---|---|---|
+| `card_type` | single select | sim | **O nível do item** (Project, EPIC, Feature, Story, Task). O GitHub não valida hierarquia: sem este campo, o NXProject não sabe o que é o quê |
+| `Original Estimate` | number | sim | **HH Estimado Original.** Até a atividade começar é a estimativa; quando ela começa, passa a ser o registro do plano — ver [o modelo de HH](../hh-modelo.pt-BR.md) |
+| `Completed Work` | number | não | **HH Atual**: horas já gastas |
+| `nx_remaining_hours` | number | não | **HH Restante**: horas que ainda faltam. Tem prioridade sobre a estimativa na leitura |
+| `Start Date` | date | não | Data de início planejada |
+| `Finish Date` | date | não | Data alvo. É a data que o card do TaskBoard deixa editar enquanto a atividade está em andamento |
+| `nx_percent_complete` | number | não | **% de conclusão** (0 a 100), editável no card em andamento. Sem o campo, o andamento vem da coluna |
+| `nx_priority` | number | não | Prioridade do item (P1 a P9). Sem ele, a prioridade não tem onde ser gravada |
+| `nx_allocation_percent` | number | não | % do dia da pessoa dedicado a esta Story |
+| `nx_block_hours` | number | não | Horas acumuladas em bloqueio, para a auditoria de BLOCK |
+| `EPIC_TYPE` | text / single select | não | Classifica o EPIC: `DELIVERY` (soma no total), `BACKLOG` (não soma) ou `EPIC_GROUP` (agrupa EPICs) |
+| `nx_sync_version` | number | não | Versão da última sincronização — é o controle de conflito |
+| `nx_sync_name` | text | não | Quem sincronizou por último |
+| `nx_adm_group` | text | não | Logins que podem sincronizar. Vazio = liberado para todos |
+
+> **Um campo, não dois, para o esforço.** O HH Original e o HH Estimado são o mesmo número em
+> dois momentos, então a tela mostra **uma linha só** e grava nos dois conceitos. Depois que a
+> atividade começa, o andamento não vai mais para esse campo: vai para o `Completed Work` e o
+> `nx_remaining_hours`, e o esforço estimado de hoje é a soma dos dois.
+
+> **O tipo é escolha de uma vez.** O GitHub **não deixa trocar o tipo de um campo depois de
+> criado**: um campo de horas criado como *text* aceita "8h" e nunca soma, e uma data criada como
+> *text* não entra em nenhuma visão de roadmap. Por isso vale criar pelo botão, que já usa o tipo
+> certo, em vez de criar à mão no GitHub.
 
 A classificação nasce copiando a do Azure DevOps: o picklist `Custom.Type` vira um single-select do
 board com os mesmos valores de fábrica — `Architecture`, `Burocracy`, `Docs`, `Feature`, `Hotfix`, `Refactor`, `Request` — e o **valor
