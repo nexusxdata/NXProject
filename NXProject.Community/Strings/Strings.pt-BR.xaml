@@ -2436,6 +2436,8 @@ Os campos são criados no projeto, não nas issues, e podem ser removidos pela t
     <sys:String x:Key="Sprint_TargetLocked">Destino travado: há alterações na fila do "Atualizar TFS". Grave ou descarte para poder trocar.</sys:String>
     <sys:String x:Key="Imp_Source">Origem:</sys:String>
     <sys:String x:Key="Imp_SourceTip">De onde importar o cronograma. Hoje só o Azure DevOps está implementado; GitProject (GitHub Projects) é um caminho em estudo.</sys:String>
+    <sys:String x:Key="Imp_NoSourceHint">Este projeto não tem origem cadastrada. Cadastre em "Gerenciar Portfólio…" (Azure DevOps ou GitProject) — sem isso não dá para importar, porque o ID da raiz só existe em um dos dois.</sys:String>
+    <sys:String x:Key="Imp_SourceFromProject">A origem vem do cadastro deste projeto no Portfólio. Para trocar, use "Gerenciar Portfólio…" — assim o TaskBoard e o Sincronizar continuam apontando para o mesmo lugar.</sys:String>
     <sys:String x:Key="Sync_TargetDevOpsDesc">Grava no Azure DevOps, como sempre.</sys:String>
     <sys:String x:Key="Sync_TargetGitProjectDesc">GitHub Projects — ainda não implementado.</sys:String>
     <sys:String x:Key="Sprint_UpdateTfsN">Salvar ({0})</sys:String>

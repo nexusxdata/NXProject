@@ -236,49 +236,34 @@ namespace NXProject.Views
         }
 
 
-        private TfsConnectionOptions BuildOptions() => new()
+        /// <summary>
+        /// A configuração a salvar: parte do que JÁ ESTÁ GRAVADO e sobrescreve só o que ESTA
+        /// tela edita.
+        ///
+        /// Antes ela montava um objeto novo campo a campo, e tudo o que não estivesse na lista
+        /// era apagado ao salvar a conexão. Foi assim que o cadastro de origem dos projetos
+        /// (PortfolioProjectConfigs) sumiu: salvar a conexão zerava o portfólio, e a tela de
+        /// importação, sem cadastro, ficava com a origem do projeto anterior — um projeto do
+        /// DevOps importando como GitProject. Partir do salvo faz um campo novo sobreviver por
+        /// construção, em vez de depender de alguém lembrar de acrescentá-lo aqui.
+        /// </summary>
+        private TfsConnectionOptions BuildOptions()
         {
-            OrganizationUrl     = OrgUrlBox.Text?.Trim() ?? string.Empty,
-            TeamProject         = ProjectBox.Text?.Trim() ?? string.Empty,
-            PersonalAccessToken = PatBox.Password,
-            RootWorkItemId      = TfsConnectionStore.Load(_storageKey).RootWorkItemId,
-            HoursPerDay         = ProjectCalendarService.WorkingHoursPerDay,
-            EffortFieldName = _savedFields.EffortFieldName,
-            StartFieldName = _savedFields.StartFieldName,
-            FinishFieldName = _savedFields.FinishFieldName,
-            PercAlocFieldName = _savedFields.PercAlocFieldName,
-            PercConclusaoFieldName = _savedFields.PercConclusaoFieldName,
-            EpicTypeFieldEnabled = _savedFields.EpicTypeFieldEnabled,
-            EpicTypeFieldName = _savedFields.EpicTypeFieldName,
-            BlockDurationFieldEnabled = _savedFields.BlockDurationFieldEnabled,
-            BlockDurationFieldName = _savedFields.BlockDurationFieldName,
-            ApprovedFieldEnabled = _savedFields.ApprovedFieldEnabled,
-            ApprovedFieldName = _savedFields.ApprovedFieldName,
-            AdmGroupFieldEnabled = _savedFields.AdmGroupFieldEnabled,
-            AdmGroupFieldName = _savedFields.AdmGroupFieldName,
-            TaskPriorityRangeEnabled = _savedFields.TaskPriorityRangeEnabled,
-            TaskPriorityMin = _savedFields.TaskPriorityMin,
-            TaskPriorityMax = _savedFields.TaskPriorityMax,
-            SyncVersionFieldName = _savedFields.SyncVersionFieldName,
-            SyncNameFieldName = _savedFields.SyncNameFieldName,
-            FixedStartTagName = _savedFields.FixedStartTagName,
-            UnplannedTagName = _savedFields.UnplannedTagName,
-            WipTagName = _savedFields.WipTagName,
-            BlockedTagName = _savedFields.BlockedTagName,
-            SyncPredecessorLinks = _savedFields.SyncPredecessorLinks,
-            EnforceStoryCompletionWithTasks = _savedFields.EnforceStoryCompletionWithTasks,
-            EnableOrgPeopleDiscovery = EnableOrgDiscoveryCheck.IsChecked == true,
-            FutureSprintDays = _savedFields.FutureSprintDays,
-            DevOpsProjectListPath = _devOpsProjectListPath,
-            ExtraCreateFields   = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))],
-            ClassificationPicklistValues = TfsConnectionStore.Load(_storageKey).ClassificationPicklistValues,
-            TypeFieldMappings = BuildTypeFieldMappings(),
-            // A conexao do GitProject vem do que ja esta salvo e, se a aba dele foi preenchida,
-            // e sobrescrita no salvar. Sem este repasse, gravar a conexao do DevOps zerava a do
-            // GitProject — o objeto nascia aqui com um GitProject vazio.
-            GitProject = _savedFields.GitProject,
-            DevOpsEnabled = DevOpsEnabledCheck.IsChecked == true
-        };
+            var o = TfsConnectionStore.Load(_storageKey);
+
+            o.OrganizationUrl     = OrgUrlBox.Text?.Trim() ?? string.Empty;
+            o.TeamProject         = ProjectBox.Text?.Trim() ?? string.Empty;
+            o.PersonalAccessToken = PatBox.Password;
+            o.HoursPerDay         = ProjectCalendarService.WorkingHoursPerDay;
+            o.EnableOrgPeopleDiscovery = EnableOrgDiscoveryCheck.IsChecked == true;
+            o.DevOpsEnabled       = DevOpsEnabledCheck.IsChecked == true;
+            o.DevOpsProjectListPath = _devOpsProjectListPath;
+            o.ExtraCreateFields   = [.. _extraFields.Where(f => !string.IsNullOrWhiteSpace(f.Ref))];
+            // Mapeamento por tipo e a conexao do GitProject sao editados em outras telas: aqui
+            // vale o que elas gravaram (o painel do GitProject sobrescreve no salvar).
+            o.TypeFieldMappings   = BuildTypeFieldMappings();
+            return o;
+        }
 
         /// <summary>
         /// Mapeamento por tipo (usar o campo padrão do DevOps, classificação) é editado em

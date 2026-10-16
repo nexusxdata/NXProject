@@ -1249,6 +1249,8 @@
     <sys:String x:Key="Sprint_TargetLocked">Target locked: there are changes queued for "Update TFS". Save or discard them to switch.</sys:String>
     <sys:String x:Key="Imp_Source">Source:</sys:String>
     <sys:String x:Key="Imp_SourceTip">Where to import the schedule from. Only Azure DevOps is implemented today; GitProject (GitHub Projects) is a path under study.</sys:String>
+    <sys:String x:Key="Imp_NoSourceHint">This project has no source on record. Set it in "Manage portfolio…" (Azure DevOps or GitProject) — without it there is nothing to import from, since the root ID only exists on one of them.</sys:String>
+    <sys:String x:Key="Imp_SourceFromProject">The source comes from this project's portfolio entry. To change it, use "Manage portfolio…" — that keeps the TaskBoard and the sync pointing at the same place.</sys:String>
     <sys:String x:Key="Sync_TargetDevOpsDesc">Writes to Azure DevOps, as always.</sys:String>
     <sys:String x:Key="Sync_TargetGitProjectDesc">GitHub Projects — not implemented yet.</sys:String>
     <sys:String x:Key="Sprint_UpdateTfsN">Save ({0})</sys:String>

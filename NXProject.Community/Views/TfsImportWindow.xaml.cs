@@ -146,13 +146,44 @@ namespace NXProject.Views
         {
             if (SourceCombo == null) return;
             var nome = (DevOpsProjectCombo.SelectedItem as DevOpsProject)?.Name;
-            if (string.IsNullOrWhiteSpace(nome)) return;
+            if (string.IsNullOrWhiteSpace(nome))
+            {
+                // Sem projeto do portfolio: importacao so por ID. Aqui a combo e a escolha da
+                // pessoa, e o botao continua liberado.
+                SourceCombo.IsEnabled = true;
+                SourceCombo.ToolTip = AppStrings.Get("Imp_SourceTip");
+                if (ImportButton != null) { ImportButton.IsEnabled = true; ImportButton.ToolTip = null; }
+                if (NoSourceHint != null) NoSourceHint.Visibility = Visibility.Collapsed;
+                return;
+            }
 
             var cfg = TfsConnectionStore.Load(_storageKey).PortfolioProjectConfigs
                 .FirstOrDefault(c => string.Equals(c.ProjectName, nome, StringComparison.CurrentCultureIgnoreCase));
-            if (cfg == null || cfg.BackendKind == NxBackendKind.Default) return;
 
-            var indice = cfg.BackendKind == NxBackendKind.GitProject ? 1 : 0;
+            // A origem e do PROJETO, e so dele. Cadastrada, a combo vira SO LEITURA: trocar ali
+            // seria dizer que o projeto passou a vir de outro servidor, e isso se muda no
+            // cadastro (Gerenciar Portfólio). SEM cadastro, nao ha de onde importar — o botao
+            // fica desabilitado e o hint diz o que fazer, em vez de a tela escolher um servidor
+            // por conta propria: importar um board do GitHub contra o DevOps so devolve um
+            // "work item nao encontrado" que nao explica nada.
+            //
+            // Default NAO e "sem origem": e "o padrao do NXProject", que e o Azure DevOps — e
+            // assim que estao todos os cadastros feitos antes de o GitProject existir. Tratar
+            // Default como ausencia fazia a combo FICAR NA ORIGEM DO PROJETO ANTERIOR: era
+            // exatamente isso que mandava um projeto do DevOps importar como GitProject.
+            var cadastrada = cfg != null;
+            SourceCombo.IsEnabled = !cadastrada;
+            SourceCombo.ToolTip = AppStrings.Get(cadastrada ? "Imp_SourceFromProject" : "Imp_NoSourceHint");
+            if (ImportButton != null)
+            {
+                ImportButton.IsEnabled = cadastrada;
+                ImportButton.ToolTip = cadastrada ? null : AppStrings.Get("Imp_NoSourceHint");
+            }
+            if (NoSourceHint != null)
+                NoSourceHint.Visibility = cadastrada ? Visibility.Collapsed : Visibility.Visible;
+            if (!cadastrada) return;
+
+            var indice = cfg!.BackendKind == NxBackendKind.GitProject ? 1 : 0;   // Default e DevOps
             if (SourceCombo.SelectedIndex == indice) return;
 
             // Sem passar pela validacao da combo: aqui nao e escolha do usuario, e sim o
