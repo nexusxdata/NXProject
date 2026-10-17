@@ -1541,6 +1541,17 @@ namespace NXProject.Services
             // 5) Monta o projeto NXProject.
             var rootStart = ReadDate(rootItem, startRef);
 
+            // Data de início FIXA do projeto: o work item Project com a tag de início negociado
+            // (a mesma das atividades, padrão DT-INI-NEG) diz "o projeto começa nesta data" — e
+            // essa data ganha da âncora de sprint. Sem a tag, continua valendo a 1a sprint, que
+            // é o que o NXProject sempre fez: a tag é a forma de dizer que a data foi decidida
+            // por gente, não deduzida do calendário de sprints.
+            var fixedTagName = string.IsNullOrWhiteSpace(options.FixedStartTagName)
+                ? "DT-INI-NEG" : options.FixedStartTagName.Trim();
+            var rootStartFixed = rootStart.HasValue
+                && GetFixedStartTagAliases(fixedTagName)
+                    .Any(tag => HasTag(rootItem.Tags, tag));
+
             // Lê as sprints (iterations) do DevOps para ancorar a numeração: a 1a
             // sprint usada pelo projeto vira "Sprint 1" e as seguintes contam em
             // sequência (2, 3, ...). Para isso, alinhamos a grade do cronograma —
@@ -1551,7 +1562,9 @@ namespace NXProject.Services
             {
                 Name = rootItem.Title,
                 Description = $"Importado do TFS — {options.TeamProject} (#{options.RootWorkItemId})",
-                StartDate = sprintAnchor ?? rootStart ?? DateTime.Today,
+                StartDate = rootStartFixed ? rootStart!.Value
+                          : sprintAnchor ?? rootStart ?? DateTime.Today,
+                StartDateFixed = rootStartFixed,
                 FirstSprintNumber = 1,
                 SprintNumberingMode = "Sequencial",
                 FilePath = null,
@@ -2514,7 +2527,21 @@ namespace NXProject.Services
                             }
                         }
 
-                        if (typeStartRef != null && task.Start > DateTime.MinValue.AddYears(1))
+                        // Work item PROJECT (a raiz): a data que vai para o servidor e a do
+                        // PROJETO, nao a da linha — a linha e um RESUMO e carrega a menor data
+                        // dos filhos, que e justamente o que a data negociada veio substituir.
+                        var ehRaiz = task.TfsId == options.RootWorkItemId;
+                        if (ehRaiz && project.StartDateFixed && typeStartRef != null)
+                        {
+                            var atualRaiz = ReadDate(wi, typeStartRef);
+                            if (atualRaiz == null || atualRaiz.Value.Date != project.StartDate.Date)
+                            {
+                                ops.Add(PatchAdd($"/fields/{typeStartRef}",
+                                                 FormatDateForTfs(project.StartDate.Date)));
+                                changes.Add($"início do projeto: {project.StartDate:dd/MM} (fixado)");
+                            }
+                        }
+                        else if (typeStartRef != null && task.Start > DateTime.MinValue.AddYears(1))
                         {
                             var currentStart = ReadDate(wi, typeStartRef);
                             var effectiveStateForStart = string.IsNullOrWhiteSpace(task.TfsState) ? wi.State : task.TfsState;
@@ -2554,13 +2581,16 @@ namespace NXProject.Services
                             var fixedTagAliases = GetFixedStartTagAliases(fixedTag);
                             var currentTags   = wi.Tags ?? string.Empty;
                             bool hasFixedTagNow = fixedTagAliases.Any(tag => HasTag(currentTags, tag));
-                            if (task.StartFixed && !hasFixedTagNow)
+                            // Na raiz quem decide a tag e o PROJETO: a linha e resumo e nunca
+                            // tem StartFixed proprio.
+                            var querTag = ehRaiz ? project.StartDateFixed : task.StartFixed;
+                            if (querTag && !hasFixedTagNow)
                             {
                                 var newTags = (currentTags.Trim().TrimEnd(';') + "; " + fixedTag).Trim().TrimStart(';').Trim();
                                 ops.Add(PatchAdd("/fields/System.Tags", newTags));
                                 changes.Add($"tag: +{fixedTag}");
                             }
-                            else if (!task.StartFixed && hasFixedTagNow)
+                            else if (!querTag && hasFixedTagNow)
                             {
                                 var parts = currentTags
                                     .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -4422,6 +4452,12 @@ namespace NXProject.Services
             bool hasFixedTag = GetFixedStartTagAliases(ctx.FixedStartTagName)
                 .Any(tag => HasTag(item.Tags, tag));
             DateTime start = ResolveImportStart(explicitStart, baseStart, hasFixedTag, effectiveState, percentComplete);
+            // O inicio do projeto e o PISO do que ainda nao comecou: atividade por fazer nao
+            // pode cair antes da data declarada no work item Project. Vale para a data vinda da
+            // sprint, da fila do recurso ou do proprio Data_Inicio — planejar trabalho futuro
+            // para antes do comeco do projeto e planejar para o passado. O que ja comecou ou
+            // terminou fica onde esta: esse e o registro do que aconteceu.
+            start = NaoAntesDoProjeto(start, ctx.ProjectStart, effectiveState, percentComplete);
             var durationHours = hours.HasValue
                 ? Math.Max(0.0, hours.Value)
                 : ctx.HoursPerDay > 0
@@ -5571,6 +5607,18 @@ namespace NXProject.Services
             // campo EPIC_TYPE do DevOps, apagando a classificacao do item.
             if (EpicTypes.IsGroup(v)) return EpicTypes.Group;
             return EpicTypes.IsBacklog(v) ? EpicTypes.Backlog : EpicTypes.Delivery;
+        }
+
+        /// <summary>
+        /// Puxa para o início do projeto o que ainda não começou e cairia antes dele. Atividade
+        /// iniciada ou concluída passa direto: replanejar o passado seria reescrevê-lo.
+        /// </summary>
+        public static DateTime NaoAntesDoProjeto(
+            DateTime inicio, DateTime inicioDoProjeto, string? state, double percentComplete)
+        {
+            if (ScheduleDates.IsMissing(inicioDoProjeto)) return inicio;
+            bool jaComecou = IsClosedState(state) || IsActiveState(state) || percentComplete > 0;
+            return jaComecou || inicio.Date >= inicioDoProjeto.Date ? inicio : inicioDoProjeto.Date;
         }
 
         public static DateTime ResolveImportStart(

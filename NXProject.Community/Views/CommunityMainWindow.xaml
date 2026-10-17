@@ -88,6 +88,8 @@
                      tela. Dois itens obrigavam a saber, antes de abrir, qual deles tinha o que
                      se queria configurar. -->
                 <MenuItem Header="{DynamicResource Menu_View_DevOpsConfig}" Click="OnDevOpsConfigClick"/>
+                <!-- O que vale para o projeto inteiro: data de inicio, calendario e pessoas. -->
+                <MenuItem Header="{DynamicResource Menu_View_ProjectSettings}" Click="OnProjectSettingsClick"/>
                 <MenuItem Header="{DynamicResource Menu_View_People}" Click="OnPeopleClick"/>
                 <MenuItem Header="{DynamicResource Main_CostPeople}" Click="OnPeopleCostClick"/>
                 <Separator/>

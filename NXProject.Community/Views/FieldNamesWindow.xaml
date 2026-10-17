@@ -511,6 +511,20 @@
                                         Height="24" Padding="10,0" Margin="10,0,0,0" FontSize="11"
                                         Click="OnLevelDetectClick"
                                         ToolTip="{DynamicResource Fld_LevelsDetectTip}"/>
+                                <!-- Criar precisa saber ONDE: no DevOps o nivel e um tipo de
+                                     work item (muda o processo da organizacao), no GitProject e
+                                     uma opcao do campo do board. Sem a combo, o botao teria de
+                                     adivinhar — e adivinhar aqui mexe no servidor de alguem. -->
+                                <ComboBox x:Name="LevelTargetCombo" Width="130" Height="24" FontSize="11"
+                                          Margin="10,0,0,0" SelectedIndex="0"
+                                          ToolTip="{DynamicResource Fld_LevelsCreateWhereTip}">
+                                    <ComboBoxItem Content="{DynamicResource Sprint_TargetDevOps}"/>
+                                    <ComboBoxItem Content="{DynamicResource Sprint_TargetGitProject}"/>
+                                </ComboBox>
+                                <Button x:Name="LevelCreateButton" Content="{DynamicResource Fld_LevelsCreate}"
+                                        Height="24" Padding="10,0" Margin="6,0,0,0" FontSize="11"
+                                        Click="OnLevelCreateClick"
+                                        ToolTip="{DynamicResource Fld_LevelsCreateTip}"/>
                                 <TextBlock x:Name="LevelStatus" VerticalAlignment="Center" Margin="10,0,0,0"
                                            FontSize="11" Foreground="#555" TextWrapping="Wrap"/>
                             </StackPanel>

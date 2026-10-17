@@ -2764,8 +2764,11 @@ namespace NXProject.Views
                 : string.Empty;
 
             // Datas do projeto no banner também ignoram EPICs BACKLOG (mesma regra do HH e do %).
+            // Data ausente (01/01/0001, de item importado sem Data_Inicio) nao e a data mais
+            // antiga do projeto: e a falta de data. Entrava no Min() e o banner anunciava
+            // "Inicio: 01/01/01".
             var scheduleTasks = NonBacklogTasks(vm.Project.Tasks)
-                .Where(t => !t.IsMilestone)
+                .Where(t => !t.IsMilestone && !Services.ScheduleDates.IsMissing(t.Start))
                 .ToList();
             if (scheduleTasks.Count > 0)
             {
@@ -4186,6 +4189,28 @@ namespace NXProject.Views
             BaselineService.Clear(filePath, vm.FlatTasks.Select(t => t.Model));
             GanttCtrl.ForceRender();
             vm.StatusMessage = "Baseline removido.";
+        }
+
+        /// <summary>
+        /// Configurações do projeto: data de início, calendário e pessoas. O equivalente ao
+        /// "Informações sobre o projeto" do MS Project.
+        /// </summary>
+        private void OnProjectSettingsClick(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var dlg = new ProjectSettingsWindow(vm) { Owner = this };
+            var ok = dlg.ShowDialog() == true;
+            // Redesenha quando algo mudou: a data de inicio pode ter movido a primeira
+            // atividade, e o calendario muda a duracao de todas.
+            if (!ok && !dlg.CalendarChanged) return;
+            RefreshCriticalPath(vm);
+            TaskGridCtrl.RefreshRows();
+            // O banner mostra o inicio do projeto e o Gantt tem o eixo ancorado nele: os dois
+            // precisam ser refeitos, senao salvar a data nao mudava nada na tela e parecia que
+            // o Salvar nao tinha funcionado.
+            UpdateEpicHours(vm);
+            GanttCtrl.ScrollToProjectStart();
+            GanttCtrl.ForceRender();
         }
 
         private void OnPeopleClick(object sender, RoutedEventArgs e)

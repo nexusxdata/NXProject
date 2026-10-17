@@ -311,6 +311,23 @@
     <sys:String x:Key="Menu_View_StoryStatusChart">_Status de Stories e Incidentes...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">_Mapa de Alocação para Projetos...</sys:String>
     <sys:String x:Key="Menu_View_People">_Pessoas...</sys:String>
+    <sys:String x:Key="Menu_View_ProjectSettings">Configurações do _projeto...</sys:String>
+    <sys:String x:Key="PrjCfg_Title">Configurações do projeto</sys:String>
+    <sys:String x:Key="PrjCfg_Header">Informações sobre o projeto</sys:String>
+    <sys:String x:Key="PrjCfg_Start">Data de início:</sys:String>
+    <sys:String x:Key="PrjCfg_FixOnProject">Fixar esta data no work item Project</sys:String>
+    <sys:String x:Key="PrjCfg_FixOnProjectTip">Marcado, a data é gravada no work item Project com a tag de início fixo e nenhuma atividade por fazer pode começar antes dela. Desmarcado, a tag é retirada e a data fica só como referência do cronograma.</sys:String>
+    <sys:String x:Key="PrjCfg_StartRole">Gravada no work item Project, com a tag "{0}" (data de início fixa) — a mesma marcação que uma atividade usa. Vai para o Azure DevOps no Sincronizar e volta no Importar, onde passa a valer sobre a âncora de sprint.</sys:String>
+    <sys:String x:Key="PrjCfg_Calendar">Calendário:</sys:String>
+    <sys:String x:Key="PrjCfg_CalGeneral">Geral (do NXProject)</sys:String>
+    <sys:String x:Key="PrjCfg_CalSchedule">Do cronograma (embutido no arquivo)</sys:String>
+    <sys:String x:Key="PrjCfg_CalError">Padrão de emergência (o calendário não pôde ser lido)</sys:String>
+    <sys:String x:Key="PrjCfg_CalHint">{0} h por dia · {1} feriado(s) · {2} dia(s) úteis na semana</sys:String>
+    <sys:String x:Key="PrjCfg_EditCalendar">Editar calendário…</sys:String>
+    <sys:String x:Key="PrjCfg_CalendarWindow">Calendário de trabalho</sys:String>
+    <sys:String x:Key="PrjCfg_People">Pessoas:</sys:String>
+    <sys:String x:Key="PrjCfg_PeopleCount">{0} pessoa(s) no cronograma</sys:String>
+    <sys:String x:Key="PrjCfg_OpenPeople">Pessoas do projeto…</sys:String>
     <sys:String x:Key="Menu_View_Language">_Idioma / Language...</sys:String>
 
     <!-- Menu IA -->
@@ -1432,6 +1449,27 @@
     <sys:String x:Key="Fld_TabLevels">Níveis</sys:String>
     <sys:String x:Key="Fld_LevelsDetect">Detectar níveis</sys:String>
     <sys:String x:Key="Fld_LevelsDetectTip">Lê os tipos que existem no servidor (tipos de work item no Azure DevOps; opções do campo de nível e Issue Types no GitProject) e confere o mapa contra eles. Nada é alterado sozinho: o que não casa é listado para você decidir.</sys:String>
+    <sys:String x:Key="Fld_LevelsCreate">Criar níveis</sys:String>
+    <sys:String x:Key="Fld_LevelsCreateTip">Cria o que a detecção marcou de vermelho, no destino escolhido ao lado.</sys:String>
+    <sys:String x:Key="Fld_LevelsCreateWhereTip">Onde criar: no Azure DevOps o nível é um tipo de work item; no GitProject, uma opção do campo de nível do board.</sys:String>
+    <sys:String x:Key="Fld_LevelSealOff">Nível desligado: não faltar tipo aqui é o esperado.</sys:String>
+    <sys:String x:Key="Fld_LevelSealFound">Encontrado no destino como: {0}</sys:String>
+    <sys:String x:Key="Fld_LevelSealMissing">Nenhum tipo do destino casa com este nível. O "Criar níveis" usaria o nome "{0}".</sys:String>
+    <sys:String x:Key="Fld_LevelsDetectFirst">Rode o "Detectar níveis" primeiro: é ele que diz o que falta.</sys:String>
+    <sys:String x:Key="Fld_LevelsNothingToCreate">Nada a criar: todos os níveis em uso já existem no destino.</sys:String>
+    <sys:String x:Key="Fld_LevelsDevOpsManual">No Azure DevOps o nível é um TIPO DE WORK ITEM, e criar tipo altera o processo herdado da organização inteira — não só deste projeto. O NXProject não faz essa alteração.
+
+Falta(m): {0}
+
+Crie em Configurações da organização → Processo → (seu processo) → Novo tipo de work item, ou aponte na lista ao lado o nome do tipo que já existe aí.</sys:String>
+    <sys:String x:Key="Fld_LevelsDevOpsStatus">{0} nível(is) sem tipo no DevOps — veja a mensagem.</sys:String>
+    <sys:String x:Key="Fld_LevelsGitExisting">O campo "{0}" já existe no board, e o GitHub não permite acrescentar opções a um single-select depois de criado.
+
+Falta(m): {1}
+
+Acrescente a(s) opção(ões) pela tela do GitHub (Project → Settings → o campo), ou apague o campo e use este botão de novo para recriá-lo com todos os níveis.</sys:String>
+    <sys:String x:Key="Fld_LevelsGitExistingStatus">{0} nível(is) sem opção no campo do board — veja a mensagem.</sys:String>
+    <sys:String x:Key="Fld_LevelsGitCreated">Campo "{0}" criado no board com {1} nível(is).</sys:String>
     <sys:String x:Key="Fld_LevelsDetectNone">Nenhum tipo encontrado: configure a conexão do Azure DevOps ou do GitProject.</sys:String>
     <sys:String x:Key="Fld_LevelsDetectResult">{0} tipo(s) encontrado(s); {1} sem nível.</sys:String>
     <sys:String x:Key="Fld_LevelsNoType">(nenhum tipo casou)</sys:String>

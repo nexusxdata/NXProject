@@ -37,6 +37,16 @@ namespace NXProject.Models
 
         public DateTime StartDate { get; set; } = DateTime.Today;
 
+        /// <summary>
+        /// A data de início é FIXA (negociada), e não deduzida da primeira sprint?
+        ///
+        /// Mora aqui, e não na linha do work item Project no cronograma, porque aquela linha é
+        /// um RESUMO: as datas dela são recalculadas a partir dos filhos a cada mudança, e
+        /// qualquer valor escrito ali é apagado no recálculo seguinte. Daqui ela vai para o
+        /// servidor no Sincronizar (Data_Inicio + tag no work item) e volta no Importar.
+        /// </summary>
+        public bool StartDateFixed { get; set; }
+
         // Duração do sprint em dias úteis
         public int SprintDurationDays { get; set; } = 14;
 

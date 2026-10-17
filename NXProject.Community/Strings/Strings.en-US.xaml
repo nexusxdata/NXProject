@@ -540,6 +540,23 @@
     <sys:String x:Key="Menu_View_StoryStatusChart">_Story Status Chart...</sys:String>
     <sys:String x:Key="Menu_View_AllocationMap">Project _Allocation Map...</sys:String>
     <sys:String x:Key="Menu_View_People">_People...</sys:String>
+    <sys:String x:Key="Menu_View_ProjectSettings">_Project settings...</sys:String>
+    <sys:String x:Key="PrjCfg_Title">Project settings</sys:String>
+    <sys:String x:Key="PrjCfg_Header">Project information</sys:String>
+    <sys:String x:Key="PrjCfg_Start">Start date:</sys:String>
+    <sys:String x:Key="PrjCfg_FixOnProject">Pin this date on the Project work item</sys:String>
+    <sys:String x:Key="PrjCfg_FixOnProjectTip">Ticked, the date is written on the Project work item with the fixed-start tag and no pending activity may start before it. Unticked, the tag is removed and the date is only the schedule reference.</sys:String>
+    <sys:String x:Key="PrjCfg_StartRole">Written on the Project work item with the "{0}" tag (fixed start date) — the same marking an activity uses. It goes to Azure DevOps on sync and comes back on import, where it takes precedence over the sprint anchor.</sys:String>
+    <sys:String x:Key="PrjCfg_Calendar">Calendar:</sys:String>
+    <sys:String x:Key="PrjCfg_CalGeneral">General (NXProject)</sys:String>
+    <sys:String x:Key="PrjCfg_CalSchedule">From the schedule (embedded in the file)</sys:String>
+    <sys:String x:Key="PrjCfg_CalError">Emergency default (the calendar could not be read)</sys:String>
+    <sys:String x:Key="PrjCfg_CalHint">{0} h per day · {1} holiday(s) · {2} working day(s) a week</sys:String>
+    <sys:String x:Key="PrjCfg_EditCalendar">Edit calendar…</sys:String>
+    <sys:String x:Key="PrjCfg_CalendarWindow">Working calendar</sys:String>
+    <sys:String x:Key="PrjCfg_People">People:</sys:String>
+    <sys:String x:Key="PrjCfg_PeopleCount">{0} person(s) in the schedule</sys:String>
+    <sys:String x:Key="PrjCfg_OpenPeople">Project people…</sys:String>
     <sys:String x:Key="Menu_View_Language">_Language / Idioma...</sys:String>
 
     <!-- AI Menu -->
@@ -2019,6 +2036,27 @@
     <sys:String x:Key="Fld_TabLevels">Levels</sys:String>
     <sys:String x:Key="Fld_LevelsDetect">Detect levels</sys:String>
     <sys:String x:Key="Fld_LevelsDetectTip">Reads the types that exist on the server (work item types in Azure DevOps; level field options and Issue Types in GitProject) and checks the map against them. Nothing is changed automatically: whatever does not match is listed for you to decide.</sys:String>
+    <sys:String x:Key="Fld_LevelsCreate">Create levels</sys:String>
+    <sys:String x:Key="Fld_LevelsCreateTip">Creates whatever detection marked in red, on the destination chosen beside it.</sys:String>
+    <sys:String x:Key="Fld_LevelsCreateWhereTip">Where to create: on Azure DevOps a level is a work item type; on GitProject, an option of the board level field.</sys:String>
+    <sys:String x:Key="Fld_LevelSealOff">Level is off: having no type here is expected.</sys:String>
+    <sys:String x:Key="Fld_LevelSealFound">Found on the destination as: {0}</sys:String>
+    <sys:String x:Key="Fld_LevelSealMissing">No type on the destination matches this level. "Create levels" would use the name "{0}".</sys:String>
+    <sys:String x:Key="Fld_LevelsDetectFirst">Run "Detect levels" first: it is what tells what is missing.</sys:String>
+    <sys:String x:Key="Fld_LevelsNothingToCreate">Nothing to create: every level in use already exists on the destination.</sys:String>
+    <sys:String x:Key="Fld_LevelsDevOpsManual">On Azure DevOps a level is a WORK ITEM TYPE, and creating one changes the inherited process of the whole organization — not just this project. NXProject does not make that change.
+
+Missing: {0}
+
+Create it under Organization settings → Process → (your process) → New work item type, or point the list beside it at the type name that already exists there.</sys:String>
+    <sys:String x:Key="Fld_LevelsDevOpsStatus">{0} level(s) with no type on DevOps — see the message.</sys:String>
+    <sys:String x:Key="Fld_LevelsGitExisting">Field "{0}" already exists on the board, and GitHub does not allow adding options to a single-select after it is created.
+
+Missing: {1}
+
+Add the option(s) from the GitHub UI (Project → Settings → the field), or delete the field and use this button again to recreate it with every level.</sys:String>
+    <sys:String x:Key="Fld_LevelsGitExistingStatus">{0} level(s) with no option on the board field — see the message.</sys:String>
+    <sys:String x:Key="Fld_LevelsGitCreated">Field "{0}" created on the board with {1} level(s).</sys:String>
     <sys:String x:Key="Fld_LevelsDetectNone">No types found: set up the Azure DevOps or GitProject connection.</sys:String>
     <sys:String x:Key="Fld_LevelsDetectResult">{0} type(s) found; {1} with no level.</sys:String>
     <sys:String x:Key="Fld_LevelsNoType">(no type matched)</sys:String>

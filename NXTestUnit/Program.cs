@@ -84,6 +84,7 @@ internal static class Program
         ("Gravador: cada destino tem o seu, escolhido pela fachada", BoardWriterComesFromFacade),
         ("GitProject: criterio de aceite vai e volta do corpo da issue", AcceptanceSectionRoundTrips),
         ("TaskBoard: percentual informado manda sobre o percentual do estado", PercentPendingWinsOverState),
+        ("Cronograma: atividade por fazer nao comeca antes do inicio do projeto", PendingNeverStartsBeforeProject),
         ("TaskBoard: coluna em andamento e reconhecida fora do DevOps (In Progress/Doing)", InProgressColumnCountsAsActive),
         ("WIQL: clausulas do editor voltam para o mesmo WIQL", WiqlModelRoundTripsClauses),
         ("WIQL: WHERE com parenteses nao vira editor visual", WiqlModelRefusesParentheses),
@@ -2247,6 +2248,29 @@ internal static class Program
         soEstado.States[7] = "Closed";
         NXProject.Services.LocalBoardWriter.Apply(projeto, soEstado);
         AssertEqual(100.0, task.PercentComplete, "Encerrada sem percentual informado e 100%.");
+    }
+
+    // O inicio do projeto (work item Project com a tag de data fixa) e o piso do que ainda nao
+    // comecou. A regra tem de valer para a data que vier de onde vier — sprint, fila do recurso
+    // ou Data_Inicio do item — e NAO pode tocar no que ja comecou: isso seria reescrever o
+    // registro do que aconteceu.
+    private static void PendingNeverStartsBeforeProject()
+    {
+        var projeto = new DateTime(2026, 10, 20);
+        var antes = new DateTime(2026, 7, 13);
+
+        AssertEqual(projeto, TfsImportService.NaoAntesDoProjeto(antes, projeto, "New", 0),
+            "Atividade por fazer e puxada para o inicio do projeto.");
+        AssertEqual(antes, TfsImportService.NaoAntesDoProjeto(antes, projeto, "Closed", 100),
+            "Atividade concluida fica onde esta.");
+        AssertEqual(antes, TfsImportService.NaoAntesDoProjeto(antes, projeto, "Active", 50),
+            "Atividade em andamento fica onde esta.");
+
+        var depois = new DateTime(2026, 11, 5);
+        AssertEqual(depois, TfsImportService.NaoAntesDoProjeto(depois, projeto, "New", 0),
+            "Quem ja comeca depois do inicio nao e movido.");
+        AssertEqual(antes, TfsImportService.NaoAntesDoProjeto(antes, default, "New", 0),
+            "Projeto sem data declarada nao tem piso.");
     }
 
     // "Em andamento" nao se chama "Active" em lugar nenhum fora do Azure DevOps. O board so

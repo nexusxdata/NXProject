@@ -1,0 +1,79 @@
+﻿<Window x:Class="NXProject.Views.ProjectSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource PrjCfg_Title}"
+        Width="560" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <!--
+        O que vale para o PROJETO INTEIRO, num lugar só: a data em que ele começa, o calendário
+        de trabalho que ele usa e as pessoas que trabalham nele. Antes cada um desses estava num
+        canto diferente do menu, e a data de início não existia em tela nenhuma — era preciso
+        empurrar a primeira atividade na mão para o cronograma começar no dia certo.
+    -->
+    <StackPanel Margin="18">
+        <TextBlock Text="{DynamicResource PrjCfg_Header}" FontSize="15" FontWeight="SemiBold"
+                   Foreground="#2B579A" Margin="0,0,0,2"/>
+        <TextBlock x:Name="ProjectNameText" FontSize="11.5" Foreground="#666" Margin="0,0,0,14"
+                   TextWrapping="Wrap"/>
+
+        <!-- ── Data de início ─────────────────────────────────────────────────────── -->
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{DynamicResource PrjCfg_Start}" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <DatePicker Grid.Column="1" x:Name="StartBox" Height="26" FontSize="12"
+                        HorizontalAlignment="Left" Width="160"/>
+        </Grid>
+
+        <CheckBox x:Name="AnchorBox" Margin="150,4,0,0" FontSize="11.5"
+                  Content="{DynamicResource PrjCfg_FixOnProject}"
+                  ToolTip="{DynamicResource PrjCfg_FixOnProjectTip}"/>
+        <TextBlock x:Name="AnchorHint" FontSize="10.5" Foreground="#888" Margin="150,4,0,14"
+                   TextWrapping="Wrap"/>
+
+        <Separator Margin="0,0,0,14" Background="#DDE3EA"/>
+
+        <!-- ── Calendário ─────────────────────────────────────────────────────────── -->
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{DynamicResource PrjCfg_Calendar}" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="1" x:Name="CalendarText" FontSize="12" FontWeight="SemiBold"
+                       VerticalAlignment="Center" TextWrapping="Wrap"/>
+            <Button Grid.Column="2" x:Name="EditCalendarButton" Content="{DynamicResource PrjCfg_EditCalendar}"
+                    Width="150" Height="28" Click="OnEditCalendarClick"/>
+        </Grid>
+        <TextBlock x:Name="CalendarHint" FontSize="10.5" Foreground="#888" Margin="150,2,0,14"
+                   TextWrapping="Wrap"/>
+
+        <Separator Margin="0,0,0,14" Background="#DDE3EA"/>
+
+        <!-- ── Pessoas ────────────────────────────────────────────────────────────── -->
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{DynamicResource PrjCfg_People}" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="1" x:Name="PeopleText" FontSize="12" VerticalAlignment="Center"/>
+            <Button Grid.Column="2" Content="{DynamicResource PrjCfg_OpenPeople}" Width="150" Height="28"
+                    Click="OnPeopleClick"/>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="{DynamicResource Settings_Save}" Width="120" Height="32" IsDefault="True"
+                    Click="OnSaveClick"/>
+            <Button Content="{DynamicResource Settings_Cancel}" Width="110" Height="32" Margin="10,0,0,0"
+                    IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

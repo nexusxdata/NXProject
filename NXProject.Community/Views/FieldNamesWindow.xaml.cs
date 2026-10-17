@@ -189,6 +189,12 @@ namespace NXProject.Views
             public NxLevel Level { get; init; }
             public CheckBox InUse { get; init; } = new();
             public TextBox Names { get; init; } = new();
+
+            /// <summary>Selo do "Detectar": ✔ o destino tem um tipo deste nível, ✖ não tem.</summary>
+            public TextBlock Status { get; init; } = new();
+
+            /// <summary>Última detecção: null = ainda não detectou. É o que o "Criar" usa.</summary>
+            public bool? NoDestino { get; set; }
         }
 
         private readonly List<LevelRow> _levelRows = new();
@@ -236,7 +242,18 @@ namespace NXProject.Views
                 };
                 Grid.SetColumn(nomes, 2); grid.Children.Add(nomes);
 
-                _levelRows.Add(new LevelRow { Level = nivel, InUse = emUso, Names = nomes });
+                // Selo na coluna do nome, como na aba dos campos: o resultado fica ao lado da
+                // linha a que se refere, em vez de num texto onde e preciso procurar o nivel.
+                var selo = new TextBlock
+                {
+                    FontSize = 12, FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 1, 0)
+                };
+                Grid.SetColumn(selo, 2); grid.Children.Add(selo);
+
+                _levelRows.Add(new LevelRow { Level = nivel, InUse = emUso, Names = nomes, Status = selo });
                 host.Children.Add(grid);
             }
 
@@ -298,6 +315,7 @@ namespace NXProject.Views
                     var casados = tipos.Where(t => mapa.LevelOf(t) == nivel).ToList();
                     porNivel.Add($"{nivel}: " + (casados.Count > 0 ? string.Join(", ", casados)
                         : AppStrings.Get("Fld_LevelsNoType")));
+                    CarimbaNivel(nivel, casados, mapa);
                 }
                 var sobrando = tipos.Where(t => mapa.LevelOf(t) == null).ToList();
 
@@ -314,6 +332,126 @@ namespace NXProject.Views
                 LevelStatus.Text = ex.Message;
             }
             finally { LevelDetectButton.IsEnabled = true; }
+        }
+
+        /// <summary>
+        /// O selo da linha. Verde quando o destino tem um tipo que casa com o nível; vermelho
+        /// quando não tem e o nível está em uso; traço quando o nível está desligado — aí não
+        /// faltar tipo é o esperado, não um problema.
+        /// </summary>
+        private void CarimbaNivel(NxLevel nivel, List<string> casados, NxLevelMap mapa)
+        {
+            var linha = _levelRows.FirstOrDefault(r => r.Level == nivel);
+            if (linha == null) return;
+
+            var ligado = linha.InUse.IsChecked == true;
+            linha.NoDestino = casados.Count > 0;
+
+            if (!ligado)
+            {
+                linha.Status.Text = "–";
+                linha.Status.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+                linha.Status.ToolTip = AppStrings.Get("Fld_LevelSealOff");
+                return;
+            }
+
+            linha.Status.Text = casados.Count > 0 ? "✔" : "✖";
+            linha.Status.Foreground = new System.Windows.Media.SolidColorBrush(
+                casados.Count > 0 ? System.Windows.Media.Color.FromRgb(0x10, 0x7C, 0x10)
+                                  : System.Windows.Media.Color.FromRgb(0xC0, 0x30, 0x30));
+            linha.Status.ToolTip = casados.Count > 0
+                ? AppStrings.Get("Fld_LevelSealFound", string.Join(", ", casados))
+                : AppStrings.Get("Fld_LevelSealMissing", PrimeiroNome(linha));
+        }
+
+        /// <summary>O nome que o NXProject usaria para CRIAR este nível (o primeiro da lista).</summary>
+        private static string PrimeiroNome(LevelRow linha) =>
+            (linha.Names.Text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0)
+            ?? linha.Level.ToString();
+
+        /// <summary>
+        /// Cria no destino escolhido os níveis que a detecção marcou de vermelho.
+        ///
+        /// Os dois destinos são coisas diferentes, e é por isso que o botão pergunta onde:
+        ///  • <b>GitProject</b>: o nível é uma opção do campo single-select do board. Dá para
+        ///    criar o campo com as opções todas de uma vez — e é o que acontece aqui.
+        ///  • <b>Azure DevOps</b>: o nível é um TIPO DE WORK ITEM, e criar tipo muda o processo
+        ///    herdado da organização inteira, não só deste projeto. O NXProject não faz isso por
+        ///    você: ele diz exatamente o que falta criar, e onde.
+        /// </summary>
+        private async void OnLevelCreateClick(object sender, RoutedEventArgs e)
+        {
+            var faltando = _levelRows
+                .Where(r => r.InUse.IsChecked == true && r.NoDestino == false)
+                .ToList();
+            if (_levelRows.All(r => r.NoDestino == null))
+            {
+                LevelStatus.Text = AppStrings.Get("Fld_LevelsDetectFirst");
+                return;
+            }
+            if (faltando.Count == 0)
+            {
+                LevelStatus.Text = AppStrings.Get("Fld_LevelsNothingToCreate");
+                return;
+            }
+
+            var nomes = faltando.Select(PrimeiroNome).ToList();
+
+            // Azure DevOps: tipo de work item é processo da organização — fora do alcance desta
+            // tela, e dizer isso é mais útil do que um botão que falha no servidor.
+            if (LevelTargetCombo.SelectedIndex != 1)
+            {
+                MessageBox.Show(this,
+                    AppStrings.Get("Fld_LevelsDevOpsManual", string.Join(", ", nomes)),
+                    AppStrings.Get("Fld_LevelsCreate"), MessageBoxButton.OK, MessageBoxImage.Information);
+                LevelStatus.Text = AppStrings.Get("Fld_LevelsDevOpsStatus", nomes.Count.ToString());
+                return;
+            }
+
+            var git = _options.GitProject;
+            if (git?.IsConfigured != true)
+            {
+                LevelStatus.Text = AppStrings.Get("Fld_GitDetectNoConn");
+                return;
+            }
+
+            LevelCreateButton.IsEnabled = false;
+            LevelStatus.Text = AppStrings.Get("Git_Testing");
+            try
+            {
+                var cliente = new GitProjectClient(git);
+                var snap = await cliente.LoadAsync();
+                var campo = snap.Fields.FirstOrDefault(f =>
+                    GitProjectOptions.Matches(f.Name, git.LevelFields));
+
+                if (campo != null)
+                {
+                    // O GitHub não deixa acrescentar opção a um single-select já criado: o que
+                    // dá para fazer é dizer qual opção falta e onde acrescentá-la.
+                    MessageBox.Show(this,
+                        AppStrings.Get("Fld_LevelsGitExisting", campo.Name, string.Join(", ", nomes)),
+                        AppStrings.Get("Fld_LevelsCreate"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    LevelStatus.Text = AppStrings.Get("Fld_LevelsGitExistingStatus", nomes.Count.ToString());
+                    return;
+                }
+
+                // Campo ainda não existe: cria com TODAS as opções dos níveis em uso — opção de
+                // single-select só pode ser definida na criação.
+                var todas = _levelRows.Where(r => r.InUse.IsChecked == true).Select(PrimeiroNome).ToList();
+                var nomeCampo = GitProjectOptions.Suggested(git.LevelFields);
+                await cliente.CreateFieldAsync(snap.ProjectId, nomeCampo, "SINGLE_SELECT", todas);
+                LevelStatus.Text = AppStrings.Get("Fld_LevelsGitCreated", nomeCampo, todas.Count.ToString());
+                foreach (var r in _levelRows.Where(r => r.InUse.IsChecked == true)) r.NoDestino = true;
+                foreach (var r in _levelRows) CarimbaNivel(r.Level, r.NoDestino == true
+                    ? new List<string> { PrimeiroNome(r) } : new List<string>(), MapaDaTela(out _));
+            }
+            catch (Exception ex)
+            {
+                LevelStatus.Text = ex.Message;
+            }
+            finally { LevelCreateButton.IsEnabled = true; }
         }
 
         private void OnLevelDefaultsClick(object sender, RoutedEventArgs e)
@@ -470,6 +608,12 @@ namespace NXProject.Views
             public Dictionary<string, string> GitTags { get; set; } = new();
             public List<GitProjectClassification> GitClassifications { get; set; } = new();
 
+            // Faixa de prioridade aceita (P1..P9 por padrao). Viaja junto porque e a mesma
+            // decisao de configuracao dos nomes: quem distribui o arquivo para a equipe espera
+            // que a faixa combinada va junto, e nao que cada um redigite.
+            public int PriorityMin { get; set; }
+            public int PriorityMax { get; set; }
+
             // Mapa de niveis (vale para os dois destinos)
             public Dictionary<string, string> LevelNames { get; set; } = new();
             public List<string> LevelsDisabled { get; set; } = new();
@@ -517,6 +661,9 @@ namespace NXProject.Views
                     },
                     GitClassifications = _gitClass
                         .Where(c => !string.IsNullOrWhiteSpace(c.Field)).ToList(),
+
+                    PriorityMin = LeFaixa(_prioMinBox, 1),
+                    PriorityMax = LeFaixa(_prioMaxBox, 9),
 
                     LevelNames = mapaNiveis.Names.ToDictionary(kv => kv.Key.ToString(),
                                                               kv => string.Join(", ", kv.Value)),
@@ -592,6 +739,10 @@ namespace NXProject.Views
                         caixa.IsChecked = padrao.Any(p =>
                             string.Equals(p.Chave, r.Spec.Key, StringComparison.OrdinalIgnoreCase)
                             && string.Equals(p.Tipo, wit, StringComparison.OrdinalIgnoreCase));
+
+                // Faixa de prioridade: arquivo antigo nao tem (zero), e ai nao se mexe.
+                if (dados.PriorityMin >= 1 && _prioMinBox != null) _prioMinBox.Text = "P" + dados.PriorityMin;
+                if (dados.PriorityMax >= 1 && _prioMaxBox != null) _prioMaxBox.Text = "P" + dados.PriorityMax;
 
                 // GitProject: nomes, tags e classificacao.
                 foreach (var r in _rows)
