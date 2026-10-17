@@ -234,9 +234,28 @@ namespace NXProject.Services
         /// DevOps (<see cref="TfsImportService.SyncReport"/>): a tela de resultado já existe, e
         /// um relatório diferente por destino seria uma segunda tela para manter.
         /// </summary>
+        /// <param name="progress">
+        /// O MESMO progresso do DevOps (fase, contagem e item): a tela de andamento e uma so, e
+        /// um destino que so manda texto deixa a barra indeterminada girando sem dizer onde
+        /// esta. O item vem identificado por nivel e numero — "Story #123" —, que e como se
+        /// procura o que ficou para tras quando algo falha no meio.
+        /// </param>
         public static async Task<TfsImportService.SyncReport> SyncAsync(
-            Project project, GitProjectOptions options, IProgress<string>? progress = null)
+            Project project, GitProjectOptions options,
+            IProgress<TfsImportService.SyncProgress>? progress = null,
+            System.Threading.CancellationToken ct = default)
         {
+            // Parar e decisao de quem olha a tela, e o GitHub nao tem transacao: o que ja foi
+            // gravado fica. Por isso o corte e ENTRE itens e o relatorio diz onde parou.
+            bool Parou()
+            {
+                if (!ct.IsCancellationRequested) return false;
+                return true;
+            }
+            // Atalhos: fase sem contagem, e fase COM contagem e item.
+            void Fase(string texto) => progress?.Report(new(texto, 0, 0, ""));
+            void Passo(string fase, int atual, int total, ProjectTask t, int numero) =>
+                progress?.Report(new(fase, atual, total, Rotulo(t, numero)));
             if (project == null) throw new ArgumentNullException(nameof(project));
             if (options?.IsConfigured != true)
                 throw new InvalidOperationException(NxText.T(
@@ -246,8 +265,12 @@ namespace NXProject.Services
             var relatorio = new TfsImportService.SyncReport();
             var cliente = new GitProjectClient(options);
 
-            progress?.Report(NxText.T("Lendo o board no GitHub…", "Reading the board on GitHub…"));
-            var snap = await cliente.LoadAsync();
+            // Gravar exige ler antes: os ids internos do item no board, o valor atual de cada
+            // campo (para nao regravar o que nao mudou) e a revisao de cada item (para recusar o
+            // que alguem editou no GitHub depois da ultima sincronizacao) so existem la.
+            Fase(NxText.T("Lendo o GitProject…", "Reading the GitProject…"));
+            GitSyncLog.Inicia(options.Owner + "/" + options.ProjectNumber, ContaTarefas(project.Tasks));
+            var snap = await GitSyncLog.MedeAsync("leitura do board", "", cliente.LoadAsync);
             var porNumero = snap.Items.ToDictionary(i => i.Number);
 
             GitProjectField? Campo(IEnumerable<string> nomes) =>
@@ -292,7 +315,7 @@ namespace NXProject.Services
             }
 
             // 1) Criação primeiro, e pai antes de filho: a sub-issue precisa do pai já existindo.
-            if (plano.Creates.Count > 0)
+            if (plano.Creates.Count > 0 && !Parou())
                 await CriaAsync(plano, project, options, cliente, snap, porNumero, relatorio, progress);
 
             // 2) Campos. Um conceito sem campo no board vira UM aviso, não um por atividade: a
@@ -300,14 +323,26 @@ namespace NXProject.Services
             var semCampo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var tocados = new Dictionary<int, ProjectTask>();
 
-            foreach (var op in plano.Updates)
+            // Um passo por ITEM, e nao por campo: a pessoa acompanha "Story #123", nao
+            // "percConclusao". Os campos do mesmo item sao gravados dentro do passo dele.
+            var porItem = plano.Updates.GroupBy(u => u.Number).ToList();
+            var feitos = 0;
+            var faseCampos = NxText.T("Gravando os itens…", "Writing the items…");
+
+            var interrompido = false;
+            foreach (var grupo in porItem)
+            {
+            if (Parou()) { interrompido = true; break; }
+            foreach (var op in grupo)
             {
                 if (!porNumero.TryGetValue(op.Number, out var item)) continue;
+                if (op == grupo.First()) Passo(faseCampos, ++feitos, porItem.Count, op.Task, op.Number);
                 try
                 {
                     if (op.Key == "state")
                     {
-                        await cliente.SetIssueStateAsync(item.IssueId, (bool)op.Value);
+                        await GitSyncLog.MedeAsync("estado da issue", $"#{op.Number}",
+                            () => cliente.SetIssueStateAsync(item.IssueId, (bool)op.Value));
                     }
                     else
                     {
@@ -323,7 +358,8 @@ namespace NXProject.Services
                                     op.Key, GitProjectOptions.Suggested(NomesDoConceito(options, op.Key))));
                             continue;
                         }
-                        await cliente.SetFieldAsync(snap.ProjectId, item.ItemId, campo.Id, op.Value);
+                        await GitSyncLog.MedeAsync("campo", $"#{op.Number} {op.Key}",
+                            () => cliente.SetFieldAsync(snap.ProjectId, item.ItemId, campo.Id, op.Value));
                     }
                     tocados[op.Number] = op.Task;
                 }
@@ -333,31 +369,43 @@ namespace NXProject.Services
                                                 op.Number, op.Task.Name, op.Key, ex.Message));
                 }
             }
+            }
+
+            if (interrompido)
+                relatorio.LogWarning(NxText.T(
+                    "Interrompido por você: {0} de {1} item(ns) foram gravados. O que já foi para o "
+                    + "GitHub fica — lá não há como desfazer em bloco. Sincronize de novo para continuar.",
+                    "Stopped by you: {0} of {1} item(s) were written. What already went to GitHub stays "
+                    + "— there is no bulk undo there. Sync again to carry on.",
+                    feitos, porItem.Count));
 
             // 3) Carimbo de concorrência, só no que foi realmente gravado: carimbar o que não
             //    mudou faria toda sincronização parecer conflito para a próxima pessoa.
             //
-            //    A revisão nova NÃO é inventada aqui: ela é RELIDA do servidor depois das
-            //    gravações. Carimbar "agora" pelo relógio desta máquina criaria conflito falso
-            //    sempre que os relógios divergissem alguns segundos — e eles divergem.
-            var depoisDeGravar = tocados.Count > 0
-                ? (await new GitProjectClient(options).LoadAsync()).Items.ToDictionary(i => i.Number)
-                : new Dictionary<int, GitProjectItem>();
-
+            //    A revisão que fica no CRONOGRAMA é lida DEPOIS de tudo (ver o passo 5): o
+            //    próprio carimbo é uma gravação e também mexe no updatedAt do item. Ler antes
+            //    dele — que era o que se fazia — deixava a revisão local sempre um pouco atrás
+            //    da do servidor, e a sincronização seguinte acusava conflito contra a gravação
+            //    anterior desta mesma pessoa.
             foreach (var (numero, tarefa) in tocados)
             {
                 relatorio.Updated++;
-                if (depoisDeGravar.TryGetValue(numero, out var atualizado))
-                    tarefa.SyncVersion = Revision(atualizado.UpdatedAt);
-
                 if (!temControle || !porNumero.TryGetValue(numero, out var item)) continue;
                 try
                 {
                     // O mesmo número vai para o campo do board: quem abrir o GitHub vê a revisão
                     // que o NXProject considerou, e o Sync_Name diz quem gravou.
-                    await cliente.SetFieldAsync(snap.ProjectId, item.ItemId, campoVersao!.Id,
-                        (double)(tarefa.SyncVersion ?? 0));
-                    await cliente.SetFieldAsync(snap.ProjectId, item.ItemId, campoNome!.Id, Environment.UserName);
+                    // O TIPO e o do campo no board, nao o que o catalogo gostaria. O NX pede
+                    // NUMBER para a versao, mas o GitHub NAO deixa trocar o tipo de um campo
+                    // depois de criado — board com o campo em TEXT existe, e mandar numero para
+                    // ele fazia a gravacao falhar em TODO item carimbado (medido: 11 chamadas,
+                    // ~520 ms cada, todas perdidas, e o Sync_Name nem chegava a ser gravado).
+                    await GitSyncLog.MedeAsync("carimbo Sync_version", $"#{numero}",
+                        () => cliente.SetFieldAsync(snap.ProjectId, item.ItemId, campoVersao!.Id,
+                                                    ValorNoTipo(campoVersao, tarefa.SyncVersion ?? 0)));
+                    await GitSyncLog.MedeAsync("carimbo Sync_Name", $"#{numero}",
+                        () => cliente.SetFieldAsync(snap.ProjectId, item.ItemId, campoNome!.Id,
+                                                    Environment.UserName));
                 }
                 catch (Exception ex)
                 {
@@ -386,9 +434,15 @@ namespace NXProject.Services
             //    gravar é a fachada — aqui não se sabe que no GitHub isso é mover item na view.
             try
             {
-                progress?.Report(NxText.T("Aplicando a ordem do backlog…", "Applying backlog order…"));
-                var ordem = await NxOrderWriters.For(NxBackendKind.GitProject, null!, options)
-                                                .ApplyAsync(project, progress);
+                Fase(NxText.T("Aplicando a ordem do backlog…", "Applying backlog order…"));
+                // O gravador da ordem fala em texto: adapta aqui, sem mudar a fachada por causa
+                // da tela.
+                var textoDaOrdem = new Progress<string>(m => Fase(m));
+                // Reaproveita o board JA LIDO: reler custou 1,8 s medidos, e os ids dos itens
+                // nao mudam — a unica coisa que precisa estar fresca e a FILA, que e lida a
+                // parte, logo ali dentro.
+                var ordem = await new GitProjectOrderWriter(options, snap)
+                                                .ApplyAsync(project, textoDaOrdem, ct);
                 foreach (var w in ordem.Warnings) relatorio.LogWarning(w);
                 if (ordem.Moved > 0)
                     relatorio.LogSuccess(NxText.T("Ordem do backlog: {0} item(ns) reposicionado(s).",
@@ -402,8 +456,22 @@ namespace NXProject.Services
                                               "Backlog order could not be written: ") + ex.Message);
             }
 
-            progress?.Report(NxText.T("{0} item(ns) atualizado(s).", "{0} item(s) updated.",
-                                      relatorio.Updated));
+            // 5) A revisão que o cronograma guarda: lida AGORA, quando nada mais será gravado
+            //    nestes itens. É o updatedAt do servidor — não o relógio desta máquina, que
+            //    divergiria —, e inclui as nossas próprias gravações, inclusive o carimbo. Sem
+            //    isto, sincronizar duas vezes seguidas acusava conflito na segunda.
+            if (tocados.Count > 0)
+            {
+                Fase(NxText.T("Lendo a revisão dos itens gravados…", "Reading the revision of written items…"));
+                var depoisDeTudo = (await GitSyncLog.MedeAsync("releitura (revisao final)", "",
+                        () => new GitProjectClient(options).LoadAsync())).Items.ToDictionary(i => i.Number);
+                foreach (var (numero, tarefa) in tocados)
+                    if (depoisDeTudo.TryGetValue(numero, out var atualizado))
+                        tarefa.SyncVersion = Revision(atualizado.UpdatedAt);
+            }
+
+            Fase(NxText.T("{0} item(ns) atualizado(s).", "{0} item(s) updated.", relatorio.Updated));
+            GitSyncLog.Encerra();
             return relatorio;
         }
 
@@ -416,7 +484,7 @@ namespace NXProject.Services
         /// </summary>
         private static async Task SincronizaResponsavelAsync(Project project, GitProjectOptions options,
             GitProjectClient cliente, Dictionary<int, GitProjectItem> porNumero,
-            TfsImportService.SyncReport relatorio, IProgress<string>? progress)
+            TfsImportService.SyncReport relatorio, IProgress<TfsImportService.SyncProgress>? progress)
         {
             // Sem repositório não há lista de candidatas: o board sozinho não sabe quem pode ser
             // responsável por uma issue.
@@ -453,7 +521,8 @@ namespace NXProject.Services
 
                 try
                 {
-                    progress?.Report(NxText.T("Responsável de #{0}…", "Assignee of #{0}…", item.Number));
+                    progress?.Report(new(NxText.T("Responsável…", "Assignee…"), 0, 0,
+                                        NxText.T("#{0}", "#{0}", item.Number)));
                     await cliente.SetAssigneeAsync(item.IssueId, resolucao.Account.Id);
                     relatorio.LogSuccess(NxText.T("#{0}: responsável agora é {1}.",
                                                   "#{0}: assignee is now {1}.", item.Number, resolucao.Account.Login));
@@ -474,7 +543,7 @@ namespace NXProject.Services
         private static async Task CriaAsync(SyncPlan plano, Project project, GitProjectOptions options,
             GitProjectClient cliente, GitProjectClient.ProjectSnapshot snap,
             Dictionary<int, GitProjectItem> porNumero, TfsImportService.SyncReport relatorio,
-            IProgress<string>? progress)
+            IProgress<TfsImportService.SyncProgress>? progress)
         {
             var partes = options.Repository.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (partes.Length != 2)
@@ -494,9 +563,11 @@ namespace NXProject.Services
 
             // Pai antes de filho: a ordem da lista é a do cronograma, de cima para baixo, que já
             // é essa — mas depender disso por acaso seria frágil.
+            var criados = 0;
             foreach (var t in plano.Creates.OrderBy(t => Profundidade(t, paiDe)))
             {
-                progress?.Report(NxText.T("Criando '{0}'…", "Creating '{0}'…", t.Name));
+                progress?.Report(new(NxText.T("Criando os itens novos…", "Creating the new items…"),
+                                    ++criados, plano.Creates.Count, Rotulo(t, 0)));
                 try
                 {
                     var (numero, issueId) = await cliente.CreateIssueAsync(repoId, t.Name ?? "(sem nome)",
@@ -530,11 +601,39 @@ namespace NXProject.Services
         }
 
         /// <summary>
+        /// Como o item aparece no andamento: nivel + numero + nome ("Story #123 — Carga"). O
+        /// numero e o que permite achar o item no GitHub depois; o nivel diz em que altura da
+        /// hierarquia a sincronizacao esta.
+        /// </summary>
+        private static string Rotulo(ProjectTask t, int numero)
+        {
+            var nivel = NivelDoTipo(t?.TfsType);
+            if (string.IsNullOrWhiteSpace(nivel)) nivel = t?.TfsType ?? "";
+            var id = numero > 0 ? numero : (t?.TfsId is > 0 ? t!.TfsId!.Value : 0);
+            var cabeca = (nivel + (id > 0 ? $" #{id}" : "")).Trim();
+            return string.IsNullOrWhiteSpace(cabeca) ? (t?.Name ?? "") : $"{cabeca} — {t?.Name}";
+        }
+
+        /// <summary>
         /// Nome do nível como o campo single-select do board o escreve. Sai do mapa: se a opção do
         /// board foi criada como "Iniciativa", é "Iniciativa" que tem de ser gravado.
         /// </summary>
         private static string NivelDoTipo(string? tipo) =>
             NxLevelMap.Current.LevelOf(tipo) is { } n ? NxLevelMap.Current.Suggested(n) : "";
+
+        /// <summary>
+        /// O valor no tipo que o CAMPO aceita. Campo de número recebe número; campo de texto
+        /// recebe o número escrito. Sem isto, a gravação falha inteira — e falha item a item,
+        /// gastando uma ida à rede por item para não gravar nada.
+        /// </summary>
+        private static object ValorNoTipo(GitProjectField campo, double valor) =>
+            string.Equals(campo?.DataType, "NUMBER", StringComparison.OrdinalIgnoreCase)
+                ? valor
+                : valor.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>Quantas atividades o cronograma tem — so para o cabecalho do log.</summary>
+        private static int ContaTarefas(IEnumerable<ProjectTask>? tarefas) =>
+            tarefas == null ? 0 : tarefas.Sum(t => 1 + ContaTarefas(t.Children));
 
         /// <summary>Nomes aceitos no board para o conceito que o plano quer gravar.</summary>
         private static string[] NomesDoConceito(GitProjectOptions o, string chave) => chave switch

@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -16,9 +16,15 @@ namespace NXProject.Views
     {
         private readonly List<TfsImportService.SyncLogEntry> _allEntries;
 
-        public SyncResultWindow(TfsImportService.SyncReport report)
+        /// <param name="destino">
+        /// Destino que foi sincronizado. A tela e a mesma para todos — dizer "Azure DevOps"
+        /// depois de gravar no GitHub e a tela contradizendo o que acabou de acontecer.
+        /// </param>
+        public SyncResultWindow(TfsImportService.SyncReport report, string? destino = null)
         {
             InitializeComponent();
+            if (!string.IsNullOrWhiteSpace(destino))
+                HeaderText.Text = AppStrings.Get("SyncRes_HeaderOf", destino!);
 
             // Conta excluindo a linha [config] de diagnóstico
             var ops = report.Log.Where(e => !e.Message.StartsWith("[config]")).ToList();

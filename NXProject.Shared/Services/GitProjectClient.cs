@@ -283,7 +283,11 @@ mutation({assinatura}) {{
         {
             var campo = valor switch
             {
-                double d => (object)new { number = d },
+                // O GitHub recusa numero com mais de 8 casas decimais ("Number values cannot
+                // exceed 8 decimal places"), e um percentual calculado chega aqui como
+                // 66,666666666666671. Arredondar e do gravador: quem chama pensa no valor, nao
+                // no limite da API.
+                double d => (object)new { number = Math.Round(d, 4, MidpointRounding.AwayFromZero) },
                 DateTime dt => new { date = dt.ToString("yyyy-MM-dd") },
                 GitSingleSelect s => new { singleSelectOptionId = s.OptionId },
                 _ => new { text = valor?.ToString() ?? "" }
@@ -992,6 +996,15 @@ mutation($id: ID!, $body: String!) {
                     // EPIC_GROUP), mas texto também vale — por isso ele é lido nos dois ramos.
                     else if (Igual(nomeCampo, _options.EpicTypeFields)) item.EpicType = valor;
                     else if (Igual(nomeCampo, "Status")) item.Status = valor;
+                    // A versao pode estar num campo de TEXTO: o GitHub nao deixa trocar o tipo
+                    // de um campo depois de criado, e board com nx_sync_version em TEXT existe.
+                    // Sem ler aqui, o carimbo era gravado e nunca relido — e a sincronizacao
+                    // seguinte acusava "alterado por outro usuario" contra a propria gravacao
+                    // anterior, num board onde so uma pessoa mexeu.
+                    else if (Igual(nomeCampo, _options.SyncVersionFields)
+                             && double.TryParse(valor, System.Globalization.NumberStyles.Any,
+                                                System.Globalization.CultureInfo.InvariantCulture, out var ver))
+                        item.SyncVersion = ver;
                 }
             }
             return item;

@@ -1,4 +1,4 @@
-<Window x:Class="NXProject.Views.SyncProgressWindow"
+﻿<Window x:Class="NXProject.Views.SyncProgressWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource SyncProg_Title}"
@@ -14,5 +14,8 @@
         <ProgressBar x:Name="Bar" Height="18" Margin="0,10,0,0" Minimum="0" Maximum="100"/>
         <TextBlock x:Name="CountText" FontSize="11" Foreground="#666" Margin="0,4,0,0"
                    HorizontalAlignment="Right"/>
+        <!-- So aparece quando o destino sabe parar (ver PermiteInterromper). -->
+        <TextBlock x:Name="HintText" Visibility="Collapsed" FontSize="10.5"
+                   Foreground="#888" Margin="0,6,0,0" TextWrapping="Wrap"/>
     </StackPanel>
 </Window>

@@ -1,4 +1,4 @@
-<Window x:Class="NXProject.Views.SyncResultWindow"
+﻿<Window x:Class="NXProject.Views.SyncResultWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource SyncRes_Title}"
@@ -43,7 +43,7 @@
 
             <!-- Título -->
             <TextBlock Grid.Row="0"
-                       Text="{DynamicResource SyncRes_Header}"
+                       x:Name="HeaderText" Text="{DynamicResource SyncRes_Header}"
                        FontSize="15" FontWeight="SemiBold" Foreground="#2B579A"
                        Margin="0,0,0,14"/>
 

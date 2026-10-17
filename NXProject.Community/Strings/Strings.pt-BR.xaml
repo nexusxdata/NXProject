@@ -1185,6 +1185,7 @@
     <!-- Resultado da Sincronização -->
     <sys:String x:Key="SyncRes_Title">Resultado da Sincronização</sys:String>
     <sys:String x:Key="SyncRes_Header">Resultado — Sincronização Azure DevOps</sys:String>
+    <sys:String x:Key="SyncRes_HeaderOf">Resultado — Sincronização {0}</sys:String>
     <sys:String x:Key="SyncRes_Updated">Atualizados</sys:String>
     <sys:String x:Key="SyncRes_Created">Criados</sys:String>
     <sys:String x:Key="SyncRes_NoChange">Sem alteração</sys:String>
@@ -1960,6 +1961,9 @@ Os campos são criados no projeto, não nas issues, e podem ser removidos pela t
     <sys:String x:Key="Desc_DescriptionLabel">Descrição:</sys:String>
     <sys:String x:Key="Desc_Acceptance">Critérios de Aceitação:</sys:String>
     <sys:String x:Key="SyncProg_Title">Sincronizando com o TFS/DevOps</sys:String>
+    <sys:String x:Key="SyncProg_EscHint">Esc interrompe: o item que está sendo gravado termina, e o que já foi para o servidor fica.</sys:String>
+    <sys:String x:Key="SyncProg_Stopping">Interrompendo… terminando o item atual.</sys:String>
+    <sys:String x:Key="SyncProg_TitleOf">Sincronizando com o {0}</sys:String>
     <sys:String x:Key="People_Absences">Ausências...</sys:String>
     <sys:String x:Key="People_ColAbsences">Ausências</sys:String>
     <sys:String x:Key="Abs_Title">Ausências da pessoa</sys:String>

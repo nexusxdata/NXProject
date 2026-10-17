@@ -1772,6 +1772,7 @@
     <!-- Sync Result -->
     <sys:String x:Key="SyncRes_Title">Sync Result</sys:String>
     <sys:String x:Key="SyncRes_Header">Result — Azure DevOps Sync</sys:String>
+    <sys:String x:Key="SyncRes_HeaderOf">Result — {0} sync</sys:String>
     <sys:String x:Key="SyncRes_Updated">Updated</sys:String>
     <sys:String x:Key="SyncRes_Created">Created</sys:String>
     <sys:String x:Key="SyncRes_NoChange">No change</sys:String>
@@ -2496,6 +2497,9 @@ Fields are created on the project, not on the issues, and can be removed from Gi
     <sys:String x:Key="Desc_DescriptionLabel">Description:</sys:String>
     <sys:String x:Key="Desc_Acceptance">Acceptance Criteria:</sys:String>
     <sys:String x:Key="SyncProg_Title">Syncing with TFS/DevOps</sys:String>
+    <sys:String x:Key="SyncProg_EscHint">Esc stops it: the item being written finishes, and whatever already reached the server stays.</sys:String>
+    <sys:String x:Key="SyncProg_Stopping">Stopping… finishing the current item.</sys:String>
+    <sys:String x:Key="SyncProg_TitleOf">Syncing with {0}</sys:String>
     <sys:String x:Key="People_Absences">Absences...</sys:String>
     <sys:String x:Key="People_ColAbsences">Absences</sys:String>
     <sys:String x:Key="Abs_Title">Person absences</sys:String>

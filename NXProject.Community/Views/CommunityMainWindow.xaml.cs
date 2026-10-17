@@ -2240,7 +2240,7 @@ namespace NXProject.Views
             // fica sem saber em que etapa/item está. Abre sem bloquear (Show) para a
             // sincronização rodar e a janela ir se atualizando.
             Services.TfsImportService.SyncReport? report = null;
-            var progressWin = new SyncProgressWindow { Owner = this };
+            var progressWin = new SyncProgressWindow(AppStrings.Get("Sprint_TargetDevOps")) { Owner = this };
             var reporter = new Progress<Services.TfsImportService.SyncProgress>(progressWin.Report);
             progressWin.Show();
             IsEnabled = false;   // evita mexer no cronograma durante a sincronização
@@ -2268,7 +2268,7 @@ namespace NXProject.Views
             TaskGridCtrl.RefreshRows();
             try
             {
-                new SyncResultWindow(report) { Owner = this }.ShowDialog();
+                new SyncResultWindow(report, AppStrings.Get("Sprint_TargetDevOps")) { Owner = this }.ShowDialog();
             }
             catch (Exception ex)
             {
@@ -2625,14 +2625,19 @@ namespace NXProject.Views
                 return;
 
             Services.TfsImportService.SyncReport? report = null;
-            var progressWin = new SyncProgressWindow { Owner = this };
-            var reporter = new Progress<string>(m =>
-                progressWin.Report(new Services.TfsImportService.SyncProgress(m, 0, 0, "")));
+            var progressWin = new SyncProgressWindow(AppStrings.Get("Sprint_TargetGitProject")) { Owner = this };
+            var reporter = new Progress<Services.TfsImportService.SyncProgress>(progressWin.Report);
+            // Esc interrompe: a sincronizacao do GitProject e uma fila de chamadas ao GitHub, e
+            // a ordem do backlog sozinha custa ~2 s por item movido. Sem uma saida, a unica
+            // forma de parar era matar o aplicativo no meio de uma gravacao.
+            using var cancelamento = new System.Threading.CancellationTokenSource();
+            progressWin.PermiteInterromper(cancelamento);
             progressWin.Show();
             IsEnabled = false;
             try
             {
-                report = await Services.GitProjectSyncService.SyncAsync(vm.Project, git, reporter);
+                report = await Services.GitProjectSyncService.SyncAsync(
+                    vm.Project, git, reporter, cancelamento.Token);
             }
             catch (Exception ex)
             {
@@ -2649,7 +2654,7 @@ namespace NXProject.Views
             vm.RefreshTasks();
             GanttCtrl.ForceRender();
             TaskGridCtrl.RefreshRows();
-            new SyncResultWindow(report) { Owner = this }.ShowDialog();
+            new SyncResultWindow(report, AppStrings.Get("Sprint_TargetGitProject")) { Owner = this }.ShowDialog();
         }
 
         private void OnSyncTfsToolbarClick(object sender, RoutedEventArgs e) => OnSyncTfsClick(sender, e);

@@ -860,6 +860,27 @@ internal static class Program
     /// Para cada conceito do catalogo: o nome configurado, o reference name que o NX resolve na
     /// organizacao e os campos de la que se parecem com ele. O filtro opcional limita a lista.
     /// </summary>
+    private static async System.Threading.Tasks.Task<int> ProbeGitTempo()
+    {
+        var git = NXProject.Services.TfsConnectionStore.Load("NXProject.Community").GitProject;
+        if (git?.IsConfigured != true)
+        {
+            Console.WriteLine("[SKIP] Conexao do GitProject nao configurada nesta maquina.");
+            return 0;
+        }
+
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+        var snap = await new NXProject.Services.GitProjectClient(git).LoadAsync();
+        relogio.Stop();
+        Console.WriteLine($"Board '{snap.Title}': {snap.Items.Count} itens, {snap.Fields.Count} campos");
+        Console.WriteLine($"Leitura (LoadAsync): {relogio.ElapsedMilliseconds} ms");
+        foreach (var f in snap.Fields.OrderBy(f => f.Name))
+            Console.WriteLine($"  campo: {f.Name}  [{f.DataType}]");
+        Console.WriteLine($"  paginas de 100 itens: {(snap.Items.Count + 99) / 100}"
+            + $"  |  ~{(snap.Items.Count == 0 ? 0 : relogio.ElapsedMilliseconds / Math.Max(1, (snap.Items.Count + 99) / 100))} ms por pagina");
+        return 0;
+    }
+
     private static async System.Threading.Tasks.Task<int> ProbeCampos(string filtro)
     {
         var cfg = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
@@ -1181,6 +1202,11 @@ internal static class Program
         // o import/sync resolve com o nome configurado. Responde a duvida que a tela de
         // configuracao deixa em aberto quando marca um campo de vermelho — "o nome e esse
         // mesmo?" — sem depender de abrir o DevOps no navegador.
+        // Sonda do TEMPO do GitProject: quanto custa LER o board (a etapa que a tela mostra
+        // como "Lendo o board no GitHub..."), em quantas paginas e com quantos itens. Sem isso,
+        // "esta lento" vira palpite sobre rede, GraphQL ou a nossa montagem.
+        if (string.Equals(category, "gittempo", StringComparison.OrdinalIgnoreCase))
+            return ProbeGitTempo().GetAwaiter().GetResult();
         if (string.Equals(category, "campos", StringComparison.OrdinalIgnoreCase))
             return ProbeCampos(args.Length > 1 ? args[1] : "").GetAwaiter().GetResult();
         if (string.Equals(category, "xml-diagnose", StringComparison.OrdinalIgnoreCase))

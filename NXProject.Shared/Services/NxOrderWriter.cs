@@ -25,7 +25,8 @@ namespace NXProject.Services
         /// Põe o servidor na ordem do cronograma e devolve quantos itens mudaram de lugar.
         /// Zero significa que já estava certo — e não que nada foi tentado.
         /// </summary>
-        Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null);
+        Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null,
+                                    System.Threading.CancellationToken ct = default);
     }
 
     /// <summary>
@@ -61,7 +62,8 @@ namespace NXProject.Services
         private readonly TfsConnectionOptions _options;
         public DevOpsOrderWriter(TfsConnectionOptions options) => _options = options;
 
-        public async Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null)
+        public async Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null,
+                                                 System.Threading.CancellationToken ct = default)
         {
             var resultado = new OrderResult();
             var desejada = BacklogOrderService.DesiredOrder(project);
@@ -134,9 +136,19 @@ namespace NXProject.Services
     public sealed class GitProjectOrderWriter : INxOrderWriter
     {
         private readonly GitProjectOptions _git;
-        public GitProjectOrderWriter(GitProjectOptions git) => _git = git;
 
-        public async Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null)
+        /// <summary>
+        /// O board já lido por quem chamou. Nulo = lê aqui. Existe porque a sincronização lê o
+        /// board no começo e a ordem relia tudo de novo no fim: 1,8 s medidos para chegar aos
+        /// MESMOS ids de item, que não mudam durante a gravação.
+        /// </summary>
+        private readonly GitProjectClient.ProjectSnapshot? _board;
+
+        public GitProjectOrderWriter(GitProjectOptions git, GitProjectClient.ProjectSnapshot? board = null)
+        { _git = git; _board = board; }
+
+        public async Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null,
+                                                 System.Threading.CancellationToken ct = default)
         {
             var resultado = new OrderResult();
             if (_git?.IsConfigured != true)
@@ -147,13 +159,15 @@ namespace NXProject.Services
             }
 
             var cliente = new GitProjectClient(_git);
-            var snap = await cliente.LoadAsync();
+            var snap = _board
+                ?? await GitSyncLog.MedeAsync("ordem: leitura do board", "", cliente.LoadAsync);
             var porNumero = snap.Items.ToDictionary(i => i.Number);
             var itemIdPorNumero = porNumero.Values
                 .Where(i => !string.IsNullOrEmpty(i.ItemId))
                 .ToDictionary(i => i.Number, i => i.ItemId);
 
-            var fila = await cliente.ListItemIdsAsync(snap.ProjectId);
+            var fila = await GitSyncLog.MedeAsync("ordem: fila atual do board", "",
+                                                 () => cliente.ListItemIdsAsync(snap.ProjectId));
             var numeroPorItemId = itemIdPorNumero.ToDictionary(kv => kv.Value, kv => kv.Key);
             var ordemAtual = fila.Select(id => numeroPorItemId.TryGetValue(id, out var n) ? n : 0)
                                  .Where(n => n > 0).ToList();
@@ -164,13 +178,23 @@ namespace NXProject.Services
 
             foreach (var m in movimentos)
             {
+                // Cada movimento e uma ida ao GitHub (medida em ~2 s): e a parte mais cara da
+                // sincronizacao, e por isso a primeira onde parar precisa funcionar.
+                if (ct.IsCancellationRequested)
+                {
+                    resultado.Warnings.Add(NxText.T(
+                        "Ordem interrompida: {0} de {1} movimento(s) aplicados.",
+                        "Order stopped: {0} of {1} move(s) applied.", resultado.Moved, movimentos.Count));
+                    break;
+                }
                 if (!itemIdPorNumero.TryGetValue(m.Id, out var itemId)) continue;
                 string? depois = null;
                 if (m.AfterId > 0 && itemIdPorNumero.TryGetValue(m.AfterId, out var ancora)) depois = ancora;
                 try
                 {
                     progress?.Report(NxText.T("Ordenando #{0}…", "Ordering #{0}…", m.Id));
-                    await cliente.MoveItemAsync(snap.ProjectId, itemId, depois);
+                    await GitSyncLog.MedeAsync("ordem: mover item", $"#{m.Id}",
+                        () => cliente.MoveItemAsync(snap.ProjectId, itemId, depois));
                     resultado.Moved++;
                 }
                 catch (Exception ex)
@@ -188,7 +212,8 @@ namespace NXProject.Services
     /// </summary>
     public sealed class LocalOrderWriter : INxOrderWriter
     {
-        public Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null) =>
+        public Task<OrderResult> ApplyAsync(Project project, IProgress<string>? progress = null,
+                                            System.Threading.CancellationToken ct = default) =>
             Task.FromResult(new OrderResult());
     }
 }
