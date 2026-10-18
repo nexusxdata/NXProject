@@ -91,16 +91,29 @@ namespace NXProject.Services
             }
             catch { /* segue para o fallback do NX bin */ }
 
-            // Fallback: o binário instalado pelo próprio NX (ainda não visível no PATH do
-            // processo atual porque o NX foi aberto antes da atualização do PATH).
+            // Fallback: pastas onde o NX instala (ainda não visíveis no PATH do processo atual
+            // porque o NX foi aberto antes da atualização do PATH).
             try
             {
-                var nx = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "NXProject", "bin", cli.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? cli : cli + ".exe");
-                return System.IO.File.Exists(nx) ? nx : null;
+                var exe = cli.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? cli : cli + ".exe";
+                return AgentBinDirs().Select(d => System.IO.Path.Combine(d, exe)).FirstOrDefault(System.IO.File.Exists);
             }
             catch { return null; }
+        }
+
+        /// <summary>
+        /// Pastas por usuário onde os agentes ficam (sem admin): as dos instaladores oficiais —
+        /// usadas também pelo NX.AgentInstaller — e a antiga do NXProject (%LOCALAPPDATA%\NXProject\bin).
+        /// </summary>
+        public static string[] AgentBinDirs()
+        {
+            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return new[]
+            {
+                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin"), // Claude Code
+                System.IO.Path.Combine(local, "Programs", "OpenAI", "Codex", "bin"),                                      // Codex
+                System.IO.Path.Combine(local, "NXProject", "bin"),                                                        // instalações antigas do NX
+            };
         }
 
         /// <summary>
@@ -129,16 +142,16 @@ namespace NXProject.Services
                 StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
             };
 
-            // O NX instala o codex.exe/claude.exe em %LOCALAPPDATA%\NXProject\bin e adiciona ao
+            // O NX instala o codex.exe/claude.exe nas pastas do usuário (AgentBinDirs) e adiciona ao
             // PATH do USUÁRIO — mas o NX já aberto não vê esse PATH novo (só processos abertos
-            // depois). Injeta essa pasta no PATH do processo do CLI para funcionar SEM reiniciar.
-            var nxBin = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NXProject", "bin");
-            if (System.IO.Directory.Exists(nxBin))
+            // depois). Injeta essas pastas no PATH do processo do CLI para funcionar SEM reiniciar.
+            var binDirs = AgentBinDirs().Where(System.IO.Directory.Exists).ToList();
+            if (binDirs.Count > 0)
             {
                 var curPath = psi.Environment.TryGetValue("PATH", out var pv) && !string.IsNullOrEmpty(pv)
                     ? pv : Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-                psi.Environment["PATH"] = curPath.Length == 0 ? nxBin : nxBin + ";" + curPath;
+                var prefix = string.Join(";", binDirs);
+                psi.Environment["PATH"] = curPath.Length == 0 ? prefix : prefix + ";" + curPath;
             }
 
             using var process = new Process { StartInfo = psi };

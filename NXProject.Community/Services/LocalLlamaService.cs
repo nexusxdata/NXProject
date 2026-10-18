@@ -120,7 +120,7 @@ namespace NXProject.Community.Services
 
         private static async Task<string> InferAsync(string systemPrompt, string userPrompt, CancellationToken ct)
         {
-            // Formato ChatML (Qwen2.5 Instruct). Outros modelos GGUF instruct em ChatML
+            // Formato ChatML (Qwen3/Qwen2.5 Instruct). Outros modelos GGUF instruct em ChatML
             // também funcionam; o anti-prompt encerra a resposta.
             var prompt = new StringBuilder()
                 .Append("<|im_start|>system\n").Append(systemPrompt).Append("<|im_end|>\n")

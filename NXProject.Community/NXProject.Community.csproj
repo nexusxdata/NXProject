@@ -115,6 +115,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Biblioteca compartilhada com o NXPilot (cópia: sync-nx-agentinstaller.ps1): instala/localiza
+         Claude Code e Codex — automática na área do usuário (sem script) ou script oficial. -->
+    <ProjectReference Include="..\NX.AgentInstaller\NX.AgentInstaller.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Assets\logo-nexus-xdata.enc" />
     <EmbeddedResource Include="Assets\known-setup-timestamp.txt" Condition="Exists('Assets\known-setup-timestamp.txt')" />
   </ItemGroup>

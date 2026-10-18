@@ -43,4 +43,10 @@
     </Compile>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Biblioteca compartilhada com o NXPilot (cópia: sync-nx-agentinstaller.ps1): instala/localiza
+         Claude Code e Codex — automática na área do usuário (sem script) ou script oficial. -->
+    <ProjectReference Include="..\NX.AgentInstaller\NX.AgentInstaller.csproj" />
+  </ItemGroup>
+
 </Project>

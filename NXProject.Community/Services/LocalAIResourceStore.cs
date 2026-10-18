@@ -60,9 +60,12 @@ namespace NXProject.Community.Services
         private static string BackendVersionsIndexUrl(BackendKind kind)
             => $"https://api.nuget.org/v3-flatcontainer/{BackendPackageId(kind).ToLowerInvariant()}/index.json";
 
-        // Modelo padrão: Qwen2.5 3B Instruct quantizado (~2 GB), bom custo/benefício em CPU.
-        public const string ModelFileName = "Qwen2.5-3B-Instruct-Q4_K_M.gguf";
-        public const string ModelUrl = "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/" + ModelFileName;
+        // Modelo padrão: Qwen3 4B Instruct 2507 quantizado (~2,5 GB), licença Apache-2.0 (permite uso
+        // comercial). Substituiu o Qwen2.5-3B, cuja "Qwen Research License" é só para uso NÃO comercial —
+        // incompatível com a edição comercial e com empresas usando o Community no trabalho.
+        // Mesmo formato de prompt (ChatML); no benchmark de classificação acertou mais (25/26 × 23/26).
+        public const string ModelFileName = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
+        public const string ModelUrl = "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/" + ModelFileName;
 
         private static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
 
@@ -376,11 +379,11 @@ namespace NXProject.Community.Services
             File.WriteAllText(Path.Combine(folder, BackendKindFile), kind.ToString());
         }
 
-        /// <summary>Baixa o modelo GGUF (~2 GB) para a pasta, com progresso por MB.</summary>
+        /// <summary>Baixa o modelo GGUF (~2,5 GB) para a pasta, com progresso por MB.</summary>
         public static async Task DownloadModelAsync(string folder, IProgress<string> status, IProgress<double>? percent, CancellationToken ct)
         {
             Directory.CreateDirectory(folder);
-            status.Report($"Baixando modelo {ModelFileName} (~2 GB) do Hugging Face...");
+            status.Report($"Baixando modelo {ModelFileName} (~2,5 GB) do Hugging Face...");
             var target = Path.Combine(folder, ModelFileName);
             var tmp = target + ".tmp";
             await DownloadFileAsync(ModelUrl, tmp, percent, status, ct);

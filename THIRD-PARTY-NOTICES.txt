@@ -98,11 +98,13 @@ Componentes sob outras licencas / Components under other licenses
   quando consumido como dependencia transitiva de pacote de terceiros):
   https://github.com/SixLabors/Fonts/blob/main/LICENSE
 
-- Modelo de IA Local (ex.: Qwen2.5-3B-Instruct, arquivo GGUF)
+- Modelo de IA Local (padrao: Qwen3-4B-Instruct-2507, arquivo GGUF)
   NAO e distribuido com o NXProject: o usuario baixa opcionalmente pela
   janela "Gerenciar IA Local", diretamente da fonte (Hugging Face), e o uso
-  segue a licenca do proprio modelo (ex.: Qwen Research License):
-  https://huggingface.co/Qwen/Qwen2.5-3B-Instruct
+  segue a licenca do proprio modelo. O padrao e Apache-2.0 (permite uso comercial):
+  https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
+  Atencao: o modelo anterior (Qwen2.5-3B-Instruct) usa a Qwen Research License,
+  somente para uso NAO comercial; quem ainda o tiver na pasta deve trocar.
 
 ------------------------------------------------------------------------------
 Texto da licenca MIT / MIT License text

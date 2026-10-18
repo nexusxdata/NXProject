@@ -454,7 +454,7 @@ namespace NXProject.Views
             ManualLinksBox.Text =
                 $"1) Backend {LocalAIResourceStore.BackendDisplayName(kind)} (renomeie para .zip e extraia as DLLs de {subfolder} para a pasta):\n" +
                 $"{LocalAIResourceStore.BackendNupkgUrl(kind)}\n\n" +
-                $"2) Modelo (~2 GB — copie o arquivo para a pasta):\n" +
+                $"2) Modelo (~2,5 GB — copie o arquivo para a pasta):\n" +
                 $"{LocalAIResourceStore.ModelUrl}";
         }
 

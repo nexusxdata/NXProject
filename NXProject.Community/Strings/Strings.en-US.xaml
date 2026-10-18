@@ -2978,7 +2978,7 @@ Fields are created on the project, not on the issues, and can be removed from Gi
     <sys:String x:Key="Menu_Ai_Chat">AI Chat (schedule analysis)...</sys:String>
     <sys:String x:Key="Menu_Help_InstallLocalAi">Install Local AI (LLaMA)...</sys:String>
     <sys:String x:Key="LocalAI_Title">Local AI (LLaMA)</sys:String>
-    <sys:String x:Key="LocalAI_Subtitle">Runs the AI on your machine, no cloud: the resources (native library + GGUF model, ~2 GB) live in a folder you choose — nothing is installed on the system. If the corporate network blocks the download, use the manual installation below and then click Validate installation.</sys:String>
+    <sys:String x:Key="LocalAI_Subtitle">Runs the AI on your machine, no cloud: the resources (native library + GGUF model, ~2.5 GB) live in a folder you choose — nothing is installed on the system. If the corporate network blocks the download, use the manual installation below and then click Validate installation.</sys:String>
     <sys:String x:Key="LocalAI_Folder">Resources folder (can be a network folder shared by the team)</sys:String>
     <sys:String x:Key="LocalAI_StatusHead">Installation status</sys:String>
     <sys:String x:Key="LocalAI_ManualHead">Manual installation (when the download is blocked)</sys:String>

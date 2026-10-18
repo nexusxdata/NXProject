@@ -26,8 +26,27 @@ public partial class MainWindow : Window
         InitializeComponent();
         // Mostra os caminhos de instalação (app e CLIs) com atalho para conferir.
         AppPathRun.Text = App.Str("Setup_PathApp", _installDir) + "  ";
-        CliPathRun.Text = App.Str("Setup_PathCli", NXProject.Services.AiCliInstaller.BinDir) + "  ";
+        CliPathRun.Text = App.Str("Setup_PathCli", NXProject.Services.AiCliInstaller.InstallFolders) + "  ";
+        VersionLatestItem.Content = App.Str("Setup_Step3Latest");
+        VersionTestedItem.Content = App.Str("Setup_Step3Tested",
+            NXProject.Services.AiCliInstaller.TestedVersion(NX.AgentInstaller.AgentCli.Codex),
+            NXProject.Services.AiCliInstaller.TestedVersion(NX.AgentInstaller.AgentCli.ClaudeCode));
         Loaded += (_, _) => { RefreshStep1State(); RefreshStep2State(); RefreshInstallStatus(); };
+    }
+
+    private NX.AgentInstaller.InstallMode SelectedMode =>
+        ModeScript.IsChecked == true ? NX.AgentInstaller.InstallMode.Script : NX.AgentInstaller.InstallMode.Internal;
+    private NX.AgentInstaller.VersionChoice SelectedVersion =>
+        VersionBox.SelectedItem == VersionTestedItem ? NX.AgentInstaller.VersionChoice.Tested : NX.AgentInstaller.VersionChoice.Latest;
+
+    // "Copiar": comando oficial para instalar manualmente (na versão escolhida).
+    private void OnCopyAgentCommand(object sender, RoutedEventArgs e)
+    {
+        var cli = (sender as System.Windows.Controls.Button)?.Tag as string == "claude"
+            ? NX.AgentInstaller.AgentCli.ClaudeCode : NX.AgentInstaller.AgentCli.Codex;
+        var command = NXProject.Services.AiCliInstaller.ManualCommand(cli, SelectedVersion);
+        try { Clipboard.SetText(command); Step3StatusText.Text = command; }
+        catch { Step3StatusText.Text = command; /* área de transferência ocupada: mostra para copiar à mão */ }
     }
 
     // O NXProject não precisa ser reinstalado sempre: se o exe já está na pasta do usuário,
@@ -78,10 +97,12 @@ public partial class MainWindow : Window
 
     private void RefreshInstallStatus()
     {
-        var codexWin = NXProject.Services.AiCliInstaller.CodexPath != null;
-        var claudeWin = NXProject.Services.AiCliInstaller.ClaudePath != null;
-        SetCliStatus(CodexStatus, codexWin ? InstallWhere.Windows : InstallWhere.None);
-        SetCliStatus(ClaudeStatus, claudeWin ? InstallWhere.Windows : InstallWhere.None);
+        var codex = NXProject.Services.AiCliInstaller.Locate(NX.AgentInstaller.AgentCli.Codex);
+        var claude = NXProject.Services.AiCliInstaller.Locate(NX.AgentInstaller.AgentCli.ClaudeCode);
+        var codexWin = codex != null;
+        var claudeWin = claude != null;
+        SetCliStatus(CodexStatus, codexWin ? InstallWhere.Windows : InstallWhere.None, codex?.Version);
+        SetCliStatus(ClaudeStatus, claudeWin ? InstallWhere.Windows : InstallWhere.None, claude?.Version);
         SetStatus(LlamaStatus, IsLlamaInstalled());
 
         // Se não achou no Windows, testa o WSL (assíncrono; mostra "verificando" na hora).
@@ -95,11 +116,11 @@ public partial class MainWindow : Window
         tb.Foreground = System.Windows.Media.Brushes.Gray;
     }
 
-    private static void SetCliStatus(System.Windows.Controls.TextBlock tb, InstallWhere where)
+    private static void SetCliStatus(System.Windows.Controls.TextBlock tb, InstallWhere where, string? version = null)
     {
         tb.Text = where switch
         {
-            InstallWhere.Windows => App.Str("Setup_InstalledWin"),
+            InstallWhere.Windows => App.Str("Setup_InstalledWin") + (version != null ? $" {version}" : ""),
             InstallWhere.Wsl => App.Str("Setup_InstalledWsl"),
             _ => App.Str("Setup_NotInstalled"),
         };
@@ -141,7 +162,7 @@ public partial class MainWindow : Window
 
     // IA Local instalada? Checagem leve (sem LLamaSharp): lê a pasta de recursos no local-ai.json
     // e verifica se o modelo GGUF está lá.
-    private const string LlamaModelFileName = "Qwen2.5-3B-Instruct-Q4_K_M.gguf";
+    private const string LlamaModelFileName = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
     private static bool IsLlamaInstalled()
     {
         try
@@ -173,8 +194,11 @@ public partial class MainWindow : Window
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
     private void OnOpenAppFolder(object sender, System.Windows.RoutedEventArgs e) => OpenFolder(_installDir);
+    // Abre a pasta do agente encontrado (instalador oficial, NXProject ou extensão do VS Code).
     private void OnOpenCliFolder(object sender, System.Windows.RoutedEventArgs e)
-        => OpenFolder(NXProject.Services.AiCliInstaller.BinDir);
+        => OpenFolder(Path.GetDirectoryName(NXProject.Services.AiCliInstaller.CodexPath
+                                            ?? NXProject.Services.AiCliInstaller.ClaudePath
+                                            ?? Path.Combine(NXProject.Services.AiCliInstaller.BinDir, "x"))!);
 
     private void OnHyperlinkRequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
     {
@@ -271,7 +295,8 @@ public partial class MainWindow : Window
         await RunInstallAsync();
     }
 
-    // Passo 3: instala Codex/Claude Code (Windows) baixando o binário nativo MAIS NOVO.
+    // Passo 3: instala Codex/Claude Code (Windows) pelo NX.AgentInstaller (o mesmo do NXPilot):
+    // automática na área do usuário (sem script/admin) ou script oficial; última ou testada.
     private async void OnStep3Click(object sender, RoutedEventArgs e)
     {
         if (CodexCheck.IsChecked != true && ClaudeCheck.IsChecked != true && LlamaCheck.IsChecked != true)
@@ -286,16 +311,15 @@ public partial class MainWindow : Window
         var status = new Progress<string>(s => Step3StatusText.Text = s);
         try
         {
+            var done = new List<string>();
             if (CodexCheck.IsChecked == true)
-                await NXProject.Services.AiCliInstaller.InstallCodexAsync(status);
+                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NX.AgentInstaller.AgentCli.Codex, SelectedMode, SelectedVersion, status)).Message);
             if (ClaudeCheck.IsChecked == true)
-                await NXProject.Services.AiCliInstaller.InstallClaudeCodeAsync(status);
+                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NX.AgentInstaller.AgentCli.ClaudeCode, SelectedMode, SelectedVersion, status)).Message);
 
-            // LLaMA (~2 GB) não é baixado aqui: o download roda dentro do NXProject (na tela
+            // LLaMA (~2,5 GB) não é baixado aqui: o download roda dentro do NXProject (na tela
             // Gerenciar IA Local, que define a pasta). Aciona ao abrir o app (Passo 2).
-            var msg = (CodexCheck.IsChecked == true || ClaudeCheck.IsChecked == true)
-                ? App.Str("Setup_Step3Done", NXProject.Services.AiCliInstaller.BinDir)
-                : string.Empty;
+            var msg = done.Count > 0 ? App.Str("Setup_Step3Done", string.Join(" ", done)) : string.Empty;
             if (LlamaCheck.IsChecked == true)
                 msg = (msg.Length > 0 ? msg + "\n" : "") + App.Str("Setup_Step3LlamaQueued");
             Step3StatusText.Text = msg;

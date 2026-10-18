@@ -85,14 +85,45 @@
                     <TextBlock Text="{DynamicResource Setup_Step3Title}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4"/>
                     <TextBlock Text="{DynamicResource Setup_Step3Desc}" FontSize="11" Foreground="#777"
                                TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <CheckBox x:Name="CodexCheck" Content="{DynamicResource Setup_Step3Codex}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="CodexStatus" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <CheckBox x:Name="ClaudeCheck" Content="{DynamicResource Setup_Step3Claude}" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="ClaudeStatus" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
-                    </StackPanel>
+                    <!-- Como instalar (NX.AgentInstaller, o mesmo do NXPilot). -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{DynamicResource Setup_Step3Mode}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <RadioButton x:Name="ModeInternal" Content="{DynamicResource Setup_Step3ModeAuto}" IsChecked="True" Margin="0,0,14,0"
+                                         ToolTip="{DynamicResource Setup_Step3ModeAutoTip}"/>
+                            <RadioButton x:Name="ModeScript" Content="{DynamicResource Setup_Step3ModeScript}"
+                                         ToolTip="{DynamicResource Setup_Step3ModeScriptTip}"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Text="{DynamicResource Setup_Step3Version}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,6,10,0"/>
+                        <ComboBox x:Name="VersionBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Padding="6,2" SelectedIndex="0">
+                            <ComboBoxItem x:Name="VersionLatestItem" Tag="Latest"/>
+                            <ComboBoxItem x:Name="VersionTestedItem" Tag="Tested"/>
+                        </ComboBox>
+                    </Grid>
+                    <DockPanel Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Step3Copy}" Padding="8,1" FontSize="11" Tag="codex"
+                                ToolTip="{DynamicResource Setup_Step3CopyTip}" Click="OnCopyAgentCommand"/>
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox x:Name="CodexCheck" Content="{DynamicResource Setup_Step3Codex}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="CodexStatus" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right" Content="{DynamicResource Setup_Step3Copy}" Padding="8,1" FontSize="11" Tag="claude"
+                                ToolTip="{DynamicResource Setup_Step3CopyTip}" Click="OnCopyAgentCommand"/>
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox x:Name="ClaudeCheck" Content="{DynamicResource Setup_Step3Claude}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ClaudeStatus" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+                    </DockPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                         <CheckBox x:Name="LlamaCheck" Content="{DynamicResource Setup_Step3Llama}" VerticalAlignment="Center"/>
                         <TextBlock x:Name="LlamaStatus" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
@@ -101,13 +132,26 @@
                     <TextBlock Text="{DynamicResource Setup_Step3ClaudeNote}" FontSize="10.5" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,2"/>
                     <TextBlock Text="{DynamicResource Setup_Step3LlamaNote}" FontSize="10.5" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,8"/>
                     <Button x:Name="Step3Button" Content="{DynamicResource Setup_Step3Button}" Width="220" Height="30"
-                            HorizontalAlignment="Left" Click="OnStep3Click"/>
+                            HorizontalAlignment="Left" Click="OnStep3Click" ToolTip="{DynamicResource Setup_Step3ButtonTip}"/>
                     <ProgressBar x:Name="Step3Progress" Height="18" Minimum="0" Maximum="100" Value="0"
                                  Margin="0,10,0,0" Visibility="Collapsed"/>
                     <TextBlock x:Name="Step3StatusText" FontSize="11" Foreground="#555" TextWrapping="Wrap" Margin="0,8,0,0"/>
                     <TextBlock FontSize="10.5" Foreground="#999" TextWrapping="Wrap" Margin="0,6,0,0">
                         <Run x:Name="CliPathRun"/>
                         <Hyperlink Click="OnOpenCliFolder"><Run Text="{DynamicResource Setup_OpenFolder}"/></Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Quem quer mais IA: o NXPilot orquestra Claude Code e Codex com controle (mesma Nexus XData). -->
+            <Border Background="#EEF4FB" BorderBrush="#C9DCF0" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Setup_NXPilotTitle}" FontWeight="SemiBold" FontSize="13" Foreground="#24527A" Margin="0,0,0,4"/>
+                    <TextBlock Text="{DynamicResource Setup_NXPilotDesc}" FontSize="11" Foreground="#24527A" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock FontSize="11">
+                        <Hyperlink NavigateUri="https://github.com/nexusxdata/NXPilot/releases/latest" RequestNavigate="OnHyperlinkRequestNavigate">
+                            <Run Text="{DynamicResource Setup_NXPilotLink}"/>
+                        </Hyperlink>
                     </TextBlock>
                 </StackPanel>
             </Border>
