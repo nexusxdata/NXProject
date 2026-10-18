@@ -89,9 +89,12 @@ function Test-IsReleasePackageFile([string]$FileName) {
     $ext = [System.IO.Path]::GetExtension($FileName).ToLowerInvariant()
     if ($ext -in @(".json", ".ps1", ".txt", ".bat")) { return $true }
 
+    # NX.AgentInstaller.dll (biblioteca nossa, compartilhada com o NXPilot) vai tambem no
+    # pacote do app: quem atualiza so o app sobre uma base antiga nao fica sem ela.
     return ($FileName -eq "NXProject.Community.exe") -or
            ($FileName -eq "NXProject.Community.dll") -or
-           ($FileName -eq "NXProject.Shared.dll")
+           ($FileName -eq "NXProject.Shared.dll") -or
+           ($FileName -eq "NX.AgentInstaller.dll")
 }
 
 function Remove-SetupOwnedFilesFromRelease([string]$PackageDir) {
