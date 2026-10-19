@@ -42,6 +42,7 @@ internal static class Program
         ("Recursos: Strings.*.xaml nao tem x:Key duplicada (evita crash no load)", StringsHaveNoDuplicateResourceKeys),
         ("Board local: cronograma vira board com Story, Task e niveis", LocalBoardProjectsScheduleIntoBoard),
         ("Board local: sprint e identificada pelo IterationPath, nao pelo nome", LocalBoardSprintUsesIterationPath),
+        ("Config: raiz do GitHub (issue) nao sobrescreve a raiz do DevOps (work item Project)", GitRootDoesNotOverwriteDevOpsRoot),
         ("GitProject: projeto vira board com hierarquia, sprint e HH", GitProjectBoardProjectsIntoBoard),
         ("GitProject: nivel sai do tipo, do campo ou da posicao na arvore", GitProjectLevelFallsBackToTreePosition),
         ("GitProject: sprint vem da iteracao com fim inclusivo", GitProjectIterationEndIsInclusive),
@@ -6390,6 +6391,28 @@ internal static class Program
         {
             try { if (File.Exists(file)) File.Delete(file); } catch { }
             try { var d = Path.GetDirectoryName(file); if (d != null && Directory.Exists(d) && !Directory.EnumerateFileSystemEntries(d).Any()) Directory.Delete(d); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// Importar do GitHub gravava a issue raiz (#45) no RootWorkItemId — a raiz do Azure DevOps —
+    /// e o Sincronizar/NXPilot passavam a apontar para um work item inexistente. Cada origem tem a sua.
+    /// </summary>
+    private static void GitRootDoesNotOverwriteDevOpsRoot()
+    {
+        var key = "NXProject.Test-" + Guid.NewGuid().ToString("N")[..8];
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), key);
+        try
+        {
+            var options = new NXProject.Services.TfsConnectionOptions { RootWorkItemId = 1006210, GitLastRootIssue = 45 };
+            NXProject.Services.TfsConnectionStore.Save(options, rememberToken: false, key);
+            var loaded = NXProject.Services.TfsConnectionStore.Load(key);
+            AssertEqual(1006210, loaded.RootWorkItemId, "A raiz do DevOps continua a do work item Project.");
+            AssertEqual(45, loaded.GitLastRootIssue, "A issue raiz do GitHub fica no campo dela.");
+        }
+        finally
+        {
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); } catch { }
         }
     }
 

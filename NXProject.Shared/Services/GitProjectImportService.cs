@@ -48,11 +48,24 @@ namespace NXProject.Services
             progress?.Report(NxText.T("Lendo o board no GitHub…", "Reading the board on GitHub…"));
             var snap = await new GitProjectClient(options).LoadAsync();
             var report = new TfsImportService.ImportReport();
-            var projeto = new Project { Name = snap.Title };
-
             var porNumero = snap.Items.ToDictionary(i => i.Number);
+
+            // A RAIZ É O PROJETO, não uma atividade — a mesma regra do Azure DevOps, onde o work
+            // item Project dá o nome ao cronograma e só os filhos dele viram linhas. Aqui ela
+            // entrava como atividade e os filhos ficavam pendurados nela: uma linha a mais, que
+            // é um resumo do resumo e não corresponde a trabalho nenhum.
+            //
+            // Sem raiz (board inteiro) nada muda: aí não há item que represente "o projeto", e
+            // todos ficam no topo.
+            var itemRaiz = rootIssue > 0 && porNumero.TryGetValue(rootIssue, out var r) ? r : null;
+            var projeto = new Project
+            {
+                Name = itemRaiz != null && !string.IsNullOrWhiteSpace(itemRaiz.Title)
+                    ? itemRaiz.Title : snap.Title
+            };
+
             var itens = rootIssue > 0
-                ? snap.Items.Where(i => i.Number == rootIssue || DescendeDe(i, rootIssue, porNumero)).ToList()
+                ? snap.Items.Where(i => i.Number != rootIssue && DescendeDe(i, rootIssue, porNumero)).ToList()
                 : snap.Items.ToList();
             if (itens.Count == 0)
             {
@@ -145,6 +158,8 @@ namespace NXProject.Services
         private static int PaiVisivel(GitProjectItem item, IReadOnlyDictionary<int, GitProjectItem> porNumero,
                                       List<GitProjectItem> recorte, int rootIssue)
         {
+            // A raiz nao esta mais no recorte (ela virou o projeto); o filho dela sobe para o
+            // topo porque o pai nao esta la — o mesmo caminho de quem tem pai fora do recorte.
             if (item.Number == rootIssue) return 0;
             if (item.ParentNumber <= 0) return 0;
             if (!porNumero.ContainsKey(item.ParentNumber)) return 0;

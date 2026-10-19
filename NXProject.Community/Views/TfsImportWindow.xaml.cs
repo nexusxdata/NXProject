@@ -42,10 +42,13 @@ namespace NXProject.Views
             SourceCombo.SelectedIndex = _savedOptions.LastImportSource == NxBackendKind.GitProject ? 1 : 0;
             _restaurandoOrigem = false;
 
+            // A raiz que reabre é a da origem escolhida (DevOps: work item Project; GitHub: issue raiz).
+            var lastRoot = _savedOptions.LastImportSource == NxBackendKind.GitProject
+                ? _savedOptions.GitLastRootIssue : _savedOptions.RootWorkItemId;
             if (!string.IsNullOrWhiteSpace(_savedOptions.DevOpsProjectListPath))
-                LoadProjectList(_savedOptions.DevOpsProjectListPath, _savedOptions.RootWorkItemId);
-            else if (_savedOptions.RootWorkItemId > 0)
-                RootIdBox.Text = _savedOptions.RootWorkItemId.ToString(CultureInfo.InvariantCulture);
+                LoadProjectList(_savedOptions.DevOpsProjectListPath, lastRoot);
+            else if (lastRoot > 0)
+                RootIdBox.Text = lastRoot.ToString(CultureInfo.InvariantCulture);
         }
 
         // Autorização de sincronização: agora vem do grupo administrador do NX (campo Adm_NX do
@@ -359,7 +362,10 @@ namespace NXProject.Views
             }
 
             var options = _savedOptions;
-            options.RootWorkItemId = rootId;
+            // Cada origem guarda a SUA última raiz: a issue do GitHub no RootWorkItemId virava a
+            // raiz do Azure DevOps (work item inexistente) para o Sincronizar, o Portfólio e o NXPilot.
+            if (DoGitProject) options.GitLastRootIssue = rootId;
+            else options.RootWorkItemId = rootId;
             options.DevOpsProjectListPath = _devOpsProjectListPath;
             var selectedPortfolioProject = DevOpsProjectCombo.SelectedItem as DevOpsProject;
             // Marcação válida só para ESTA importação: quem manda no padrão é o cadastro do

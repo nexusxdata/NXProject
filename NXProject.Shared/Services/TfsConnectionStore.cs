@@ -89,6 +89,13 @@ namespace NXProject.Services
         /// <summary>ID do work item raiz (tipo Project) a ser importado.</summary>
         public int RootWorkItemId { get; set; }
 
+        /// <summary>
+        /// Última issue raiz importada do GitHub Projects (0 = o board inteiro). Fica SEPARADA do
+        /// <see cref="RootWorkItemId"/>: importar do GitHub gravava o número da issue (#45) como raiz
+        /// do Azure DevOps, e o DevOps (e o NXPilot) passavam a apontar para um work item que não existe.
+        /// </summary>
+        public int GitLastRootIssue { get; set; }
+
         /// <summary>Horas que equivalem a 1 dia util ao converter esforco.</summary>
         public double HoursPerDay { get; set; } = 8.0;
 
@@ -399,6 +406,7 @@ namespace NXProject.Services
             public string OrganizationUrl { get; set; } = "";
             public string TeamProject { get; set; } = "";
             public int RootWorkItemId { get; set; }
+            public int GitLastRootIssue { get; set; }
             public double HoursPerDay { get; set; } = 8.0;
             public string EffortFieldName { get; set; } = "HH Estimado";
             public string OriginalHoursFieldName { get; set; } = "HH_Original_float";
@@ -502,6 +510,7 @@ namespace NXProject.Services
                     ? options.TeamProject
                     : stored.TeamProject.Trim();
                 options.RootWorkItemId = stored.RootWorkItemId;
+                options.GitLastRootIssue = stored.GitLastRootIssue;
                 options.HoursPerDay = stored.HoursPerDay <= 0 ? 8.0 : stored.HoursPerDay;
                 options.EffortFieldName = string.IsNullOrWhiteSpace(stored.EffortFieldName)
                     ? options.EffortFieldName : stored.EffortFieldName.Trim();
@@ -623,6 +632,7 @@ namespace NXProject.Services
                 OrganizationUrl = options.OrganizationUrl?.Trim() ?? string.Empty,
                 TeamProject = options.TeamProject?.Trim() ?? string.Empty,
                 RootWorkItemId = options.RootWorkItemId,
+                GitLastRootIssue = options.GitLastRootIssue,
                 HoursPerDay = options.HoursPerDay <= 0 ? 8.0 : options.HoursPerDay,
                 EffortFieldName = string.IsNullOrWhiteSpace(options.EffortFieldName) ? "HH Estimado" : options.EffortFieldName.Trim(),
                 StartFieldName = string.IsNullOrWhiteSpace(options.StartFieldName) ? "Data_Inicio" : options.StartFieldName.Trim(),
