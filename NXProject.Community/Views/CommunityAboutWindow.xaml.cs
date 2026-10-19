@@ -15,6 +15,7 @@ namespace NXProject.Views
     {
         private const string ContactEmail = "comercial.nexus.xdata@gmail.com";
         private const string NxStoreUrl = "https://github.com/nexusxdata/NXProject";
+        public const string NXPilotUrl = "https://github.com/nexusxdata/NXPilot";
 
         public CommunityAboutWindow()
         {
@@ -48,16 +49,20 @@ namespace NXProject.Views
             }
         }
 
-        private void OnNxStoreClick(object sender, RoutedEventArgs e)
+        private void OnNxStoreClick(object sender, RoutedEventArgs e) => OpenUrl(NxStoreUrl);
+
+        private void OnNXPilotClick(object sender, RoutedEventArgs e) => OpenUrl(NXPilotUrl);
+
+        private static void OpenUrl(string url)
         {
             try
             {
-                Process.Start(new ProcessStartInfo(NxStoreUrl) { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    AppStrings.Get("About_NxStoreError", NxStoreUrl, ex.Message),
+                    AppStrings.Get("About_NxStoreError", url, ex.Message),
                     AppStrings.Get("About_NxStoreTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

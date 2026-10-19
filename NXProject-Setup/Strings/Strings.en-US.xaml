@@ -156,6 +156,6 @@
     <sys:String x:Key="Setup_Step3CopyTip">Copies the official command to install manually (paste it into PowerShell).</sys:String>
     <sys:String x:Key="Setup_Step3ButtonTip">Installs the checked items the way chosen above. Automatic: your user area, no administrator.</sys:String>
     <sys:String x:Key="Setup_NXPilotTitle">Want to go further with AI? Meet NXPilot</sys:String>
-    <sys:String x:Key="Setup_NXPilotDesc">From Nexus XData too: it orchestrates Claude Code and Codex on coding tasks, with a plan, cross-review and you approving every sensitive action. It also connects Databricks, GitHub/Azure DevOps and e-mail.</sys:String>
-    <sys:String x:Key="Setup_NXPilotLink">Download NXPilot (free) →</sys:String>
+    <sys:String x:Key="Setup_NXPilotDesc">From Nexus XData too: it orchestrates Claude Code and Codex on coding tasks, with a plan, cross-review and you approving every sensitive action. It also connects Databricks, GitHub/Azure DevOps and e-mail. It uses Claude Code and Codex with your own subscription. Selling NXPilot or offering it as a paid service requires a commercial license.</sys:String>
+    <sys:String x:Key="Setup_NXPilotLink">Download NXPilot (free to use, including at companies) →</sys:String>
 </ResourceDictionary>

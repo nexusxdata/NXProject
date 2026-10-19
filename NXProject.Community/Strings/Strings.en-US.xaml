@@ -2691,6 +2691,9 @@ Fields are created on the project, not on the issues, and can be removed from Gi
     <sys:String x:Key="About_LicenseText">Community edition free for individuals and companies. Commercial/Enterprise edition with support is sold separately. Paid features are not part of this edition.</sys:String>
     <sys:String x:Key="About_NewVersionsHeader">New versions (NXStore)</sys:String>
     <sys:String x:Key="About_NewVersionsText">Download updates and the latest Community package at:</sys:String>
+    <sys:String x:Key="About_NXPilotHeader">Also from Nexus XData: NXPilot</sys:String>
+    <sys:String x:Key="About_NXPilotText">Orchestrates AI coding agents (Claude Code, Codex) with a plan, cross-review and you approving every sensitive action. Free to use, including at companies; selling it or offering it as a paid service requires a commercial license.</sys:String>
+    <sys:String x:Key="About_NXPilotLink">Meet NXPilot →</sys:String>
     <sys:String x:Key="About_ContactHeader">Contact</sys:String>
     <sys:String x:Key="About_ContactEmail">E-mail: comercial.nexus.xdata@gmail.com</sys:String>
     <sys:String x:Key="About_Close">Close</sys:String>
@@ -2978,6 +2981,8 @@ Fields are created on the project, not on the issues, and can be removed from Gi
     <sys:String x:Key="Menu_Ai_Chat">AI Chat (schedule analysis)...</sys:String>
     <sys:String x:Key="Menu_Help_InstallLocalAi">Install Local AI (LLaMA)...</sys:String>
     <sys:String x:Key="LocalAI_Title">Local AI (LLaMA)</sys:String>
+    <sys:String x:Key="LocalAI_NXPilotText">To orchestrate AI coding agents with you in control, meet NXPilot (free to use).</sys:String>
+    <sys:String x:Key="LocalAI_NXPilotLink">Learn more →</sys:String>
     <sys:String x:Key="LocalAI_Subtitle">Runs the AI on your machine, no cloud: the resources (native library + GGUF model, ~2.5 GB) live in a folder you choose — nothing is installed on the system. If the corporate network blocks the download, use the manual installation below and then click Validate installation.</sys:String>
     <sys:String x:Key="LocalAI_Folder">Resources folder (can be a network folder shared by the team)</sys:String>
     <sys:String x:Key="LocalAI_StatusHead">Installation status</sys:String>

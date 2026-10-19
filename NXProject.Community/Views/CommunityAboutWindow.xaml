@@ -95,6 +95,16 @@
                             <Hyperlink Click="OnNxStoreClick">https://github.com/nexusxdata/NXProject</Hyperlink>
                         </TextBlock>
 
+                        <!-- Outro produto da mesma empresa: informação no Sobre, nunca no fluxo de atualização. -->
+                        <TextBlock Text="{DynamicResource About_NXPilotHeader}"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{DynamicResource About_NXPilotText}"
+                                   Margin="0,2,0,4"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Margin="0,0,0,10">
+                            <Hyperlink Click="OnNXPilotClick"><Run Text="{DynamicResource About_NXPilotLink}"/></Hyperlink>
+                        </TextBlock>
+
                         <TextBlock Text="{DynamicResource About_ContactHeader}"
                                    FontWeight="SemiBold"/>
                         <TextBlock Text="{DynamicResource About_ContactEmail}"

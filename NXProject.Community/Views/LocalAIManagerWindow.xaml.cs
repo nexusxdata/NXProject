@@ -315,6 +315,12 @@ namespace NXProject.Views
         private static void OpenExternal(string url)
             => Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
 
+        private void OnNXPilotClick(object sender, RoutedEventArgs e)
+        {
+            try { OpenExternal(CommunityAboutWindow.NXPilotUrl); }
+            catch { /* sem navegador padrão: o link é só um convite */ }
+        }
+
         // ── Processamento (CPU/GPU) ──────────────────────────────────────────
         private bool _updatingKindRadios;
 
