@@ -115,9 +115,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Biblioteca compartilhada com o NXPilot (cópia: sync-nx-agentinstaller.ps1): instala/localiza
-         Claude Code e Codex — automática na área do usuário (sem script) ou script oficial. -->
-    <ProjectReference Include="..\NX.AgentInstaller\NX.AgentInstaller.csproj" />
+    <!-- Biblioteca do NXPilot pelo submódulo external/NXPilot (clonar com os submódulos):
+         instala/localiza Claude Code e Codex — automática na área do usuário (sem script) ou script oficial. -->
+    <ProjectReference Include="..\external\NXPilot\NXData.AgentInstaller\NXData.AgentInstaller.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,7 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NXTestUnit", "NXTestUnit\NX
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NXProject-Setup", "NXProject-Setup\NXProject-Setup.csproj", "{2E7B1C1A-9C4E-4B7A-8B3A-5F1D9E2C6A11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NX.AgentInstaller", "NX.AgentInstaller\NX.AgentInstaller.csproj", "{38128F85-1EE8-40D2-88B0-E24E67885271}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "external", "external", "{A288BEE0-695A-BEEA-455C-649571D89326}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NXPilot", "NXPilot", "{DB067654-5746-C3D0-031C-7099AC6A809E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NXData.AgentInstaller", "external\NXPilot\NXData.AgentInstaller\NXData.AgentInstaller.csproj", "{AC15A8FB-8E4D-40EE-A289-0A9634429204}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -71,20 +75,24 @@ Global
 		{2E7B1C1A-9C4E-4B7A-8B3A-5F1D9E2C6A11}.Release|x64.Build.0 = Release|Any CPU
 		{2E7B1C1A-9C4E-4B7A-8B3A-5F1D9E2C6A11}.Release|x86.ActiveCfg = Release|Any CPU
 		{2E7B1C1A-9C4E-4B7A-8B3A-5F1D9E2C6A11}.Release|x86.Build.0 = Release|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Debug|x64.Build.0 = Debug|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Debug|x86.Build.0 = Debug|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Release|Any CPU.Build.0 = Release|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Release|x64.ActiveCfg = Release|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Release|x64.Build.0 = Release|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Release|x86.ActiveCfg = Release|Any CPU
-		{38128F85-1EE8-40D2-88B0-E24E67885271}.Release|x86.Build.0 = Release|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Debug|x64.Build.0 = Debug|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Debug|x86.Build.0 = Debug|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Release|x64.ActiveCfg = Release|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Release|x64.Build.0 = Release|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Release|x86.ActiveCfg = Release|Any CPU
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DB067654-5746-C3D0-031C-7099AC6A809E} = {A288BEE0-695A-BEEA-455C-649571D89326}
+		{AC15A8FB-8E4D-40EE-A289-0A9634429204} = {DB067654-5746-C3D0-031C-7099AC6A809E}
 	EndGlobalSection
 EndGlobal

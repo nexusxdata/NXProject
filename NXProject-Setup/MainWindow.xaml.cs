@@ -29,21 +29,21 @@ public partial class MainWindow : Window
         CliPathRun.Text = App.Str("Setup_PathCli", NXProject.Services.AiCliInstaller.InstallFolders) + "  ";
         VersionLatestItem.Content = App.Str("Setup_Step3Latest");
         VersionTestedItem.Content = App.Str("Setup_Step3Tested",
-            NXProject.Services.AiCliInstaller.TestedVersion(NX.AgentInstaller.AgentCli.Codex),
-            NXProject.Services.AiCliInstaller.TestedVersion(NX.AgentInstaller.AgentCli.ClaudeCode));
+            NXProject.Services.AiCliInstaller.TestedVersion(NXData.AgentInstaller.AgentCli.Codex),
+            NXProject.Services.AiCliInstaller.TestedVersion(NXData.AgentInstaller.AgentCli.ClaudeCode));
         Loaded += (_, _) => { RefreshStep1State(); RefreshStep2State(); RefreshInstallStatus(); };
     }
 
-    private NX.AgentInstaller.InstallMode SelectedMode =>
-        ModeScript.IsChecked == true ? NX.AgentInstaller.InstallMode.Script : NX.AgentInstaller.InstallMode.Internal;
-    private NX.AgentInstaller.VersionChoice SelectedVersion =>
-        VersionBox.SelectedItem == VersionTestedItem ? NX.AgentInstaller.VersionChoice.Tested : NX.AgentInstaller.VersionChoice.Latest;
+    private NXData.AgentInstaller.InstallMode SelectedMode =>
+        ModeScript.IsChecked == true ? NXData.AgentInstaller.InstallMode.Script : NXData.AgentInstaller.InstallMode.Internal;
+    private NXData.AgentInstaller.VersionChoice SelectedVersion =>
+        VersionBox.SelectedItem == VersionTestedItem ? NXData.AgentInstaller.VersionChoice.Tested : NXData.AgentInstaller.VersionChoice.Latest;
 
     // "Copiar": comando oficial para instalar manualmente (na versão escolhida).
     private void OnCopyAgentCommand(object sender, RoutedEventArgs e)
     {
         var cli = (sender as System.Windows.Controls.Button)?.Tag as string == "claude"
-            ? NX.AgentInstaller.AgentCli.ClaudeCode : NX.AgentInstaller.AgentCli.Codex;
+            ? NXData.AgentInstaller.AgentCli.ClaudeCode : NXData.AgentInstaller.AgentCli.Codex;
         var command = NXProject.Services.AiCliInstaller.ManualCommand(cli, SelectedVersion);
         try { Clipboard.SetText(command); Step3StatusText.Text = command; }
         catch { Step3StatusText.Text = command; /* área de transferência ocupada: mostra para copiar à mão */ }
@@ -97,8 +97,8 @@ public partial class MainWindow : Window
 
     private void RefreshInstallStatus()
     {
-        var codex = NXProject.Services.AiCliInstaller.Locate(NX.AgentInstaller.AgentCli.Codex);
-        var claude = NXProject.Services.AiCliInstaller.Locate(NX.AgentInstaller.AgentCli.ClaudeCode);
+        var codex = NXProject.Services.AiCliInstaller.Locate(NXData.AgentInstaller.AgentCli.Codex);
+        var claude = NXProject.Services.AiCliInstaller.Locate(NXData.AgentInstaller.AgentCli.ClaudeCode);
         var codexWin = codex != null;
         var claudeWin = claude != null;
         SetCliStatus(CodexStatus, codexWin ? InstallWhere.Windows : InstallWhere.None, codex?.Version);
@@ -295,7 +295,7 @@ public partial class MainWindow : Window
         await RunInstallAsync();
     }
 
-    // Passo 3: instala Codex/Claude Code (Windows) pelo NX.AgentInstaller (o mesmo do NXPilot):
+    // Passo 3: instala Codex/Claude Code (Windows) pelo NXData.AgentInstaller (o mesmo do NXPilot):
     // automática na área do usuário (sem script/admin) ou script oficial; última ou testada.
     private async void OnStep3Click(object sender, RoutedEventArgs e)
     {
@@ -313,9 +313,9 @@ public partial class MainWindow : Window
         {
             var done = new List<string>();
             if (CodexCheck.IsChecked == true)
-                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NX.AgentInstaller.AgentCli.Codex, SelectedMode, SelectedVersion, status)).Message);
+                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NXData.AgentInstaller.AgentCli.Codex, SelectedMode, SelectedVersion, status)).Message);
             if (ClaudeCheck.IsChecked == true)
-                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NX.AgentInstaller.AgentCli.ClaudeCode, SelectedMode, SelectedVersion, status)).Message);
+                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NXData.AgentInstaller.AgentCli.ClaudeCode, SelectedMode, SelectedVersion, status)).Message);
 
             // LLaMA (~2,5 GB) não é baixado aqui: o download roda dentro do NXProject (na tela
             // Gerenciar IA Local, que define a pasta). Aciona ao abrir o app (Passo 2).

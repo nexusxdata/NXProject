@@ -5,13 +5,13 @@
 
 using System;
 using System.Threading.Tasks;
-using NX.AgentInstaller;
+using NXData.AgentInstaller;
 
 namespace NXProject.Services;
 
 /// <summary>
 /// Instala os CLIs de IA (Codex e Claude Code) no Windows — agora pelo pacote compartilhado
-/// NX.AgentInstaller (o mesmo do NXPilot), que segue os instaladores OFICIAIS de hoje:
+/// NXData.AgentInstaller (o mesmo do NXPilot), que segue os instaladores OFICIAIS de hoje:
 /// <list type="bullet">
 /// <item>Automática (padrão): o .NET baixa, confere o SHA-256 do fornecedor e instala na área do
 /// usuário (sem admin), nas mesmas pastas do instalador oficial — sem rodar script (antivírus).</item>

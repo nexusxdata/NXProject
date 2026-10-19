@@ -103,7 +103,7 @@ namespace NXProject.Services
 
         /// <summary>
         /// Pastas por usuário onde os agentes ficam (sem admin): as dos instaladores oficiais —
-        /// usadas também pelo NX.AgentInstaller — e a antiga do NXProject (%LOCALAPPDATA%\NXProject\bin).
+        /// usadas também pelo NXData.AgentInstaller — e a antiga do NXProject (%LOCALAPPDATA%\NXProject\bin).
         /// </summary>
         public static string[] AgentBinDirs()
         {

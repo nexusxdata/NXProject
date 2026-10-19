@@ -23,6 +23,8 @@ param(
 )
 
 $SolutionDir = $PSScriptRoot
+# Biblioteca NXData.AgentInstaller vem do NXPilot pelo submodulo external/NXPilot.
+git -C $SolutionDir submodule update --init --recursive 2>&1 | Out-Null
 $CommunityProject = Join-Path $SolutionDir "NXProject.Community\NXProject.Community.csproj"
 $SetupProject = Join-Path $SolutionDir "NXProject-Setup\NXProject-Setup.csproj"
 $TestProjectFile = Join-Path $SolutionDir "NXTestUnit\NXTestUnit.csproj"

@@ -1,0 +1,3 @@
+[submodule "external/NXPilot"]
+	path = external/NXPilot
+	url = https://github.com/nexusxdata/NXPilot.git

@@ -85,7 +85,7 @@
                     <TextBlock Text="{DynamicResource Setup_Step3Title}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4"/>
                     <TextBlock Text="{DynamicResource Setup_Step3Desc}" FontSize="11" Foreground="#777"
                                TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <!-- Como instalar (NX.AgentInstaller, o mesmo do NXPilot). -->
+                    <!-- Como instalar (NXData.AgentInstaller, o mesmo do NXPilot). -->
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
