@@ -32,6 +32,29 @@ public partial class MainWindow : Window
             NXProject.Services.AiCliInstaller.TestedVersion(NXData.AgentInstaller.AgentCli.Codex),
             NXProject.Services.AiCliInstaller.TestedVersion(NXData.AgentInstaller.AgentCli.ClaudeCode));
         Loaded += (_, _) => { RefreshStep1State(); RefreshStep2State(); RefreshInstallStatus(); };
+        ContentRendered += async (_, _) => await TryShotAsync();
+    }
+
+    /// <summary>
+    /// Captura para documentação: NXProject-Setup.exe --shot saida.png [--tab 2]. Renderiza só a
+    /// própria janela (RenderTargetBitmap) — nunca a tela — e fecha. Igual ao NXPilot-Setup.
+    /// </summary>
+    private async Task TryShotAsync()
+    {
+        var args = Environment.GetCommandLineArgs();
+        var i = Array.IndexOf(args, "--shot");
+        if (i < 0 || i + 1 >= args.Length) return;
+        if (args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault() == "2") Tabs.SelectedItem = AgentsTab;
+        await Task.Delay(3000); // versões dos agentes
+        var root = (FrameworkElement)System.Windows.Media.VisualTreeHelper.GetChild(this, 0);
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap((int)(root.ActualWidth * dpi.DpiScaleX), (int)(root.ActualHeight * dpi.DpiScaleY),
+            dpi.PixelsPerInchX, dpi.PixelsPerInchY, System.Windows.Media.PixelFormats.Pbgra32);
+        bmp.Render(root);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+        using (var fs = File.Create(args[i + 1])) encoder.Save(fs);
+        Close();
     }
 
     private NXData.AgentInstaller.InstallMode SelectedMode =>

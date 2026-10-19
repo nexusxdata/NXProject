@@ -5,7 +5,7 @@
     <sys:String x:Key="Setup_Subtitle">Instalador do NXProject</sys:String>
     <sys:String x:Key="Setup_Close">Fechar</sys:String>
     <sys:String x:Key="Setup_OpenApp">Abrir NXProject</sys:String>
-    <sys:String x:Key="Setup_InstalledOpenWhenReady">✓ NXProject instalado. Faça o Passo 3 (IA) se quiser e clique em "Abrir NXProject" quando estiver pronto.</sys:String>
+    <sys:String x:Key="Setup_InstalledOpenWhenReady">✓ NXProject instalado. Se quiser, instale a IA na aba "2 · Agentes e IA" e clique em "Abrir NXProject" quando estiver pronto.</sys:String>
     <sys:String x:Key="Setup_Step1Title">Passo 1 — .NET 10 Desktop Runtime (aprox. 58 MB)</sys:String>
     <sys:String x:Key="Setup_Step1Button">Baixar e instalar .NET 10</sys:String>
     <sys:String x:Key="Setup_Step1Manual">Baixar no navegador</sys:String>
@@ -14,14 +14,14 @@
     <sys:String x:Key="Setup_Step2Status">Baixa a versão mais recente e instala no seu usuário.</sys:String>
     <sys:String x:Key="Setup_Step2Button">Instalar NXProject</sys:String>
     <sys:String x:Key="Setup_Retry">Tentar novamente</sys:String>
-    <sys:String x:Key="Setup_Step3Title">Passo 3 (opcional): instalar IA — apenas Windows</sys:String>
+    <sys:String x:Key="Setup_Step3Title">Passo 4 (opcional): instalar IA — apenas Windows</sys:String>
     <sys:String x:Key="Setup_Step3Desc">Instalação SÓ para Windows. Quem já usa no WSL aparece como instalado (WSL) e não precisa reinstalar.</sys:String>
     <sys:String x:Key="Setup_Step3Codex">Codex (OpenAI) — (Recomendado Open) (1) — aprox. 285 MB</sys:String>
     <sys:String x:Key="Setup_Step3Claude">Claude Code (Anthropic) (3) — aprox. 309 MB</sys:String>
     <sys:String x:Key="Setup_Step3Llama">IA Local (LLaMA — Meta) (2) — aprox. 2 GB</sys:String>
     <sys:String x:Key="Setup_Step3CodexNote">(1) Possui acesso gratuito limitado, sem prazo definido no momento deste setup.</sys:String>
     <sys:String x:Key="Setup_Step3LlamaNote">(2) Modelo mais simples; roda 100% na sua máquina (NÃO usa a Internet) e exige um computador mais potente. É baixado ao abrir o NXProject.</sys:String>
-    <sys:String x:Key="Setup_Step4Title">Passo 4 (opcional): campos do NXProject no Azure DevOps</sys:String>
+    <sys:String x:Key="Setup_Step4Title">Passo 3 (opcional): campos do NXProject no Azure DevOps</sys:String>
     <sys:String x:Key="Setup_Step4Desc">O NXProject grava HH, datas e controle de sincronização em campos personalizados do DevOps. Aqui você detecta o que já existe e cria só o que falta, sem cadastrar um a um.</sys:String>
     <sys:String x:Key="Setup_Step4OneScreen">A configuração de campos fica no NXProject</sys:String>
     <sys:String x:Key="Setup_Step4OneScreenBody">Lá você detecta o que já existe, cria o que falta (o token de administrador é pedido na hora e não é gravado), confere o mapa de níveis e exporta um .json com tudo — campos do Azure DevOps, campos e tags do GitProject e os níveis — para configurar uma vez e distribuir para a equipe.&#10;&#10;O instalador deixou de ter uma segunda tela igual: a lista de campos sai do mesmo catálogo, e duas cópias dela acabam divergindo.</sys:String>
@@ -158,4 +158,7 @@
     <sys:String x:Key="Setup_NXPilotTitle">Quer ir além com IA? Conheça o NXPilot</sys:String>
     <sys:String x:Key="Setup_NXPilotDesc">Da mesma Nexus XData: orquestra o Claude Code e o Codex em tarefas de código, com plano, revisão cruzada e você aprovando cada ação sensível. Também conecta Databricks, GitHub/Azure DevOps e e-mail. Usa o Claude Code e o Codex com a sua própria assinatura. Vender ou oferecer o NXPilot como serviço pago exige licença comercial.</sys:String>
     <sys:String x:Key="Setup_NXPilotLink">Baixar o NXPilot (gratuito para uso, inclusive em empresas) →</sys:String>
+    <!-- Abas do Setup -->
+    <sys:String x:Key="Setup_TabInstall">1 · Instalação e atualização</sys:String>
+    <sys:String x:Key="Setup_TabAgents">2 · Agentes e IA</sys:String>
 </ResourceDictionary>
