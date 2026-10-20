@@ -72,7 +72,7 @@ public static class UpdateService
         {
             using var client = CreateClient();
             // per_page com folga: entre as releases vêm as que não têm o asset do app.
-            var releases = await client.GetFromJsonAsync<List<GithubRelease>>(
+            var releases = await GetApiJsonAsync<List<GithubRelease>>(client,
                 "https://api.github.com/repos/nexusxdata/NXProject/releases?per_page=30", ct);
             if (releases is null) return list;
 
@@ -111,7 +111,7 @@ public static class UpdateService
     public static async Task<ReleaseInfo?> GetLatestReleaseInfoAsync(CancellationToken ct = default)
     {
         using var client = CreateClient();
-        var release = await client.GetFromJsonAsync<GithubRelease>(ApiUrl, ct);
+        var release = await GetApiJsonAsync<GithubRelease>(client, ApiUrl, ct);
         if (release is null) return null;
 
         return ToReleaseInfo(release, CommunityReleaseAssetName);
@@ -145,14 +145,14 @@ public static class UpdateService
 
         try
         {
-            var setupRelease = await client.GetFromJsonAsync<GithubRelease>(SetupReleaseUrl, ct);
+            var setupRelease = await GetApiJsonAsync<GithubRelease>(client, SetupReleaseUrl, ct);
             if (HasSetup(setupRelease)) return setupRelease;
         }
         catch (HttpRequestException) { /* release fixa ainda nao publicada: usa a latest */ }
 
         try
         {
-            var latest = await client.GetFromJsonAsync<GithubRelease>(ApiUrl, ct);
+            var latest = await GetApiJsonAsync<GithubRelease>(client, ApiUrl, ct);
             return HasSetup(latest) ? latest : null;
         }
         catch (HttpRequestException)
@@ -165,6 +165,7 @@ public static class UpdateService
     public static async Task<string?> GetSetupDownloadUrlAsync(CancellationToken ct = default)
     {
         using var client = CreateClient();
+        if (await DirectSetupStampAsync(client, ct) is not null) return SetupDirectBaseUrl + SetupZipAssetName;
         var release = await FindLatestReleaseWithSetupAsync(client, ct);
         return release?.Assets?.Find(a => string.Equals(a.Name, SetupZipAssetName, StringComparison.OrdinalIgnoreCase))?.BrowserDownloadUrl;
     }
@@ -177,6 +178,18 @@ public static class UpdateService
     public static async Task<SetupUpdateInfo?> CheckForSetupUpdateAsync(CancellationToken ct = default)
     {
         using var client = CreateClient();
+        // Caminho principal: o carimbo pelo link direto da release fixa — não gasta consulta da
+        // API (limite de 60/hora sem login, somando NXProject e NXPilot na mesma rede).
+        if (await DirectSetupStampAsync(client, ct) is { } direct)
+        {
+            var knownStamp = GetKnownSetupTimestamp();
+            return ShouldTriggerSetupUpdate(knownStamp, direct)
+                ? new SetupUpdateInfo(SetupReleaseTag, SetupDirectBaseUrl + SetupZipAssetName,
+                    "https://github.com/nexusxdata/NXProject/releases/tag/" + SetupReleaseTag, direct)
+                : null;
+        }
+
+        // Reserva: layout antigo (Setup dentro de uma release), pela API.
         var release = await FindLatestReleaseWithSetupAsync(client, ct);
         if (release?.Assets is null) return null;
 
@@ -426,6 +439,59 @@ public static class UpdateService
         }
 
         return null;
+    }
+
+    // ================================================================ GitHub: limite e cache
+
+    /// <summary>Link direto dos assets da release fixa do Setup (github.com/…/releases/download — fora do limite da API).</summary>
+    private const string SetupDirectBaseUrl = "https://github.com/nexusxdata/NXProject/releases/download/" + SetupReleaseTag + "/";
+
+    /// <summary>Carimbo do Setup publicado, pelo link direto; nulo se não existir (ou não der para ler).</summary>
+    private static async Task<DateTimeOffset?> DirectSetupStampAsync(HttpClient client, CancellationToken ct)
+    {
+        try
+        {
+            using var resp = await client.GetAsync(SetupDirectBaseUrl + SetupTimestampAssetName, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var text = (await resp.Content.ReadAsStringAsync(ct)).Trim();
+            return DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var stamp) ? stamp : null;
+        }
+        catch (HttpRequestException) { return null; }
+    }
+
+    // Respostas da API guardadas por alguns minutos: verificar de novo logo em seguida não gasta
+    // outra consulta do limite sem login.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime At, string Body)> ApiCache = new();
+    private static readonly TimeSpan ApiCacheTtl = TimeSpan.FromMinutes(5);
+
+    /// <summary>GET na API do GitHub com cache curto e, no limite atingido, uma mensagem clara (com o horário em que libera).</summary>
+    private static async Task<T?> GetApiJsonAsync<T>(HttpClient client, string url, CancellationToken ct)
+    {
+        if (!ApiCache.TryGetValue(url, out var hit) || DateTime.UtcNow - hit.At >= ApiCacheTtl)
+        {
+            using var resp = await client.GetAsync(url, ct);
+            if (RateLimitMessage(resp) is { } limited) throw new InvalidOperationException(limited);
+            resp.EnsureSuccessStatusCode();
+            hit = (DateTime.UtcNow, await resp.Content.ReadAsStringAsync(ct));
+            ApiCache[url] = hit;
+        }
+        return System.Text.Json.JsonSerializer.Deserialize<T>(hit.Body);
+    }
+
+    /// <summary>403/429 com o limite zerado vira "O GitHub limitou as consultas sem login (60 por hora). Libera às 22:20." — não o "403" cru.</summary>
+    public static string? RateLimitMessage(HttpResponseMessage resp)
+    {
+        if (resp.StatusCode is not (System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests)) return null;
+        string? Header(string name) => resp.Headers.TryGetValues(name, out var v) ? v.FirstOrDefault() : null;
+        if (Header("x-ratelimit-remaining") != "0" && resp.StatusCode != System.Net.HttpStatusCode.TooManyRequests) return null;
+        var limit = Header("x-ratelimit-limit") ?? "60";
+        var until = long.TryParse(Header("x-ratelimit-reset"), out var epoch)
+            ? DateTimeOffset.FromUnixTimeSeconds(epoch).ToLocalTime().ToString("HH:mm") : null;
+        var at = until ?? "—";
+        return System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "pt"
+            ? $"O GitHub limitou as consultas sem login ({limit} por hora, somando todos os programas desta rede). Libera às {at}. Nada foi alterado; tente de novo depois."
+            : $"GitHub limited unauthenticated requests ({limit} per hour, counting every program on this network). It frees up at {at}. Nothing was changed; try again later.";
     }
 
     private static HttpClient CreateClient()

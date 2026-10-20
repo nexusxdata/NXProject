@@ -393,9 +393,14 @@ public partial class MainWindow : Window
             InstallProgress.Value = 20;
 
             Step2StatusText.Text = App.Str("Setup_Downloading", release.TagName);
+            // MB e % no texto enquanto baixa (igual ao NXPilot-Setup); a barra vai de 20% a 85%.
             var extractedDir = await NXProject.Services.UpdateService.DownloadAndExtractAsync(
                 release.DownloadUrl,
-                new Progress<int>(p => InstallProgress.Value = 20 + p * 0.65));
+                new Progress<int>(p => InstallProgress.Value = 20 + p * 0.65),
+                default,
+                new Progress<(long Downloaded, long Total)>(b => Step2StatusText.Text = App.Str("Setup_Downloading", release.TagName) + " " + (b.Total > 0
+                    ? $"{b.Downloaded / 1048576d:0.0} MB / {b.Total / 1048576d:0.0} MB ({b.Downloaded * 100 / b.Total}%)"
+                    : $"{b.Downloaded / 1048576d:0.0} MB")));
 
             Step2StatusText.Text = App.Str("Setup_Installing");
             CopyAllFiles(extractedDir, _installDir);
@@ -425,7 +430,8 @@ public partial class MainWindow : Window
 
             // NÃO abre o app nem fecha o Setup: o usuário ainda pode usar o Passo 3 (instalar IA).
             // Mostra o botão "Abrir NXProject" ao lado de Fechar (o app abre quando ele quiser).
-            Step2StatusText.Text = App.Str("Setup_InstalledOpenWhenReady");
+            // O fim fica explícito no texto também (não só na barra): "✓ 100% · …".
+            Step2StatusText.Text = "✓ 100% · " + App.Str("Setup_InstalledOpenWhenReady").TrimStart('✓', ' ');
             Step2Button.Content = App.Str("Setup_Step2ButtonUpdate");
             OpenAppButton.Visibility = Visibility.Visible;
         }
