@@ -111,7 +111,7 @@
     <sys:String x:Key="Setup_InstalledWsl">✓ já instalado (WSL) — não precisa instalar no Windows</sys:String>
     <sys:String x:Key="Setup_NotInstalled">não instalado</sys:String>
     <sys:String x:Key="Setup_Checking">Verificando instalação…</sys:String>
-    <sys:String x:Key="Setup_Step2Installed">✓ NXProject já está instalado. Clique em Atualizar para a última versão para baixar a mais recente.</sys:String>
+    <sys:String x:Key="Setup_Step2Installed">✓ NXProject já está instalado. Clique em Atualizar para a última versão para instalar a mais recente.</sys:String>
     <sys:String x:Key="Setup_Step2ButtonUpdate">🔄 Atualizar para a última versão</sys:String>
     <sys:String x:Key="Setup_PathApp">Instala o NXProject em: {0}</sys:String>
     <sys:String x:Key="Setup_PathCli">Agentes em (área do usuário): {0}</sys:String>

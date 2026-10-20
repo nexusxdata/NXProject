@@ -257,7 +257,7 @@ public partial class MainWindow : Window
             Step1Button.IsEnabled = false;
             Step1StatusText.Text = App.Str("Setup_Step1Downloading");
             Step1Progress.Value = 0;
-            Step1Progress.Visibility = Visibility.Visible;
+            Step1ProgressPanel.Visibility = Visibility.Visible;
 
             var tempExe = Path.Combine(Path.GetTempPath(), $"windowsdesktop-runtime-{Guid.NewGuid():N}.exe");
             using (var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) })
@@ -305,7 +305,7 @@ public partial class MainWindow : Window
         finally
         {
             Step1Progress.IsIndeterminate = false;
-            Step1Progress.Visibility = Visibility.Collapsed;
+            Step1ProgressPanel.Visibility = Visibility.Collapsed;
         }
     }
 

@@ -339,8 +339,8 @@
     <sys:String x:Key="Menu_Help_Features">_Guia de Funcionalidades...</sys:String>
     <sys:String x:Key="Menu_Help_Schedule">_Como usar o cronograma...</sys:String>
     <sys:String x:Key="Menu_Help_AzureDevOps">_Integracao Azure DevOps Backlog...</sys:String>
-    <sys:String x:Key="Menu_Help_Store">🔄 _Atualizar para a última versão</sys:String>
-    <sys:String x:Key="Menu_Help_Rollback">Voltar para uma versão anterior…</sys:String>
+    <sys:String x:Key="Menu_Help_Store">Verificar atualização na loja _NXStore/GitHub</sys:String>
+    <sys:String x:Key="Menu_Help_Rollback">Voltar versão…</sys:String>
     <sys:String x:Key="Menu_Help_RollbackTip">Instala uma das últimas versões publicadas do NXProject, para quando a versão atual apresenta um problema.</sys:String>
     <sys:String x:Key="Roll_Title">Voltar versão do NXProject</sys:String>
     <sys:String x:Key="Roll_Intro">Escolha uma das últimas versões publicadas. O NXProject baixa o pacote dela e reinicia já na versão escolhida — o mesmo caminho da atualização, só que para trás.</sys:String>
@@ -3189,9 +3189,9 @@ Os campos são criados no projeto, não nas issues, e podem ser removidos pela t
     <sys:String x:Key="AIChat_ScheduleApplied">✓ {0} item(ns) aplicados em um cronograma novo: {1} (aberto em outra janela). O cronograma atual não foi alterado.</sys:String>
     <sys:String x:Key="AIChat_ScheduleChanges">O que mudou em relação ao cronograma atual:</sys:String>
     <!-- Atualizar: nomes iguais aos do NXPilot -->
-    <sys:String x:Key="Menu_Help_UpdateBase">Atualizar a _base (Setup)…</sys:String>
+    <sys:String x:Key="Menu_Help_UpdateBase">Baixar e abrir o _Setup…</sys:String>
     <sys:String x:Key="Menu_Help_UpdateBaseTip">Baixa o NXProject-Setup, extrai e abre: ele instala a base (runtime e bibliotecas) e a versão mais nova do NXProject.</sys:String>
-    <sys:String x:Key="Upd_CheckTitle">Atualizar para a última versão</sys:String>
+    <sys:String x:Key="Upd_CheckTitle">Verificar Atualização</sys:String>
     <sys:String x:Key="Upd_DownloadDone">download concluído</sys:String>
     <sys:String x:Key="Upd_SetupOpening">extraindo o pacote e abrindo o NXProject-Setup...</sys:String>
     <sys:String x:Key="Upd_BaseConfirm">Atualizar a base do NXProject?&#10;&#10;O NXProject-Setup é baixado, extraído e aberto; ele instala a base (runtime e bibliotecas) e a versão mais nova do NXProject. Salve o projeto aberto: o NXProject vai fechar.</sys:String>
