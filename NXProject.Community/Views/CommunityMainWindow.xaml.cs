@@ -590,7 +590,7 @@ namespace NXProject.Views
                 {
                     MessageBox.Show(
                         "Voce ja esta usando a versao mais recente.",
-                        "Verificar Atualizacao",
+                        AppStrings.Get("Upd_CheckTitle"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                     return;
@@ -616,9 +616,32 @@ namespace NXProject.Views
                     : string.Empty;
                 MessageBox.Show(
                     $"Nao foi possivel verificar atualizacoes.\n\n{ex.Message}{hint}",
-                    "Verificar Atualizacao",
+                    AppStrings.Get("Upd_CheckTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Ajuda → Atualizar a base (Setup): baixa o NXProject-Setup, extrai e abre — sem precisar
+        /// que a checagem tenha detectado base nova (mesmo botão do NXPilot em Configurar).
+        /// </summary>
+        private async void OnUpdateBaseClick(object sender, RoutedEventArgs e)
+        {
+            if (MessageBox.Show(this, AppStrings.Get("Upd_BaseConfirm"), AppStrings.Get("Menu_Help_UpdateBase").Replace("_", ""),
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+            try
+            {
+                IsEnabled = false;
+                var url = await NXProject.Services.UpdateService.GetSetupDownloadUrlAsync()
+                          ?? throw new InvalidOperationException(AppStrings.Get("Upd_BaseNotFound"));
+                LogSetupUpdate("Atualizar a base (Setup) pedido pelo menu.");
+                await DownloadAndLaunchSetupAsync(url);
+            }
+            catch (Exception ex)
+            {
+                IsEnabled = true;
+                MessageBox.Show(this, ex.Message, AppStrings.Get("Menu_Help_UpdateBase").Replace("_", ""), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -645,8 +668,10 @@ namespace NXProject.Views
                 await NXProject.Services.UpdateService.DownloadFileAsync(
                     downloadUrl, zipPath, percent, default, bytes);
                 LogSetupUpdate($"Download concluido: {new System.IO.FileInfo(zipPath).Length / (1024 * 1024)} MB.");
-                progressBar.IsIndeterminate = true;
-                progressText.Text = "Extraindo o pacote e iniciando o NXProject-Setup...";
+                // Fim do download: barra cheia e "100%" à vista um instante, depois extrai e abre.
+                progressBar.Value = 100;
+                progressText.Text = "100% · " + AppStrings.Get("Upd_DownloadDone") + " — " + AppStrings.Get("Upd_SetupOpening");
+                await System.Threading.Tasks.Task.Delay(700);
 
                 // Antivirus (ex.: McAfee) costuma segurar o zip recem-baixado por alguns
                 // segundos: tenta extrair com novas tentativas antes de desistir.

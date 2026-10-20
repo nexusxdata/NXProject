@@ -161,6 +161,14 @@ public static class UpdateService
         }
     }
 
+    /// <summary>URL do NXProject-Setup.zip publicado (release fixa), para "Atualizar a base" pedido por você.</summary>
+    public static async Task<string?> GetSetupDownloadUrlAsync(CancellationToken ct = default)
+    {
+        using var client = CreateClient();
+        var release = await FindLatestReleaseWithSetupAsync(client, ct);
+        return release?.Assets?.Find(a => string.Equals(a.Name, SetupZipAssetName, StringComparison.OrdinalIgnoreCase))?.BrowserDownloadUrl;
+    }
+
     /// <summary>Decide se o Setup publicado precisa ser reinstalado. Compara o timestamp
     /// INTRINSECO do Setup (asset-companheiro NXProject-Setup.timestamp.txt, o mesmo valor
     /// gravado dentro do zip) com o embutido neste build. Nunca usa o UpdatedAt do GitHub —

@@ -44,6 +44,10 @@ public partial class UpdateProgressWindow : Window
 
             _extractedDir = await UpdateService.DownloadAndExtractAsync(_downloadUrl, progress, bytesProgress: bytes);
 
+            // Fim: barra cheia e "100%" à vista, para ficar claro que o download acabou.
+            DownloadProgress.Value = 100;
+            PercentText.Text = "100% · " + AppStrings.Get("Upd_DownloadDone");
+
             StatusText.Text = AppStrings.Get("Upd_Applying");
             await Task.Delay(600);
 

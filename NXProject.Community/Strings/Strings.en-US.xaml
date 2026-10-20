@@ -568,8 +568,8 @@
     <sys:String x:Key="Menu_Help_Features">_Features Guide...</sys:String>
     <sys:String x:Key="Menu_Help_Schedule">_How to use the schedule...</sys:String>
     <sys:String x:Key="Menu_Help_AzureDevOps">_Azure DevOps Backlog Integration...</sys:String>
-    <sys:String x:Key="Menu_Help_Store">Check for updates on _NXStore/GitHub</sys:String>
-    <sys:String x:Key="Menu_Help_Rollback">Roll back version…</sys:String>
+    <sys:String x:Key="Menu_Help_Store">🔄 _Update to the latest version</sys:String>
+    <sys:String x:Key="Menu_Help_Rollback">Go back to a previous version…</sys:String>
     <sys:String x:Key="Menu_Help_RollbackTip">Installs one of the latest published NXProject versions, for when the current one has a problem.</sys:String>
     <sys:String x:Key="Roll_Title">Roll back the NXProject version</sys:String>
     <sys:String x:Key="Roll_Intro">Pick one of the latest published versions. NXProject downloads its package and restarts on the chosen version — the same path as the update, backwards.</sys:String>
@@ -3190,4 +3190,12 @@ Fields are created on the project, not on the issues, and can be removed from Gi
     <sys:String x:Key="AIChat_SaveTitle">Save the suggested schedule</sys:String>
     <sys:String x:Key="AIChat_ScheduleApplied">✓ {0} item(s) applied to a new schedule: {1} (opened in another window). The current schedule was not changed.</sys:String>
     <sys:String x:Key="AIChat_ScheduleChanges">What changed vs the current schedule:</sys:String>
+    <!-- Atualizar: nomes iguais aos do NXPilot -->
+    <sys:String x:Key="Menu_Help_UpdateBase">Update the _base (Setup)…</sys:String>
+    <sys:String x:Key="Menu_Help_UpdateBaseTip">Downloads NXProject-Setup, extracts and opens it: it installs the base (runtime and libraries) and the latest NXProject version.</sys:String>
+    <sys:String x:Key="Upd_CheckTitle">Update to the latest version</sys:String>
+    <sys:String x:Key="Upd_DownloadDone">download complete</sys:String>
+    <sys:String x:Key="Upd_SetupOpening">extracting the package and opening NXProject-Setup...</sys:String>
+    <sys:String x:Key="Upd_BaseConfirm">Update the NXProject base?&#10;&#10;NXProject-Setup is downloaded, extracted and opened; it installs the base (runtime and libraries) and the latest NXProject version. Save the open project: NXProject will close.</sys:String>
+    <sys:String x:Key="Upd_BaseNotFound">Could not find the published NXProject-Setup on GitHub.</sys:String>
 </ResourceDictionary>
