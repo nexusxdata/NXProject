@@ -126,12 +126,60 @@ public partial class MainWindow : Window
         var claudeWin = claude != null;
         SetCliStatus(CodexStatus, codexWin ? InstallWhere.Windows : InstallWhere.None, codex?.Version);
         SetCliStatus(ClaudeStatus, claudeWin ? InstallWhere.Windows : InstallWhere.None, claude?.Version);
+        SetAgentCheck(NXData.AgentInstaller.AgentCli.Codex, CodexCheck, CodexStatus, codex?.Version);
+        SetAgentCheck(NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeCheck, ClaudeStatus, claude?.Version);
         SetStatus(LlamaStatus, IsLlamaInstalled());
 
         // Se não achou no Windows, testa o WSL (assíncrono; mostra "verificando" na hora).
         if (!codexWin) { SetChecking(CodexStatus); _ = UpdateWslStatusAsync("codex", CodexStatus); }
         if (!claudeWin) { SetChecking(ClaudeStatus); _ = UpdateWslStatusAsync("claude", ClaudeStatus); }
     }
+
+    private readonly int[] _agentCheck = new int[2];
+
+    /// <summary>Instalar/atualizar deu erro: a caixa continua habilitada para tentar de novo.</summary>
+    private readonly HashSet<NXData.AgentInstaller.AgentCli> _agentFailed = new();
+
+    /// <summary>
+    /// Igual ao NXPilot-Setup: compara a versão instalada com a escolhida (última ou testada).
+    /// Mais nova disponível = status laranja e caixa marcada para atualizar; já atualizado =
+    /// caixa desmarcada e desabilitada (salvo se a última tentativa deu erro). Sem internet,
+    /// a caixa fica habilitada (não dá para comparar).
+    /// </summary>
+    private void SetAgentCheck(NXData.AgentInstaller.AgentCli cli, System.Windows.Controls.CheckBox check, System.Windows.Controls.TextBlock status, string? installed)
+    {
+        var gen = ++_agentCheck[(int)cli]; // só a conferência mais recente mexe na caixa
+        check.IsEnabled = true;
+        if (installed == null) return;
+        var choice = SelectedVersion; // lida aqui, na thread da tela
+        _ = Task.Run(async () =>
+        {
+            try { return (await NXProject.Services.AiCliInstaller.ResolveVersionAsync(cli, choice)).Version; }
+            catch { return null; } // sem internet ou serviço fora
+        }).ContinueWith(t =>
+        {
+            if (gen != _agentCheck[(int)cli] || t.Result is not { } target || ParseVersion(target) is not { } tv || ParseVersion(installed) is not { } iv) return;
+            if (tv > iv)
+            {
+                status.Text += " · " + App.Str("Setup_AgentUpdateAvailable", target);
+                status.Foreground = System.Windows.Media.Brushes.DarkOrange;
+                check.IsChecked = true;
+            }
+            else if (!_agentFailed.Contains(cli))
+            {
+                status.Text += " · " + App.Str("Setup_AgentUpToDate");
+                check.IsChecked = false;
+                check.IsEnabled = false;
+            }
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    private void OnVersionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (IsLoaded) RefreshInstallStatus(); // testada x última muda a versão alvo
+    }
+
+    private static Version? ParseVersion(string v) => Version.TryParse(v.Split('-')[0], out var r) ? r : null;
 
     private static void SetChecking(System.Windows.Controls.TextBlock tb)
     {
@@ -335,10 +383,22 @@ public partial class MainWindow : Window
         try
         {
             var done = new List<string>();
-            if (CodexCheck.IsChecked == true)
-                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NXData.AgentInstaller.AgentCli.Codex, SelectedMode, SelectedVersion, status)).Message);
-            if (ClaudeCheck.IsChecked == true)
-                done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(NXData.AgentInstaller.AgentCli.ClaudeCode, SelectedMode, SelectedVersion, status)).Message);
+            var failed = new List<string>();
+            foreach (var (cli, check, name) in new[] { (NXData.AgentInstaller.AgentCli.Codex, CodexCheck, "Codex"), (NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeCheck, "Claude Code") })
+            {
+                if (check.IsChecked != true || !check.IsEnabled) continue;
+                try
+                {
+                    done.Add((await NXProject.Services.AiCliInstaller.InstallAsync(cli, SelectedMode, SelectedVersion, status)).Message);
+                    _agentFailed.Remove(cli);
+                }
+                catch (Exception ex)
+                {
+                    _agentFailed.Add(cli); // caixa continua habilitada para tentar de novo
+                    failed.Add($"{name}: {ex.Message}");
+                }
+            }
+            if (failed.Count > 0) throw new InvalidOperationException(string.Join(" ", done.Concat(failed)));
 
             // LLaMA (~2,5 GB) não é baixado aqui: o download roda dentro do NXProject (na tela
             // Gerenciar IA Local, que define a pasta). Aciona ao abrir o app (Passo 2).

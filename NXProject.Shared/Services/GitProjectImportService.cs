@@ -136,6 +136,8 @@ namespace NXProject.Services
                     "{0} item(s) were skipped due to a circular sub-issue reference: {1}",
                     semPai.Count, string.Join(", ", semPai.Take(10).Select(n => "#" + n))));
 
+            AplicaPredecessoras(itens, porNumero, criados, report);
+
             // Resumo: pai com filho é summary, e é o motor do NXProject que recalcula as datas
             // e o percentual a partir deles — nada disso é gravado pelo import.
             foreach (var t in Todas(projeto.Tasks))
@@ -178,6 +180,41 @@ namespace NXProject.Services
                 atual = pai;
             }
             return false;
+        }
+
+        /// <summary>
+        /// "#A blocked by #B" vira "B é predecessora de A" — o mesmo que o import do DevOps faz
+        /// com o link Dependency-Reverse.
+        ///
+        /// Só vale o bloqueio por uma issue DESTE board (mesmo número E mesmo repositório: a #12
+        /// de outro repositório não é a #12 do board) e que entrou no recorte. O resto vira
+        /// aviso: inventar a atividade que falta seria pior que dizer que ela está fora.
+        /// </summary>
+        public static void AplicaPredecessoras(IEnumerable<GitProjectItem> itens,
+            IReadOnlyDictionary<int, GitProjectItem> porNumero,
+            IReadOnlyDictionary<int, ProjectTask> criados, TfsImportService.ImportReport report)
+        {
+            foreach (var item in itens)
+            {
+                if (item.BlockedBy.Count == 0 || !criados.TryGetValue(item.Number, out var tarefa)) continue;
+                var fora = new List<string>();
+                foreach (var b in item.BlockedBy)
+                {
+                    var doBoard = porNumero.TryGetValue(b.Number, out var noBoard)
+                                  && (string.IsNullOrWhiteSpace(b.Repository)
+                                      || string.Equals(b.Repository, noBoard.Repository, StringComparison.OrdinalIgnoreCase));
+                    if (doBoard && criados.TryGetValue(b.Number, out var pred))
+                    {
+                        if (!tarefa.PredecessorIds.Contains(pred.Id)) tarefa.PredecessorIds.Add(pred.Id);
+                    }
+                    else fora.Add(string.IsNullOrWhiteSpace(b.Repository) ? "#" + b.Number : $"{b.Repository}#{b.Number}");
+                }
+                if (fora.Count > 0)
+                    report.LogWarning(NxText.T(
+                        "#{0} ({1}) é bloqueada por {2}, fora deste cronograma — a predecessora ficou de fora.",
+                        "#{0} ({1}) is blocked by {2}, outside this schedule — the predecessor was left out.",
+                        item.Number, item.Title, string.Join(", ", fora)));
+            }
         }
 
         /// <summary>

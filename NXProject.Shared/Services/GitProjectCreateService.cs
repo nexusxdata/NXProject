@@ -60,13 +60,22 @@ namespace NXProject.Services
                 var snap = await cliente.LoadAsync();
 
                 var pai = snap.Items.FirstOrDefault(i => i.Number == parentNumber);
-                if (pai == null || string.IsNullOrEmpty(pai.IssueId))
-                    return (0, NxText.T($"Item pai #{parentNumber} não foi encontrado no board.",
-                                        $"Parent item #{parentNumber} was not found on the board."));
+                var paiIssueId = pai?.IssueId ?? "";
+                string? repoDoPai = null;
+                if (string.IsNullOrEmpty(paiIssueId))
+                {
+                    // Pai recém-criado: a issue já existe, mas a consulta do projeto pode levar
+                    // minutos para mostrá-la. Procura pelo número nos repositórios do board.
+                    (paiIssueId, repoDoPai) = await PaiPeloNumeroAsync(cliente, snap, options, parentNumber);
+                    if (string.IsNullOrEmpty(paiIssueId))
+                        return (0, NxText.T($"Item pai #{parentNumber} não foi encontrado no board.",
+                                            $"Parent item #{parentNumber} was not found on the board."));
+                    TfsImportService.BoardLog.Write($"CRIAR GitProject: pai #{parentNumber} achado pelo numero em {repoDoPai} (ainda fora da consulta do board).");
+                }
 
                 // Repositório do PAI; sem ele, o configurado. Erro claro quando não há nenhum —
                 // é a mesma regra (e a mesma mensagem) do sincronizar do cronograma.
-                var nomeRepo = await cliente.IssueRepositoryAsync(pai.IssueId);
+                var nomeRepo = repoDoPai ?? await cliente.IssueRepositoryAsync(paiIssueId);
                 if (string.IsNullOrWhiteSpace(nomeRepo)) nomeRepo = options.Repository;
                 var partes = (nomeRepo ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
                 if (partes.Length != 2)
@@ -88,7 +97,7 @@ namespace NXProject.Services
                 var itemId = await cliente.AddToProjectAsync(snap.ProjectId, issueId);
                 TfsImportService.BoardLog.Write(
                     $"CRIAR GitProject: #{numero} entrou no board, itemId={itemId}.");
-                await cliente.AddSubIssueAsync(pai.IssueId, issueId);
+                await cliente.AddSubIssueAsync(paiIssueId, issueId);
 
                 // Nível: sem ele o item nasce sem saber o que é, e o board o trataria pela
                 // posição na árvore — que é justamente o palpite que o campo existe para evitar.
@@ -116,6 +125,38 @@ namespace NXProject.Services
             {
                 return (0, ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Acha a issue pai pelo número quando ela ainda não aparece na consulta do projeto: tenta o
+        /// repositório configurado e os repositórios de alguns itens do board (em geral é um só).
+        /// </summary>
+        internal static async Task<(string IssueId, string? Repo)> PaiPeloNumeroAsync(
+            GitProjectClient cliente, GitProjectClient.ProjectSnapshot snap, GitProjectOptions options, int numero)
+        {
+            var repos = new List<string>();
+            if (!string.IsNullOrWhiteSpace(options.Repository)) repos.Add(options.Repository.Trim());
+            foreach (var item in snap.Items.Where(i => !string.IsNullOrEmpty(i.IssueId)).Take(3))
+            {
+                try
+                {
+                    var r = await cliente.IssueRepositoryAsync(item.IssueId);
+                    if (!string.IsNullOrWhiteSpace(r) && !repos.Contains(r, StringComparer.OrdinalIgnoreCase)) repos.Add(r);
+                }
+                catch { /* item sem repositório legível: tenta o próximo */ }
+            }
+            foreach (var repo in repos)
+            {
+                var partes = repo.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (partes.Length != 2) continue;
+                try
+                {
+                    var id = await cliente.IssueIdByNumberAsync(partes[0].Trim(), partes[1].Trim(), numero);
+                    if (id.Length > 0) return (id, repo);
+                }
+                catch { /* sem acesso a esse repositório: tenta o próximo */ }
+            }
+            return ("", null);
         }
 
         /// <summary>

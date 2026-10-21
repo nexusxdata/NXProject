@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -24,7 +24,8 @@ namespace NXProject.Views
         string PercentDone,
         string Start,
         string Finish,
-        string? DevOpsUrl,
+        // Resolve o link NO DESTINO do projeto (DevOps ou GitHub) só no clique; nulo = sem link.
+        Func<System.Threading.Tasks.Task<string?>>? OpenItemUrl,
         Action? OnOpenTasks = null,
         string Responsible = "",
         // Hint da hierarquia (EPIC / Feature) mostrado ao passar o mouse no nome.
@@ -184,23 +185,26 @@ namespace NXProject.Views
                     tbtn.Click += (_, _) => row.OnOpenTasks();
                     sp.Children.Add(tbtn);
                 }
-                if (!string.IsNullOrEmpty(row.DevOpsUrl))
+                if (row.OpenItemUrl != null)
                 {
                     var btn = new Button
                     {
-                        Content  = "↗ DevOps",
+                        Content  = "↗",
+                        ToolTip  = AppStrings.Get("Main_OpenWorkItem"),
                         FontSize = 10,
                         Padding  = new Thickness(6, 2, 6, 2),
                         Margin   = new Thickness(2, 2, 4, 2),
                         VerticalAlignment = VerticalAlignment.Center,
                         Cursor   = System.Windows.Input.Cursors.Hand
                     };
-                    btn.Click += (_, _) =>
+                    btn.Click += async (_, _) =>
                     {
                         try
                         {
-                            System.Diagnostics.Process.Start(
-                                new System.Diagnostics.ProcessStartInfo(row.DevOpsUrl) { UseShellExecute = true });
+                            var url = await row.OpenItemUrl();
+                            if (url != null)
+                                System.Diagnostics.Process.Start(
+                                    new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
                         }
                         catch { /* sem navegador disponível: ignora */ }
                     };

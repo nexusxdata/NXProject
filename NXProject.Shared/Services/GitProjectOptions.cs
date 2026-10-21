@@ -341,6 +341,12 @@ namespace NXProject.Services
     /// Um item do board: a issue mais os valores dos campos do projeto. É o que o
     /// <see cref="GitProjectBoardService"/> transforma em linha e card.
     /// </summary>
+    /// <summary>
+    /// Uma issue que bloqueia outra. Vai com o repositório e o id: o número sozinho não diz se
+    /// é a issue do board (pode ser a #12 de outro repositório), e o id é o que a mutation exige.
+    /// </summary>
+    public sealed record GitBlockRef(int Number, string Repository, string IssueId);
+
     public sealed class GitProjectItem
     {
         public int Number { get; set; }
@@ -354,6 +360,12 @@ namespace NXProject.Services
         public string IssueType { get; set; } = string.Empty;
         /// <summary>Número da issue pai (sub-issues). 0 = item de topo.</summary>
         public int ParentNumber { get; set; }
+
+        /// <summary>
+        /// Issues que BLOQUEIAM esta ("blocked by", dependência nativa do GitHub). É o par do
+        /// link de predecessora do Azure DevOps: quem bloqueia é a predecessora desta.
+        /// </summary>
+        public List<GitBlockRef> BlockedBy { get; set; } = new();
         public DateTime? ClosedAt { get; set; }
         public string IterationTitle { get; set; } = string.Empty;
         public string LevelValue { get; set; } = string.Empty;

@@ -116,7 +116,9 @@
     <sys:String x:Key="Setup_PathApp">Instala o NXProject em: {0}</sys:String>
     <sys:String x:Key="Setup_PathCli">Agentes em (área do usuário): {0}</sys:String>
     <sys:String x:Key="Setup_Step3LlamaQueued">IA Local (LLaMA) será baixada ao abrir o NXProject (Passo 2) — a pasta é a do Gerenciar IA Local.</sys:String>
-    <sys:String x:Key="Setup_Step3Button">Instalar marcados</sys:String>
+    <sys:String x:Key="Setup_Step3Button">Instalar / atualizar marcados</sys:String>
+    <sys:String x:Key="Setup_AgentUpdateAvailable">{0} disponível</sys:String>
+    <sys:String x:Key="Setup_AgentUpToDate">atualizado</sys:String>
     <sys:String x:Key="Setup_Step3PickOne">Marque pelo menos um item (Codex, Claude Code ou LLaMA).</sys:String>
     <sys:String x:Key="Setup_Step3Done">Concluído. {0} Adicionado ao PATH do usuário; reabra o terminal/NXProject.</sys:String>
     <sys:String x:Key="Setup_Step3Fail">Falha ao instalar CLI: {0}</sys:String>

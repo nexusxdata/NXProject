@@ -75,7 +75,19 @@ namespace NXProject.Services
         /// <summary>Precisa de cronograma aberto para funcionar.</summary>
         bool RequiresOpenSchedule,
         /// <summary>Precisa da pasta do projeto (artefatos e logs).</summary>
-        bool RequiresProjectFolder)
+        bool RequiresProjectFolder,
+        /// <summary>
+        /// Tasks como itens FILHOS da Story no servidor, consultados e gravados à parte: Task
+        /// Plan, revisão do Tech Lead, buscar/expandir Tasks, horas das Tasks e o resumo por Task
+        /// do Mapa de Alocação. Só o DevOps: no GitHub e no modo local a Story é a folha e o HH
+        /// fica com o dono dela. Sem isto, essas telas mandavam o número da issue ao TFS.
+        /// </summary>
+        bool ServerTaskLevel,
+        /// <summary>
+        /// Times da organização para trazer pessoas em lote. Só o DevOps tem time com membros;
+        /// no GitHub as pessoas vêm das contas atribuíveis dos repositórios.
+        /// </summary>
+        bool ServerTeams)
     {
         /// <summary>As capacidades de um destino. É a única tabela: mexeu aqui, mexeu em tudo.</summary>
         public static NxBackendCapabilities For(NxBackendKind kind) => kind switch
@@ -85,7 +97,8 @@ namespace NXProject.Services
                 Attachments: NxAttachmentStore.Server, Comments: true, BlockAudit: true,
                 OpenInBrowser: true, ServerStates: true, ServerPeople: true,
                 ConcurrencyControl: true, BacklogOrderWrite: true, CreateItem: true, EditItem: true,
-                DeleteItem: true, RequiresOpenSchedule: false, RequiresProjectFolder: false),
+                DeleteItem: true, RequiresOpenSchedule: false, RequiresProjectFolder: false,
+                ServerTaskLevel: true, ServerTeams: true),
 
             // GitHub Projects — ver docs/gitproject/features.md.
             //
@@ -101,7 +114,8 @@ namespace NXProject.Services
                 Attachments: NxAttachmentStore.Server, Comments: true, BlockAudit: true,
                 OpenInBrowser: true, ServerStates: false, ServerPeople: true,
                 ConcurrencyControl: false, BacklogOrderWrite: true, CreateItem: true, EditItem: true,
-                DeleteItem: true, RequiresOpenSchedule: false, RequiresProjectFolder: false),
+                DeleteItem: true, RequiresOpenSchedule: false, RequiresProjectFolder: false,
+                ServerTaskLevel: false, ServerTeams: false),
 
             // Local: anexo e auditoria de BLOCK existem, mas vêm da PASTA DO PROJETO; o resto é
             // do cronograma aberto. Nada de servidor.
@@ -111,7 +125,8 @@ namespace NXProject.Services
                 Attachments: NxAttachmentStore.LocalFolder, Comments: false, BlockAudit: true,
                 OpenInBrowser: false, ServerStates: false, ServerPeople: false,
                 ConcurrencyControl: false, BacklogOrderWrite: true, CreateItem: false, EditItem: false,
-                DeleteItem: false, RequiresOpenSchedule: true, RequiresProjectFolder: true),
+                DeleteItem: false, RequiresOpenSchedule: true, RequiresProjectFolder: true,
+                ServerTaskLevel: false, ServerTeams: false),
 
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "destino desconhecido")
         };

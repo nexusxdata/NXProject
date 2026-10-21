@@ -24,6 +24,13 @@ namespace NXProject.Views
         private readonly MainViewModel _vm;
         private List<PersonRow> _rows = new();
 
+        /// <summary>Pessoas do servidor pelo destino do projeto, lido do Portfólio.</summary>
+        private INxBoardSource Fonte()
+        {
+            var options = TfsConnectionStore.Load("NXProject.Community");
+            return NxBoardSources.For(NxProjectBackend.Of(_vm.Project, options), options, _vm.Project, options.GitProject);
+        }
+
         public PeopleWindow(MainViewModel vm, bool focusCost = false)
         {
             InitializeComponent();
@@ -34,8 +41,11 @@ namespace NXProject.Views
                 {
                     // Discovery TFS (descoberta ampla na organização) só aparece se habilitado na config.
                     var cfg = TfsConnectionStore.Load("NXProject.Community");
-                    DiscoveryTfsBtn.Visibility = cfg.EnableOrgPeopleDiscovery
+                    // O que a tela oferece é o que o destino do projeto (Portfólio) sabe fazer.
+                    var caps = Fonte().Capabilities;
+                    DiscoveryTfsBtn.Visibility = cfg.EnableOrgPeopleDiscovery && caps.ServerPeople
                         ? Visibility.Visible : Visibility.Collapsed;
+                    DiscoveryTeamBtn.Visibility = caps.ServerTeams ? Visibility.Visible : Visibility.Collapsed;
 
                     Refresh();
                     if (focusCost)
@@ -186,9 +196,8 @@ namespace NXProject.Views
             CommitPendingEdits();
 
             var options = TfsConnectionStore.Load("NXProject.Community");
-            if (string.IsNullOrWhiteSpace(options.OrganizationUrl) ||
-                string.IsNullOrWhiteSpace(options.TeamProject) ||
-                string.IsNullOrWhiteSpace(options.PersonalAccessToken))
+            var fonte = Fonte();
+            if (!fonte.IsConfigured)
             {
                 MessageBox.Show(AppStrings.Get("People_DiscoveryNoConnection"), AppStrings.Get("People_Title"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -198,8 +207,8 @@ namespace NXProject.Views
             // Busca no servidor por termo (a org pode ter centenas de milhares de usuarios;
             // nunca listamos tudo). O erro de cada busca aparece na propria tela do seletor.
             var picker = new DiscoveryPeoplePickerWindow(
-                term => TfsImportService.FetchUsersByFilterAsync(options, term),
-                limit => TfsImportService.FetchOrgUsersAsync(options, limit),
+                term => fonte.FindPeopleAsync(term, 0),
+                limit => fonte.FindPeopleAsync("", limit),
                 onSearchError: ex => ShowDiscoveryErrorDialog(ex, options)) { Owner = this };
 
             if (picker.ShowDialog() != true || picker.SelectedUsers.Count == 0)
@@ -210,6 +219,8 @@ namespace NXProject.Views
             {
                 if (!string.IsNullOrWhiteSpace(resource.Email))
                     existing.Add(resource.Email.Trim());
+                if (!string.IsNullOrWhiteSpace(resource.GitLogin))
+                    existing.Add("@" + resource.GitLogin.Trim());
                 if (!string.IsNullOrWhiteSpace(resource.Name))
                     existing.Add(resource.Name.Trim());
             }
@@ -226,7 +237,9 @@ namespace NXProject.Views
                 if (string.IsNullOrWhiteSpace(name))
                     continue;
 
-                var key = !string.IsNullOrWhiteSpace(email) ? email : name;
+                var login = (user.Login ?? "").Trim();
+                var key = !string.IsNullOrWhiteSpace(email) ? email
+                        : login.Length > 0 ? "@" + login : name;
                 if (existing.Contains(key) || existing.Contains(name))
                     continue;
 
@@ -239,7 +252,10 @@ namespace NXProject.Views
                     Kind = ResourceKind.Project,
                     AvailabilityPercent = 100.0,
                     MaxUnitsPerDay = 8.0,
-                    IsImportedFromTfs = true
+                    IsImportedFromTfs = true,
+                    // A conta do GitHub vai junto: o sync acha o responsável pelo login gravado,
+                    // como faz com quem veio no import.
+                    GitLogin = login.Length > 0 ? login : null
                 });
 
                 existing.Add(key);
@@ -259,9 +275,9 @@ namespace NXProject.Views
             CommitPendingEdits();
 
             var options = TfsConnectionStore.Load("NXProject.Community");
-            if (string.IsNullOrWhiteSpace(options.OrganizationUrl) ||
-                string.IsNullOrWhiteSpace(options.TeamProject) ||
-                string.IsNullOrWhiteSpace(options.PersonalAccessToken))
+            var fonte = Fonte();
+            if (!fonte.Capabilities.ServerTeams) return;
+            if (!fonte.IsConfigured)
             {
                 MessageBox.Show(AppStrings.Get("People_DiscoveryNoConnection"), AppStrings.Get("People_Title"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -272,7 +288,7 @@ namespace NXProject.Views
             try
             {
                 Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
-                teams = await TfsImportService.FetchTeamsAsync(options);
+                teams = await fonte.ListTeamsAsync();
             }
             catch (Exception ex)
             {
@@ -300,7 +316,7 @@ namespace NXProject.Views
             try
             {
                 Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
-                members = await TfsImportService.FetchTeamMembersAsync(options, team.Id);
+                members = await fonte.TeamMembersAsync(team.Id);
             }
             catch (Exception ex)
             {

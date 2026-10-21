@@ -159,7 +159,10 @@
     <sys:String x:Key="AI_TaskLineFmt">- {0} | duration: {1} h | predecessor: {2}</sys:String>
     <sys:String x:Key="AI_ClickApplyHint">Click 'Apply to project' to add these activities.</sys:String>
 
-    <sys:String x:Key="Main_OpenInDevOps">Open in DevOps ↗</sys:String>
+    <sys:String x:Key="Main_OpenWorkItem">Open item on the server (DevOps / GitHub) ↗</sys:String>
+    <sys:String x:Key="Main_NoServerTaskLevelTitle">Tasks on the server</sys:String>
+    <sys:String x:Key="Main_NoServerTaskLevel">This project is on {0} (Portfolio setting). There the Story is the leaf: there are no child Tasks on the server to fetch, create or review.</sys:String>
+    <sys:String x:Key="Main_SyncLocalNoServer">This project is a Local Project in the Portfolio: there is no server to synchronize with.</sys:String>
     <sys:String x:Key="Main_CustomizeColumns">Customize columns...</sys:String>
     <sys:String x:Key="Main_CriticalPath">Critical Path — View critical activities...</sys:String>
     <sys:String x:Key="Main_DisableBaseline">Disable Baseline</sys:String>
@@ -1876,7 +1879,7 @@
     <!-- DevOps link (edit work item) -->
     <sys:String x:Key="WiEdit_Title">DevOps Link</sys:String>
     <sys:String x:Key="WiEdit_Header">Link with TFS / Azure DevOps</sys:String>
-    <sys:String x:Key="WiEdit_OpenInDevOps">Open in DevOps ↗</sys:String>
+    <sys:String x:Key="WiEdit_OpenWorkItem">Open item ↗</sys:String>
     <sys:String x:Key="WiEdit_ConflictBold">⚠ Concurrency conflict.</sys:String>
     <sys:String x:Key="WiEdit_ConflictText"> Another user saved a newer version. Re-import to update before syncing.</sys:String>
     <sys:String x:Key="WiEdit_Reimport">↓ Re-import</sys:String>

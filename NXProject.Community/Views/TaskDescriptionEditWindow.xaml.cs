@@ -124,6 +124,14 @@ namespace NXProject.Views
         private bool _doneVisible;
         private readonly Action? _onTramite;
 
+        /// <summary>
+        /// De onde o "Buscar" lê: o destino do projeto. Lia sempre do DevOps — num projeto do
+        /// GitProject, trazia a descrição do work item de mesmo número e a gravava na issue.
+        /// Nulo = sem servidor para buscar.
+        /// </summary>
+        private readonly INxBoardSource? _source;
+        private readonly string _objectKind;
+
         private void OnTramiteClick(object sender, RoutedEventArgs e) => _onTramite?.Invoke();
 
         public TaskDescriptionEditWindow(ProjectTask task,
@@ -144,10 +152,13 @@ namespace NXProject.Views
             System.Collections.Generic.IReadOnlyList<(int Id, string Text)>? parentLinks = null, Action<int>? onOpenWorkItem = null,
             System.Collections.Generic.IReadOnlyList<TfsAttachmentService.TfsAttachmentInfo>? attachments = null,
             Action<TfsAttachmentService.TfsAttachmentInfo>? onOpenAttachment = null,
-            Func<TfsAttachmentService.TfsAttachmentInfo, System.Threading.Tasks.Task<bool>>? onRemoveAttachment = null)
+            Func<TfsAttachmentService.TfsAttachmentInfo, System.Threading.Tasks.Task<bool>>? onRemoveAttachment = null,
+            INxBoardSource? source = null)
         {
             InitializeComponent();
             _task = task;
+            _source = source;
+            _objectKind = objectKind ?? "Story";
             // Título da janela conforme o objeto (Story/Task) quando informado; senão o padrão.
             Title = objectKind switch
             {
@@ -389,7 +400,7 @@ namespace NXProject.Views
                 OwnerCombo.Text = _initialOwner;
             }
 
-            if (task.TfsId is not > 0)
+            if (task.TfsId is not > 0 || _source == null)
                 FetchBtn.IsEnabled = false;
 
             if (!string.IsNullOrWhiteSpace(_html))
@@ -505,9 +516,8 @@ namespace NXProject.Views
             FetchStatus.Text = AppStrings.Get("Desc_Fetching");
             try
             {
-                var options = TfsConnectionStore.Load("NXProject.Community");
-                var html = await TfsImportService.LoadWorkItemDescriptionHtmlAsync(
-                    options, _task.TfsId!.Value);
+                if (_source == null) return;
+                var html = (await _source.LoadItemDetailsAsync(_task.TfsId!.Value, _objectKind)).DescriptionHtml;
                 _html = html ?? string.Empty;
                 FetchStatus.Text = string.IsNullOrWhiteSpace(_html)
                     ? AppStrings.Get("Desc_Empty")
@@ -527,7 +537,7 @@ namespace NXProject.Views
             }
             finally
             {
-                FetchBtn.IsEnabled = _task.TfsId is > 0;
+                FetchBtn.IsEnabled = _task.TfsId is > 0 && _source != null;
             }
         }
 

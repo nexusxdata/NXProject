@@ -26,12 +26,12 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{DynamicResource WiEdit_Header}"
                                FontSize="16" FontWeight="SemiBold" Foreground="#2B579A"/>
-                    <Button x:Name="OpenInDevOpsButton"
+                    <Button x:Name="OpenWorkItemButton"
                             Grid.Column="1"
-                            Content="{DynamicResource WiEdit_OpenInDevOps}"
+                            Content="{DynamicResource WiEdit_OpenWorkItem}"
                             Padding="8,3" FontSize="11"
                             Visibility="Collapsed"
-                            Click="OnOpenInDevOpsClick"
+                            Click="OnOpenWorkItemClick"
                             Cursor="Hand"/>
                 </Grid>
                 <TextBlock x:Name="TaskNameText" Foreground="#666" FontSize="12"

@@ -1262,8 +1262,9 @@ namespace NXProject.Views
         private void ShowPlannedWeekPopup(SprintPoint point, DateTime bucketStart, DateTime bucketEnd, int index)
         {
             var opts   = TfsConnectionStore.Load();
-            var orgUrl = opts.OrganizationUrl?.TrimEnd('/') ?? "";
-            var tp     = opts.TeamProject ?? "";
+            // O link é do destino do projeto (Portfólio): a URL do DevOps num cronograma do
+            // GitProject abria o work item #N de outro projeto.
+            var fonte  = NxBoardSources.For(NxProjectBackend.Of(_vm.Project, opts), opts, _vm.Project, opts.GitProject);
 
             var rows  = new List<StoryListRow>();
             double totalWeek = 0;
@@ -1279,7 +1280,7 @@ namespace NXProject.Views
                 foreach (var (task, hours) in forecast)
                 {
                     totalWeek += hours;
-                    rows.Add(BuildStoryRow(task, hours, orgUrl, tp));
+                    rows.Add(BuildStoryRow(task, hours, fonte));
                 }
 
                 var projPeriod = $"{bucketStart:dd/MM/yy} – {bucketEnd.AddDays(-1):dd/MM/yy}";
@@ -1312,7 +1313,7 @@ namespace NXProject.Views
                 }
 
                 totalWeek += weekH;
-                rows.Add(BuildStoryRow(task, weekH, orgUrl, tp));
+                rows.Add(BuildStoryRow(task, weekH, fonte));
             }
 
             var period = $"{bucketStart:dd/MM/yy} – {bucketEnd.AddDays(-1):dd/MM/yy}";
@@ -1330,13 +1331,11 @@ namespace NXProject.Views
         }
 
         // Linha da grade do popup (mesma usada pelo Mapa de Alocação).
-        private static StoryListRow BuildStoryRow(ProjectTask task, double periodHours,
-                                                  string orgUrl, string teamProject)
+        private static StoryListRow BuildStoryRow(ProjectTask task, double periodHours, INxBoardSource fonte)
         {
             var totalH = GetOriginalHours(task);
-            string? url = task.TfsId.HasValue && !string.IsNullOrWhiteSpace(orgUrl)
-                ? $"{orgUrl}/{Uri.EscapeDataString(teamProject)}/_workitems/edit/{task.TfsId.Value}"
-                : null;
+            Func<System.Threading.Tasks.Task<string?>>? url = task.TfsId is > 0 && fonte.Capabilities.OpenInBrowser
+                ? () => fonte.ItemUrlAsync(task.TfsId.Value) : null;
 
             var storyNode = TfsImportService.IsStoryTypePublic(task.TfsType) ? task : FindParentStoryModel(task);
             var tipo      = AppStrings.Get(storyNode == task ? "PMap_SrTypeStory" : "PMap_SrTypeTask");

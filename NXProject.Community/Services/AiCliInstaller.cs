@@ -46,6 +46,10 @@ public static class AiCliInstaller
     public static string ManualCommand(AgentCli cli, VersionChoice choice) =>
         Installer.ScriptCommand(cli, choice == VersionChoice.Tested ? TestedVersion(cli) : null);
 
+    /// <summary>Versão alvo da escolha (última ou testada; a testada retirada cai para a última).</summary>
+    public static Task<(string Version, bool FellBackToLatest)> ResolveVersionAsync(AgentCli cli, VersionChoice choice) =>
+        Installer.ResolveVersionAsync(cli, choice);
+
     public static Task<AgentInstallResult> InstallAsync(AgentCli cli, InstallMode mode, VersionChoice choice, IProgress<string>? status = null) =>
         Installer.InstallAsync(cli, mode, choice, status);
 

@@ -1289,7 +1289,7 @@
     <!-- Vínculo DevOps (editar work item) -->
     <sys:String x:Key="WiEdit_Title">Vínculo DevOps</sys:String>
     <sys:String x:Key="WiEdit_Header">Vínculo com o TFS / Azure DevOps</sys:String>
-    <sys:String x:Key="WiEdit_OpenInDevOps">Abrir no DevOps ↗</sys:String>
+    <sys:String x:Key="WiEdit_OpenWorkItem">Abrir o item ↗</sys:String>
     <sys:String x:Key="WiEdit_ConflictBold">⚠ Conflito de concorrência.</sys:String>
     <sys:String x:Key="WiEdit_ConflictText"> Outro usuário gravou uma versão mais recente. Reimporte para atualizar antes de sincronizar.</sys:String>
     <sys:String x:Key="WiEdit_Reimport">↓ Reimportar</sys:String>
@@ -2772,7 +2772,10 @@ Os campos são criados no projeto, não nas issues, e podem ser removidos pela t
     <sys:String x:Key="AI_TaskLineFmt">- {0} | duração: {1} h | predecessora: {2}</sys:String>
     <sys:String x:Key="AI_ClickApplyHint">Clique em 'Aplicar ao projeto' para incluir essas atividades.</sys:String>
 
-    <sys:String x:Key="Main_OpenInDevOps">Abrir no DevOps ↗</sys:String>
+    <sys:String x:Key="Main_OpenWorkItem">Abrir o item no servidor (DevOps / GitHub) ↗</sys:String>
+    <sys:String x:Key="Main_NoServerTaskLevelTitle">Tasks no servidor</sys:String>
+    <sys:String x:Key="Main_NoServerTaskLevel">Este projeto está no {0} (cadastro do Portfólio). Lá a Story é a folha: não há Tasks filhas no servidor para buscar, criar ou revisar.</sys:String>
+    <sys:String x:Key="Main_SyncLocalNoServer">Este projeto está como Projeto Local no Portfólio: não há servidor para sincronizar.</sys:String>
     <sys:String x:Key="Main_CustomizeColumns">Customizar colunas...</sys:String>
     <sys:String x:Key="Main_CriticalPath">Caminho Crítico — Ver atividades críticas...</sys:String>
     <sys:String x:Key="Main_DisableBaseline">Desativar Baseline</sys:String>

@@ -76,6 +76,8 @@ internal static class Program
         ("Versao GitProject: edicao pela tela do GitHub (updatedAt) vira conflito", GitRevisionDetectsServerEdit),
         ("Versao GitProject: revisao cabe no campo int e preserva a ordem no tempo", GitRevisionFitsAndKeepsOrder),
         ("Adm_NX GitProject: lista de logins autoriza so quem esta nela", GitAdminListAuthorizes),
+        ("NxAgentApi: PAT cifrado com a chave do par volta igual; sem a chave nao decifra; conexao incompleta e lote grande recusados", AgentApiSecretsAndValidation),
+        ("Adm_NX GitProject RESTRITO (agentes): lista/time decide; dono desconhecido ou time nao lido NEGA; regra vazia libera", GitAdminRestrictedDecision),
         ("Adm_NX GitProject: time da organizacao usa os membros; falha tecnica NAO bloqueia", GitAdminTeamAndFailOpen),
         ("Anexo GitProject: caminho e tipo_numero por nivel, sem titulo", GitAttachmentPathMirrorsHierarchy),
         ("Anexo GitProject: renomear o item NAO muda o caminho do anexo", GitAttachmentReusesFolderAfterRename),
@@ -83,6 +85,10 @@ internal static class Program
         ("Campos de horas: HH Original/Restante/Atual estao no DevOps e no GitProject", HoursFieldsExistOnBothTargets),
         ("Capacidades: cada destino diz o que sabe fazer (sem if por nome)", BackendCapabilitiesPerKind),
         ("Gravador: cada destino tem o seu, escolhido pela fachada", BoardWriterComesFromFacade),
+        ("Destino do cronograma vem do Portfolio", ProjectBackendComesFromPortfolio),
+        ("Fachada: link do item e do destino", ItemUrlComesFromBackend),
+        ("GitProject: blocked by vira predecessora no import", GitBlockedByBecomesPredecessor),
+        ("GitProject: plano de predecessoras no sync", GitPredecessorSyncPlan),
         ("GitProject: criterio de aceite vai e volta do corpo da issue", AcceptanceSectionRoundTrips),
         ("TaskBoard: percentual informado manda sobre o percentual do estado", PercentPendingWinsOverState),
         ("Cronograma: atividade por fazer nao comeca antes do inicio do projeto", PendingNeverStartsBeforeProject),
@@ -2204,6 +2210,116 @@ internal static class Program
     // A tela nao escolhe o caminho de gravacao por destino: ela pede o gravador a fachada. Se
     // isto quebrar, volta o problema que ja aconteceu — criar card funcionando por um caminho e
     // silenciosamente nao implementado por outro.
+    // O cronograma do GitProject tem o numero da issue no TfsId, igual a um id do DevOps. Se o
+    // destino deixar de vir do Portfolio, voltam o Mapa pedindo a issue #45 ao TFS e o Excluir
+    // destruindo um work item alheio.
+    private static void ProjectBackendComesFromPortfolio()
+    {
+        var opcoes = new NXProject.Services.TfsConnectionOptions();
+        opcoes.PortfolioProjectConfigs.Add(new NXProject.Services.PortfolioProjectConfig
+            { ProjectName = "Projeto 1", BackendKind = NXProject.Services.NxBackendKind.GitProject });
+        opcoes.PortfolioProjectConfigs.Add(new NXProject.Services.PortfolioProjectConfig
+            { ProjectName = "Local", FilePath = @"C:\x\local.nxproject", BackendKind = NXProject.Services.NxBackendKind.Local });
+
+        // Importado do GitProject: o nome do cronograma e o titulo da issue; o do Portfolio fica no DevOpsProjectName.
+        var git = new NXProject.Models.Project { Name = "Titulo da issue", DevOpsProjectName = "Projeto 1", DevOpsRootWorkItemId = 45 };
+        AssertEqual("GitProject", NXProject.Services.NxProjectBackend.Of(git, opcoes).ToString(),
+            "Projeto do GitProject no Portfolio e GitProject, mesmo com id de raiz.");
+        AssertTrue(!NXProject.Services.NxProjectBackend.CapabilitiesOf(git, opcoes).ServerTaskLevel,
+            "GitProject nao tem Tasks filhas no servidor.");
+
+        var local = new NXProject.Models.Project { Name = "outro", FilePath = @"C:\x\LOCAL.nxproject" };
+        AssertEqual("Local", NXProject.Services.NxProjectBackend.Of(local, opcoes).ToString(),
+            "O arquivo acha o cadastro (sem diferenciar maiusculas).");
+
+        var semCadastro = new NXProject.Models.Project { Name = "sem cadastro", DevOpsRootWorkItemId = 10 };
+        AssertEqual("AzureDevOps", NXProject.Services.NxProjectBackend.Of(semCadastro, opcoes).ToString(),
+            "Sem cadastro vale o padrao (Azure DevOps).");
+        AssertTrue(NXProject.Services.NxBackendCapabilities.For(NXProject.Services.NxBackendKind.AzureDevOps).ServerTaskLevel,
+            "DevOps tem Tasks filhas no servidor.");
+
+        // Trocar a raiz nao pode mexer nas opcoes compartilhadas pelas telas.
+        opcoes.RootWorkItemId = 7;
+        var outra = opcoes.WithRoot(45);
+        AssertEqual("45", outra.RootWorkItemId.ToString(), "WithRoot devolve a raiz pedida.");
+        AssertEqual("7", opcoes.RootWorkItemId.ToString(), "WithRoot nao altera a instancia original.");
+    }
+
+    // "#A blocked by #B" e o par do link Dependency-Reverse do DevOps: B e predecessora de A. A
+    // #12 de OUTRO repositorio nao e a #12 do board — confundir as duas ligaria atividades erradas.
+    private static void GitBlockedByBecomesPredecessor()
+    {
+        const string repo = "dono/repo";
+        NXProject.Services.GitProjectItem Item(int n, params NXProject.Services.GitBlockRef[] bl)
+        {
+            var i = new NXProject.Services.GitProjectItem { Number = n, Title = "i" + n, Repository = repo };
+            i.BlockedBy.AddRange(bl);
+            return i;
+        }
+        var itens = new List<NXProject.Services.GitProjectItem>
+        {
+            Item(48, new(49, repo, "I49"), new(12, "outro/repo", "X12"), new(99, repo, "I99")),
+            Item(49), Item(12)
+        };
+        var porNumero = itens.ToDictionary(i => i.Number);
+        var criados = itens.ToDictionary(i => i.Number, i => new NXProject.Models.ProjectTask { Id = i.Number, Name = i.Title, TfsId = i.Number });
+        var rel = new NXProject.Services.TfsImportService.ImportReport();
+
+        NXProject.Services.GitProjectImportService.AplicaPredecessoras(itens, porNumero, criados, rel);
+
+        AssertEqual("49", string.Join(",", criados[48].PredecessorIds), "So a #49 do board vira predecessora.");
+        AssertTrue(criados[49].PredecessorIds.Count == 0, "Quem nao e bloqueada fica sem predecessora.");
+        AssertTrue(rel.Log.Count(e => e.Level == NXProject.Services.TfsImportService.SyncLogLevel.Warning) == 1,
+            "O bloqueio de fora (outro repositorio, fora do board) vira UM aviso.");
+    }
+
+    // O sync grava o "blocked by" para bater com o cronograma — e so mexe no que e do board:
+    // bloqueio vindo de fora o cronograma nunca viu, e apaga-lo destruiria dado de outra pessoa.
+    private static void GitPredecessorSyncPlan()
+    {
+        const string repo = "dono/repo";
+        var porNumero = new Dictionary<int, NXProject.Services.GitProjectItem>();
+        foreach (var n in new[] { 46, 47, 48, 49, 50 })
+            porNumero[n] = new NXProject.Services.GitProjectItem { Number = n, Repository = repo, IssueId = "I" + n };
+        // No board, a #48 e bloqueada pela #49 (do board) e pela #7 (de fora).
+        porNumero[48].BlockedBy.Add(new(49, repo, "I49"));
+        porNumero[48].BlockedBy.Add(new(7, "outro/repo", "X7"));
+
+        var resumo = new NXProject.Models.ProjectTask { Id = 46, TfsId = 46, Name = "Feature" };
+        var story = new NXProject.Models.ProjectTask { Id = 48, TfsId = 48, Name = "Story" };
+        story.PredecessorIds.AddRange(new[] { 47, -3, 500 });          // board, so-cronograma, inexistente
+        var comFilhoReal = new NXProject.Models.ProjectTask { Id = 50, TfsId = 50, Name = "Resumo" };
+        comFilhoReal.PredecessorIds.Add(47);
+        comFilhoReal.Children.Add(new NXProject.Models.ProjectTask { Id = 51, Name = "filho" });
+        resumo.Children.Add(story);
+        var projeto = new NXProject.Models.Project { Name = "p" };
+        projeto.Tasks.Add(resumo);
+        projeto.Tasks.Add(new NXProject.Models.ProjectTask { Id = 47, TfsId = 47, Name = "Pred" });
+        projeto.Tasks.Add(comFilhoReal);
+
+        var (ops, avisos) = NXProject.Services.GitProjectSyncService.PlanoPredecessoras(projeto, porNumero);
+        string Texto(NXProject.Services.GitProjectSyncService.DependencyOp o) => $"{(o.Add ? "+" : "-")}{o.Number}<{o.Blocker}";
+        AssertEqual("+48<47,-48<49", string.Join(",", ops.Select(Texto)),
+            "Adiciona a #47, remove a #49 (saiu do cronograma) e nao toca na #7 de fora.");
+        AssertTrue(ops.All(o => o.Number != 50), "Resumo com filho que nao e marco nao grava predecessora.");
+        AssertTrue(avisos.Count == 1 && avisos[0].Contains("500"), "Predecessora sem issue no board vira aviso; a so-do-cronograma (-3) e ignorada.");
+    }
+
+    private static void ItemUrlComesFromBackend()
+    {
+        var devops = new NXProject.Services.TfsConnectionOptions { OrganizationUrl = "https://dev.azure.com/org/", TeamProject = "Time A" };
+        var git = new NXProject.Services.GitProjectOptions { Repository = "dono/repo" };
+        var projeto = new NXProject.Models.Project { Name = "p" };
+        string Url(NXProject.Services.NxBackendKind k) =>
+            NXProject.Services.NxBoardSources.For(k, devops, projeto, git).ItemUrlAsync(45).GetAwaiter().GetResult() ?? "(nenhuma)";
+
+        AssertEqual("https://dev.azure.com/org/Time%20A/_workitems/edit/45", Url(NXProject.Services.NxBackendKind.AzureDevOps),
+            "DevOps abre o work item.");
+        AssertEqual("https://github.com/dono/repo/issues/45", Url(NXProject.Services.NxBackendKind.GitProject),
+            "GitProject abre a issue, nao o work item de mesmo numero.");
+        AssertEqual("(nenhuma)", Url(NXProject.Services.NxBackendKind.Local), "Local nao tem pagina do item.");
+    }
+
     private static void BoardWriterComesFromFacade()
     {
         var devops = new NXProject.Services.TfsConnectionOptions();
@@ -3099,6 +3215,53 @@ internal static class Program
     // organizacao — board de conta pessoal nao tem nenhum. Entao o campo aceita as duas formas, e
     // autorizacao e a regra que mais machuca quando erra nos dois sentidos: travar quem pode e
     // liberar quem nao pode.
+
+    // NxAgentApi (porta do NXPilot): o PAT so entra cifrado com a entropia do par, e a API
+    // recusa o que esta incompleto ANTES de ir ao servidor.
+    // Regra restrita do GitProject (NxAgentApi): o valor e STRING (lista de logins ou @org/time),
+    // diferente do picklist de grupo do DevOps; falha tecnica NEGA (a tela libera).
+    private static void GitAdminRestrictedDecision()
+    {
+        var d = NXProject.Services.GitProjectAdminService.RestrictedDecision("ana, @carmonexus , carla", "carmonexus", null);
+        if (!d.Allowed) throw new Exception("Login na lista (com @ e espacos) pode gravar.");
+        if (NXProject.Services.GitProjectAdminService.RestrictedDecision("ana, carla", "carmonexus", null).Allowed)
+            throw new Exception("Fora da lista NAO pode gravar.");
+        if (!NXProject.Services.GitProjectAdminService.RestrictedDecision("", "carmonexus", null).Allowed)
+            throw new Exception("Regra vazia (sem lista configurada) libera, igual ao DevOps sem grupo.");
+        if (NXProject.Services.GitProjectAdminService.RestrictedDecision("ana, carla", "", null).Allowed)
+            throw new Exception("Dono do token desconhecido NEGA no modo restrito.");
+        if (NXProject.Services.GitProjectAdminService.RestrictedDecision("@nexusxdata/devs", "carmonexus", null).Allowed)
+            throw new Exception("Time cujos membros nao foram lidos NEGA no modo restrito (a tela libera).");
+        if (!NXProject.Services.GitProjectAdminService.RestrictedDecision("@nexusxdata/devs", "carmonexus", new List<string> { "outro", "CarmoNexus" }).Allowed)
+            throw new Exception("Membro do time (sem diferenciar maiusculas) pode gravar.");
+        if (NXProject.Services.GitProjectAdminService.RestrictedDecision("@nexusxdata/devs", "carmonexus", new List<string> { "outro" }).Allowed)
+            throw new Exception("Fora do time NAO pode gravar.");
+    }
+
+    private static void AgentApiSecretsAndValidation()
+    {
+        var e = NXProject.Agent.NxAgentApi.SecretEntropy;
+        var blob = NXProject.Services.WindowsDataProtection.EncryptWithEntropy("pat-de-teste-123", e);
+        if (NXProject.Services.WindowsDataProtection.DecryptWithEntropy(blob, e) != "pat-de-teste-123")
+            throw new Exception("PAT cifrado com a entropia do par deve voltar igual.");
+        if (NXProject.Services.WindowsDataProtection.Decrypt(blob) != "")
+            throw new Exception("Sem a entropia o PAT NAO pode ser decifrado.");
+        if (NXProject.Services.WindowsDataProtection.DecryptWithEntropy(blob, System.Text.Encoding.UTF8.GetBytes("outra")) != "")
+            throw new Exception("Com outra entropia o PAT NAO pode ser decifrado.");
+
+        string Err(string json) =>
+            System.Text.Json.Nodes.JsonNode.Parse(NXProject.Agent.NxAgentApi.CreateItemsAsync(json).GetAwaiter().GetResult())!["error"]?.ToString() ?? "";
+        if (!Err("{\"backend\":\"devops\",\"org\":\"https://dev.azure.com/x\",\"project\":\"p\",\"pat\":\"lixo\",\"parentId\":1,\"items\":[{\"title\":\"a\"}]}").Contains("PAT"))
+            throw new Exception("PAT em texto/lixo (nao cifrado com a chave do par) e recusado.");
+        var ok = "{\"backend\":\"devops\",\"org\":\"https://dev.azure.com/x\",\"project\":\"p\",\"pat\":\"" + blob + "\"";
+        if (!Err(ok + ",\"items\":[{\"title\":\"a\"}]}").Contains("parentId"))
+            throw new Exception("Sem parentId nada e criado.");
+        var muitos = string.Join(",", Enumerable.Range(1, 51).Select(i => "{\"title\":\"t" + i + "\"}"));
+        if (!Err(ok + ",\"parentId\":1,\"items\":[" + muitos + "]}").Contains("50"))
+            throw new Exception("Lote acima de 50 itens e recusado.");
+        if (NXProject.Agent.NxAgentApi.ContractVersion != 1)
+            throw new Exception("Contrato da API mudou: o NXPilot confere este numero.");
+    }
 
     private static void GitAdminListAuthorizes()
     {

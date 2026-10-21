@@ -100,6 +100,48 @@ namespace NXProject.Services
         }
 
         /// <summary>
+        /// Checagem RESTRITA, para gravação automática (NxAgentApi / agentes do NXPilot): mesma regra
+        /// de <see cref="CanSyncAsync"/>, mas falha técnica NEGA — não saber quem é o dono do
+        /// token ou não ler o time. Sem regra configurada: libera.
+        /// </summary>
+        public static async Task<(bool Allowed, string Rule, string Reason)> CanSyncRestrictedAsync(
+            GitProjectOptions options, GitProjectClient.ProjectSnapshot snap, GitProjectClient cliente)
+        {
+            var regra = ValorConfigurado(options, snap);
+            if (string.IsNullOrWhiteSpace(regra)) return RestrictedDecision(regra, null, null);
+            try
+            {
+                var (quem, _) = await cliente.WhoAmIAsync();
+                List<string>? membros = null;
+                if (IsTeam(regra) && !string.IsNullOrWhiteSpace(quem))
+                {
+                    var (org, time) = ParseTeam(regra);
+                    membros = await cliente.TeamMembersAsync(org, time);
+                }
+                return RestrictedDecision(regra, quem, membros);
+            }
+            catch (Exception ex)
+            {
+                return (false, regra, "falha ao conferir: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// A decisão RESTRITA, sem rede (cabe em teste). Valor do GitProject é STRING — lista de logins
+        /// separados por vírgula (com ou sem @) ou time `@org/time` —, diferente do DevOps (picklist de
+        /// grupo). Regra vazia: libera (não há regra). Dono do token desconhecido ou membros do time não
+        /// lidos (<paramref name="membros"/> nulo): NEGA — aqui não vale o fail-open da tela.
+        /// </summary>
+        public static (bool Allowed, string Rule, string Reason) RestrictedDecision(string? regra, string? quem, List<string>? membros)
+        {
+            var r = (regra ?? "").Trim();
+            if (r.Length == 0) return (true, "", "sem regra de administração no board");
+            if (string.IsNullOrWhiteSpace(quem)) return (false, r, "não deu para identificar o dono do token");
+            if (IsTeam(r) && membros == null) return (false, r, $"não deu para ler os membros de {r} (o token precisa de read:org)");
+            return IsAllowed(r, quem, membros) ? (true, r, $"{quem.Trim().TrimStart('@')} autorizado por {r}") : (false, r, $"{quem.Trim().TrimStart('@')} não está em {r}");
+        }
+
+        /// <summary>
         /// O valor do campo de administração no board. Procura primeiro no item de nível Project
         /// — é onde o DevOps o guarda, no Work Item Project —, e aceita qualquer item preenchido
         /// como reserva, porque nem todo board tem o nível Project.

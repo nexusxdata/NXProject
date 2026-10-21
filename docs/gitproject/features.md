@@ -1,4 +1,4 @@
-🌐 [Leia em Português](features.pt-BR.md) | **English**
+﻿🌐 [Leia em Português](features.pt-BR.md) | **English**
 
 # GitHub Projects in NXProject — features, state and decisions
 
@@ -24,11 +24,11 @@ at the end.
 
 | Feature | Where |
 |---|---|
-| Import (hierarchy from sub-issues, board fields, sprints, state) | `GitProjectImportService` |
+| Import (hierarchy from sub-issues, board fields, sprints, state, predecessors from "blocked by") | `GitProjectImportService` |
 | Discovery (list boards, find the portfolio) | `GitProjectDiscovery` |
 | TaskBoard, with columns coming from the project's own `Status` | `GitProjectBoardService` |
 | Board save (state, title, hours, dates, assignee, labels, sprint, reparent) | `GitProjectBoardWriter` |
-| Sync (fields, issue state, item creation, assignee) | `GitProjectSyncService` |
+| Sync (fields, issue state, item creation, assignee, predecessors as "blocked by") | `GitProjectSyncService` |
 | Backlog order | `BacklogOrderService` (the rule) + `INxOrderWriter` (how each target writes it) |
 | Concurrency: `Sync_version` mirroring the server revision | `GitProjectSyncService.Revision` |
 | Who may sync (`Adm_NX`): organization team or list of logins | `GitProjectAdminService` |
@@ -51,6 +51,7 @@ dotnet run --project NXTestUnit -c Release -- gitpoc     # BLOCK, attachments an
 | Question | What the plan assumed | What the measurement showed |
 |---|---|---|
 | Does backlog order come back? | 🔴 high risk: "order does not come back" | **It does.** `updateProjectV2ItemPosition` works at the top and in the middle, and the next read reflects it. The problem is not fragility, it is **cost**: ~2s per move, 98s to rewrite a queue of 48 items. Hence writing order is a **diff** — only what is out of place gets moved |
+| Can we have predecessors? | not available | **Yes.** GitHub's native dependency ("blocked by", `addBlockedBy`/`removeBlockedBy`) is the counterpart of the DevOps Dependency-Reverse link: "#A blocked by #B" = B is a predecessor of A. Sync honours the same `SyncPredecessorLinks` switch and only touches blocks between issues **on the board** — a block from outside becomes an import warning and is never deleted. Measured with a round trip on the test board |
 | Can blocked time be audited? | "may never be the same" | **It can.** `timelineItems` with `LABELED_EVENT`/`UNLABELED_EVENT` returns the label, the time and the actor of every in and out — the same data `/updates` gives in DevOps, in another shape |
 | Can a file be attached to an item? | attachment "in the comment body" | **There is no item-attachment API.** GitHub's own screen path (upload to a CDN) is not automatable. The substitute is versioning the file in the issue's repository |
 | Can the assignee be synced? | "the mutation is enough" | The mutation is trivial; the problem is **identity**. 6 of 100 accounts in a public repository had no display name, and a name is not unique. Solved by storing the **login** on the resource during import |

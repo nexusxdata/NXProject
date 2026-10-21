@@ -48,6 +48,8 @@ namespace NXProject.Views
             // "CAPEX", "OPEX" ou "EPIC" (lê de cada EPIC da hierarquia).
             public string  CostCenterSource { get; set; } = string.Empty;
             public Project Data             { get; set; } = null!;
+            /// <summary>Destino do projeto, do Portfólio: é por ele que link e Tasks são resolvidos.</summary>
+            public NxBackendKind Backend    { get; set; } = NxBackendKind.AzureDevOps;
 
             // Retorna OPEX/CAPEX para uma story, considerando o EPIC pai quando CostCenterSource=EPIC.
             public bool IsOpexForTask(ProjectTask task)
@@ -234,7 +236,8 @@ namespace NXProject.Views
                         CostCenterSource = string.IsNullOrWhiteSpace(cfg.CostCenterSource)
                                            ? (cfg.IsOpex ? "OPEX" : "CAPEX")
                                            : cfg.CostCenterSource,
-                        Data       = project
+                        Data       = project,
+                        Backend    = NxProjectBackend.Normalize(cfg.BackendKind)
                     });
                 }
                 catch { /* arquivo inválido — ignora */ }
@@ -930,8 +933,10 @@ namespace NXProject.Views
                           ?? GetStoriesInMonth(proj.Data, resName, monthStart, monthEnd);
 
             var opts   = TfsConnectionStore.Load();
-            var orgUrl = opts.OrganizationUrl?.TrimEnd('/') ?? "";
-            var tp     = opts.TeamProject ?? "";
+            // Link e Tasks pelo destino DO PROJETO: a URL do DevOps num projeto do GitProject
+            // abria o work item #N de outro projeto.
+            var fonte  = NxBoardSources.For(proj.Backend, opts, proj.Data, opts.GitProject);
+            var tasksNoServidor = fonte.Capabilities.ServerTaskLevel;
 
             var win = new Window
             {
@@ -1029,9 +1034,8 @@ namespace NXProject.Views
                     string pct   = $"{(int)Math.Round(task.PercentComplete)}%";
                     string start = task.Start.ToString("dd/MM/yy");
                     string fin   = task.Finish.ToString("dd/MM/yy");
-                    string? url  = task.TfsId.HasValue && !string.IsNullOrWhiteSpace(orgUrl)
-                        ? $"{orgUrl}/{Uri.EscapeDataString(tp)}/_workitems/edit/{task.TfsId.Value}"
-                        : null;
+                    Func<Task<string?>>? url = task.TfsId is > 0 && fonte.Capabilities.OpenInBrowser
+                        ? () => fonte.ItemUrlAsync(task.TfsId.Value) : null;
                     // As horas do recurso vêm de uma Task dele numa Story de OUTRO responsável, ou da própria Story.
                     var alloc        = ChargeableAllocations(task).FirstOrDefault(a => SamePerson(a.Resource, resName));
                     bool viaTask = alloc != null
@@ -1043,8 +1047,10 @@ namespace NXProject.Views
                     // Qtd de tasks: alocação por task → nº de tasks do recurso; alocação por story → sempre 1.
                     int qtdTasks     = viaTask ? (alloc?.Tasks ?? 0) : 1;
                     string qtd       = qtdTasks.ToString();
-                    // Botão para abrir a grid de tasks da story (Tech Lead) quando a story tem tasks no DevOps.
-                    Action? openTasks = (storyNode != null && (storyNode.TaskAllocations.Count > 0 || storyNode.DevopsTaskCount != 0))
+                    // Botão para abrir a grid de tasks da story (Tech Lead) quando a story tem tasks no
+                    // servidor — e só onde o destino tem esse nível de Tasks.
+                    Action? openTasks = (tasksNoServidor && storyNode != null
+                                         && (storyNode.TaskAllocations.Count > 0 || storyNode.DevopsTaskCount != 0))
                         ? () => OpenStoryTasksGrid(proj.Data, storyNode)
                         : null;
                     panel.Children.Add(MakeStoryRow(task.Name, tipo, storyName, qtd, hh, hhMes, pct, start, fin, url != null ? "↗" : "", isHeader: false, devOpsUrl: url, onOpenTasks: openTasks, responsible: resName));
@@ -1095,7 +1101,7 @@ namespace NXProject.Views
 
         // Renderização da linha vive em StoryListPopup (compartilhada com a Curva S).
         private static UIElement MakeStoryRow(string name, string tipo, string storyName, string qtd, string hh, string hhMes, string pct, string start, string fin,
-            string devOps, bool isHeader, string? devOpsUrl, Action? onOpenTasks = null,
+            string devOps, bool isHeader, Func<Task<string?>>? devOpsUrl, Action? onOpenTasks = null,
             string responsible = "")
             => StoryListPopup.MakeRow(
                 new StoryListRow(name, tipo, storyName, qtd, hh, hhMes, pct, start, fin, devOpsUrl, onOpenTasks, responsible),
@@ -2631,11 +2637,15 @@ namespace NXProject.Views
 
                 try
                 {
-                    var result = await TfsImportService.ImportAsync(importOpts);
+                    // A origem é o destino DO PROJETO: importar tudo pelo DevOps mandava o número
+                    // da issue do GitProject ao TFS, que respondia "workitemdataset ... id 45".
+                    var source = NxBoardSources.For(cfg.BackendKind, importOpts, git: opts.GitProject);
+                    var result = await source.ImportScheduleAsync(rootId);
                     ResourceKindConfigService.ApplyTo(result.Project.Resources);
-                    // Desce até o nível de Task no DevOps e grava o resumo (dono + horas) por Story,
-                    // para a alocação decompor o HH da Story entre as pessoas das tasks.
-                    await PopulateTaskAllocationsAsync(result.Project, importOpts, i + 1, toImport.Count, cfg.ProjectName);
+                    // Desce até o nível de Task e grava o resumo (dono + horas) por Story, para a
+                    // alocação decompor o HH da Story entre as pessoas das tasks.
+                    if (source.Capabilities.ServerTaskLevel)
+                        await PopulateTaskAllocationsAsync(result.Project, importOpts, i + 1, toImport.Count, cfg.ProjectName);
                     imported.Add(new LoadedProject
                     {
                         FilePath         = string.Empty,
@@ -2645,7 +2655,8 @@ namespace NXProject.Views
                         CostCenterSource = string.IsNullOrWhiteSpace(cfg.CostCenterSource)
                                            ? (cfg.IsOpex ? "OPEX" : "CAPEX")
                                            : cfg.CostCenterSource,
-                        Data             = result.Project
+                        Data             = result.Project,
+                        Backend          = source.Kind
                     });
                 }
                 catch (Exception ex)

@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -23,16 +23,18 @@ namespace NXProject.Views
     {
         private readonly TfsConnectionOptions _options;
         private readonly int _workItemId;
+        private readonly INxBoardSource _source;
         private bool _historyReady, _editorReady;
 
         /// <summary>HTML do novo trâmite (vazio = nenhum).</summary>
         public string NewComment { get; private set; } = string.Empty;
 
-        public TramiteWindow(int workItemId, string title, string? draftHtml = null)
+        public TramiteWindow(int workItemId, string title, INxBoardSource source, string? draftHtml = null)
         {
             InitializeComponent();
             _options = TfsConnectionStore.Load("NXProject.Community");
             _workItemId = workItemId;
+            _source = source ?? throw new ArgumentNullException(nameof(source));
             NewComment = draftHtml ?? string.Empty;
             TitleText.Text = title;
             InitAsync();
@@ -77,7 +79,9 @@ namespace NXProject.Views
             StatusText.Text = AppStrings.Get("Tramite_Loading");
             try
             {
-                var comments = await TfsImportService.GetWorkItemCommentsAsync(_options, _workItemId);
+                // Do destino do board: perguntar ao DevOps num board do GitProject mostrava os
+                // comentários de um work item de outro projeto com o mesmo número.
+                var comments = await _source.LoadCommentsAsync(_workItemId);
                 var sb = new StringBuilder();
                 if (comments.Count == 0)
                     sb.Append("<i style='color:#888'>").Append(WebUtility.HtmlEncode(AppStrings.Get("Tramite_Empty"))).Append("</i>");

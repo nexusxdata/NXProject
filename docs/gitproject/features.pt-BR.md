@@ -1,4 +1,4 @@
-🌐 **Português** | [Read in English](features.md)
+﻿🌐 **Português** | [Read in English](features.md)
 
 # GitHub Projects no NXProject — funcionalidades, estado e decisões
 
@@ -24,11 +24,11 @@ Tudo abaixo está **pronto** — o que falta e o que não será feito têm seç�
 
 | Funcionalidade | Onde |
 |---|---|
-| Importar (hierarquia por sub-issues, campos do board, sprints, estado) | `GitProjectImportService` |
+| Importar (hierarquia por sub-issues, campos do board, sprints, estado, predecessoras por "blocked by") | `GitProjectImportService` |
 | Discovery (listar boards, achar o portfólio) | `GitProjectDiscovery` |
 | TaskBoard, com as colunas vindas do `Status` do próprio projeto | `GitProjectBoardService` |
 | Salvar do board (estado, título, HH, datas, responsável, labels, sprint, mover de pai) | `GitProjectBoardWriter` |
-| Sincronizar (campos, estado da issue, criação de item, responsável) | `GitProjectSyncService` |
+| Sincronizar (campos, estado da issue, criação de item, responsável, predecessoras como "blocked by") | `GitProjectSyncService` |
 | Ordem do backlog | `BacklogOrderService` (regra) + `INxOrderWriter` (como gravar em cada destino) |
 | Concorrência: `Sync_version` espelhando a revisão do servidor | `GitProjectSyncService.Revision` |
 | Quem pode sincronizar (`Adm_NX`): time da org ou lista de logins | `GitProjectAdminService` |
@@ -53,6 +53,7 @@ dotnet run --project NXTestUnit -c Release -- gitpoc     # BLOCK, anexos e respo
 | A ordem do backlog volta? | 🔴 risco alto: "a ordem não volta" | **Volta.** `updateProjectV2ItemPosition` funciona no topo e no meio, e a releitura reflete. O problema não é fragilidade, é **custo**: ~2s por movimento, 98s para reescrever uma fila de 48 itens. Daí gravar a ordem ser um **diff** — só se move o que está fora de lugar |
 | Dá para auditar bloqueio? | "talvez nunca fique igual" | **Dá.** `timelineItems` com `LABELED_EVENT`/`UNLABELED_EVENT` devolve label, hora e autor de cada entrada e saída — o mesmo dado do `/updates` do DevOps, noutro formato |
 | Dá para anexar arquivo ao item? | anexo "no corpo do comentário" | **Não existe API de anexo de item.** O caminho da tela do GitHub (upload para um CDN) não é automatizável. O substituto é versionar no repositório da issue |
+| Dá para ter predecessora? | não havia | **Dá.** A dependência nativa do GitHub ("blocked by", `addBlockedBy`/`removeBlockedBy`) é o par do link Dependency-Reverse do DevOps: "#A blocked by #B" = B é predecessora de A. O sync respeita a mesma chave `SyncPredecessorLinks` e só mexe em bloqueio entre issues **do board** — bloqueio vindo de fora vira aviso no import e nunca é apagado. Medido com ida e volta no board de teste |
 | Dá para sincronizar responsável? | "basta a mutation" | A mutation é trivial; o problema é a **identidade**. 6 de 100 contas num repositório público não tinham nome de exibição, e nome não é único. Resolvido guardando o **login** no recurso durante o import |
 | Quem alterou por último? | carimbo nosso (`Sync_Name`) | O servidor já sabe: `creator` do valor de campo mais recente, ou `editor` da issue. Melhor que o carimbo — ele só enxergaria gravações feitas pelo próprio NXProject |
 

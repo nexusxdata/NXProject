@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -104,11 +104,13 @@ namespace NXProject.Views
         {
             foreach (var u in results)
             {
-                var key = !string.IsNullOrWhiteSpace(u.Email) ? u.Email : u.Name;
+                // Login do GitHub identifica a conta quando não há e-mail (nome pode repetir).
+                var key = !string.IsNullOrWhiteSpace(u.Email) ? u.Email
+                        : !string.IsNullOrWhiteSpace(u.Login) ? "@" + u.Login : u.Name;
                 if (string.IsNullOrWhiteSpace(key)) continue;
                 if (!_all.TryGetValue(key, out var item))
                 {
-                    item = new PickItem { Name = u.Name, Email = u.Email };
+                    item = new PickItem { Name = u.Name, Email = u.Email, Login = u.Login };
                     item.PropertyChanged += (_, _) => UpdateCount();
                     _all[key] = item;
                 }
@@ -189,7 +191,7 @@ namespace NXProject.Views
         {
             SelectedUsers = _all.Values
                 .Where(i => i.IsChecked)
-                .Select(i => new TfsImportService.DevOpsUserInfo(i.Name, i.Email))
+                .Select(i => new TfsImportService.DevOpsUserInfo(i.Name, i.Email, i.Login))
                 .ToList();
             DialogResult = true;
         }
@@ -205,6 +207,7 @@ namespace NXProject.Views
             private bool _isChecked;
             public string Name { get; set; } = string.Empty;
             public string Email { get; set; } = string.Empty;
+            public string Login { get; set; } = string.Empty;
             public bool IsChecked
             {
                 get => _isChecked;

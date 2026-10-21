@@ -1,4 +1,4 @@
-// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
+﻿// Copyright (c) Nexus XData Tecnologia Ltda — Todos os direitos reservados.
 // NXProject — licenciado sob a NXProject License 2.0 (Open Core / licenciamento dual).
 // Licença: LICENSE.txt (oficial, em português) | LICENSE.en.txt (English version).
 // Distribuição comercial somente mediante contrato: comercial.nexus.xdata@gmail.com
@@ -27,11 +27,19 @@ namespace NXProject.Views
         private sealed class BNode
         {
             public TfsImportService.BacklogItem Item = null!;
+            /// <summary>
+            /// De onde o nó veio. No portfólio convivem DevOps e GitProject, e o id 45 de um não
+            /// é o 45 do outro: link e "está no cronograma" são decididos pela fonte do nó.
+            /// </summary>
+            public INxBoardSource Source = null!;
             public List<BNode> Children = new();
             public bool InScheduleSubtree;
         }
 
         private readonly TfsConnectionOptions _options;
+        private readonly NXProject.Models.Project? _project;
+        /// <summary>Destino do cronograma aberto (Portfólio): só nele os ids batem com o cronograma.</summary>
+        private readonly NxBackendKind _projectBackend;
         private readonly int _scopedRootId;
         private readonly IReadOnlySet<int> _scheduleIds;
         private readonly Action<int>? _openInSchedule;
@@ -39,10 +47,13 @@ namespace NXProject.Views
         private Dictionary<string, (string Color, string Icon)> _typeColors = new();
         private int _total, _inSchedule;
 
-        public TfsBacklogWindow(int rootId, IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null)
+        public TfsBacklogWindow(NXProject.Models.Project? project, int rootId,
+            IReadOnlySet<int>? scheduleIds = null, Action<int>? openInSchedule = null)
         {
             InitializeComponent();
             _options = TfsConnectionStore.Load("NXProject.Community");
+            _project = project;
+            _projectBackend = NxProjectBackend.Of(project, _options);
             _scopedRootId = rootId;
             _scheduleIds = scheduleIds ?? new HashSet<int>();
             _openInSchedule = openInSchedule;
@@ -58,28 +69,62 @@ namespace NXProject.Views
             RefreshBtn.IsEnabled = false;
             try
             {
-                if (_typeColors.Count == 0)
-                    _typeColors = await TfsImportService.ListWorkItemTypeColorsAsync(_options);
+                // Raízes por DESTINO: cada projeto do portfólio é lido no servidor do seu cadastro.
+                var raizes = new Dictionary<NxBackendKind, List<int>>();
+                void Soma(NxBackendKind k, IEnumerable<int> ids)
+                {
+                    if (!raizes.TryGetValue(k, out var l)) raizes[k] = l = new List<int>();
+                    l.AddRange(ids.Where(i => i > 0 && !l.Contains(i)));
+                }
 
-                // Portfólio = SÓ os projetos cadastrados no portfólio do NX (por título); se não
-                // houver nenhum resolvido, cai no cronograma aberto. Nunca varre o TFS inteiro.
-                List<int> roots;
+                // Portfólio = SÓ os projetos cadastrados no portfólio do NX; se nenhum resolver,
+                // cai no cronograma aberto. Nunca varre o servidor inteiro.
                 if (PortfolioCheck.IsChecked == true)
                 {
-                    var names = (_options.PortfolioProjectConfigs ?? new())
-                        .Select(c => c.ProjectName).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
-                    roots = await TfsImportService.ResolvePortfolioRootIdsAsync(_options, names);
-                    if (roots.Count == 0 && _scopedRootId > 0) roots = new List<int> { _scopedRootId };
+                    var lista = DevOpsProjectListService.Load(_options.DevOpsProjectListPath);
+                    var semRaiz = new Dictionary<NxBackendKind, List<string>>();
+                    foreach (var cfg in _options.PortfolioProjectConfigs ?? new())
+                    {
+                        if (string.IsNullOrWhiteSpace(cfg.ProjectName)) continue;
+                        var kind = NxProjectBackend.Normalize(cfg.BackendKind);
+                        if (kind == NxBackendKind.Local) continue; // sem servidor: não há backlog a ler
+                        // A raiz cadastrada na lista de projetos é a certa; o título é o recurso.
+                        var dp = lista.FirstOrDefault(d => string.Equals(d.Name, cfg.ProjectName, StringComparison.OrdinalIgnoreCase));
+                        if (dp?.RootWorkItemId > 0) Soma(kind, new[] { dp.RootWorkItemId });
+                        else
+                        {
+                            if (!semRaiz.TryGetValue(kind, out var ns)) semRaiz[kind] = ns = new List<string>();
+                            ns.Add(cfg.ProjectName);
+                        }
+                    }
+                    foreach (var (kind, nomes) in semRaiz)
+                        Soma(kind, await Fonte(kind).ResolveRootsAsync(nomes));
                 }
-                else
+                if (raizes.Values.All(l => l.Count == 0) && (_scopedRootId > 0 || _projectBackend == NxBackendKind.Local))
                 {
-                    roots = _scopedRootId > 0 ? new List<int> { _scopedRootId } : new List<int>();
+                    raizes.Clear();
+                    raizes[_projectBackend] = new List<int> { _scopedRootId };
                 }
 
-                var items = await TfsImportService.BuildBacklogAsync(_options, roots);
-                _roots = BuildForest(items);
-                _total = items.Count;
-                _inSchedule = items.Count(i => _scheduleIds.Contains(i.Id));
+                var forest = new List<BNode>();
+                var items = 0;
+                _inSchedule = 0;
+                foreach (var (kind, ids) in raizes)
+                {
+                    if (ids.Count == 0) continue;
+                    var fonte = Fonte(kind);
+                    // Cor e ícone por tipo vêm do destino que os tem (o DevOps); os outros usam o padrão.
+                    foreach (var kv in await fonte.TypeColorsAsync())
+                        _typeColors.TryAdd(kv.Key, kv.Value);
+                    var lidos = await fonte.BuildBacklogAsync(ids);
+                    forest.AddRange(BuildForest(lidos, fonte));
+                    items += lidos.Count;
+                    if (kind == _projectBackend)
+                        _inSchedule += lidos.Count(i => _scheduleIds.Contains(i.Id));
+                }
+                ComputeInSchedule(forest);
+                _roots = forest;
+                _total = items;
                 RenderTree();
             }
             catch (Exception ex)
@@ -94,21 +139,28 @@ namespace NXProject.Views
             }
         }
 
+        /// <summary>Leitura no destino pedido — a tela não escolhe servidor.</summary>
+        private INxBoardSource Fonte(NxBackendKind kind)
+            => NxBoardSources.For(kind, _options, _project, _options.GitProject);
+
+        /// <summary>O item é do cronograma aberto: mesmo destino E id presente nele.</summary>
+        private bool InSchedule(BNode n)
+            => n.Source.Kind == _projectBackend && _scheduleIds.Contains(n.Item.Id);
+
         // Reconstrói a floresta a partir da lista achatada por profundidade.
-        private List<BNode> BuildForest(List<TfsImportService.BacklogItem> items)
+        private List<BNode> BuildForest(List<TfsImportService.BacklogItem> items, INxBoardSource source)
         {
             var roots = new List<BNode>();
             var stack = new List<BNode>();
             foreach (var it in items)
             {
-                var node = new BNode { Item = it };
+                var node = new BNode { Item = it, Source = source };
                 if (it.Depth == 0) roots.Add(node);
                 else if (it.Depth - 1 < stack.Count) stack[it.Depth - 1].Children.Add(node);
                 if (it.Depth < stack.Count) stack[it.Depth] = node;
                 else stack.Add(node);
                 stack.RemoveRange(Math.Min(it.Depth + 1, stack.Count), Math.Max(0, stack.Count - (it.Depth + 1)));
             }
-            ComputeInSchedule(roots);
             return roots;
         }
 
@@ -117,7 +169,7 @@ namespace NXProject.Views
             var any = false;
             foreach (var n in nodes)
             {
-                var self = _scheduleIds.Contains(n.Item.Id);
+                var self = InSchedule(n);
                 var kids = ComputeInSchedule(n.Children);
                 n.InScheduleSubtree = self || kids;
                 any |= n.InScheduleSubtree;
@@ -141,7 +193,7 @@ namespace NXProject.Views
         {
             // Abre recolhido por padrão: mostra os projetos/raízes; o usuário expande o que quiser
             // (ou usa "Expandir tudo").
-            var tvi = new TreeViewItem { IsExpanded = false, Header = BuildHeader(node.Item) };
+            var tvi = new TreeViewItem { IsExpanded = false, Header = BuildHeader(node) };
             foreach (var c in node.Children)
             {
                 if (onlySched && !c.InScheduleSubtree) continue;
@@ -150,9 +202,10 @@ namespace NXProject.Views
             return tvi;
         }
 
-        private FrameworkElement BuildHeader(TfsImportService.BacklogItem it)
+        private FrameworkElement BuildHeader(BNode node)
         {
-            var inSched = _scheduleIds.Contains(it.Id);
+            var it = node.Item;
+            var inSched = InSchedule(node);
             var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
             // Ícone do tipo conforme configurado no DevOps (mapeado do icon.id) — cai no
@@ -181,10 +234,14 @@ namespace NXProject.Views
             sp.Children.Add(new TextBlock { Text = details, Foreground = Brushes.Gray, FontSize = 11,
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) });
 
-            var open = new Button { Content = "DevOps", FontSize = 10, Padding = new Thickness(5, 0, 5, 0),
-                Margin = new Thickness(8, 0, 0, 0) };
-            open.Click += (_, _) => OpenInDevOps(it.Id);
-            sp.Children.Add(open);
+            // O link é da fonte do nó: no portfólio misto, o 45 do GitHub não é o 45 do DevOps.
+            if (node.Source.Capabilities.OpenInBrowser)
+            {
+                var open = new Button { Content = node.Source.Kind == NxBackendKind.GitProject ? "GitHub" : "DevOps",
+                    FontSize = 10, Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(8, 0, 0, 0) };
+                open.Click += async (_, _) => OpenWorkItem(await node.Source.ItemUrlAsync(it.Id));
+                sp.Children.Add(open);
+            }
             if (inSched && _openInSchedule != null)
             {
                 var sched = new Button { Content = "📅", FontSize = 11, Padding = new Thickness(5, 0, 5, 0),
@@ -252,14 +309,10 @@ namespace NXProject.Views
                 }
         }
 
-        private void OpenInDevOps(int id)
+        private static void OpenWorkItem(string? url)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(_options.OrganizationUrl) || string.IsNullOrWhiteSpace(_options.TeamProject)) return;
-                var url = $"{_options.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(_options.TeamProject.Trim())}/_workitems/edit/{id}";
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            }
+            if (url == null) return;
+            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
             catch { }
         }
     }

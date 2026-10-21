@@ -41,6 +41,25 @@ namespace NXProject.Views
                 ? _settings.DefaultFolder
                 : (File.Exists(_path) ? Path.GetDirectoryName(_path) : null);
 
+        /// <summary>
+        /// As Tasks filhas moram no servidor só quando o destino do projeto (Portfólio) tem esse
+        /// nível. Num projeto do GitProject o id da Story é o número da issue: buscar, criar ou
+        /// fechar Tasks por ele mexia num work item de outro projeto no DevOps.
+        /// </summary>
+        private bool TasksOnServer(TfsConnectionOptions options)
+            => NxProjectBackend.CapabilitiesOf(_vm?.Project, options).ServerTaskLevel;
+
+        /// <summary>Trava das ações de servidor: diz por que não roda, em vez de ir ao DevOps.</summary>
+        private bool NoServerTasks(TfsConnectionOptions options)
+        {
+            if (TasksOnServer(options)) return false;
+            var kind = NxProjectBackend.Of(_vm?.Project, options);
+            MessageBox.Show(this, AppStrings.Get("Main_NoServerTaskLevel",
+                    kind == NxBackendKind.GitProject ? AppStrings.Get("Sprint_TargetGitProject") : AppStrings.Get("Sprint_TargetLocal")),
+                AppStrings.Get("Main_NoServerTaskLevelTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            return true;
+        }
+
         public TaskPlanWindow(MainViewModel? vm = null)
         {
             InitializeComponent();
@@ -1340,6 +1359,7 @@ namespace NXProject.Views
             if (_data == null) return;
 
             var options = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(options)) return;
             if (string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken))
             {
                 MessageBox.Show(this, AppStrings.Get("TaskPlan_PickNoDevOps"),
@@ -2115,7 +2135,8 @@ namespace NXProject.Views
             var supervision = System.Math.Clamp(_vm?.Project?.StorySupervisionPercent ?? 20, 0, 100);
 
             var options = TfsConnectionStore.Load("NXProject.Community");
-            bool haveTfs = !string.IsNullOrWhiteSpace(options.OrganizationUrl)
+            bool haveTfs = TasksOnServer(options)
+                        && !string.IsNullOrWhiteSpace(options.OrganizationUrl)
                         && !string.IsNullOrWhiteSpace(options.PersonalAccessToken);
 
             // Agrupa as linhas por Story.
@@ -4020,6 +4041,7 @@ namespace NXProject.Views
             if (rows.Count == 0) { TaskPlanInfo("TaskPlan_RefreshNeedSel"); return; }
 
             var options = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(options)) return;
             if (string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken))
             { TaskPlanInfo("TaskPlan_PickNoDevOps"); return; }
 
@@ -4145,6 +4167,7 @@ namespace NXProject.Views
             }
 
             var options = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(options)) return;
             if (string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken))
             {
                 TaskPlanInfo("TaskPlan_PickNoDevOps");
@@ -4270,6 +4293,7 @@ namespace NXProject.Views
             try
             {
                 var options = TfsConnectionStore.Load("NXProject.Community");
+                if (NoServerTasks(options)) return;
                 if (prio > 0) prio = TfsImportService.ClampTaskPriority(options, prio);
 
                 // Duplicidade: a chave e o nome da Task dentro da Story.
@@ -4393,6 +4417,7 @@ namespace NXProject.Views
             }
 
             var options = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(options)) return;
             if (string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken))
             { TaskPlanInfo("TaskPlan_PickNoDevOps"); return; }
 
@@ -4567,6 +4592,7 @@ namespace NXProject.Views
         private void OpenWorkItemInBrowser(int tfsId)
         {
             var conn = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(conn)) return;
             if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject))
             {
                 MessageBox.Show(this, AppStrings.Get("TaskPlan_PickNoDevOps"),
@@ -4591,6 +4617,7 @@ namespace NXProject.Views
             try
             {
                 var options  = TfsConnectionStore.Load("NXProject.Community");
+                if (NoServerTasks(options)) return;
                 var children = await TfsImportService.FetchChildTasksFromDevOpsAsync(options, storyId.Value);
                 var t = children?.FirstOrDefault(x => x.TfsId == taskId);
                 if (t == null)
@@ -4789,6 +4816,7 @@ namespace NXProject.Views
             }
 
             var options = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(options)) return;
             if (string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken))
             {
                 MessageBox.Show(this, AppStrings.Get("TaskPlan_PickNoDevOps"),
@@ -7083,6 +7111,7 @@ namespace NXProject.Views
             }
 
             var options = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(options)) return null!;
             if (string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken))
             {
                 MessageBox.Show(this, AppStrings.Get("TaskPlan_PickNoDevOps"),
@@ -7503,6 +7532,7 @@ namespace NXProject.Views
             }
 
             var conn = TfsConnectionStore.Load("NXProject.Community");
+            if (NoServerTasks(conn)) return;
             if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject))
             {
                 MessageBox.Show(this, AppStrings.Get("TaskPlan_PickNoDevOps"),
@@ -7643,7 +7673,8 @@ namespace NXProject.Views
             // no cronograma as Tasks normalmente não estão presentes).
             var devOpsCache = new Dictionary<int, List<TfsImportService.DevOpsTaskInfo>>();
             var options = TfsConnectionStore.Load("NXProject.Community");
-            bool canQueryDevOps = !string.IsNullOrWhiteSpace(options.OrganizationUrl)
+            bool canQueryDevOps = TasksOnServer(options)
+                               && !string.IsNullOrWhiteSpace(options.OrganizationUrl)
                                && !string.IsNullOrWhiteSpace(options.PersonalAccessToken);
 
             System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
@@ -8004,7 +8035,8 @@ namespace NXProject.Views
             var devOpsCache = new Dictionary<int, List<TfsImportService.DevOpsTaskInfo>>();
             var pendingDevOps = new Dictionary<ProjectTask, List<TaskReviewRow>>();
             var options = TfsConnectionStore.Load("NXProject.Community");
-            bool canQueryDevOps = !string.IsNullOrWhiteSpace(options.OrganizationUrl)
+            bool canQueryDevOps = TasksOnServer(options)
+                               && !string.IsNullOrWhiteSpace(options.OrganizationUrl)
                                && !string.IsNullOrWhiteSpace(options.PersonalAccessToken);
 
             System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;

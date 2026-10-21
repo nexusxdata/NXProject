@@ -240,10 +240,15 @@ namespace NXProject.Services
         /// esta. O item vem identificado por nivel e numero — "Story #123" —, que e como se
         /// procura o que ficou para tras quando algo falha no meio.
         /// </param>
+        /// <param name="predecessoras">
+        /// Grava as predecessoras como "blocked by" — a mesma chave do DevOps
+        /// (<c>SyncPredecessorLinks</c>): quem desliga lá não espera vê-las gravadas aqui.
+        /// </param>
         public static async Task<TfsImportService.SyncReport> SyncAsync(
             Project project, GitProjectOptions options,
             IProgress<TfsImportService.SyncProgress>? progress = null,
-            System.Threading.CancellationToken ct = default)
+            System.Threading.CancellationToken ct = default,
+            bool predecessoras = true)
         {
             // Parar e decisao de quem olha a tela, e o GitHub nao tem transacao: o que ja foi
             // gravado fica. Por isso o corte e ENTRE itens e o relatorio diz onde parou.
@@ -429,6 +434,21 @@ namespace NXProject.Services
                                               "Assignee could not be synced: ") + ex.Message);
             }
 
+            // 3.6) Predecessoras, como "blocked by". Depois da criação (o item novo já tem id) e
+            //      fora do passo de campos: dependência é da ISSUE, não do board.
+            if (predecessoras && !Parou())
+            {
+                try
+                {
+                    await SincronizaPredecessorasAsync(project, cliente, porNumero, tocados, relatorio, progress);
+                }
+                catch (Exception ex)
+                {
+                    relatorio.LogWarning(NxText.T("Predecessoras não puderam ser sincronizadas: ",
+                                                  "Predecessors could not be synced: ") + ex.Message);
+                }
+            }
+
             // 4) Ordem do backlog, por último: é a parte cara (medida em ~2s por movimento) e o
             //    item recém-criado só pode ser posicionado depois de existir. Quem decide COMO
             //    gravar é a fachada — aqui não se sabe que no GitHub isso é mover item na view.
@@ -473,6 +493,111 @@ namespace NXProject.Services
             Fase(NxText.T("{0} item(ns) atualizado(s).", "{0} item(s) updated.", relatorio.Updated));
             GitSyncLog.Encerra();
             return relatorio;
+        }
+
+        /// <summary>Uma mudança de dependência: <c>Number</c> passa (ou deixa) de ser bloqueada por <c>Blocker</c>.</summary>
+        public sealed record DependencyOp(int Number, ProjectTask Task, int Blocker, bool Add);
+
+        /// <summary>
+        /// O que muda no "blocked by" para o board bater com as predecessoras do cronograma.
+        /// Função pura: a regra é testável sem servidor.
+        ///
+        /// A mesma regra do DevOps: só atividade cujos filhos são todos marcos (a folha, ou o
+        /// resumo que só tem marcos), e predecessora com id no board. E uma diferença de
+        /// propósito: só se REMOVE bloqueio por issue deste board. Um bloqueio vindo de fora o
+        /// cronograma nunca enxergou — apagá-lo seria destruir o que outra pessoa registrou.
+        /// </summary>
+        public static (List<DependencyOp> Ops, List<string> Warnings) PlanoPredecessoras(
+            Project project, IReadOnlyDictionary<int, GitProjectItem> porNumero)
+        {
+            var ops = new List<DependencyOp>();
+            var avisos = new List<string>();
+            var todas = new List<ProjectTask>();
+            void Junta(IEnumerable<ProjectTask> ts) { foreach (var t in ts) { todas.Add(t); Junta(t.Children); } }
+            Junta(project.Tasks);
+            var porId = todas.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First());
+
+            bool MesmoRepo(string a, string b) =>
+                string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)
+                || string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+            foreach (var t in todas)
+            {
+                if (t.TfsId is not > 0 || !porNumero.TryGetValue(t.TfsId.Value, out var item)) continue;
+                if (!t.Children.All(c => c.IsMilestone)) continue;
+
+                var desejadas = new HashSet<int>();
+                var invalidas = new List<int>();
+                foreach (var guardado in t.PredecessorIds)
+                {
+                    if (guardado < 0) continue; // atividade só do cronograma: não existe no GitHub
+                    if (porId.TryGetValue(guardado, out var pred) && pred.TfsId is > 0
+                        && porNumero.ContainsKey(pred.TfsId.Value))
+                        desejadas.Add(pred.TfsId.Value);
+                    else if (!porId.ContainsKey(guardado) && porNumero.ContainsKey(guardado))
+                        desejadas.Add(guardado); // guardado como número da issue
+                    else invalidas.Add(guardado);
+                }
+                desejadas.Remove(t.TfsId.Value);
+                if (invalidas.Count > 0)
+                    avisos.Add(NxText.T(
+                        "#{0} ({1}): predecessora(s) sem issue neste board ({2}) — ignoradas na sincronização.",
+                        "#{0} ({1}): predecessor(s) with no issue on this board ({2}) — ignored in the sync.",
+                        t.TfsId, t.Name, string.Join(", ", invalidas)));
+
+                var atuais = item.BlockedBy
+                    .Where(b => porNumero.TryGetValue(b.Number, out var nb) && MesmoRepo(b.Repository, nb.Repository))
+                    .Select(b => b.Number).ToHashSet();
+
+                foreach (var n in desejadas.Where(n => !atuais.Contains(n)).OrderBy(n => n))
+                    ops.Add(new DependencyOp(t.TfsId.Value, t, n, Add: true));
+                foreach (var n in atuais.Where(n => !desejadas.Contains(n)).OrderBy(n => n))
+                    ops.Add(new DependencyOp(t.TfsId.Value, t, n, Add: false));
+            }
+            return (ops, avisos);
+        }
+
+        private static async Task SincronizaPredecessorasAsync(Project project, GitProjectClient cliente,
+            Dictionary<int, GitProjectItem> porNumero, Dictionary<int, ProjectTask> tocados,
+            TfsImportService.SyncReport relatorio, IProgress<TfsImportService.SyncProgress>? progress)
+        {
+            var (ops, avisos) = PlanoPredecessoras(project, porNumero);
+            foreach (var a in avisos) relatorio.LogWarning(a);
+            if (ops.Count == 0) return;
+
+            var fase = NxText.T("Gravando predecessoras…", "Writing predecessors…");
+            var feitas = 0;
+            for (int i = 0; i < ops.Count; i++)
+            {
+                var op = ops[i];
+                progress?.Report(new(fase, i + 1, ops.Count, Rotulo(op.Task, op.Number)));
+                var issue = porNumero[op.Number].IssueId;
+                var bloqueia = porNumero[op.Blocker].IssueId;
+                try
+                {
+                    if (op.Add)
+                        await GitSyncLog.MedeAsync("predecessora +", $"#{op.Number}<-#{op.Blocker}",
+                            () => cliente.AddBlockedByAsync(issue, bloqueia));
+                    else
+                        await GitSyncLog.MedeAsync("predecessora -", $"#{op.Number}<-#{op.Blocker}",
+                            () => cliente.RemoveBlockedByAsync(issue, bloqueia));
+                    feitas++;
+                    // A dependência mexe no updatedAt da issue: entra na releitura da revisão
+                    // (passo 5), senão a próxima sincronização acusaria conflito contra esta.
+                    if (!tocados.ContainsKey(op.Number)) { tocados[op.Number] = op.Task; relatorio.Updated++; }
+                }
+                catch (Exception ex)
+                {
+                    relatorio.LogWarning(NxText.T(
+                        "#{0}: predecessora #{1} não foi {2} ({3}).",
+                        "#{0}: predecessor #{1} was not {2} ({3}).",
+                        op.Number, op.Blocker,
+                        op.Add ? NxText.T("gravada", "added") : NxText.T("removida", "removed"), ex.Message));
+                }
+            }
+            if (feitas > 0)
+                relatorio.LogSuccess(NxText.T("Predecessoras: {0} vínculo(s) gravado(s) como \"blocked by\".",
+                                              "Predecessors: {0} link(s) written as \"blocked by\".", feitas));
         }
 
         /// <summary>

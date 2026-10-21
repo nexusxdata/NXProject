@@ -1082,11 +1082,11 @@ namespace NXProject.Views
         private void OnLocalAiManageClick(object sender, RoutedEventArgs e)
             => new LocalAIManagerWindow { Owner = this }.ShowDialog();
 
-        private void OnOpenSelectedTaskInDevOpsClick(object sender, RoutedEventArgs e)
+        private void OnOpenSelectedWorkItemClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
             if (vm.SelectedTask?.Model is { } m)
-                OpenTaskInDevOps(m);
+                OpenWorkItem(m);
         }
 
         // Abre a janela de Consultas (Shared Queries do DevOps executadas dentro do NX).
@@ -1115,17 +1115,23 @@ namespace NXProject.Views
         private void OnTfsBacklogClick(object sender, RoutedEventArgs e)
         {
             var conn = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
-            if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)
-                || string.IsNullOrWhiteSpace(conn.PersonalAccessToken))
+            var project = (DataContext as MainViewModel)?.Project;
+            // A conexão exigida é a do destino do projeto (Portfólio); o DevOps só é obrigatório
+            // quando é ele o destino. Antes, um cronograma do GitProject pedia o PAT do DevOps.
+            var backend = NxProjectBackend.Of(project, conn);
+            if (backend == NxBackendKind.AzureDevOps
+                && (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)
+                    || string.IsNullOrWhiteSpace(conn.PersonalAccessToken)))
             {
                 MessageBox.Show(this, AppStrings.Get("Query_LoadError", AppStrings.Get("Menu_View_DevOpsConfig")),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            // Raiz: o root do cronograma aberto (se veio do DevOps); senão o ID raiz configurado.
-            var rootId = (DataContext as MainViewModel)?.Project?.DevOpsRootWorkItemId ?? 0;
-            if (rootId <= 0) rootId = conn.RootWorkItemId;
-            if (rootId <= 0)
+            // Raiz: o root do cronograma aberto; senão o ID raiz configurado — que é do DevOps,
+            // então só vale quando o destino é o DevOps.
+            var rootId = project?.DevOpsRootWorkItemId ?? 0;
+            if (rootId <= 0 && backend == NxBackendKind.AzureDevOps) rootId = conn.RootWorkItemId;
+            if (rootId <= 0 && backend != NxBackendKind.Local && conn.PortfolioProjectConfigs.Count == 0)
             {
                 MessageBox.Show(this, AppStrings.Get("Backlog_NoRoot"),
                     "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1137,7 +1143,7 @@ namespace NXProject.Views
                 .Select(t => t.Model.TfsId!.Value)
                 .ToHashSet() ?? new System.Collections.Generic.HashSet<int>();
 
-            new NXProject.Views.TfsBacklogWindow(rootId, scheduleIds, FocusScheduleTaskByTfsId) { Owner = this }.Show();
+            new NXProject.Views.TfsBacklogWindow(project, rootId, scheduleIds, FocusScheduleTaskByTfsId) { Owner = this }.Show();
         }
 
         // Abre a visão de Sprint (Taskboard: cards por estado, filtro por pessoa e cronograma).
@@ -1227,14 +1233,51 @@ namespace NXProject.Views
             vm.RequestScrollToSelected?.Invoke();
         }
 
-        private void OpenTaskInDevOps(NXProject.Models.ProjectTask task)
+        /// <summary>
+        /// Destino do cronograma aberto — SEMPRE do Portfólio. O cronograma importado do
+        /// GitProject tem o número da issue no TfsId, igual a um id do DevOps: decidir pelo id
+        /// mandava a issue #45 ao TFS (e excluir/sincronizar acertava um work item alheio).
+        /// </summary>
+        private NXProject.Services.NxBackendKind ProjectBackend(MainViewModel vm)
+            => NXProject.Services.NxProjectBackend.Of(vm.Project, NXProject.Services.TfsConnectionStore.Load("NXProject.Community"));
+
+        /// <summary>Leitura no destino do Portfólio — a tela não escolhe servidor.</summary>
+        private INxBoardSource ProjectSource(MainViewModel vm)
+        {
+            var options = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
+            return NxBoardSources.For(NxProjectBackend.Of(vm.Project, options), options, vm.Project, options.GitProject);
+        }
+
+        private static string BackendLabel(NXProject.Services.NxBackendKind kind) => kind switch
+        {
+            NXProject.Services.NxBackendKind.GitProject => AppStrings.Get("Sprint_TargetGitProject"),
+            NXProject.Services.NxBackendKind.Local => AppStrings.Get("Sprint_TargetLocal"),
+            _ => AppStrings.Get("Sprint_TargetDevOps")
+        };
+
+        /// <summary>
+        /// Ações sobre Tasks FILHAS no servidor (Task Plan, revisão, buscar/expandir Tasks). Só
+        /// existem no destino que tem esse nível; nos outros a tela diz por que não abre, em vez
+        /// de consultar o servidor errado.
+        /// </summary>
+        private bool AllowServerTaskLevel(MainViewModel vm)
+        {
+            var kind = ProjectBackend(vm);
+            if (NXProject.Services.NxBackendCapabilities.For(kind).ServerTaskLevel) return true;
+            MessageBox.Show(this, AppStrings.Get("Main_NoServerTaskLevel", BackendLabel(kind)),
+                AppStrings.Get("Main_NoServerTaskLevelTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+
+        private async void OpenWorkItem(NXProject.Models.ProjectTask task)
         {
             if (task.TfsId is not > 0) return;
             try
             {
-                var conn = NXProject.Services.TfsConnectionStore.Load();
-                if (string.IsNullOrWhiteSpace(conn.OrganizationUrl) || string.IsNullOrWhiteSpace(conn.TeamProject)) return;
-                var url = $"{conn.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(conn.TeamProject.Trim())}/_workitems/edit/{task.TfsId}";
+                if (DataContext is not MainViewModel vm) return;
+                // A URL é do destino do projeto: a do DevOps abria o work item #N de outro projeto.
+                var url = await ProjectSource(vm).ItemUrlAsync(task.TfsId.Value);
+                if (url == null) return;
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
             }
             catch { }
@@ -1245,7 +1288,7 @@ namespace NXProject.Views
             if (DataContext is not MainViewModel vm)
                 return;
 
-            var dialog = new TfsWorkItemEditWindow(task) { Owner = this };
+            var dialog = new TfsWorkItemEditWindow(task, ProjectBackend(vm), ProjectSource(vm), vm.Project) { Owner = this };
             if (dialog.ShowDialog() == true)
                 vm.Project.IsDirty = true;
             else if (dialog.ShouldDelete)
@@ -1265,6 +1308,7 @@ namespace NXProject.Views
         {
             if (DataContext is not MainViewModel vm) return;
             if (task.Model.TfsId is not > 0) return;
+            if (!AllowServerTaskLevel(vm)) return;
 
             var win = new TfsOnlineChildTasksWindow(task.Model, vm) { Owner = this };
             win.ShowDialog();
@@ -1278,7 +1322,8 @@ namespace NXProject.Views
             // Critérios de Aceitação é campo só da Story (Feature, Epic e Task não têm).
             var acOk = Services.TfsImportService.IsStoryTypePublic(task.Model.TfsType);
             var win = new TaskDescriptionEditWindow(task.Model,
-                enableAcceptance: acOk, acceptanceHtml: task.Model.AcceptanceCriteria) { Owner = this };
+                enableAcceptance: acOk, acceptanceHtml: task.Model.AcceptanceCriteria,
+                source: ProjectSource(vm)) { Owner = this };
             if (win.ShowDialog() == true)
             {
                 if (win.AcceptanceChanged) task.Model.AcceptanceCriteria = win.AcceptanceHtml;
@@ -1335,6 +1380,7 @@ namespace NXProject.Views
                 MessageBox.Show("Esta atividade não está vinculada ao DevOps.", "Sem vínculo", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+            if (!AllowServerTaskLevel(vm)) return;
 
             try
             {
@@ -1382,6 +1428,10 @@ namespace NXProject.Views
         private async System.Threading.Tasks.Task<bool> OnManualPercentCompleteCommitRequested(TaskViewModel storyVm, double requestedPercent)
         {
             var savedOptions = Services.TfsConnectionStore.Load("NXProject.Community");
+            // Sem Tasks no servidor (GitProject, Local) a Story é a folha: não há Task a exigir.
+            if (DataContext is MainViewModel pvm
+                && !NxBackendCapabilities.For(ProjectBackend(pvm)).ServerTaskLevel)
+                return true;
             if (!Services.TfsImportService.ShouldBlockManualStoryCompletionWithoutDevOpsTasks(
                     storyVm.Model,
                     requestedPercent,
@@ -1521,7 +1571,8 @@ namespace NXProject.Views
             // Se não há tasks em memória, busca do DevOps e adiciona ao cronograma
             bool hasTasks = story.Children.Any(c =>
                 string.Equals(c.TfsType, "Task", StringComparison.OrdinalIgnoreCase));
-            if (!hasTasks && story.TfsId is > 0)
+            if (!hasTasks && story.TfsId is > 0
+                && NxBackendCapabilities.For(ProjectBackend(vm)).ServerTaskLevel)
             {
                 var options = Services.TfsConnectionStore.Load("NXProject.Community");
                 var tasks = await Services.TfsImportService.FetchChildTasksFromDevOpsAsync(options, story.TfsId!.Value);
@@ -1578,6 +1629,7 @@ namespace NXProject.Views
         {
             if (DataContext is not MainViewModel vm) return;
             if (storyVm.Model.TfsId is not > 0) return;
+            if (!AllowServerTaskLevel(vm)) return;
 
             var cfg = Services.TfsConnectionStore.Load("NXProject.Community");
             var dlg = new TechLeadTaskReviewWindow(vm.Project, [storyVm.Model], cfg.TaskActivityList)
@@ -1879,6 +1931,7 @@ namespace NXProject.Views
         private async void OnLoadTaskToDoClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
+            if (!AllowServerTaskLevel(vm)) return;
 
             bool includeCompleted = false;
             if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0)
@@ -1970,6 +2023,7 @@ namespace NXProject.Views
         private async void OnTechLeadReviewClick(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm) return;
+            if (!AllowServerTaskLevel(vm)) return;
 
             var storiesWithDevOps = vm.FlatTasks
                 .Where(t => !t.Model.IsSummary && !t.Model.IsMilestone && t.Model.TfsId is > 0 &&
@@ -2004,7 +2058,11 @@ namespace NXProject.Views
             bool isStarted = task.PercentComplete > 0.0001;
             // Story com andamento (% > 0) também é protegida: não pode excluir aqui.
             bool storyStartedProtected = hasDevOpsId && isStory && isStarted;
-            bool canDeleteInDevOps = hasDevOpsId && isStory && !isStarted;
+            // O destino é o do Portfólio: o TfsId de um cronograma do GitProject é o número da
+            // issue, e apagá-lo no DevOps destruía (destroy=true, sem lixeira) um work item alheio.
+            var backend = ProjectBackend(vm);
+            bool canDeleteInDevOps = hasDevOpsId && isStory && !isStarted
+                                     && NxBackendCapabilities.For(backend).DeleteItem;
 
             // Epic/Feature (ID real, não Story): não pode excluir aqui, oferece abrir no DevOps.
             if (hasDevOpsId && !isStory)
@@ -2013,7 +2071,7 @@ namespace NXProject.Views
                     LanguageService.Str("Delete_ProtectedMsg", task.Name, task.Model.TfsType ?? ""),
                     LanguageService.Str("Delete_ProtectedTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information);
                 if (result == MessageBoxResult.Yes)
-                    OpenTaskInDevOps(task.Model);
+                    OpenWorkItem(task.Model);
                 return;
             }
 
@@ -2024,7 +2082,7 @@ namespace NXProject.Views
                     LanguageService.Str("Delete_StartedStoryMsg", task.Name, task.PercentComplete),
                     LanguageService.Str("Delete_ProtectedTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information);
                 if (result == MessageBoxResult.Yes)
-                    OpenTaskInDevOps(task.Model);
+                    OpenWorkItem(task.Model);
                 return;
             }
 
@@ -2088,7 +2146,14 @@ namespace NXProject.Views
                 try
                 {
                     var options = NXProject.Services.TfsConnectionStore.Load("NXProject.Community");
-                    await NXProject.Services.TfsImportService.DeleteWorkItemAsync(options, task.TfsId!.Value);
+                    var (ok, msg) = await NxBoardWriters.For(backend, options, vm.Project, options.GitProject)
+                        .DeleteAsync(task.TfsId!.Value);
+                    if (!ok)
+                    {
+                        MessageBox.Show(this, msg, AppStrings.Get("Tfs_ActionDelete"),
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -2156,8 +2221,33 @@ namespace NXProject.Views
 
         private async void OnSyncTfsClick(object sender, RoutedEventArgs e)
         {
-            if (DataContext is not MainViewModel vm)
-                return;
+            if (DataContext is MainViewModel vm) await SincronizaProjetoAsync(vm);
+        }
+
+        /// <summary>
+        /// Sincronizar vai para o destino do PORTFÓLIO — não para o botão clicado nem para uma
+        /// escolha no diálogo. O diálogo oferecia "DevOps" como padrão até para cronograma do
+        /// GitProject, e gravava nos ids das issues como se fossem work items do DevOps.
+        /// </summary>
+        private async Task SincronizaProjetoAsync(MainViewModel vm)
+        {
+            switch (ProjectBackend(vm))
+            {
+                case NxBackendKind.GitProject:
+                    await SincronizaGitProjectAsync(vm);
+                    break;
+                case NxBackendKind.Local:
+                    MessageBox.Show(this, AppStrings.Get("Main_SyncLocalNoServer"),
+                        AppStrings.Get("Tfs_ActionSync"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    break;
+                default:
+                    await SincronizaDevOpsAsync(vm);
+                    break;
+            }
+        }
+
+        private async Task SincronizaDevOpsAsync(MainViewModel vm)
+        {
 
             // Cronograma "somente leitura" (marca ANTIGA do Portfólio): só bloqueia quando NÃO dá
             // para revalidar pelo grupo administrador. Com work item raiz do DevOps, quem manda é
@@ -2231,23 +2321,9 @@ namespace NXProject.Views
                 rootName, rootId, options.TeamProject ?? "", options.OrganizationUrl ?? "");
             if (targetDiffers)
                 confirmBody += "\n\n" + AppStrings.Get("Sync_ConfirmDiffersNote");
-            // A confirmação que já existia passa a perguntar TAMBÉM o destino. Virou diálogo de
-            // escolha em vez de ganhar um combo: o Sincronizar não tem tela própria, e um modal a
-            // mais a cada sincronização seria pior do que uma linha extra neste.
-            var escolha = ChoiceDialog.Ask(this, "Sincronizar TFS/DevOps", confirmBody, new[]
-            {
-                new ChoiceDialog.Option(AppStrings.Get("Sprint_TargetDevOps"),
-                    AppStrings.Get("Sync_TargetDevOpsDesc"), 1, IsPrimary: true),
-                new ChoiceDialog.Option(AppStrings.Get("Sprint_TargetGitProject"),
-                    AppStrings.Get("Sync_TargetGitProjectDesc"), 2),
-                new ChoiceDialog.Option(AppStrings.Get("Imp_Cancel"), null, 0),
-            });
-            if (escolha == 2)
-            {
-                await SincronizaGitProjectAsync(vm);
-                return;
-            }
-            if (escolha != 1)
+            // O destino já veio do Portfólio (SincronizaProjetoAsync): aqui só se confirma.
+            if (MessageBox.Show(this, confirmBody, "Sincronizar TFS/DevOps",
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
                 return;
 
             if (!ConfirmKnownTfsResources(vm))
@@ -2622,7 +2698,8 @@ namespace NXProject.Views
         private void OnImportTfsToolbarClick(object sender, RoutedEventArgs e) => OpenTfsImport();
         private async void OnSyncGitProjectClick(object sender, RoutedEventArgs e)
         {
-            if (DataContext is MainViewModel vm) await SincronizaGitProjectAsync(vm);
+            // Mesmo botão, mesma regra: o destino é o do Portfólio.
+            if (DataContext is MainViewModel vm) await SincronizaProjetoAsync(vm);
         }
 
         /// <summary>
@@ -2634,7 +2711,8 @@ namespace NXProject.Views
         /// </summary>
         private async Task SincronizaGitProjectAsync(MainViewModel vm)
         {
-            var git = Services.TfsConnectionStore.Load("NXProject.Community").GitProject;
+            var conexao = Services.TfsConnectionStore.Load("NXProject.Community");
+            var git = conexao.GitProject;
             if (git?.IsConfigured != true)
             {
                 MessageBox.Show(this, AppStrings.Get("Git_SyncNoConn"),
@@ -2662,7 +2740,8 @@ namespace NXProject.Views
             try
             {
                 report = await Services.GitProjectSyncService.SyncAsync(
-                    vm.Project, git, reporter, cancelamento.Token);
+                    vm.Project, git, reporter, cancelamento.Token,
+                    predecessoras: conexao.SyncPredecessorLinks);
             }
             catch (Exception ex)
             {
@@ -2845,14 +2924,19 @@ namespace NXProject.Views
             var ownerText = string.IsNullOrWhiteSpace(owner) ? string.Empty : AppStrings.Get("Banner_Owner", owner);
             // Fonte de dados: TFS/DevOps quando o projeto vem do DevOps (tem nome/id de projeto);
             // senão, o nome do arquivo local. A barra de título do Windows às vezes não é vista.
-            var isDevOps = !string.IsNullOrWhiteSpace(name) || id > 0;
+            // O vínculo (nome/id) existe nos dois servidores; QUAL servidor é, diz o Portfólio.
+            var linked = !string.IsNullOrWhiteSpace(name) || id > 0;
+            var backend = DataContext is MainViewModel bvm ? ProjectBackend(bvm) : NxBackendKind.AzureDevOps;
+            var isDevOps = linked && backend == NxBackendKind.AzureDevOps;
             var file = (DataContext as MainViewModel)?.Project?.FilePath;
             var fileName = string.IsNullOrWhiteSpace(file) ? null : System.IO.Path.GetFileName(file);
-            // TFS/DevOps sem arquivo (aberto direto do DevOps) => "TFS/DevOps".
-            // TFS/DevOps já gravado em arquivo => "TFS <Nome do Arquivo>".
+            // Vinculado sem arquivo (aberto direto do servidor) => "TFS/DevOps" ou "GitProject".
+            // Vinculado já gravado em arquivo => "TFS <Nome do Arquivo>" / "GitProject <Nome>".
             // Arquivo local puro => só o nome do arquivo.
-            var source = isDevOps
-                ? (string.IsNullOrWhiteSpace(fileName) ? "TFS/DevOps" : $"TFS {fileName}")
+            var serverLabel = backend == NxBackendKind.GitProject ? "GitProject" : "TFS/DevOps";
+            var serverPrefix = backend == NxBackendKind.GitProject ? "GitProject" : "TFS";
+            var source = linked && backend != NxBackendKind.Local
+                ? (string.IsNullOrWhiteSpace(fileName) ? serverLabel : $"{serverPrefix} {fileName}")
                 : fileName;
             if (!string.IsNullOrWhiteSpace(source))
             {

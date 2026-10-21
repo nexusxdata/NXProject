@@ -648,10 +648,7 @@ namespace NXProject.Views
         private string LocalFolder()
         {
             if (_localProject == null) return "";
-            var cfg = _options.PortfolioProjectConfigs.FirstOrDefault(c =>
-                (!string.IsNullOrWhiteSpace(c.FilePath)
-                 && string.Equals(c.FilePath, _localProject.FilePath, StringComparison.OrdinalIgnoreCase))
-                || string.Equals(c.ProjectName, _localProject.Name, StringComparison.CurrentCultureIgnoreCase));
+            var cfg = NxProjectBackend.ConfigOf(_localProject, _options);
             return LocalProjectFolder.Resolve(_localProject.FilePath, cfg?.LocalFolderPath);
         }
 
@@ -664,19 +661,15 @@ namespace NXProject.Views
         /// </summary>
         private void AplicaDestinoDoPortfolio()
         {
-            var cfg = _localProject == null ? null : _options.PortfolioProjectConfigs.FirstOrDefault(c =>
-                (!string.IsNullOrWhiteSpace(c.FilePath) && !string.IsNullOrWhiteSpace(_localProject.FilePath)
-                 && string.Equals(c.FilePath, _localProject.FilePath, StringComparison.OrdinalIgnoreCase))
-                || string.Equals(c.ProjectName, _localProject.Name, StringComparison.CurrentCultureIgnoreCase));
-
+            var cfg = NxProjectBackend.ConfigOf(_localProject, _options);
             var destino = cfg?.BackendKind ?? NxBackendKind.Default;
 
-            // O ultimo destino escolhido no TaskBoard tem preferencia sobre o cadastro: foi a
-            // escolha mais recente de quem usa. As defesas abaixo continuam valendo para os
-            // dois — destino impossivel agora (GitProject sem conexao, Local sem cronograma)
-            // cai no padrao em vez de falhar na primeira consulta.
+            // O Portfólio MANDA: é lá que o destino do projeto mora. O último destino usado no
+            // TaskBoard só vale para cronograma sem cadastro — passar na frente do Portfólio
+            // abria um projeto do GitProject no DevOps (e vice-versa) por causa da sessão anterior.
             var salvo = LoadPrefs().LastBackend;
-            if (!string.IsNullOrWhiteSpace(salvo)
+            if (destino == NxBackendKind.Default
+                && !string.IsNullOrWhiteSpace(salvo)
                 && Enum.TryParse<NxBackendKind>(salvo, ignoreCase: true, out var doUsuario))
                 destino = doUsuario;
 
@@ -1217,7 +1210,9 @@ namespace NXProject.Views
                 foreach (var wid in _wipOver) _wipBaseline.Add(wid);
 
                 // Descobre uma vez por sessão o máximo de Priority aceito pelo template (validateOnly).
-                if (_discoveredPrioMax == 0)
+                // A faixa é do PROCESSO do servidor: só existe onde o destino tem processo. Num
+                // board do GitProject o id da amostra é uma issue, e o PATCH ia a um work item alheio.
+                if (_discoveredPrioMax == 0 && _caps.ServerStates)
                 {
                     var sample = _board.Stories.SelectMany(s => s.Tasks).FirstOrDefault(t => t.Id > 0);
                     if (sample != null)
@@ -2306,13 +2301,14 @@ namespace NXProject.Views
                 // Mesmas datas do hint do card, aqui so para consulta.
                 datesInfo: kind == "Task" && _cardById.TryGetValue(id, out var dcard) ? TaskDatesText(dcard)
                     : StoryById(id) is { } dst ? StoryDatesText(dst) : null,
-                // 💬 Tramite: so para itens ja existentes no DevOps.
-                onTramite: id > 0 ? () => EditTramite(id, title) : null,
+                // 💬 Tramite: so para itens ja existentes no servidor, e onde o destino tem comentario.
+                onTramite: id > 0 && _caps.Comments ? () => EditTramite(id, title) : null,
                 enableFinishDate: enableFinish, currentFinishDate: curFinish,
-                parentInfo: parentInfo, parentLinks: parentLinks, onOpenWorkItem: OpenInDevOps,
+                parentInfo: parentInfo, parentLinks: parentLinks, onOpenWorkItem: OpenWorkItem,
                 attachments: kind == "Task" && _cardById.TryGetValue(id, out var attCard) ? AttachmentsOf(attCard) : null,
                 onOpenAttachment: a => _ = OpenAttachmentAsync(a),
-                onRemoveAttachment: a => RemoveAttachmentAsync(id, a)) { Owner = this };
+                onRemoveAttachment: a => RemoveAttachmentAsync(id, a),
+                source: Fonte()) { Owner = this };
             // Story fora da sprint da Task: aqui e onde a sprint muda, entao e aqui que o aviso
             // tem que estar — trocar a sprint da Story arrasta o HH dela para a outra sprint.
             if (SprintAdviceFor(id, kind) is { } advice) dlg.ShowSprintAdvice(advice);
@@ -2404,7 +2400,7 @@ namespace NXProject.Views
         private void EditTramite(int id, string title)
         {
             var draft = _tramitePending.TryGetValue(id, out var t) ? t : string.Empty;
-            var dlg = new TramiteWindow(id, AppStrings.Get("Sprint_EditTramite") + " — " + title, draft) { Owner = this };
+            var dlg = new TramiteWindow(id, AppStrings.Get("Sprint_EditTramite") + " — " + title, Fonte(), draft) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
                 // Tramite so com print TEM conteudo: antes o texto plano vinha vazio e o comentario
@@ -4559,7 +4555,7 @@ namespace NXProject.Views
                         Cursor = System.Windows.Input.Cursors.Hand, Padding = new Thickness(0),
                         HorizontalContentAlignment = HorizontalAlignment.Left
                     };
-                    link.Click += (_, _) => OpenInDevOps(pid);
+                    link.Click += (_, _) => OpenWorkItem(pid);
                     up.Children.Add(link);
                     if (_scheduleIds.Contains(pid) && _openInSchedule != null)
                     {
@@ -4577,7 +4573,7 @@ namespace NXProject.Views
 
                 var actions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
                 var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), ToolTip = AbrirNoDestino() };
-                open.Click += (_, _) => OpenInDevOps(t.Id);
+                open.Click += (_, _) => OpenWorkItem(t.Id);
                 actions.Children.Add(open);
                 if (inSched && _openInSchedule != null)
                 {
@@ -4705,7 +4701,7 @@ namespace NXProject.Views
                 Height = LevelButtonHeight, VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 4, 3, 0), HorizontalAlignment = HorizontalAlignment.Left,
                 Cursor = System.Windows.Input.Cursors.Arrow, ToolTip = AbrirNoDestino() };
-            b.Click += (_, _) => OpenInDevOps(id);
+            b.Click += (_, _) => OpenWorkItem(id);
             return Light(b);
         }
 
@@ -4825,7 +4821,7 @@ namespace NXProject.Views
                 featBtns.Children.Add(Light(OnlyIn(featDesc, _caps.EditItem, "Azure DevOps")));
                 var featOpen = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
                     ToolTip = AbrirNoDestino() };
-                featOpen.Click += (_, _) => OpenInDevOps(fid);
+                featOpen.Click += (_, _) => OpenWorkItem(fid);
                 featBtns.Children.Add(Light(featOpen));
                 if (extra != null) featBtns.Children.Add(extra);
                 featSp.Children.Add(featBtns);
@@ -5149,7 +5145,7 @@ namespace NXProject.Views
                             Margin = new Thickness(0, 4, 3, 0), HorizontalAlignment = HorizontalAlignment.Left,
                             ToolTip = AppStrings.Get("Sprint_OpenParentDevOps", orphanFeat.ToString())
                         };
-                        openOrphan.Click += (_, _) => OpenInDevOps(orphanFeat);
+                        openOrphan.Click += (_, _) => OpenWorkItem(orphanFeat);
                         var orphanId = IdLine(orphanFeat);
                         orphanId.Margin = new Thickness(0, 2, 4, 0);
                         // Excluir a Feature: so quando ela NAO tem Story e nenhuma Task solta
@@ -5194,7 +5190,7 @@ namespace NXProject.Views
                             Padding = new Thickness(3, 0, 3, 0), Margin = new Thickness(0, 0, 3, 2),
                             ToolTip = AbrirNoDestino() };
                         var openStId = storyId;
-                        openSt.Click += (_, _) => OpenInDevOps(openStId);
+                        openSt.Click += (_, _) => OpenWorkItem(openStId);
                         stActions.Children.Add(openSt);
                         stActions.Children.Add(BuildStoryTasksButton(openStId, EffTitle(openStId, sgTitle)));
                         var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
@@ -5479,7 +5475,7 @@ namespace NXProject.Views
                         "NXProject", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-                new TfsBlockAuditWindow(audit, OpenInDevOps, Carrega) { Owner = this }.ShowDialog();
+                new TfsBlockAuditWindow(audit, OpenWorkItem, Carrega) { Owner = this }.ShowDialog();
             }
             catch (Exception ex)
             {
@@ -5902,7 +5898,7 @@ namespace NXProject.Views
             AddEditButtons(actions, st.Id, st.Title, st.AssignedTo, "Story", st.IterationPath ?? "");
             var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(3, 0, 3, 0),
                 Margin = new Thickness(0, 0, 3, 2), ToolTip = AbrirNoDestino() };
-            open.Click += (_, _) => OpenInDevOps(st.Id);
+            open.Click += (_, _) => OpenWorkItem(st.Id);
             actions.Children.Add(open);
             actions.Children.Add(BuildStoryTasksButton(st.Id, EffTitle(st.Id, st.Title)));
             var addTask = new Button { Content = AppStrings.Get("Sprint_AddTask"), FontSize = 9,
@@ -7312,7 +7308,7 @@ namespace NXProject.Views
                 AddEditButtons(actions, story.Id, story.Title, story.AssignedTo, "Story", story.IterationPath);
                 var openStory = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0),
                     Margin = new Thickness(0, 0, 4, 0), ToolTip = AbrirNoDestino() };
-                openStory.Click += (_, _) => OpenInDevOps(story.Id);
+                openStory.Click += (_, _) => OpenWorkItem(story.Id);
                 actions.Children.Add(openStory);
                 actions.Children.Add(BuildStoryTasksButton(story.Id, EffTitle(story.Id, story.Title)));
                 // Excluir Story: só quando está em New e SEM Tasks (ou todas as Tasks em New).
@@ -8233,7 +8229,7 @@ namespace NXProject.Views
             var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0), Cursor = System.Windows.Input.Cursors.Arrow };
             if (prioCombo != null) actions.Children.Add(prioCombo);
             var open = new Button { Content = "🔗", FontSize = 11, Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(0, 0, 3, 2), ToolTip = AbrirNoDestino() };
-            open.Click += (_, _) => OpenInDevOps(t.Id);
+            open.Click += (_, _) => OpenWorkItem(t.Id);
             actions.Children.Add(open);
             // Botão Doing: marcar só faz sentido no que já começou — em New não há andamento,
             // e em Closed o trabalho terminou. Tirar continua liberado em qualquer estado.
@@ -8435,6 +8431,11 @@ namespace NXProject.Views
         private async Task ApplyCardDropAsync(int id, string newState,
             TfsImportService.SprintTaskCard dragged)
         {
+            // Datas e horas vêm da FONTE do destino, lidas uma vez: perguntar sempre ao DevOps
+            // trazia, num board do GitProject ou Local, os valores de um work item alheio com o
+            // mesmo número — e eles eram gravados depois.
+            NxItemDetails? detalhes = null;
+            async Task<NxItemDetails> Detalhes() => detalhes ??= await Fonte().LoadItemDetailsAsync(id, "Task");
             try
             {
                 // Outra coluna → muda de estado (a prioridade/rank não muda pelo arrasto).
@@ -8443,10 +8444,10 @@ namespace NXProject.Views
                 else _pending[id] = newState;
 
                 // Soltou em Active: registra a data de inicio (Data_Inicio) como hoje. So quando a
-                // Task ainda nao tem inicio no DevOps — uma data ja planejada nao e sobrescrita.
+                // Task ainda nao tem inicio no servidor — uma data ja planejada nao e sobrescrita.
                 if (id > 0 && TfsImportService.NormalizeTaskState(newState) == "Active"
                     && !_startPending.ContainsKey(id)
-                    && await TfsImportService.GetWorkItemStartDateAsync(_options, id) == null)
+                    && (await Detalhes()).StartDate == null)
                     _startPending[id] = DateTime.Today;
                 // Soltou em Active sem data alvo: calcula a partir da ativacao (hoje) somando o
                 // HH Estimado em dias uteis (8h/dia, sem sabado e domingo).
@@ -8473,7 +8474,7 @@ namespace NXProject.Views
                 if (id > 0 && IsClosedState(newState))
                 {
                     var curFinish = _finishPending.TryGetValue(id, out var pf) ? pf
-                        : await TfsImportService.GetWorkItemFinishDateAsync(_options, id);
+                        : (await Detalhes()).FinishDate;
                     if (curFinish == null || curFinish.Value.Date > DateTime.Today)
                     {
                         _finishPending[id] = DateTime.Today;
@@ -8519,7 +8520,8 @@ namespace NXProject.Views
                 // Estimado como padrão no campo do card.
                 if (id > 0 && IsClosedState(newState) && !_donePending.ContainsKey(id))
                 {
-                    var (est, comp, _) = await TfsImportService.GetWorkItemHoursAsync(_options, id);
+                    var det = await Detalhes();
+                    var (est, comp) = (det.EstimateHours, det.CompletedHours);
                     if (!(comp > 0))
                     {
                         double? def = est is > 0 ? est
@@ -8702,28 +8704,12 @@ namespace NXProject.Views
         /// GitHub — mandar o navegador para a URL do Azure DevOps abriria a página errada (ou
         /// nenhuma, quando a organização nem está configurada).
         /// </summary>
-        private void OpenInDevOps(int id)
+        private async void OpenWorkItem(int id)
         {
             try
             {
-                string url;
-                if (_backend == NxBackendKind.GitProject)
-                {
-                    var git = _options.GitProject;
-                    if (git == null) return;
-                    // O repositório vem do PRÓPRIO item (cada issue mora no seu); sem ele, o
-                    // configurado. Fora de um repositório a issue não tem URL.
-                    var repo = (NxBoardSources.For(_backend, _options, _localProject, git)
-                                    as GitProjectBoardSource)?.RepositoryOf(id);
-                    if (string.IsNullOrWhiteSpace(repo)) repo = git.Repository;
-                    if (string.IsNullOrWhiteSpace(repo) || !repo!.Contains('/')) return;
-                    url = $"https://github.com/{repo}/issues/{id}";
-                }
-                else
-                {
-                    if (string.IsNullOrWhiteSpace(_options.OrganizationUrl) || string.IsNullOrWhiteSpace(_options.TeamProject)) return;
-                    url = $"{_options.OrganizationUrl.TrimEnd('/')}/{Uri.EscapeDataString(_options.TeamProject.Trim())}/_workitems/edit/{id}";
-                }
+                var url = await Fonte().ItemUrlAsync(id);
+                if (url == null) return;
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             }
             catch { }

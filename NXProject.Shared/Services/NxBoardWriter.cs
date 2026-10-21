@@ -176,20 +176,29 @@ namespace NXProject.Services
         {
             try
             {
-                var snap = await new GitProjectClient(_options).LoadAsync();
+                var cliente = new GitProjectClient(_options);
+                var snap = await cliente.LoadAsync();
                 var item = snap.Items.FirstOrDefault(i => i.Number == id);
+                var issueId = item?.IssueId ?? "";
+                var nomeRepo = item?.Repository;
                 if (item == null)
-                    return (false, NxText.T($"#{id} não está neste board.", $"#{id} is not on this board."));
+                {
+                    // Item recém-criado: existe no repositório, mas a consulta do projeto pode levar
+                    // minutos para mostrá-lo — procura pelo número (mesma regra de criar filho).
+                    (issueId, nomeRepo) = await GitProjectCreateService.PaiPeloNumeroAsync(cliente, snap, _options, id);
+                    if (string.IsNullOrEmpty(issueId))
+                        return (false, NxText.T($"#{id} não está neste board.", $"#{id} is not on this board."));
+                }
 
                 // Os anexos vão junto: no GitHub eles são arquivos do repositório e não morrem
                 // com a issue, como morrem no Azure DevOps.
-                var repo = (item.Repository ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var repo = (nomeRepo ?? "").Split('/', StringSplitOptions.RemoveEmptyEntries);
                 var apagados = 0;
                 if (repo.Length == 2)
                     (apagados, _) = await GitProjectAttachmentService
                         .DeleteAllOfItemAsync(_options, repo[0], repo[1], id);
 
-                await new GitProjectClient(_options).DeleteIssueAsync(item.IssueId);
+                await cliente.DeleteIssueAsync(issueId);
                 return (true, apagados == 0
                     ? NxText.T($"#{id} excluído.", $"#{id} deleted.")
                     : NxText.T($"#{id} excluído, com {apagados} anexo(s).",
@@ -278,7 +287,9 @@ namespace NXProject.Services
             Project? localProject, GitProjectOptions? git) => kind switch
         {
             NxBackendKind.GitProject => new GitProjectBoardWriterFacade(git ?? options.GitProject ?? new GitProjectOptions()),
-            NxBackendKind.Local when localProject != null => new LocalProjectBoardWriter(localProject),
+            // Sem cronograma, Local caía no DevOps e gravava ids locais num work item alheio.
+            NxBackendKind.Local => new LocalProjectBoardWriter(localProject ?? throw new InvalidOperationException(
+                "Projeto Local exige um cronograma aberto: é nele que o board grava.")),
             _ => new DevOpsBoardWriter(options)
         };
     }

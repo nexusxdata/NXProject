@@ -131,7 +131,7 @@
                                                      ToolTip="{DynamicResource Setup_Step3ModeScriptTip}"/>
                                     </StackPanel>
                                     <TextBlock Grid.Row="1" Text="{DynamicResource Setup_Step3Version}" FontSize="11" Foreground="#555" VerticalAlignment="Center" Margin="0,6,10,0"/>
-                                    <ComboBox x:Name="VersionBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Padding="6,2" SelectedIndex="0">
+                                    <ComboBox x:Name="VersionBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Padding="6,2" SelectedIndex="0" SelectionChanged="OnVersionChanged">
                                         <ComboBoxItem x:Name="VersionLatestItem" Tag="Latest"/>
                                         <ComboBoxItem x:Name="VersionTestedItem" Tag="Tested"/>
                                     </ComboBox>

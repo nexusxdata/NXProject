@@ -63,7 +63,11 @@ namespace NXProject.Services
                 ? "" : IterationPath.Split('\\').Last();
         }
 
-        public sealed record DevOpsUserInfo(string Name, string Email);
+        /// <summary>
+        /// Pessoa do servidor. <paramref name="Login"/> só existe no GitHub, e é ele que o sync
+        /// usa para achar a conta (nome de exibição pode faltar ou repetir).
+        /// </summary>
+        public sealed record DevOpsUserInfo(string Name, string Email, string Login = "");
 
         public sealed record DevOpsTeamInfo(string Id, string Name);
 
@@ -8665,6 +8669,64 @@ namespace NXProject.Services
             if (userKeys.Count == 0) return (true, display);           // não identificou → fail-open
             var set = new HashSet<string>(members, StringComparer.OrdinalIgnoreCase);
             return (userKeys.Any(k => set.Contains(k)), display);
+        }
+
+        /// <summary>
+        /// Adm_NX RESTRITO, para gravação automática (NxAgentApi / agentes do NXPilot): sobe do item
+        /// até o topo da hierarquia (o Work Item Project), relê o campo do grupo ao vivo e só libera
+        /// quem está no grupo. Diferente da tela, falha técnica NEGA: não ler o grupo, não
+        /// identificar o dono do PAT ou não achar o item. Grupo vazio/regra desligada: libera (não
+        /// há regra configurada). Devolve também o tipo, o título e a iteração do item, que quem
+        /// cria filhos usa.
+        /// </summary>
+        public static async Task<(bool Allowed, string Group, string Reason, int RootId, string ItemType, string ItemTitle, string IterationPath)>
+            CheckAdmRestrictedForItemAsync(TfsConnectionOptions options, int itemId, CancellationToken ct = default)
+        {
+            try
+            {
+                if (options == null || string.IsNullOrWhiteSpace(options.OrganizationUrl) || string.IsNullOrWhiteSpace(options.PersonalAccessToken) || itemId <= 0)
+                    return (false, "", "conexão incompleta (organização/PAT) ou item inválido", 0, "", "", "");
+                var orgBase = options.OrganizationUrl.TrimEnd('/');
+                var auth = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + options.PersonalAccessToken)));
+                var fields = new List<string> { "System.Id", "System.Parent", "System.WorkItemType", "System.Title", "System.IterationPath" };
+
+                string type = "", title = "", iteration = "";
+                var current = itemId;
+                var rootId = itemId;
+                for (var depth = 0; depth < 15 && current > 0; depth++)
+                {
+                    var got = await LoadWorkItemsAsync(orgBase, auth, new[] { current }, fields, ct);
+                    if (!got.TryGetValue(current, out var wi))
+                        return (false, "", depth == 0 ? $"item #{itemId} não encontrado (ou sem acesso)" : $"pai #{current} não encontrado (ou sem acesso)", 0, "", "", "");
+                    if (depth == 0) { type = wi.WorkItemType; title = wi.Title; iteration = wi.IterationPath; }
+                    rootId = current;
+                    current = wi.Fields.ValueKind == JsonValueKind.Object && wi.Fields.TryGetProperty("System.Parent", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
+                }
+
+                if (!options.AdmGroupFieldEnabled)
+                    return (true, "", "regra Adm_NX desligada no NXProject", rootId, type, title, iteration);
+                var field = string.IsNullOrWhiteSpace(options.AdmGroupFieldName) ? "Adm_NX" : options.AdmGroupFieldName.Trim();
+                var roots = await LoadWorkItemsAsync(orgBase, auth, new[] { rootId }, new List<string> { "System.Id" }, ct, expandRelations: true);
+                if (!roots.TryGetValue(rootId, out var root) || root.Fields.ValueKind != JsonValueKind.Object)
+                    return (false, "", $"não deu para ler o Work Item Project #{rootId}", rootId, type, title, iteration);
+
+                var (display, id) = ReadGroupField(root.Fields, null, field);
+                if (string.IsNullOrWhiteSpace(display))
+                    return (true, "", $"sem grupo {field} no Work Item Project #{rootId}", rootId, type, title, iteration);
+
+                var members = await ResolveAdmGroupMemberKeysAsync(options, orgBase, auth, display, id, ct);
+                if (members.Count == 0) return (false, display, $"não deu para ler os membros do grupo {display}", rootId, type, title, iteration);
+                var userKeys = await GetCurrentUserKeysAsync(options, ct);
+                if (userKeys.Count == 0) return (false, display, "não deu para identificar o dono do PAT", rootId, type, title, iteration);
+                var set = new HashSet<string>(members, StringComparer.OrdinalIgnoreCase);
+                return userKeys.Any(k => set.Contains(k))
+                    ? (true, display, $"no grupo {display}", rootId, type, title, iteration)
+                    : (false, display, $"fora do grupo {display} ({field} do Work Item Project #{rootId})", rootId, type, title, iteration);
+            }
+            catch (Exception ex)
+            {
+                return (false, "", "falha ao conferir: " + ex.Message, 0, "", "", "");
+            }
         }
 
         /// <summary>

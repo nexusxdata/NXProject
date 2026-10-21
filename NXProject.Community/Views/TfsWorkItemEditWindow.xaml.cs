@@ -19,15 +19,26 @@ namespace NXProject.Views
     {
         private readonly TaskViewModel _task;
         private readonly int? _originalTfsId;
-        private string? _devOpsItemUrl;
 
         public bool ShouldImport { get; private set; }
         public bool ShouldDelete { get; private set; }
 
-        public TfsWorkItemEditWindow(TaskViewModel task)
+        /// <summary>
+        /// Destino do projeto, vindo do Portfólio. O id deste vínculo é um work item no DevOps e
+        /// uma issue no GitProject — validar ou excluir pelo DevOps num projeto do GitProject
+        /// apagava (destroy, sem lixeira) um work item de outro projeto com o mesmo número.
+        /// </summary>
+        private readonly NxBackendKind _backend;
+        private readonly INxBoardSource _source;
+        private readonly Project? _project;
+
+        public TfsWorkItemEditWindow(TaskViewModel task, NxBackendKind backend, INxBoardSource source, Project? project)
         {
             InitializeComponent();
             _task = task ?? throw new ArgumentNullException(nameof(task));
+            _backend = NxProjectBackend.Normalize(backend);
+            _source = source ?? throw new ArgumentNullException(nameof(source));
+            _project = project;
             _originalTfsId = task.TfsId;
 
             TaskNameText.Text = task.Name;
@@ -88,17 +99,14 @@ namespace NXProject.Views
             {
                 try
                 {
-                    var conn = TfsConnectionStore.Load();
-                    if (!string.IsNullOrWhiteSpace(conn.OrganizationUrl) && !string.IsNullOrWhiteSpace(conn.TeamProject))
+                    if (_source.Capabilities.OpenInBrowser)
                     {
-                        var org = conn.OrganizationUrl.TrimEnd('/');
-                        var proj = Uri.EscapeDataString(conn.TeamProject.Trim());
-                        _devOpsItemUrl = $"{org}/{proj}/_workitems/edit/{task.TfsId}";
-                        OpenInDevOpsButton.Visibility = Visibility.Visible;
+                        OpenWorkItemButton.Visibility = Visibility.Visible;
 
-                        // Exclusão no TFS só para Story já sincronizada (ID real do DevOps).
-                        // Item manual pendente de criação só pode ser excluído localmente.
-                        if (TfsImportService.IsStoryTypePublic(task.TfsType) && !task.Model.IsPendingTfsCreate)
+                        // Exclusão no servidor só para Story já sincronizada (ID real), e só no
+                        // destino que sabe excluir. Item pendente de criação só sai localmente.
+                        if (TfsImportService.IsStoryTypePublic(task.TfsType) && !task.Model.IsPendingTfsCreate
+                            && NxBackendCapabilities.For(_backend).DeleteItem)
                             DeleteStoryButton.Visibility = Visibility.Visible;
                     }
                 }
@@ -175,9 +183,11 @@ namespace NXProject.Views
 
                 var options = TfsConnectionStore.Load("NXProject.Community");
 
-                // Trava de segurança: confirma que o ID no DevOps é REALMENTE uma Story.
+                // Trava de segurança: confirma que o ID no servidor é REALMENTE uma Story.
                 // Evita que uma troca de ID (ex.: apontar para um Epic) exclua o item errado.
-                var realType = await TfsImportService.GetWorkItemTypeAsync(options, _task.TfsId.Value);
+                // Pergunta ao destino do projeto: perguntar ao DevOps num projeto do GitProject
+                // devolvia o tipo de um work item alheio com o mesmo número.
+                var realType = await _source.ItemTypeAsync(_task.TfsId.Value);
                 if (realType == null)
                 {
                     ShowValidationError(AppStrings.Get("WiEdit_DeleteNotFound", _task.TfsId));
@@ -199,7 +209,14 @@ namespace NXProject.Views
                     return;
                 }
 
-                await TfsImportService.DeleteWorkItemAsync(options, _task.TfsId.Value);
+                var (ok, msg) = await NxBoardWriters.For(_backend, options, _project, options.GitProject)
+                    .DeleteAsync(_task.TfsId.Value);
+                if (!ok)
+                {
+                    ShowValidationError(msg);
+                    DeleteStoryButton.IsEnabled = true;
+                    return;
+                }
 
                 ShouldDelete = true;
                 DialogResult = false;
@@ -221,10 +238,14 @@ namespace NXProject.Views
             StatusText.Visibility = Visibility.Visible;
         }
 
-        private void OnOpenInDevOpsClick(object sender, RoutedEventArgs e)
+        private async void OnOpenWorkItemClick(object sender, RoutedEventArgs e)
         {
-            if (_devOpsItemUrl is null) return;
-            try { Process.Start(new ProcessStartInfo(_devOpsItemUrl) { UseShellExecute = true }); }
+            if (_task.TfsId is not > 0) return;
+            try
+            {
+                var url = await _source.ItemUrlAsync(_task.TfsId.Value);
+                if (url != null) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
             catch { }
         }
 
@@ -320,6 +341,7 @@ namespace NXProject.Views
 
             // Ao vincular manualmente a um ID real DIFERENTE do original, confirma que o
             // tipo do item no DevOps bate com o tipo escolhido (não trocar Story por Epic).
+            // O tipo vem do destino do projeto (no GitProject, a issue no board).
             if (!isNoDevOps && id is > 0 && id != _originalTfsId)
             {
                 try
@@ -328,8 +350,7 @@ namespace NXProject.Views
                     StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x44, 0x44, 0x44));
                     StatusText.Visibility = Visibility.Visible;
 
-                    var options = TfsConnectionStore.Load("NXProject.Community");
-                    var realType = await TfsImportService.GetWorkItemTypeAsync(options, id.Value);
+                    var realType = await _source.ItemTypeAsync(id.Value);
                     if (realType == null)
                     {
                         ShowValidationError(AppStrings.Get("WiEdit_DeleteNotFound", id.Value));

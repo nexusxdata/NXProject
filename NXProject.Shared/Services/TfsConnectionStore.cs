@@ -96,6 +96,18 @@ namespace NXProject.Services
         /// </summary>
         public int GitLastRootIssue { get; set; }
 
+        /// <summary>
+        /// As mesmas opções com outra raiz. Cópia, não alteração: as telas compartilham a
+        /// instância, e trocar a raiz dela faria o próximo import/sync apontar para outro projeto.
+        /// </summary>
+        public TfsConnectionOptions WithRoot(int rootId)
+        {
+            if (rootId <= 0 || rootId == RootWorkItemId) return this;
+            var copia = (TfsConnectionOptions)MemberwiseClone();
+            copia.RootWorkItemId = rootId;
+            return copia;
+        }
+
         /// <summary>Horas que equivalem a 1 dia util ao converter esforco.</summary>
         public double HoursPerDay { get; set; } = 8.0;
 

@@ -51,7 +51,7 @@
                 <MenuItem Header="{DynamicResource Menu_Edit_AddTask}" Command="{Binding AddTaskCommand}"/>
                 <MenuItem Header="{DynamicResource Menu_Edit_AddSubtask}" Command="{Binding AddSubtaskCommand}"/>
                 <MenuItem Header="{DynamicResource Menu_Edit_DeleteTask}" Command="{Binding DeleteTaskCommand}"/>
-                <MenuItem Header="{DynamicResource Main_OpenInDevOps}" Click="OnOpenSelectedTaskInDevOpsClick"/>
+                <MenuItem Header="{DynamicResource Main_OpenWorkItem}" Click="OnOpenSelectedWorkItemClick"/>
                 <MenuItem Header="{DynamicResource Menu_Edit_Link}" Command="{Binding LinkTasksSequentiallyCommand}"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Menu_Edit_MoveUp}"
@@ -672,8 +672,8 @@
             </Button>
 
             <!-- Abrir/ver o item selecionado no DevOps: olho -->
-            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnOpenSelectedTaskInDevOpsClick"
-                    ToolTip="{DynamicResource Main_OpenInDevOps}">
+            <Button Style="{StaticResource ToolbarButtonStyle}" Click="OnOpenSelectedWorkItemClick"
+                    ToolTip="{DynamicResource Main_OpenWorkItem}">
                 <Viewbox Width="26" Height="16" Stretch="Uniform">
                     <Canvas Width="100" Height="56">
                         <Path Stroke="#4A6FA5" StrokeThickness="6" Fill="#F8FAFC" StrokeLineJoin="Round"

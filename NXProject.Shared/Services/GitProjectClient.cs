@@ -128,6 +128,7 @@ query($projectId: ID!, $after: String) {
               repository { nameWithOwner }
               issueType { name }
               parent { number }
+              blockedBy(first: 50) { nodes { id number repository { nameWithOwner } } }
               assignees(first: 1) { nodes { login name } }
               labels(first: 20) { nodes { name } }
             }
@@ -392,6 +393,22 @@ query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) 
                     "GitProject: repositório '{0}/{1}' não encontrado pelo token.",
                     "GitProject: repository '{0}/{1}' not found with this token.", dono, repo));
             return r.GetProperty("id").GetString() ?? "";
+        }
+
+        /// <summary>
+        /// Id da issue pelo número no repositório (vazio se não existe). Serve para achar um item
+        /// recém-criado: a issue existe na hora, mas a consulta do PROJETO pode levar minutos para
+        /// mostrá-la.
+        /// </summary>
+        public async Task<string> IssueIdByNumberAsync(string dono, string repo, int numero)
+        {
+            var raiz = await PostAsync(@"
+query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { id } } }",
+                new Dictionary<string, object?> { ["owner"] = dono, ["name"] = repo, ["number"] = numero });
+            var r = raiz.GetProperty("data").GetProperty("repository");
+            if (r.ValueKind == JsonValueKind.Null) return "";
+            var issue = r.GetProperty("issue");
+            return issue.ValueKind == JsonValueKind.Null ? "" : issue.GetProperty("id").GetString() ?? "";
         }
 
         /// <summary>Cria a issue. Ela ainda NÃO está no board — isso é a chamada seguinte.</summary>
@@ -815,6 +832,47 @@ mutation($id: ID!, $body: String!) {
   addComment(input: {subjectId: $id, body: $body}) { clientMutationId }
 }", new Dictionary<string, object?> { ["id"] = issueId, ["body"] = texto });
 
+        /// <summary>
+        /// "<paramref name="issueId"/> é bloqueada por <paramref name="blockingIssueId"/>" — a
+        /// predecessora do cronograma, na dependência nativa do GitHub.
+        /// </summary>
+        public Task AddBlockedByAsync(string issueId, string blockingIssueId) =>
+            PostAsync(@"
+mutation($i: ID!, $b: ID!) { addBlockedBy(input: {issueId: $i, blockingIssueId: $b}) { issue { number } } }",
+                new Dictionary<string, object?> { ["i"] = issueId, ["b"] = blockingIssueId });
+
+        public Task RemoveBlockedByAsync(string issueId, string blockingIssueId) =>
+            PostAsync(@"
+mutation($i: ID!, $b: ID!) { removeBlockedBy(input: {issueId: $i, blockingIssueId: $b}) { issue { number } } }",
+                new Dictionary<string, object?> { ["i"] = issueId, ["b"] = blockingIssueId });
+
+        /// <summary>
+        /// Comentários da issue (os 100 mais recentes), já em HTML — o Trâmite mostra o
+        /// histórico do item, e sem isto ele lia os comentários do work item de mesmo número no
+        /// DevOps.
+        /// </summary>
+        public async Task<List<TfsImportService.CommentEntry>> IssueCommentsAsync(string issueId)
+        {
+            var raiz = await PostAsync(@"
+query($id: ID!) { node(id: $id) { ... on Issue {
+  comments(last: 100) { nodes { author { login } createdAt bodyHTML } } } } }",
+                new Dictionary<string, object?> { ["id"] = issueId });
+            var lista = new List<TfsImportService.CommentEntry>();
+            var no = raiz.GetProperty("data").GetProperty("node");
+            if (no.ValueKind != JsonValueKind.Object
+                || !no.TryGetProperty("comments", out var cs)
+                || !cs.TryGetProperty("nodes", out var nodes)) return lista;
+            foreach (var c in nodes.EnumerateArray())
+            {
+                var autor = c.TryGetProperty("author", out var a) && a.ValueKind == JsonValueKind.Object
+                    ? Texto(a, "login") : "";
+                DateTime? quando = DateTime.TryParse(Texto(c, "createdAt"), System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AdjustToUniversal, out var d) ? d.ToLocalTime() : null;
+                lista.Add(new TfsImportService.CommentEntry(autor, quando, Texto(c, "bodyHTML")));
+            }
+            return lista;
+        }
+
         /// <summary>Remove um arquivo versionado — a POC não pode deixar sujeira no repositório.</summary>
         public async Task<bool> DeleteFileAsync(string dono, string repo, string caminho, string sha, string mensagem)
         {
@@ -925,6 +983,15 @@ mutation($id: ID!, $body: String!) {
                     ? Texto(rp, "nameWithOwner") : "",
                 ItemId = Texto(no, "id")
             };
+
+            if (c.TryGetProperty("blockedBy", out var bl) && bl.ValueKind == JsonValueKind.Object
+                && bl.TryGetProperty("nodes", out var bln) && bln.ValueKind == JsonValueKind.Array)
+                foreach (var b in bln.EnumerateArray())
+                    if (b.TryGetProperty("number", out var bn))
+                        item.BlockedBy.Add(new GitBlockRef(bn.GetInt32(),
+                            b.TryGetProperty("repository", out var br) && br.ValueKind == JsonValueKind.Object
+                                ? Texto(br, "nameWithOwner") : "",
+                            Texto(b, "id")));
 
             // A revisão é o MAIOR dos dois relógios: mudar o HH mexe no item do board, mudar o
             // título mexe na issue, e o sync precisa perceber as duas coisas.
