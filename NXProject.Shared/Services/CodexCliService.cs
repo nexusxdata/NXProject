@@ -124,7 +124,48 @@ namespace NXProject.Services
             CancellationToken cancellationToken = default)
         {
             var cmd = string.IsNullOrWhiteSpace(command) ? DefaultCommand : command!.Trim();
+            try
+            {
+                return await RunOnceAsync(systemPrompt, userPrompt, cmd, timeoutSeconds, cancellationToken);
+            }
+            catch (InvalidOperationException ex) when (IsUnsupportedModel(ex.Message) && WithTestedCodexModel(cmd) is { } retry)
+            {
+                // O modelo padrão do Codex (ex.: gpt-6.1-sol) pode não valer para a conta ChatGPT:
+                // tenta uma vez com o modelo testado.
+                return await RunOnceAsync(systemPrompt, userPrompt, retry, timeoutSeconds, cancellationToken);
+            }
+        }
+
+        /// <summary>Modelo do Codex testado com a conta ChatGPT (o mesmo que o NXPilot usa).</summary>
+        public const string TestedCodexModel = "gpt-5.6-terra";
+
+        /// <summary>Erro do Codex de modelo que a conta não aceita.</summary>
+        public static bool IsUnsupportedModel(string? message)
+        {
+            var low = (message ?? "").ToLowerInvariant();
+            return low.Contains("model is not supported") || low.Contains("model_not_found")
+                || (low.Contains("model") && low.Contains("does not exist"));
+        }
+
+        /// <summary>
+        /// O comando do Codex com "-m modelo testado" logo após "exec", quando ele não escolhe modelo;
+        /// null se não for "codex exec" ou se já tiver -m/--model (escolha do usuário, respeitada).
+        /// </summary>
+        public static string? WithTestedCodexModel(string command)
+        {
+            var idx = command.IndexOf("codex exec", StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return null;
+            if (System.Text.RegularExpressions.Regex.IsMatch(command, @"(^|\s)(-m|--model)(\s|=)")) return null;
+            var at = idx + "codex exec".Length;
+            return command[..at] + " -m " + TestedCodexModel + command[at..];
+        }
+
+        private static async Task<string> RunOnceAsync(
+            string systemPrompt, string userPrompt, string cmd, int timeoutSeconds,
+            CancellationToken cancellationToken)
+        {
             var (exe, args) = SplitCommand(cmd);
+            var cli = cmd.Contains("claude", StringComparison.OrdinalIgnoreCase) ? "Claude Code local" : "Codex local";
 
             var psi = new ProcessStartInfo(exe, args)
             {
@@ -158,12 +199,12 @@ namespace NXProject.Services
             try
             {
                 if (!process.Start())
-                    throw new InvalidOperationException($"Não foi possível iniciar o Codex local: {cmd}");
+                    throw new InvalidOperationException($"Não foi possível iniciar o {cli}: {cmd}");
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
-                    $"Codex local não encontrado ({cmd}). Verifique se o Codex CLI está instalado e no PATH "
+                    $"{cli} não encontrado ({cmd}). Verifique se o CLI está instalado e no PATH "
                     + "(no WSL, se o comando usar wsl.exe) — ou ajuste o comando na tela do Assistente de IA.\n\n"
                     + "Se você acabou de instalar o CLI pelo NX, FECHE e ABRA o NXProject novamente.\n\n"
                     + ex.Message, ex);
@@ -203,7 +244,7 @@ namespace NXProject.Services
             {
                 TryKill(process);
                 throw new InvalidOperationException(
-                    $"O Codex local não respondeu em {timeoutSeconds}s. Aumente o timeout do provedor ou simplifique o pedido.");
+                    $"O {cli} não respondeu em {timeoutSeconds}s. Aumente o timeout do provedor ou simplifique o pedido.");
             }
             catch (OperationCanceledException)
             {
@@ -225,12 +266,20 @@ namespace NXProject.Services
             }
             if (process.ExitCode != 0)
             {
-                var msg = $"Codex local terminou com erro (código {process.ExitCode}).\n{stderr}\n{stdout}".Trim();
+                var msg = $"{cli} terminou com erro (código {process.ExitCode}).\n{stderr}\n{stdout}".Trim();
                 // "não reconhecido"/"not found"/127: quase sempre é o PATH do CLI recém-instalado
                 // que o NX aberto ainda não enxerga — reabrir resolve.
+                // Só "comando não encontrado": "Model metadata ... not found" do Codex não é PATH.
                 var low = (stderr + " " + stdout).ToLowerInvariant();
-                if (process.ExitCode == 127 || low.Contains("não é reconhecido") || low.Contains("nao e reconhecido")
-                    || low.Contains("not recognized") || low.Contains("not found") || low.Contains("command not found"))
+                if (IsUnsupportedModel(low))
+                    msg += $"\n\nDica: o modelo do Codex não vale para a sua conta. Use \"-m {TestedCodexModel}\" no comando "
+                         + "(ex.: codex exec -m " + TestedCodexModel + " --skip-git-repo-check -) ou atualize o Codex.";
+                else if (low.Contains("failed to authenticate") || low.Contains("not logged in") || low.Contains("please run /login")
+                    || low.Contains("codex login") || low.Contains("401 unauthorized"))
+                    msg += "\n\nDica: o CLI não está logado. Rode \"claude auth login\" (Claude Code) ou \"codex login\" (Codex) "
+                         + "no mesmo lugar do comando (Windows ou WSL) e tente de novo.";
+                else if (process.ExitCode == 127 || process.ExitCode == 9009 || low.Contains("não é reconhecido") || low.Contains("nao e reconhecido")
+                    || low.Contains("not recognized") || low.Contains("command not found") || low.Contains(": not found"))
                     msg += "\n\nDica: se você acabou de instalar o CLI pelo NX, FECHE e ABRA o NXProject novamente "
                          + "(a atualização do PATH só vale para o app aberto depois).";
                 throw new InvalidOperationException(msg);
@@ -239,7 +288,7 @@ namespace NXProject.Services
             var answer = stdout.Trim();
             if (answer.Length == 0)
                 throw new InvalidOperationException(
-                    "O Codex local não devolveu resposta." + (stderr.Length > 0 ? "\n" + stderr.Trim() : ""));
+                    $"O {cli} não devolveu resposta." + (stderr.Length > 0 ? "\n" + stderr.Trim() : ""));
             return answer;
         }
 

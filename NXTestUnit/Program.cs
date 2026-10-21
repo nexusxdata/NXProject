@@ -78,6 +78,7 @@ internal static class Program
         ("Adm_NX GitProject: lista de logins autoriza so quem esta nela", GitAdminListAuthorizes),
         ("NxAgentApi: PAT cifrado com a chave do par volta igual; sem a chave nao decifra; conexao incompleta e lote grande recusados", AgentApiSecretsAndValidation),
         ("Adm_NX GitProject RESTRITO (agentes): lista/time decide; dono desconhecido ou time nao lido NEGA; regra vazia libera", GitAdminRestrictedDecision),
+        ("Codex local: modelo que a conta ChatGPT nao aceita tenta de novo com o testado; -m do usuario respeitado; dica certa (nao PATH)", CodexUnsupportedModelRetry),
         ("Adm_NX GitProject: time da organizacao usa os membros; falha tecnica NAO bloqueia", GitAdminTeamAndFailOpen),
         ("Anexo GitProject: caminho e tipo_numero por nivel, sem titulo", GitAttachmentPathMirrorsHierarchy),
         ("Anexo GitProject: renomear o item NAO muda o caminho do anexo", GitAttachmentReusesFolderAfterRename),
@@ -3220,6 +3221,48 @@ internal static class Program
     // recusa o que esta incompleto ANTES de ir ao servidor.
     // Regra restrita do GitProject (NxAgentApi): o valor e STRING (lista de logins ou @org/time),
     // diferente do picklist de grupo do DevOps; falha tecnica NEGA (a tela libera).
+    private static void CodexUnsupportedModelRetry()
+    {
+        const string err = "ERROR: {\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.\"}";
+        if (!CodexCliService.IsUnsupportedModel(err)) throw new Exception("Erro de modelo nao aceito pela conta deve ser reconhecido.");
+        if (CodexCliService.IsUnsupportedModel("Model metadata for `x` not found. codex: command not found")) throw new Exception("Aviso de metadata nao e erro de modelo.");
+        var wsl = CodexCliService.WithTestedCodexModel(CodexCliService.DefaultCommand);
+        if (wsl != "wsl.exe -- bash -lic \"codex exec -m " + CodexCliService.TestedCodexModel + " --skip-git-repo-check -\"")
+            throw new Exception("WSL: -m testado entra logo apos 'codex exec': " + wsl);
+        var win = CodexCliService.WithTestedCodexModel("cmd /c codex exec --skip-git-repo-check -");
+        if (win != "cmd /c codex exec -m " + CodexCliService.TestedCodexModel + " --skip-git-repo-check -") throw new Exception("Windows: " + win);
+        if (CodexCliService.WithTestedCodexModel("cmd /c codex exec -m gpt-5.5 -") != null) throw new Exception("-m do usuario e respeitado.");
+        if (CodexCliService.WithTestedCodexModel("cmd /c codex exec --model=gpt-5.5 -") != null) throw new Exception("--model do usuario e respeitado.");
+        if (CodexCliService.WithTestedCodexModel("cmd /c claude -p") != null) throw new Exception("Claude nao recebe modelo do Codex.");
+
+        // Simulacao real (opcional): Codex do WSL com o padrao forcado para gpt-6.1-sol.
+        if (Environment.GetEnvironmentVariable("NX_REAL_CODEX") == "1")
+        {
+            var answer = CodexCliService.GenerateAsync("", "Responda somente: ok",
+                "wsl.exe -- bash -lic \"codex exec -c model=gpt-6.1-sol --skip-git-repo-check -\"", 180).GetAwaiter().GetResult();
+            if (!answer.ToLowerInvariant().Contains("ok")) throw new Exception("Codex real com gpt-6.1-sol nao caiu no modelo testado: " + answer);
+            Console.WriteLine("    [real] Codex respondeu com o modelo testado: " + answer.Trim().Split('\n').Last());
+        }
+        // Claude local (opcional): NX_REAL_CLAUDE = caminho do claude.exe; o do WSL, se sem login, deve dar a dica de login.
+        if (Environment.GetEnvironmentVariable("NX_REAL_CLAUDE") is { Length: > 0 } claudeExe)
+        {
+            var answer = CodexCliService.GenerateAsync("", "Responda somente: ok", $"\"{claudeExe}\" -p", 180).GetAwaiter().GetResult();
+            if (!answer.ToLowerInvariant().Contains("ok")) throw new Exception("Claude real nao respondeu: " + answer);
+            Console.WriteLine("    [real] Claude respondeu: " + answer.Trim().Split('\n').Last());
+            try
+            {
+                CodexCliService.GenerateAsync("", "Responda somente: ok", "wsl.exe -- bash -lic \"claude -p\"", 180).GetAwaiter().GetResult();
+                Console.WriteLine("    [real] Claude do WSL logado: respondeu.");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine("    [real] Claude do WSL: " + ex.Message.Replace('\n', ' '));
+                if ((ex.Message.Contains("authenticate") || ex.Message.Contains("login")) && !ex.Message.Contains("auth login"))
+                    throw new Exception("Claude sem login deve dar a dica de login.");
+            }
+        }
+    }
+
     private static void GitAdminRestrictedDecision()
     {
         var d = NXProject.Services.GitProjectAdminService.RestrictedDecision("ana, @carmonexus , carla", "carmonexus", null);
