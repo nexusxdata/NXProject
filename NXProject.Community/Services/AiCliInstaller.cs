@@ -53,6 +53,12 @@ public static class AiCliInstaller
     public static Task<AgentInstallResult> InstallAsync(AgentCli cli, InstallMode mode, VersionChoice choice, IProgress<string>? status = null) =>
         Installer.InstallAsync(cli, mode, choice, status);
 
+    /// <summary>Instalado nas pastas do instalador oficial (só isso pode ser removido pelo Setup).</summary>
+    public static bool CanUninstall(AgentCli cli) => Installer.CanUninstall(cli);
+
+    /// <summary>Remove o agente das pastas oficiais; login e configurações da pessoa ficam.</summary>
+    public static Task<string> UninstallAsync(AgentCli cli) => Installer.UninstallAsync(cli);
+
     // Compatibilidade com quem já chamava: instalação automática da última versão.
     public static Task InstallCodexAsync(IProgress<string>? status = null) =>
         InstallAsync(AgentCli.Codex, InstallMode.Internal, VersionChoice.Latest, status);

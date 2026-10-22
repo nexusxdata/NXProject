@@ -119,6 +119,13 @@
     <sys:String x:Key="Setup_Step3Button">Install / update checked</sys:String>
     <sys:String x:Key="Setup_AgentUpdateAvailable">{0} available</sys:String>
     <sys:String x:Key="Setup_AgentUpToDate">up to date</sys:String>
+    <sys:String x:Key="Setup_RemoveAgentTip">Remove this agent from the computer (asks first; your sign-in is kept)</sys:String>
+    <sys:String x:Key="Setup_RemoveLlamaTip">Remove the Local AI from the computer (asks first; NXPilot uses the same one)</sys:String>
+    <sys:String x:Key="Setup_RemoveAgentAsk">Remove {0} from this computer?&#x0a;&#x0a;The AI chat and whatever uses {0} stop working until you install it again. Your sign-in and settings are kept.</sys:String>
+    <sys:String x:Key="Setup_RemoveLlamaAsk">Remove the Local AI ({0})?&#x0a;&#x0a;Deletes the model (~2.5 GB) and the backend. NXPilot uses this same Local AI and will lose it too.</sys:String>
+    <sys:String x:Key="Setup_LlamaRemoved">Local AI removed.</sys:String>
+    <sys:String x:Key="Setup_RemoveFromVsCode">This one comes from the VS Code extension: remove it from the extension itself (Extensions → Uninstall). Deleting it here would break the extension.</sys:String>
+    <sys:String x:Key="Setup_RemoveNotOurs">This one was not installed from here ({0}): remove it the same way you installed it.</sys:String>
     <sys:String x:Key="Setup_Step3PickOne">Check at least one item (Codex, Claude Code or LLaMA).</sys:String>
     <sys:String x:Key="Setup_Step3Done">Done. {0} Added to your user PATH; reopen the terminal/NXProject.</sys:String>
     <sys:String x:Key="Setup_Step3Fail">Failed to install CLI: {0}</sys:String>

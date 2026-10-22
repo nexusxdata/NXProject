@@ -119,6 +119,13 @@
     <sys:String x:Key="Setup_Step3Button">Instalar / atualizar marcados</sys:String>
     <sys:String x:Key="Setup_AgentUpdateAvailable">{0} disponível</sys:String>
     <sys:String x:Key="Setup_AgentUpToDate">atualizado</sys:String>
+    <sys:String x:Key="Setup_RemoveAgentTip">Remover este agente do computador (pergunta antes; seu login é mantido)</sys:String>
+    <sys:String x:Key="Setup_RemoveLlamaTip">Remover a IA Local do computador (pergunta antes; o NXPilot usa a mesma)</sys:String>
+    <sys:String x:Key="Setup_RemoveAgentAsk">Remover o {0} deste computador?&#x0a;&#x0a;O chat de IA e o que usa o {0} deixam de funcionar até instalar de novo. Seu login e suas configurações são mantidos.</sys:String>
+    <sys:String x:Key="Setup_RemoveLlamaAsk">Remover a IA Local ({0})?&#x0a;&#x0a;Apaga o modelo (~2,5 GB) e o backend. O NXPilot usa esta mesma IA Local e também deixa de tê-la.</sys:String>
+    <sys:String x:Key="Setup_LlamaRemoved">IA Local removida.</sys:String>
+    <sys:String x:Key="Setup_RemoveFromVsCode">Este vem da extensão do VS Code: remova pela própria extensão (Extensões → Desinstalar). Apagar aqui quebraria a extensão.</sys:String>
+    <sys:String x:Key="Setup_RemoveNotOurs">Este não foi instalado por aqui ({0}): remova pelo mesmo jeito que instalou.</sys:String>
     <sys:String x:Key="Setup_Step3PickOne">Marque pelo menos um item (Codex, Claude Code ou LLaMA).</sys:String>
     <sys:String x:Key="Setup_Step3Done">Concluído. {0} Adicionado ao PATH do usuário; reabra o terminal/NXProject.</sys:String>
     <sys:String x:Key="Setup_Step3Fail">Falha ao instalar CLI: {0}</sys:String>

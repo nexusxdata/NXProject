@@ -129,6 +129,12 @@ public partial class MainWindow : Window
         SetAgentCheck(NXData.AgentInstaller.AgentCli.Codex, CodexCheck, CodexStatus, codex?.Version);
         SetAgentCheck(NXData.AgentInstaller.AgentCli.ClaudeCode, ClaudeCheck, ClaudeStatus, claude?.Version);
         SetStatus(LlamaStatus, IsLlamaInstalled());
+        // 🗑 aparece sempre que há o agente; só remove o que está nas pastas do instalador oficial. Da extensão do
+        // VS Code (ou npm etc.) fica desabilitada, com a dica de onde remover — apagar ali quebraria a extensão.
+        SetRemoveButton(CodexRemoveButton, NXData.AgentInstaller.AgentCli.Codex, codex);
+        SetRemoveButton(ClaudeRemoveButton, NXData.AgentInstaller.AgentCli.ClaudeCode, claude);
+        var llama = new NXData.AgentInstaller.LocalAiInstaller().Check();
+        LlamaRemoveButton.Visibility = llama.BackendPresent || llama.ModelPresent ? Visibility.Visible : Visibility.Collapsed;
 
         // Se não achou no Windows, testa o WSL (assíncrono; mostra "verificando" na hora).
         if (!codexWin) { SetChecking(CodexStatus); _ = UpdateWslStatusAsync("codex", CodexStatus); }
@@ -229,6 +235,49 @@ public partial class MainWindow : Window
             return outp.Contains("FOUND", StringComparison.Ordinal);
         }
         catch { return false; }
+    }
+
+    private static void SetRemoveButton(System.Windows.Controls.Button button, NXData.AgentInstaller.AgentCli cli, NXData.AgentInstaller.AgentLocation? located)
+    {
+        var ours = NXProject.Services.AiCliInstaller.CanUninstall(cli);
+        button.Visibility = located != null || ours ? Visibility.Visible : Visibility.Collapsed;
+        button.IsEnabled = ours;
+        button.ToolTip = ours ? App.Str("Setup_RemoveAgentTip")
+            : located?.Source == "extensão do VS Code" ? App.Str("Setup_RemoveFromVsCode")
+            : App.Str("Setup_RemoveNotOurs", located?.Source ?? "");
+        System.Windows.Controls.ToolTipService.SetShowOnDisabled(button, true);
+    }
+
+    /// <summary>🗑 ao lado do agente: pergunta e remove (o login da pessoa fica).</summary>
+    private async void OnRemoveAgentClick(object sender, RoutedEventArgs e)
+    {
+        var cli = (sender as System.Windows.Controls.Button)?.Tag as string == "claude" ? NXData.AgentInstaller.AgentCli.ClaudeCode : NXData.AgentInstaller.AgentCli.Codex;
+        var name = cli == NXData.AgentInstaller.AgentCli.ClaudeCode ? "Claude Code" : "Codex";
+        if (MessageBox.Show(this, App.Str("Setup_RemoveAgentAsk", name), "NXProject Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        CodexRemoveButton.IsEnabled = ClaudeRemoveButton.IsEnabled = false;
+        try { Step3StatusText.Text = await NXProject.Services.AiCliInstaller.UninstallAsync(cli); }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally
+        {
+            CodexRemoveButton.IsEnabled = ClaudeRemoveButton.IsEnabled = true;
+            RefreshInstallStatus();
+        }
+    }
+
+    /// <summary>🗑 da IA Local: pergunta e remove modelo e backend (a pasta é a mesma do NXPilot).</summary>
+    private async void OnRemoveLlamaClick(object sender, RoutedEventArgs e)
+    {
+        var installer = new NXData.AgentInstaller.LocalAiInstaller();
+        var folder = installer.ResolveFolder();
+        if (MessageBox.Show(this, App.Str("Setup_RemoveLlamaAsk", folder), "NXProject Setup", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        LlamaRemoveButton.IsEnabled = false;
+        try
+        {
+            await Task.Run(() => installer.Uninstall(folder));
+            Step3StatusText.Text = App.Str("Setup_LlamaRemoved");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+        finally { LlamaRemoveButton.IsEnabled = true; RefreshInstallStatus(); }
     }
 
     // IA Local instalada? Checagem leve (sem LLamaSharp): lê a pasta de recursos no local-ai.json
