@@ -79,6 +79,7 @@ internal static class Program
         ("NxAgentApi: PAT cifrado com a chave do par volta igual; sem a chave nao decifra; conexao incompleta e lote grande recusados", AgentApiSecretsAndValidation),
         ("Adm_NX GitProject RESTRITO (agentes): lista/time decide; dono desconhecido ou time nao lido NEGA; regra vazia libera", GitAdminRestrictedDecision),
         ("Codex local: modelo que a conta ChatGPT nao aceita tenta de novo com o testado; -m do usuario respeitado; dica certa (nao PATH)", CodexUnsupportedModelRetry),
+        ("Licenca: SixLabors.Fonts (dependencia do ClosedXML) continua na 1.x (Apache-2.0) — a 2.x tem licenca comercial", SixLaborsFontsStaysOnApacheLicense),
         ("Adm_NX GitProject: time da organizacao usa os membros; falha tecnica NAO bloqueia", GitAdminTeamAndFailOpen),
         ("Anexo GitProject: caminho e tipo_numero por nivel, sem titulo", GitAttachmentPathMirrorsHierarchy),
         ("Anexo GitProject: renomear o item NAO muda o caminho do anexo", GitAttachmentReusesFolderAfterRename),
@@ -3221,6 +3222,36 @@ internal static class Program
     // recusa o que esta incompleto ANTES de ir ao servidor.
     // Regra restrita do GitProject (NxAgentApi): o valor e STRING (lista de logins ou @org/time),
     // diferente do picklist de grupo do DevOps; falha tecnica NEGA (a tela libera).
+    /// <summary>
+    /// SixLabors.Fonts vem junto com o ClosedXML. Ate a 1.x e Apache-2.0; a partir da 2.0 a Six Labors usa licenca
+    /// propria (comercial paga acima de certo faturamento). Falha se a 2.x entrar — no build de teste ou em qualquer
+    /// projeto da solucao (app, Setup, testes), para ninguem subir a versao sem perceber.
+    /// </summary>
+    private static void SixLaborsFontsStaysOnApacheLicense()
+    {
+        var loaded = System.Reflection.Assembly.Load(new System.Reflection.AssemblyName("SixLabors.Fonts")).GetName().Version;
+        if (loaded == null || loaded.Major >= 2)
+            throw new Exception($"SixLabors.Fonts {loaded} carregada: a 2.x nao e Apache-2.0. Trave abaixo de 2.0 (ClosedXML 0.104 usa a 1.0.0).");
+
+        // Versao resolvida pelo NuGet em cada projeto da solucao (project.assets.json do restore).
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "NXProject.Community.sln"))) dir = dir.Parent;
+        if (dir == null) return; // fora da solucao (zip de release): vale a checagem da DLL acima
+        foreach (var assets in Directory.EnumerateFiles(dir.FullName, "project.assets.json", SearchOption.AllDirectories)
+                     .Where(f => !f.Contains(Path.DirectorySeparatorChar + "external" + Path.DirectorySeparatorChar)))
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(assets));
+            if (!doc.RootElement.TryGetProperty("libraries", out var libs)) continue;
+            foreach (var lib in libs.EnumerateObject())
+            {
+                var parts = lib.Name.Split('/');
+                if (parts.Length == 2 && parts[0].Equals("SixLabors.Fonts", StringComparison.OrdinalIgnoreCase)
+                    && Version.TryParse(parts[1].Split('-')[0], out var v) && v.Major >= 2)
+                    throw new Exception($"SixLabors.Fonts {parts[1]} em {Path.GetRelativePath(dir.FullName, assets)}: a 2.x nao e Apache-2.0. Trave abaixo de 2.0.");
+            }
+        }
+    }
+
     private static void CodexUnsupportedModelRetry()
     {
         const string err = "ERROR: {\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.\"}";
